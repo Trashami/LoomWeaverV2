@@ -283,6 +283,8 @@ public static partial class BestiaryCreatorStore
 
         lock (Sync)
         {
+            Customs.Clear();
+            Collections.Clear();
             foreach (var c in customs) Customs[c.Key] = c;
             foreach (var h in heads)
             {

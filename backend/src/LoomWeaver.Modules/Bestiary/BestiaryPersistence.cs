@@ -102,14 +102,13 @@ public static class BestiaryPersistence
     /// <summary>Creates tables (once) and loads every persisted bestiary row into the in-memory stores.</summary>
     public static async Task EnsureReadyAsync(LoomWeaverMySqlRepository mysql, CancellationToken ct = default)
     {
-        if (_schemaReady) return;
         await Gate.WaitAsync(ct);
         try
         {
-            if (_schemaReady) return;
-            await using var conn = await mysql.OpenConnectionAsync(ct);
-            await using (var cmd = new MySqlCommand(Ddl, conn))
+                await using var conn = await mysql.OpenConnectionAsync(ct);
+            if (!_schemaReady)
             {
+                await using var cmd = new MySqlCommand(Ddl, conn);
                 await cmd.ExecuteNonQueryAsync(ct);
             }
             await BestiaryCreatorStore.LoadAsync(conn, ct);

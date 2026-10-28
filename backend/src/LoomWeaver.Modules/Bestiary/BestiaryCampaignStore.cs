@@ -235,6 +235,9 @@ public static class BestiaryCampaignStore
 
         lock (Sync)
         {
+            Assignments.Clear();
+            Placements.Clear();
+            Sightings.Clear();
             foreach (var a in assignments) Assignments[(a.CampaignId, a.MonsterKey)] = a;
             Placements.RemoveAll(p => placements.Any(x => x.Id == p.Id));
             Placements.AddRange(placements);

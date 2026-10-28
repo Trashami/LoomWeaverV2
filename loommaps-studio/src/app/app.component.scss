@@ -31,3 +31,6 @@
   max-width: calc(100vw - 32px);
   z-index: 80;
 }
+
+.lw-mode-pane{display:flex;flex:1;min-height:0;flex-direction:column;overflow:hidden}.lw-mode-pane[hidden]{display:none}.lw-mode-pane>lw-maps-page,.lw-mode-pane>lw-atlas-page{flex:1;min-height:0}
+.lw-maps-mode{display:flex;align-items:center;gap:.4rem;padding:.35rem .8rem;background:#08170f;border-bottom:1px solid #244332}.lw-maps-mode button{font:inherit;font-size:.78rem;padding:.4rem .9rem;border:1px solid #31523d;border-radius:1rem;background:#07140f;color:#b6cbbd;cursor:pointer}.lw-maps-mode button[aria-pressed=true]{background:#18422b;border-color:#49e892;color:#72ed9f}.lw-maps-mode span{margin-left:.6rem;font-size:.7rem;color:#819b88}@media(max-width:600px){.lw-maps-mode span{display:none}}

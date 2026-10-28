@@ -10,6 +10,7 @@ import re
 import shlex
 import tarfile
 import tempfile
+import sys
 
 import deploy_loommaps as connection
 
@@ -30,7 +31,7 @@ def command(ssh, script, sudo=False):
 
 def main():
     root = Path(__file__).resolve().parents[1]
-    dist = root / 'loommaps-studio/dist/loommaps-studio/browser'
+    dist = Path(sys.argv[1]).resolve() if len(sys.argv)>1 else root / 'loommaps-studio/dist/loommaps-studio/browser'
     html = (dist / 'index.html').read_text(encoding='utf-8')
     if 'lw-maps-studio-root' not in html:
         raise RuntimeError('Build is not the standalone map editor')

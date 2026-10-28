@@ -20,8 +20,14 @@
     (experienceModeChanged)="store.setExperienceMode($event)"
   />
 
+  <nav class="lw-maps-mode" aria-label="LoomMaps workspace mode">
+    <button ngpButton type="button" [attr.aria-pressed]="mode()==='battlemap'" (click)="setMode('battlemap')">Battlemap</button>
+    <button ngpButton type="button" [attr.aria-pressed]="mode()==='atlas'" (click)="setMode('atlas')">World Atlas</button>
+    <span>One campaign. From continents to encounters.</span>
+  </nav>
   <main class="lw-maps-shell__main">
-    <lw-maps-page />
+    <div class="lw-mode-pane" [hidden]="mode()!=='battlemap'"><lw-maps-page /></div>
+    @if (atlasOpened()) {<div class="lw-mode-pane" [hidden]="mode()!=='atlas'"><lw-atlas-page /></div>}
   </main>
 
   @if (loomDrawerOpen()) {

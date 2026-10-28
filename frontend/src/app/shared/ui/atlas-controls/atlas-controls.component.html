@@ -1,0 +1,107 @@
+<fieldset [disabled]="disabled()">
+  <header><span>WORLD ATLAS</span><h2>Shape your world</h2></header>
+  <nav aria-label="Atlas properties">
+    @for (tab of sections; track tab) {
+      <button ngpButton type="button" [class.active]="section()===tab" [attr.aria-pressed]="section()===tab" (click)="pickSection(tab)">{{tab}}</button>
+    }
+  </nav>
+  @if (section()==='Terrain' || section()==='Biomes') {
+    <section>
+      <h3>{{section()==='Terrain' ? 'Sculpt terrain' : 'Paint biome regions'}}</h3>
+      @if (section()==='Terrain') {
+        <div class="choices">@for (item of terrainTools; track item.id) {
+          <lw-button [label]="item.label" size="sm" [active]="tool()===item.id" (pressed)="toolChanged.emit(item.id)" />
+        }</div>
+      } @else {
+        <p>Paint colors independently of the terrain height. Steep slopes and high peaks retain rock and snow.</p>
+        <div class="choices">@for (b of biomes; track b.name; let i=$index) {
+          <button ngpButton type="button" class="swatch" [class.active]="brush().biome===i" (click)="setBrush('biome',i);toolChanged.emit('biome')">
+            <span [style.background]="b.color"></span>{{b.name}}
+          </button>
+        }</div>
+      }
+      <label>Brush radius <output>{{ (brush().radius / 240 * document().widthKm).toFixed(0) }} km</output>
+        <input type="range" min="1" max="35" step=".5" [ngModel]="brush().radius" (ngModelChange)="setBrush('radius',$event)" />
+      </label>
+      <label>Strength <output>{{(brush().strength*100).toFixed(0)}}%</output>
+        <input type="range" min=".05" max="1" step=".05" [ngModel]="brush().strength" (ngModelChange)="setBrush('strength',$event)" />
+      </label>
+      <label>Edge feathering <output>{{(brush().feather*100).toFixed(0)}}%</output>
+        <input type="range" min=".05" max="1" step=".05" [ngModel]="brush().feather" (ngModelChange)="setBrush('feather',$event)" />
+      </label>
+      @if (tool()==='flatten') {
+        <label>Flatten elevation <output>{{brush().flattenHeight.toFixed(2)}}</output>
+          <input type="range" min="-.5" max="1.5" step=".01" [ngModel]="brush().flattenHeight" (ngModelChange)="setBrush('flattenHeight',$event)" />
+        </label>
+      }
+      <p>Drag to paint. Right-drag to orbit; scroll to zoom. Choose Navigate to pan and explore.</p>
+    </section>
+  }
+  @if (section()==='Locations') {
+    <section>
+      <h3>Place a campaign location</h3>
+      <label>Link to existing location
+        <select [ngModel]="locationDraft().linkedKey" (ngModelChange)="draftChanged.emit({linkedKey:$event})">
+          <option value="">Create a new campaign location</option>
+          @for (l of locations(); track l.locationKey) {<option [value]="l.locationKey">{{l.name}}</option>}
+        </select>
+      </label>
+      @if (!locationDraft().linkedKey) {
+        <label>Location name<input maxlength="160" [ngModel]="locationDraft().name" (ngModelChange)="draftChanged.emit({name:$event})" /></label>
+      }
+      <label>Miniature type<select [ngModel]="locationDraft().kind" (ngModelChange)="draftChanged.emit({kind:$event})">
+        @for (kind of kinds; track kind) {<option [value]="kind">{{kind}}</option>}
+      </select></label>
+      <label class="color">Marker color<input type="color" [ngModel]="locationDraft().color" (ngModelChange)="draftChanged.emit({color:$event})" /></label>
+      <label>Location visibility<select [ngModel]="locationDraft().visibility" (ngModelChange)="draftChanged.emit({visibility:$event})">
+        <option value="gm">GM only</option><option value="players">Known to players</option>
+      </select></label>
+      <lw-button label="Place on map" [active]="tool()==='location'" [fullWidth]="true" (pressed)="toolChanged.emit('location')" />
+      <p>Click the land to place. Save atlas commits the location to campaign lore. Known locations appear in player PNG exports; the editable atlas is GM-only.</p>
+    </section>
+    @if (selected(); as m) {
+      <section>
+        <h3>Selected location</h3>
+        <label>Name<input maxlength="160" [ngModel]="m.name" (change)="markerChanged.emit({name:$any($event.target).value})" /></label>
+        <label>Miniature<select [ngModel]="m.kind" (ngModelChange)="markerChanged.emit({kind:$event})">
+          @for (kind of kinds; track kind) {<option [value]="kind">{{kind}}</option>}
+        </select></label>
+        <label class="color">Color<input type="color" [ngModel]="m.color" (change)="markerChanged.emit({color:$any($event.target).value})" /></label>
+        <label>Visibility<select [ngModel]="m.visibility" (ngModelChange)="markerChanged.emit({visibility:$event})">
+          <option value="gm">GM only</option><option value="players">Known to players</option>
+        </select></label>
+        <label>East / west <output>{{((m.x/240+.5)*document().widthKm).toFixed(0)}} km</output>
+          <input type="range" min="-119" max="119" step=".5" [ngModel]="m.x" (change)="markerChanged.emit({x:+$any($event.target).value})" />
+        </label>
+        <label>North / south <output>{{((.5-m.z/240)*document().heightKm).toFixed(0)}} km</output>
+          <input type="range" min="-119" max="119" step=".5" [ngModel]="m.z" (change)="markerChanged.emit({z:+$any($event.target).value})" />
+        </label>
+        <code>{{m.locationKey}}</code>
+        <lw-button label="Remove miniature" variant="danger" size="sm" (pressed)="markerRemoved.emit()" />
+        <p>Removing a miniature keeps the campaign location and its lore.</p>
+      </section>
+    }
+    <section><h3>Locations on this atlas</h3>
+      @for (m of document().markers; track m.id) {
+        <button ngpButton type="button" class="location-row" [class.active]="selected()?.id===m.id" (click)="markerSelected.emit(m.id)">{{m.name}} <small>{{m.kind}} · {{m.visibility==='gm'?'GM':'Known'}}</small></button>
+      } @empty {<p>No locations yet. Place a village, city, ruin, or landmark above.</p>}
+      <a href="https://loom-weaver.com/world-lore" target="_blank" rel="noopener">Open campaign world lore</a>
+    </section>
+  }
+  @if (section()==='World') {
+    <section><h3>World &amp; scale</h3>
+      <label>Atlas name<input maxlength="160" [ngModel]="document().name" (change)="worldChanged.emit({name:$any($event.target).value})" /></label>
+      <label>Width (km)<input type="number" min="10" max="20000" [ngModel]="document().widthKm" (change)="worldChanged.emit({widthKm:+$any($event.target).value})" /></label>
+      <label>Height (km)<input type="number" min="10" max="20000" [ngModel]="document().heightKm" (change)="worldChanged.emit({heightKm:+$any($event.target).value})" /></label>
+      <label>Sea level <output>{{document().seaLevel.toFixed(2)}}</output>
+        <input type="range" min="-.5" max=".65" step=".01" [ngModel]="document().seaLevel" (change)="worldChanged.emit({seaLevel:+$any($event.target).value})" />
+      </label>
+      <p>{{document().resolution}} × {{document().resolution}} terrain cells. Travel distances use your world scale; sculpting resolution remains independent.</p>
+    </section>
+    <section><h3>Landmass generator</h3>
+      <label>Seed<input #seed type="number" [value]="document().seed" /></label>
+      <lw-button label="Regenerate landmass" variant="secondary" (pressed)="regenerate.emit(+seed.value)" />
+      <p>Replaces terrain, biomes, and miniature placements. Undo restores them; saved lore records are retained.</p>
+    </section>
+  }
+</fieldset>

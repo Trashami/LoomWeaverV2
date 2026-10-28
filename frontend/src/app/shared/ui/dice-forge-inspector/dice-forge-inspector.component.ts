@@ -1,3 +1,4 @@
+import { DICE_FONTS } from '../../../features/dice/engine/materials/dice-fonts';
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -68,8 +69,7 @@ export class LwDiceForgeInspectorComponent {
   readonly blendModes: readonly DiceBlendMode[] = ['normal', 'multiply', 'screen', 'overlay', 'additive'];
   readonly pulseWaveforms: readonly DicePulseWaveform[] = ['sine', 'heartbeat', 'sawtooth', 'flicker'];
   readonly fontFamilies: ReadonlyArray<{ label: string; value: string }> = [
-    { label: 'Cinzel Royal Serif', value: 'Cinzel, Georgia, serif' },
-    { label: 'Nordic Runic', value: '"Nordic Chance", Cinzel, serif' },
+    ...DICE_FONTS,
     { label: 'Georgia Classic', value: 'Georgia, serif' },
     { label: 'Palatino Chronicle', value: '"Palatino Linotype", serif' },
     { label: 'Trebuchet Guild Sans', value: '"Trebuchet MS", sans-serif' },

@@ -1,3 +1,5 @@
+import { diceHaloColor } from './materials/dice-light.plugin';
+import { viewportTray } from './dice-viewport-tray';
 import { inject, Injectable, NgZone, signal } from '@angular/core';
 import {
   ArcRotateCamera,
@@ -129,15 +131,16 @@ export class BabylonDiceStageService {
       pointLight.diffuse = hexToColor3(this.currentCustom.glowColorHex);
       this.accentPointLight = pointLight;
 
-      this.glowLayer = new GlowLayer('lw-dice-glow', scene, { mainTextureSamples: 4, blurKernelSize: 32 });
-      this.glowLayer.intensity = 0.48 * this.currentCustom.glowIntensity;
+      this.glowLayer = new GlowLayer('lw-dice-glow', scene, { mainTextureSamples: 1, blurKernelSize: 16 });
+      this.glowLayer.customEmissiveColorSelector = (_mesh, _subMesh, material, result) => diceHaloColor(material, result);
+      this.glowLayer.intensity = 0.22 * this.currentCustom.glowIntensity;
 
       this.updateBoundaryWireframe();
       this.rebuildShowcaseDice();
 
       void preloadDiceSurfaceAssets().then(() => {
-        if (this.scene && !this.isRolling && this.stageMode() === 'showcase') {
-          this.rebuildShowcaseDice();
+        if (this.scene) {
+          this.syncStageLightingAndRebuild();
         }
       });
 
@@ -242,7 +245,7 @@ export class BabylonDiceStageService {
   previewCritOutcomeEffect(outcomeKind: 'nat20' | 'critfail'): void {
     if (!this.scene) return;
     const origin = this.activeDice[0]?.mesh.position.clone() ?? new Vector3(0, 0.35, 0);
-    const scaleBoost = (this.currentCustom.critBurstIntensity ?? 1.0) * this.currentCustom.glowIntensity;
+    const scaleBoost = (this.currentCustom.critBurstIntensity ?? 1.0);
     if (outcomeKind === 'nat20') {
       const preset = resolveNat20Effect(this.currentCustom.nat20EffectId);
       this.soundService.playCriticalSuccessFanfare(this.currentCustom.soundProfileId);
@@ -296,7 +299,7 @@ export class BabylonDiceStageService {
 
     const plans: DiePhysicsTrajectoryPlan[] = createPhysicsBoxTrajectoryPlans(planEntries.map((entry, i) => ({
       ...entry, collisionVertices: Array.from(this.activeDice[i].builtGeometry.vertexData.positions!),
-    })), sizeScale, phys);
+    })), sizeScale, viewportTray(phys, this.scene.activeCamera, this.engine!.getRenderWidth() / this.engine!.getRenderHeight()));
     this.activeDice.forEach((die, i) => {
       die.mesh.position.copyFrom(plans[i].startPos); die.mesh.rotationQuaternion = plans[i].startQuat.clone();
     });
@@ -315,6 +318,12 @@ export class BabylonDiceStageService {
         const pose = evaluateDieTrajectoryStep(plans[i], t, sizeScale, (intensity) => {
           if (i <= 2) this.soundService.playBounceImpact(this.currentCustom.soundProfileId, intensity);
         });
+        if (i === 0 && t < 1) {
+          const previous = this.activeDice[i].mesh.rotationQuaternion;
+          const q = pose.rotationQuaternion;
+          const dot = previous ? Math.abs(previous.x*q.x + previous.y*q.y + previous.z*q.z + previous.w*q.w) : 1;
+          this.soundService.playTumbleResonance(this.currentCustom.soundProfileId, 2 * Math.acos(Math.min(1, dot)) / 0.016);
+        }
         this.activeDice[i].mesh.position.copyFrom(pose.position);
         this.activeDice[i].mesh.rotationQuaternion = pose.rotationQuaternion;
 
@@ -377,7 +386,7 @@ export class BabylonDiceStageService {
       this.accentPointLight.diffuse = glowColor;
       this.accentPointLight.intensity = 0.85 * lightMult;
     }
-    if (this.glowLayer) this.glowLayer.intensity = 0.48 * this.currentCustom.glowIntensity;
+    if (this.glowLayer) this.glowLayer.intensity = 0.22 * this.currentCustom.glowIntensity;
     this.updateBoundaryWireframe();
     if (this.isRolling) { this.pendingRebuild = true; return; }
     this.pendingRebuild = false;

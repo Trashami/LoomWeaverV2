@@ -1,10 +1,11 @@
+import { synthesizeDiceImpact, ImpactSurface } from './dice-impact-synthesis';
 import { Injectable, signal } from '@angular/core';
 
 export interface DiceSoundProfile {
   id: string;
   name: string;
   description: string;
-  materialCategory: 'stone' | 'metal' | 'glass' | 'resin' | 'wood' | 'arcane';
+  materialCategory: 'stone' | 'metal' | 'glass' | 'resin' | 'wood' | 'arcane' | 'felt' | 'plastic' | 'bell';
   baseFrequencyHz: number;
   resonanceQ: number;
   decaySeconds: number;
@@ -15,7 +16,7 @@ export interface DiceSoundProfile {
 export const DICE_SOUND_PROFILES: DiceSoundProfile[] = [
   {
     id: 'sfx-stone-rattle',
-    name: 'Basalt & Runestone Clatter',
+    name: 'Dice on stone',
     description: 'Deep lithic impacts with slate-table scraping resonance',
     materialCategory: 'stone',
     baseFrequencyHz: 260,
@@ -25,7 +26,7 @@ export const DICE_SOUND_PROFILES: DiceSoundProfile[] = [
   },
   {
     id: 'sfx-metal-clink',
-    name: 'Forged Steel & Brass Ring',
+    name: 'Dice on metal',
     description: 'Crisp metallic strikes with high-frequency harmonic overtones',
     materialCategory: 'metal',
     baseFrequencyHz: 920,
@@ -35,7 +36,7 @@ export const DICE_SOUND_PROFILES: DiceSoundProfile[] = [
   },
   {
     id: 'sfx-crystal-chime',
-    name: 'Astral Glass & Prism Chime',
+    name: 'Dice on glass',
     description: 'Crystalline bell-like impacts with shimmering harmonic tail',
     materialCategory: 'glass',
     baseFrequencyHz: 1340,
@@ -45,7 +46,7 @@ export const DICE_SOUND_PROFILES: DiceSoundProfile[] = [
   },
   {
     id: 'sfx-resin-clatter',
-    name: 'Tournament Resin Bounce',
+    name: 'Dice on plastic',
     description: 'Snappy tabletop polyhedral clatter across felt and oak',
     materialCategory: 'resin',
     baseFrequencyHz: 520,
@@ -55,7 +56,7 @@ export const DICE_SOUND_PROFILES: DiceSoundProfile[] = [
   },
   {
     id: 'sfx-wood-tumble',
-    name: 'Edhellain Moonwood Tumble',
+    name: 'Dice on wood',
     description: 'Warm, hollow hardwood knocks with organic grain resonance',
     materialCategory: 'wood',
     baseFrequencyHz: 340,
@@ -65,14 +66,15 @@ export const DICE_SOUND_PROFILES: DiceSoundProfile[] = [
   },
   {
     id: 'sfx-arcane-hum',
-    name: 'Aether & Void Resonance',
+    name: 'Resonant bell core',
     description: 'Phase-shifted crystalline pulses with sub-octave hum',
-    materialCategory: 'arcane',
+    materialCategory: 'bell',
     baseFrequencyHz: 680,
     resonanceQ: 12.5,
     decaySeconds: 0.16,
     harmonicRatio: 1.88
-  }
+  },
+  { id: 'sfx-felt-soft', name: 'Dice on felt', description: 'Soft padded tray impacts', materialCategory: 'felt', baseFrequencyHz: 240, resonanceQ: 1, decaySeconds: 0.055, harmonicRatio: 1.71 }
 ];
 
 export function resolveDiceSoundProfile(profileId: string | null | undefined): DiceSoundProfile {
@@ -97,6 +99,9 @@ export class DiceSoundService {
   readonly muted = signal<boolean>(false);
 
   private audioCtx: AudioContext | null = null;
+  private buffers = new Map<string, AudioBuffer>();
+  private voices = new Set<AudioBufferSourceNode>();
+  private lastBell = 0;
 
   setVolume(val: number): void {
     this.volume.set(Math.max(0, Math.min(1, val)));
@@ -109,82 +114,41 @@ export class DiceSoundService {
   playRollStartClatter(profileId: string, diceCount = 1): void {
     const ctx = this.ensureContext();
     if (!ctx) return;
-    const count = Math.min(6, Math.max(1, diceCount));
-    for (let i = 0; i < count + 2; i++) {
-      const delayMs = i * 38 + Math.random() * 22;
-      const intensity = Math.max(0.28, 0.92 - i * 0.11);
-      setTimeout(() => this.playBounceImpact(profileId, intensity), delayMs);
-    }
+    // A short hand rattle; table impacts follow the simulated collision frames.
+    this.playBounceImpact(profileId, Math.min(0.3, diceCount * 0.06));
   }
 
   playBounceImpact(profileId: string, intensity = 0.75): void {
     const ctx = this.ensureContext();
-    if (!ctx) return;
-
-    const profile = resolveDiceSoundProfile(profileId);
-    const gainScale = this.volume() * Math.max(0.1, Math.min(1, intensity));
-    if (gainScale <= 0.01) return;
-
-    const now = ctx.currentTime;
-    const jitter = 0.88 + Math.random() * 0.26;
-    const freq = profile.baseFrequencyHz * jitter;
-
-    // Primary resonant body oscillator
-    const osc = ctx.createOscillator();
-    const osc2 = ctx.createOscillator();
-    const filter = ctx.createBiquadFilter();
-    const env = ctx.createGain();
-
-    osc.type = profile.materialCategory === 'metal' || profile.materialCategory === 'glass' ? 'sine' : 'triangle';
-    osc.frequency.setValueAtTime(freq, now);
-    osc.frequency.exponentialRampToValueAtTime(Math.max(55, freq * 0.48), now + profile.decaySeconds);
-
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(freq * profile.harmonicRatio, now);
-    osc2.frequency.exponentialRampToValueAtTime(
-      Math.max(80, freq * profile.harmonicRatio * 0.65),
-      now + profile.decaySeconds * 0.85
-    );
-
-    filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(freq * 1.25, now);
-    filter.Q.setValueAtTime(profile.resonanceQ, now);
-
-    env.gain.setValueAtTime(0.001, now);
-    env.gain.linearRampToValueAtTime(0.28 * gainScale, now + 0.004);
-    env.gain.exponentialRampToValueAtTime(0.0008, now + profile.decaySeconds);
-
-    osc.connect(filter);
-    osc2.connect(filter);
-    filter.connect(env);
-    env.connect(ctx.destination);
-
-    osc.start(now);
-    osc2.start(now);
-    osc.stop(now + profile.decaySeconds + 0.02);
-    osc2.stop(now + profile.decaySeconds + 0.02);
+    if (!ctx || this.voices.size >= 12 || intensity <= 0.01) return;
+    const category = resolveDiceSoundProfile(profileId).materialCategory;
+    const surface: ImpactSurface = category === 'resin' ? 'plastic' : category === 'arcane' ? 'bell' : category;
+    const variant = Math.floor(Math.random() * 4);
+    const key = `${surface}:${variant}`;
+    let buffer = this.buffers.get(key);
+    if (!buffer) {
+      const samples = synthesizeDiceImpact(surface, ctx.sampleRate, variant + 41);
+      buffer = ctx.createBuffer(1, samples.length, ctx.sampleRate);
+      buffer.getChannelData(0).set(samples); this.buffers.set(key, buffer);
+    }
+    const source = ctx.createBufferSource(), gain = ctx.createGain();
+    source.buffer = buffer; source.playbackRate.value = 0.97 + Math.random() * 0.06;
+    gain.gain.value = this.volume() * Math.max(0, Math.min(1, intensity));
+    source.connect(gain); gain.connect(ctx.destination); this.voices.add(source);
+    source.onended = () => { this.voices.delete(source); source.disconnect(); gain.disconnect(); };
+    source.start();
   }
 
-  playSettleChime(profileId: string): void {
-    const ctx = this.ensureContext();
-    if (!ctx) return;
-    const profile = resolveDiceSoundProfile(profileId);
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
+  playTumbleResonance(profileId: string, angularSpeed: number): void {
+    const category = resolveDiceSoundProfile(profileId).materialCategory;
+    if ((category !== 'bell' && category !== 'arcane') || angularSpeed < 0.6) return;
+    const now = performance.now();
+    if (now - this.lastBell < Math.max(160, 650 / angularSpeed)) return;
+    this.lastBell = now; this.playBounceImpact(profileId, Math.min(0.16, angularSpeed * 0.012));
+  }
 
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(profile.baseFrequencyHz * 1.15, now);
-    osc.frequency.exponentialRampToValueAtTime(profile.baseFrequencyHz * 1.45, now + 0.14);
-
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(0.16 * this.volume(), now + 0.015);
-    gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.18);
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.2);
+  playSettleChime(_profileId: string): void {
+    // Ordinary dice stop sounding when their final contact decays.
   }
 
   playCriticalSuccessFanfare(profileId?: string): void {

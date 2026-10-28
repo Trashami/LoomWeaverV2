@@ -1,6 +1,8 @@
+import { diceFontFamily } from './dice-fonts';
 import { DieFaceLayout, isInsideFace } from '../models/face-layout';
 import { buildBabylonDieVertexData } from '../models/chamfer-geometry.builder';
 import { DiceModelDefinition, DICE_SIZE_SCALE_MAP, DicePolyhedronType } from '../models/dice-model.types';
+import { FACE_VALUES } from '../models/polyhedra-tables.model';
 import { DiceCustomRuntimeConfig, DiceSkinConfig } from '../skins/dice-skin.types';
 
 export interface NumberPlacement { label: string; x: number; y: number; rotation: number; }
@@ -15,7 +17,7 @@ export function faceNumberPlacements(layout: DieFaceLayout, label: string): Numb
 }
 
 export function numberFont(custom: DiceCustomRuntimeConfig, skin: DiceSkinConfig, pixels: number): string {
-  return `${custom.fontWeight || '700'} ${pixels}px ${custom.fontFamily || skin.fontFamily || 'Georgia, serif'}`;
+  return `${custom.fontWeight || '700'} ${pixels}px ${diceFontFamily(custom.fontFamily || skin.fontFamily || 'Georgia, serif')}`;
 }
 
 export function placementFits(ctx: CanvasRenderingContext2D, layout: DieFaceLayout,
@@ -37,27 +39,27 @@ const sizeCache = new Map<string, number>();
 export function setNumberWorldSize(custom: DiceCustomRuntimeConfig, skin: DiceSkinConfig, model: DiceModelDefinition): number {
   const key = JSON.stringify([custom.fontFamily, custom.fontWeight, custom.fontScale, custom.fontTracking,
     custom.numberStrokeWidth, custom.sizePreset, custom.physics.scale, custom.chamferBevelFactor, model.id,
-    skin.fontFamily, document.fonts?.check(`100px ${custom.fontFamily}`)]);
+    skin.fontFamily, document.fonts?.check(`100px ${diceFontFamily(custom.fontFamily || skin.fontFamily)}`)]);
   const cached = sizeCache.get(key);
   if (cached !== undefined) return cached;
   const ctx = document.createElement('canvas').getContext('2d')!;
   ctx.font = numberFont(custom, skin, 100);
   const scale = DICE_SIZE_SCALE_MAP[custom.sizePreset] * model.scaleMultiplier * (custom.physics.scale / 5);
   const chamfer = custom.chamferBevelFactor ?? model.chamferFactor;
-  const types: DicePolyhedronType[] = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20', 'd100'];
-  const layouts = types.flatMap(type => [...buildBabylonDieVertexData(type, 1.15 * scale, chamfer, model.id === 'model-custom-glb').faceLayouts.values()]);
-  let size = 0.34 * scale * Math.max(0.55, Math.min(1.45, custom.fontScale ?? 1));
-  const labels = Array.from({ length: 100 }, (_, i) => String(i).padStart(2, '0'));
+  const types: DicePolyhedronType[] = ['d6', 'd8', 'd10', 'd12', 'd20', 'd100'];
+  const layouts = types.flatMap(type => [...buildBabylonDieVertexData(type, 1.15 * scale, chamfer, model.id === 'model-custom-glb').faceLayouts.values()].map(layout => ({ layout, labels: FACE_VALUES[type].map(value => type === 'd100' ? String(value === 10 ? '00' : value * 10) : type === 'd10' && value === 10 ? '0' : String(value)) })));
+  let size = 1.5 * scale;
   // Tracking is measured conservatively in the shared safe area as well as painted consistently.
   const paddingRatio = ((custom.numberStrokeWidth ?? 0) + Math.abs(custom.fontTracking ?? 0)) / 100 + 0.065;
   for (let attempt = 0; attempt < 80; attempt++) {
-    const fits = layouts.every(layout => {
+    const fits = layouts.every(({ layout, labels }) => {
       const candidates = layout.vertexValues ? faceNumberPlacements(layout, '')
         : labels.map(label => ({ label, x: 0.5, y: 0.5, rotation: 0 }));
       return candidates.every(placement => placementFits(ctx, layout, placement, size / layout.unitsPerUv, paddingRatio * size / layout.unitsPerUv));
     });
     if (fits) {
       if (sizeCache.size >= 32) sizeCache.delete(sizeCache.keys().next().value!);
+      size *= Math.max(0.2, Math.min(1, (custom.fontScale ?? 1) / 1.4));
       sizeCache.set(key, size); return size;
     }
     size *= 0.95;

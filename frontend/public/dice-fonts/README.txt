@@ -1,0 +1,1 @@
+Loom Nordic is an original angular numeral design created for LoomWeaver. Other numeral subsets derive from Google Fonts: Cinzel, MedievalSharp, Pirata One, Uncial Antiqua. Their original OFL licenses are included. Modified family names use the Loom prefix. Only digits, space and period are bundled.

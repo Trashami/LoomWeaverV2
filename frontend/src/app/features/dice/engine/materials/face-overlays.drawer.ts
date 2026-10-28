@@ -1,5 +1,5 @@
 import { DieFaceLayout } from '../models/face-layout';
-import { faceNumberPlacements } from './number-layout';
+import { faceNumberPlacements, placementFits, numberFont } from './number-layout';
 import { drawEngravedLabel } from './number-engraving.drawer';
 import { DiceBlendMode } from '../dice-physics.types';
 import { DiceCustomRuntimeConfig, DiceSkinConfig } from '../skins/dice-skin.types';
@@ -118,54 +118,13 @@ export function createFaceCanvas(
     ctx.restore();
   }
 
-  // Core Inner Glow Layer
-  if (custom.coreInnerGlowEnabled && custom.coreInnerGlowOpacity > 0.02) {
-    const igColor = custom.coreInnerGlowColor || glowColor;
-    const igSize = Math.max(4, (custom.coreInnerGlowSize ?? 16) * (size / 256));
-    const choke = Math.max(0.05, Math.min(0.95, 1 - (custom.coreInnerGlowChoke ?? 0.25) * 0.5));
-    ctx.save();
-    ctx.globalCompositeOperation = 'screen';
-    const ig = ctx.createRadialGradient(size * 0.5, size * 0.5, size * 0.48 * choke - igSize, size * 0.5, size * 0.5, size * 0.5);
-    ig.addColorStop(0, 'rgba(0,0,0,0)');
-    ig.addColorStop(1, hexWithAlpha(igColor, custom.coreInnerGlowOpacity));
-    ctx.fillStyle = ig;
-    ctx.fillRect(0, 0, size, size);
-    ctx.restore();
-
-    eCtx.save();
-    eCtx.fillStyle = ig;
-    eCtx.fillRect(0, 0, size, size);
-    eCtx.restore();
-  }
-
-  // Core Outer / Ambient Glow Layer
-  if (custom.coreOuterGlowEnabled && custom.coreOuterGlowOpacity > 0.02) {
-    const ogColor = custom.coreOuterGlowColor || glowColor;
-    const ogSpread = Math.max(0.15, Math.min(0.9, custom.coreOuterGlowSpread ?? 0.35));
-    const og = ctx.createRadialGradient(size * 0.5, size * 0.5, size * 0.05, size * 0.5, size * 0.5, size * (0.35 + ogSpread * 0.35));
-    og.addColorStop(0, hexWithAlpha(ogColor, custom.coreOuterGlowOpacity * 0.45));
-    og.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.save();
-    ctx.globalCompositeOperation = 'screen';
-    ctx.fillStyle = og;
-    ctx.fillRect(0, 0, size, size);
-    ctx.restore();
-
-    eCtx.save();
-    eCtx.fillStyle = og;
-    eCtx.fillRect(0, 0, size, size);
-    eCtx.restore();
-  }
-
   // Initialize Height Canvas + Surface Bump Relief
   hCtx.fillStyle = 'rgb(128,128,128)';
   hCtx.fillRect(0, 0, size, size);
   drawSurfaceBumpHeight(hCtx, size, surfaceStyle, custom.bumpMapIntensity ?? 1.0);
 
-  if (!custom.coreInnerGlowEnabled && !custom.coreOuterGlowEnabled) {
-    eCtx.fillStyle = '#000000';
-    eCtx.fillRect(0, 0, size, size);
-  }
+  eCtx.fillStyle = '#000000';
+  eCtx.fillRect(0, 0, size, size);
 
   if (label && layout) paintFaceNumbers({ diffuseCanvas, heightCanvas, emissiveCanvas }, label, layout, worldFontSize, skin, custom);
   return { diffuseCanvas, heightCanvas, emissiveCanvas };
@@ -188,6 +147,10 @@ function paintFaceNumbers(pair: FaceCanvasPair, label: string, layout: DieFaceLa
     ctx.save(); ctx.beginPath();
     layout.polygon.forEach(([u, v], i) => i ? ctx.lineTo(u * size, v * size) : ctx.moveTo(u * size, v * size));
     ctx.closePath(); ctx.clip();
+  }
+  {
+    contexts[0].font = numberFont(custom, skin, 100);
+    for (let i = 0; i < 80 && !faceNumberPlacements(layout, label).every(p => placementFits(contexts[0], layout, p, worldFontSize / layout.unitsPerUv, worldFontSize / layout.unitsPerUv * (((custom.numberStrokeWidth ?? 0) + Math.abs(custom.fontTracking ?? 0)) / 100 + 0.065))); i++) worldFontSize *= 0.95;
   }
   for (const placement of faceNumberPlacements(layout, label)) {
     drawEngravedLabel(contexts[0], contexts[1], contexts[2], placement.label,

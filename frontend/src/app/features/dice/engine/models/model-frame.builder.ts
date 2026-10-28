@@ -6,7 +6,8 @@ import { getPolyhedronRawTable } from './polyhedra-tables.model';
 export function addDiceModelFrame(parent: Mesh, type: DicePolyhedronType, radius: number,
   material: PBRMaterial, scene: Scene): void {
   const table = getPolyhedronRawTable(type);
-  const vertices = table.vertices.map(v => new Vector3(...v as [number, number, number]).normalize().scale(radius * table.scaleFactor));
+  const radiusScale = Math.max(...table.vertices.map(v => Math.hypot(...v)));
+  const vertices = table.vertices.map(v => Vector3.FromArray(v).scale(radius * table.scaleFactor / radiusScale));
   const frameMaterial = material.clone(`${parent.name}-frame-material`)!;
   frameMaterial.alpha = 1;
   frameMaterial.metallic = 0.85;

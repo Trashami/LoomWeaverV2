@@ -1,3 +1,5 @@
+import { diceHaloColor } from './materials/dice-light.plugin';
+import { viewportTray } from './dice-viewport-tray';
 import { NgZone } from '@angular/core';
 import {
   ArcRotateCamera,
@@ -38,6 +40,7 @@ import { resolveDiceSkin } from './skins';
 
 export class FullscreenDiceBabylonRunner {
   private readonly critEffectsRunner = new DiceCritEffectsRunner();
+  private assetsLoaded = false;
   private canvas: HTMLCanvasElement | null = null;
   private engine: Engine | null = null;
   private scene: Scene | null = null;
@@ -97,12 +100,13 @@ export class FullscreenDiceBabylonRunner {
       this.accentPointLight = pointLight;
 
       this.glowLayer = new GlowLayer('lw-fs-dice-glow', scene, {
-        mainTextureSamples: 4,
-        blurKernelSize: 32
+        mainTextureSamples: 1,
+        blurKernelSize: 16
       });
+      this.glowLayer.customEmissiveColorSelector = (_mesh, _subMesh, material, result) => diceHaloColor(material, result);
       this.glowLayer.intensity = 0.45;
 
-      void preloadDiceSurfaceAssets();
+      void preloadDiceSurfaceAssets().then(() => { this.assetsLoaded = true; });
 
       const startClock = performance.now();
       this.engine.runRenderLoop(() => {
@@ -132,6 +136,15 @@ export class FullscreenDiceBabylonRunner {
       return;
     }
 
+    if (!this.assetsLoaded) {
+      const scene = this.scene;
+      void preloadDiceSurfaceAssets().then(() => {
+        this.assetsLoaded = true;
+        if (scene === this.scene) this.runRoll(entries, req, onSettled);
+      });
+      return;
+    }
+
     if (this.rollStepTimer !== null) {
       clearTimeout(this.rollStepTimer);
       this.rollStepTimer = null;
@@ -146,7 +159,7 @@ export class FullscreenDiceBabylonRunner {
       this.accentPointLight.diffuse = hexToColor3(custom.glowColorHex || skin.emissiveColor);
     }
     if (this.glowLayer) {
-      this.glowLayer.intensity = 0.45 * custom.glowIntensity;
+      this.glowLayer.intensity = 0.22 * custom.glowIntensity;
     }
 
     this.ngZone.runOutsideAngular(() => {
@@ -174,7 +187,7 @@ export class FullscreenDiceBabylonRunner {
       const plans: DiePhysicsTrajectoryPlan[] = createPhysicsBoxTrajectoryPlans(entries.map((entry, i) => ({
         dieType: entry.dieType, targetValue: entry.value,
         collisionVertices: Array.from(this.activeDice[i].builtGeometry.vertexData.positions!),
-      })), sizeScale, custom.physics);
+      })), sizeScale, viewportTray(custom.physics, this.scene!.activeCamera, this.engine!.getRenderWidth() / this.engine!.getRenderHeight()));
       this.activeDice.forEach((die, i) => {
         die.mesh.position.copyFrom(plans[i].startPos); die.mesh.rotationQuaternion = plans[i].startQuat.clone();
       });
@@ -196,6 +209,11 @@ export class FullscreenDiceBabylonRunner {
             }
           });
           const dieMesh = this.activeDice[i].mesh;
+          if (i === 0 && t < 1) {
+            const previous = dieMesh.rotationQuaternion, q = pose.rotationQuaternion;
+            const dot = previous ? Math.abs(previous.x*q.x + previous.y*q.y + previous.z*q.z + previous.w*q.w) : 1;
+            this.soundService.playTumbleResonance(custom.soundProfileId, 2 * Math.acos(Math.min(1, dot)) / 0.016);
+          }
           dieMesh.position.copyFrom(pose.position);
           dieMesh.rotationQuaternion = pose.rotationQuaternion;
 
@@ -258,7 +276,7 @@ export class FullscreenDiceBabylonRunner {
           targetPos,
           this.scene,
           this.glowLayer,
-          0.55 * custom.glowIntensity
+          0.55 * (custom.critBurstIntensity ?? 1)
         );
       } else if (isCritFail) {
         this.soundService.playCriticalFailureFracture();
@@ -267,7 +285,7 @@ export class FullscreenDiceBabylonRunner {
           targetPos,
           this.scene,
           this.glowLayer,
-          0.45 * custom.glowIntensity
+          0.45 * (custom.critBurstIntensity ?? 1)
         );
       }
     }

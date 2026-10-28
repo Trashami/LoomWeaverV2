@@ -1,0 +1,317 @@
+[
+  {
+    "name": "Cinder Hands",
+    "spellName": "Burning Hands",
+    "description": "Twin ember-filled palms warm up before a fire spell.",
+    "specs": [
+      {
+        "kind": "sparks",
+        "variant": "embers",
+        "color": "#ff792e",
+        "size": 4,
+        "spread": 16,
+        "count": 20,
+        "offsetX": 19,
+        "offsetY": -13,
+        "motion": {
+          "direction": -90,
+          "cone": 55,
+          "speed": 0.65,
+          "turbulence": 30
+        }
+      },
+      {
+        "kind": "sparks",
+        "variant": "embers",
+        "color": "#ff792e",
+        "size": 4,
+        "spread": 16,
+        "count": 20,
+        "offsetX": 19,
+        "offsetY": 13,
+        "motion": {
+          "direction": -90,
+          "cone": 55,
+          "speed": 0.65,
+          "turbulence": 30
+        }
+      },
+      {
+        "kind": "aura",
+        "variant": "flame",
+        "color": "#d64b20",
+        "size": 28,
+        "count": 16,
+        "opacity": 0.25
+      }
+    ],
+    "source": "effectbuilder-studio/src/app/effects/ambient-caster-presets.ts",
+    "sourceKind": "caster"
+  },
+  {
+    "name": "Rimebound Hands",
+    "spellName": "Ray of Frost",
+    "description": "Crystal motes gather around two cold, luminous palms.",
+    "specs": [
+      {
+        "kind": "sparks",
+        "variant": "embers",
+        "color": "#8cddff",
+        "size": 4,
+        "spread": 16,
+        "count": 20,
+        "offsetX": 19,
+        "offsetY": -13,
+        "motion": {
+          "direction": -90,
+          "speed": 0.25,
+          "turbulence": 12
+        }
+      },
+      {
+        "kind": "sparks",
+        "variant": "embers",
+        "color": "#8cddff",
+        "size": 4,
+        "spread": 16,
+        "count": 20,
+        "offsetX": 19,
+        "offsetY": 13,
+        "motion": {
+          "direction": -90,
+          "speed": 0.25,
+          "turbulence": 12
+        }
+      },
+      {
+        "kind": "aura",
+        "variant": "orbit",
+        "color": "#c4f1ff",
+        "size": 34,
+        "opacity": 0.45,
+        "motion": {
+          "speed": 0.35,
+          "twirl": 0.25
+        }
+      }
+    ],
+    "source": "effectbuilder-studio/src/app/effects/ambient-caster-presets.ts",
+    "sourceKind": "caster"
+  },
+  {
+    "name": "Storm Charge",
+    "spellName": "Shocking Grasp",
+    "description": "A crackling personal storm charges the caster’s hands.",
+    "specs": [
+      {
+        "kind": "sparks",
+        "variant": "pushback",
+        "color": "#90b3ff",
+        "size": 4,
+        "spread": 16,
+        "count": 20,
+        "offsetX": 19,
+        "offsetY": -13,
+        "motion": {
+          "cone": 360,
+          "speed": 0.45,
+          "trail": 0.7
+        }
+      },
+      {
+        "kind": "sparks",
+        "variant": "pushback",
+        "color": "#90b3ff",
+        "size": 4,
+        "spread": 16,
+        "count": 20,
+        "offsetX": 19,
+        "offsetY": 13,
+        "motion": {
+          "cone": 360,
+          "speed": 0.45,
+          "trail": 0.7
+        }
+      },
+      {
+        "kind": "cloud",
+        "variant": "storm",
+        "color": "#8c9eff",
+        "size": 38,
+        "count": 18,
+        "opacity": 0.4,
+        "motion": {
+          "speed": 0.3
+        }
+      }
+    ],
+    "source": "effectbuilder-studio/src/app/effects/ambient-caster-presets.ts",
+    "sourceKind": "caster"
+  },
+  {
+    "name": "Arcane Focus",
+    "spellName": "Magic Missile",
+    "description": "Crossing violet orbits focus into a rotating arcane lattice.",
+    "specs": [
+      {
+        "kind": "sigil",
+        "variant": "teleport",
+        "color": "#ad9bff",
+        "size": 39,
+        "opacity": 0.4,
+        "motion": {
+          "twirl": 0.35
+        }
+      },
+      {
+        "kind": "aura",
+        "variant": "orbit",
+        "color": "#a7d0ff",
+        "size": 53,
+        "motion": {
+          "speed": 0.6,
+          "twirl": -0.4
+        }
+      }
+    ],
+    "source": "effectbuilder-studio/src/app/effects/ambient-caster-presets.ts",
+    "sourceKind": "caster"
+  },
+  {
+    "name": "Thunderwake",
+    "spellName": "Thunderwave",
+    "description": "Concentric shock ripples and pale motes mark the aftermath.",
+    "specs": [
+      {
+        "kind": "ring",
+        "variant": "ripple",
+        "color": "#b5d9ee",
+        "size": 76,
+        "opacity": 0.55,
+        "motion": {
+          "speed": 0.22
+        }
+      },
+      {
+        "kind": "sparks",
+        "variant": "twirl",
+        "color": "#d8e8f2",
+        "size": 2,
+        "spread": 49,
+        "count": 18,
+        "motion": {
+          "twirl": 0.15,
+          "speed": 0.3
+        }
+      }
+    ],
+    "source": "effectbuilder-studio/src/app/effects/ambient-target-presets.ts",
+    "sourceKind": "target"
+  },
+  {
+    "name": "Hexed Ground",
+    "spellName": "Hex",
+    "description": "A six-sided violet curse lattice rotates beneath the target.",
+    "specs": [
+      {
+        "kind": "sigil",
+        "variant": "teleport",
+        "color": "#b27cde",
+        "size": 62,
+        "offsetY": 15,
+        "opacity": 0.7,
+        "motion": {
+          "twirl": 0.15
+        }
+      },
+      {
+        "kind": "sparks",
+        "variant": "embers",
+        "color": "#d598ea",
+        "size": 2,
+        "spread": 40,
+        "count": 20,
+        "motion": {
+          "direction": -90,
+          "speed": 0.2
+        }
+      }
+    ],
+    "source": "effectbuilder-studio/src/app/effects/ambient-target-presets.ts",
+    "sourceKind": "target"
+  },
+  {
+    "name": "Fractured Force",
+    "spellName": "Wall of Force",
+    "description": "Dissolving geometric fragments and a thin arcane shock ring remain.",
+    "specs": [
+      {
+        "kind": "burst",
+        "variant": "shatter",
+        "color": "#96c5f6",
+        "size": 63,
+        "count": 18,
+        "duration": 1800,
+        "motion": {
+          "speed": 0.25
+        }
+      },
+      {
+        "kind": "ring",
+        "variant": "shockwave",
+        "color": "#c7ddff",
+        "size": 64,
+        "opacity": 0.4,
+        "motion": {
+          "speed": 0.2
+        }
+      }
+    ],
+    "source": "effectbuilder-studio/src/app/effects/ambient-target-presets.ts",
+    "sourceKind": "target"
+  },
+  {
+    "name": "Fey Departure",
+    "spellName": "Misty Step",
+    "description": "A fading portal rim, lavender smoke and pixie sparks mark a departure.",
+    "specs": [
+      {
+        "kind": "ring",
+        "variant": "portal",
+        "color": "#c4a0fa",
+        "size": 48,
+        "opacity": 0.55,
+        "motion": {
+          "speed": 0.25,
+          "twirl": 0.4
+        }
+      },
+      {
+        "kind": "cloud",
+        "variant": "fog",
+        "color": "#b998db",
+        "size": 56,
+        "count": 40,
+        "opacity": 0.3,
+        "motion": {
+          "speed": 0.2,
+          "twirl": 0.2
+        }
+      },
+      {
+        "kind": "sparks",
+        "variant": "twirl",
+        "color": "#edc7ff",
+        "size": 2,
+        "spread": 40,
+        "count": 22,
+        "motion": {
+          "speed": 0.2,
+          "twirl": -0.3
+        }
+      }
+    ],
+    "source": "effectbuilder-studio/src/app/effects/ambient-target-presets.ts",
+    "sourceKind": "target"
+  }
+]

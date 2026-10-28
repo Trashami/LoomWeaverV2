@@ -190,7 +190,7 @@
 
       <section class="lw-dice-inspector__group">
         <div class="lw-dice-inspector__row">
-          <span class="lw-dice-inspector__label">Inner glow</span>
+          <span class="lw-dice-inspector__label">Core light</span>
           <button ngpButton type="button" class="lw-dice-inspector__switch" [class.is-on]="customConfig().coreInnerGlowEnabled" (click)="patch('coreInnerGlowEnabled', !customConfig().coreInnerGlowEnabled)">
             {{ customConfig().coreInnerGlowEnabled ? 'Active' : 'Off' }}
           </button>
@@ -202,14 +202,14 @@
           </div>
           <label class="lw-dice-inspector__slider">
             <div class="lw-dice-inspector__slider-head">
-              <span>Inner Glow Opacity</span>
+              <span>Core brightness</span>
               <strong>{{ (customConfig().coreInnerGlowOpacity * 100) | number:'1.0-0' }}%</strong>
             </div>
             <input type="range" min="0" max="1" step="0.05" [value]="customConfig().coreInnerGlowOpacity" (input)="patchNum('coreInnerGlowOpacity', $event)" />
           </label>
           <label class="lw-dice-inspector__slider">
             <div class="lw-dice-inspector__slider-head">
-              <span>Blur Size &amp; Choke</span>
+              <span>Core light spread</span>
               <strong>{{ customConfig().coreInnerGlowSize }}px</strong>
             </div>
             <input type="range" min="2" max="40" step="1" [value]="customConfig().coreInnerGlowSize" (input)="patchNum('coreInnerGlowSize', $event)" />
@@ -217,7 +217,7 @@
         }
 
         <div class="lw-dice-inspector__row">
-          <span class="lw-dice-inspector__label">Outer glow</span>
+          <span class="lw-dice-inspector__label">Number halo</span>
           <button ngpButton type="button" class="lw-dice-inspector__switch" [class.is-on]="customConfig().coreOuterGlowEnabled" (click)="patch('coreOuterGlowEnabled', !customConfig().coreOuterGlowEnabled)">
             {{ customConfig().coreOuterGlowEnabled ? 'Active' : 'Off' }}
           </button>
@@ -244,7 +244,7 @@
         }
 
         <div class="lw-dice-inspector__row">
-          <span class="lw-dice-inspector__label">Core Pulse Oscillator</span>
+          <span class="lw-dice-inspector__label">Pulse</span>
           <button ngpButton type="button" class="lw-dice-inspector__switch" [class.is-on]="customConfig().corePulseEnabled" (click)="patch('corePulseEnabled', !customConfig().corePulseEnabled)">
             {{ customConfig().corePulseEnabled ? 'Pulsing' : 'Static' }}
           </button>
@@ -261,9 +261,9 @@
           <label class="lw-dice-inspector__slider">
             <div class="lw-dice-inspector__slider-head">
               <span>Pulse Frequency</span>
-              <strong>{{ customConfig().corePulseSpeed | number:'1.1-1' }} Hz</strong>
+              <strong>{{ customConfig().corePulseSpeed | number:'1.1-1' }} pulses/s (0 = steady)</strong>
             </div>
-            <input type="range" min="0.2" max="5.0" step="0.1" [value]="customConfig().corePulseSpeed" (input)="patchNum('corePulseSpeed', $event)" />
+            <input type="range" min="0" max="2" step="0.1" [value]="customConfig().corePulseSpeed" (input)="patchNum('corePulseSpeed', $event)" />
           </label>
         }
       </section>
@@ -294,7 +294,7 @@
 
         <label class="lw-dice-inspector__slider">
           <div class="lw-dice-inspector__slider-head">
-            <span>Numeral Font Scale</span>
+            <span>Number size</span>
             <strong>{{ (customConfig().fontScale * 100) | number:'1.0-0' }}%</strong>
           </div>
           <input type="range" min="0.6" max="1.4" step="0.04" [value]="customConfig().fontScale" (input)="patchNum('fontScale', $event)" />
@@ -381,7 +381,7 @@
 
       <section class="lw-dice-inspector__group">
         <div class="lw-dice-inspector__row">
-          <span class="lw-dice-inspector__label">Number Inner Glow</span>
+          <span class="lw-dice-inspector__label">Number light</span>
           <button ngpButton type="button" class="lw-dice-inspector__switch" [class.is-on]="customConfig().numberInnerGlowEnabled" (click)="patch('numberInnerGlowEnabled', !customConfig().numberInnerGlowEnabled)">
             {{ customConfig().numberInnerGlowEnabled ? 'Active' : 'Off' }}
           </button>
@@ -393,7 +393,7 @@
           </div>
           <label class="lw-dice-inspector__slider">
             <div class="lw-dice-inspector__slider-head">
-              <span>Inner Glow Opacity</span>
+              <span>Number brightness</span>
               <strong>{{ (customConfig().numberInnerGlowOpacity * 100) | number:'1.0-0' }}%</strong>
             </div>
             <input type="range" min="0.05" max="1" step="0.05" [value]="customConfig().numberInnerGlowOpacity" (input)="patchNum('numberInnerGlowOpacity', $event)" />
@@ -401,7 +401,7 @@
         }
 
         <div class="lw-dice-inspector__row">
-          <span class="lw-dice-inspector__label">Number Outer Glow</span>
+          <span class="lw-dice-inspector__label">Number halo</span>
           <button ngpButton type="button" class="lw-dice-inspector__switch" [class.is-on]="customConfig().numberOuterGlowEnabled" (click)="patch('numberOuterGlowEnabled', !customConfig().numberOuterGlowEnabled)">
             {{ customConfig().numberOuterGlowEnabled ? 'Active' : 'Off' }}
           </button>
@@ -413,7 +413,7 @@
           </div>
           <label class="lw-dice-inspector__slider">
             <div class="lw-dice-inspector__slider-head">
-              <span>Outer Glow Opacity &amp; Size</span>
+              <span>Halo brightness</span>
               <strong>{{ (customConfig().numberOuterGlowOpacity * 100) | number:'1.0-0' }}%</strong>
             </div>
             <input type="range" min="0.05" max="1" step="0.05" [value]="customConfig().numberOuterGlowOpacity" (input)="patchNum('numberOuterGlowOpacity', $event)" />
@@ -427,12 +427,15 @@
           </button>
         </div>
         @if (customConfig().numberPulseEnabled) {
+          <select aria-label="Number pulse pattern" class="lw-dice-inspector__select lw-dice-inspector__select--full" [value]="customConfig().numberPulseWaveform" (change)="patch('numberPulseWaveform', $any($event.target).value)">
+            @for (wave of pulseWaveforms; track wave) { <option [value]="wave">{{ wave }}</option> }
+          </select>
           <label class="lw-dice-inspector__slider">
             <div class="lw-dice-inspector__slider-head">
               <span>Number Pulse Speed</span>
-              <strong>{{ customConfig().numberPulseSpeed | number:'1.1-1' }} Hz</strong>
+              <strong>{{ customConfig().numberPulseSpeed | number:'1.1-1' }} pulses/s (0 = steady)</strong>
             </div>
-            <input type="range" min="0.2" max="5.0" step="0.1" [value]="customConfig().numberPulseSpeed" (input)="patchNum('numberPulseSpeed', $event)" />
+            <input type="range" min="0" max="2" step="0.1" [value]="customConfig().numberPulseSpeed" (input)="patchNum('numberPulseSpeed', $event)" />
           </label>
         }
       </section>

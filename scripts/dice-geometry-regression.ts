@@ -1,7 +1,7 @@
 import { createFaceCanvas } from '../frontend/src/app/features/dice/engine/materials/face-overlays.drawer';
 import { Vector3 } from '@babylonjs/core';
 import { buildBabylonDieVertexData, getRotationForTopValue } from '../frontend/src/app/features/dice/engine/models/chamfer-geometry.builder';
-import { getPolyhedronRawTable } from '../frontend/src/app/features/dice/engine/models/polyhedra-tables.model';
+import { getPolyhedronRawTable, FACE_VALUES } from '../frontend/src/app/features/dice/engine/models/polyhedra-tables.model';
 import { DICE_MODEL_CATALOG } from '../frontend/src/app/features/dice/engine/models/dice-model.catalog';
 import { DicePolyhedronType } from '../frontend/src/app/features/dice/engine/models/dice-model.types';
 import { faceNumberPlacements, placementFits, numberFont, setNumberWorldSize } from '../frontend/src/app/features/dice/engine/materials/number-layout';
@@ -16,6 +16,7 @@ export function runDiceGeometryRegression(): string {
     const config = { ...createDefaultRuntimeConfigFromSkin(OBSIDIAN_SKIN), modelId: model.id,
       chamferBevelFactor: model.chamferFactor, fontScale: 1.45, numberStrokeWidth: 8, fontTracking: 4 };
     const em = setNumberWorldSize(config, OBSIDIAN_SKIN, model);
+    check(em > setNumberWorldSize({ ...config, fontScale: 0.6 }, OBSIDIAN_SKIN, model) * 2, 'size slider must visibly increase lettering');
     const scale = model.scaleMultiplier;
     const ctx = document.createElement('canvas').getContext('2d')!;
     ctx.font = numberFont(config, OBSIDIAN_SKIN, 100);
@@ -26,8 +27,11 @@ export function runDiceGeometryRegression(): string {
       check(uvs.every(v => v >= 0 && v <= 1), `${type}: UVs stay in the texture`);
       for (const layout of geometry.faceLayouts.values()) {
         const placements = layout.vertexValues ? faceNumberPlacements(layout, '')
-          : Array.from({ length: 100 }, (_, i) => ({ label: String(i).padStart(2, '0'), x: 0.5, y: 0.5, rotation: 0 }));
-        check(placements.every(p => placementFits(ctx, layout, p, em / layout.unitsPerUv, 0.185 * em / layout.unitsPerUv)), `${model.id}/${type}: all glyphs fit`);
+          : FACE_VALUES[type].map(value => ({ label: type === 'd100' ? (value === 10 ? '00' : String(value * 10)) : type === 'd10' && value === 10 ? '0' : String(value), x: 0.5, y: 0.5, rotation: 0 }));
+        let fitted = em;
+        if (type === 'd4' || type === 'd100') for (let i = 0; i < 80 && !placements.every(p => placementFits(ctx, layout, p, fitted / layout.unitsPerUv, 0.185 * fitted / layout.unitsPerUv)); i++) fitted *= 0.95;
+        check(fitted > 0.1, 'compact labels remain legible');
+        check(placements.every(p => placementFits(ctx, layout, p, fitted / layout.unitsPerUv, 0.185 * fitted / layout.unitsPerUv)), `${model.id}/${type}: all glyphs fit`);
       }
       if (type === 'd20') signatures.add(JSON.stringify(geometry.vertexData.positions));
     }

@@ -1,3 +1,4 @@
+import { diceFontFamily } from './dice-fonts';
 import { DiceBlendMode } from '../dice-physics.types';
 import { DiceCustomRuntimeConfig, DiceSkinConfig } from '../skins/dice-skin.types';
 import { hexWithAlpha, shiftColorBrightness } from './face-patterns.drawer';
@@ -30,7 +31,7 @@ export function drawEngravedLabel(
   numberColor: string,
   glowColor: string
 ): void {
-  const fontFamily = custom.fontFamily || skin.fontFamily || 'Cinzel, Georgia, serif';
+  const fontFamily = diceFontFamily(custom.fontFamily || skin.fontFamily || 'Cinzel, Georgia, serif');
   const fontWeight = custom.fontWeight || '700';
   const fontSpec = `${fontWeight} ${fontSizePx}px ${fontFamily}`;
   const depth = custom.numberDepth ?? (custom.recessedNumbers ? -0.75 : 0.65);
@@ -71,18 +72,6 @@ export function drawEngravedLabel(
     ctx.shadowBlur = custom.numberShadowBlur ?? 5;
   }
 
-  // Number Outer Glow
-  if (custom.numberOuterGlowEnabled && (custom.numberOuterGlowOpacity ?? 0) > 0.05) {
-    ctx.save();
-    ctx.shadowColor = custom.numberOuterGlowColor || glowColor;
-    ctx.shadowBlur = Math.max(2, (custom.numberOuterGlowSize ?? 14) * (1 + (custom.numberOuterGlowSpread ?? 0.3)));
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-    ctx.fillStyle = hexWithAlpha(custom.numberOuterGlowColor || glowColor, custom.numberOuterGlowOpacity);
-    ctx.fillText(label, opticalX, baseline);
-    ctx.restore();
-  }
-
   // Outline Stroke
   const strokeWidth = (custom.numberStrokeWidth ?? skin.textStrokeWidth ?? 0) * fontSizePx / 100;
   if (strokeWidth > 0) {
@@ -100,17 +89,6 @@ export function drawEngravedLabel(
     ctx.fillStyle = inlay;
   } else ctx.fillStyle = numberColor;
   ctx.fillText(label, opticalX, baseline);
-
-  // Number Inner Glow
-  if (custom.numberInnerGlowEnabled && (custom.numberInnerGlowOpacity ?? 0) > 0.05) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'screen';
-    ctx.fillStyle = hexWithAlpha(custom.numberInnerGlowColor || glowColor, custom.numberInnerGlowOpacity * 0.75 * (1 - Math.abs(depth) * 0.6));
-    ctx.shadowColor = custom.numberInnerGlowColor || glowColor;
-    ctx.shadowBlur = Math.max(1, custom.numberInnerGlowSize ?? 8);
-    ctx.fillText(label, opticalX, baseline);
-    ctx.restore();
-  }
 
   // 6/9 Indicator
   const indicator = custom.sixNineIndicator ?? 'dot';
@@ -141,28 +119,12 @@ export function drawEngravedLabel(
     hCtx.restore();
   }
 
-  // Emissive Map for Number Outer/Inner Glow
-  const emisStrength = Math.max(
-    custom.glowIntensity ?? 0,
-    custom.numberOuterGlowEnabled ? (custom.numberOuterGlowOpacity ?? 0) : 0,
-    custom.numberInnerGlowEnabled ? (custom.numberInnerGlowOpacity ?? 0) : 0
-  );
-  if (emisStrength > 0.05) {
-    const eColor = custom.numberOuterGlowEnabled
-      ? (custom.numberOuterGlowColor || glowColor)
-      : custom.numberInnerGlowEnabled
-        ? (custom.numberInnerGlowColor || glowColor)
-        : glowColor;
-    eCtx.save();
-    eCtx.translate(x, y);
-    eCtx.rotate(rotationRad);
-    eCtx.font = fontSpec;
-    eCtx.textAlign = 'center';
-    eCtx.textBaseline = 'alphabetic';
-    eCtx.shadowColor = eColor;
-    eCtx.shadowBlur = Math.round(18 * emisStrength);
-    eCtx.fillStyle = hexWithAlpha(eColor, Math.min(0.7, emisStrength) * (1 - Math.abs(depth) * 0.35));
-    eCtx.fillText(label, opticalX, baseline);
-    eCtx.restore();
+  // White mask: light color and intensity are evaluated independently in the shader.
+  eCtx.save(); eCtx.translate(x, y); eCtx.rotate(rotationRad);
+  eCtx.font = fontSpec; eCtx.textAlign = 'center'; eCtx.textBaseline = 'alphabetic';
+  eCtx.fillStyle = '#ffffff';
+  if (custom.numberOuterGlowEnabled || custom.coreOuterGlowEnabled) {
+    eCtx.shadowColor = '#ffffff'; eCtx.shadowBlur = Math.min(fontSizePx * 0.12, (custom.numberOuterGlowSize ?? 14) * 0.3);
   }
+  eCtx.fillText(label, opticalX, baseline); eCtx.restore();
 }

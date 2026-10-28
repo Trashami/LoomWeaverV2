@@ -52,19 +52,27 @@ for (const physics of [
   check(plans.every(plan => plan.endPos.y > 0 && Number.isFinite(plan.durationMs)), 'extreme pool settings settle safely');
 }
 for (const model of DICE_MODEL_CATALOG) {
-  const entries = types.slice(0, 5).map((dieType, i) => ({ dieType, targetValue: i % 4 + 1,
+  const entries = types.map((dieType, i) => ({ dieType, targetValue: dieType === 'd100' ? (i % 10 + 1) * 10 : i % 4 + 1,
     collisionVertices: Array.from(buildBabylonDieVertexData(dieType, 1.15, model.chamferFactor, model.id === 'model-custom-glb').vertexData.positions!),
   }));
   const plans = simulateDiceRolls(entries, 1, defaults, rng(16));
   plans.forEach((plan, index) => {
     let bottom = Infinity;
+    const contactPoints: string[] = [];
     for (let vertex = 0; vertex < entries[index].collisionVertices.length; vertex += 3) {
       const point = Vector3.FromArray(entries[index].collisionVertices, vertex), world = new Vector3();
       point.rotateByQuaternionToRef(plan.targetQuat, world);
       bottom = Math.min(bottom, world.y + plan.endPos.y);
+      if (Math.abs(world.y + plan.endPos.y) < 1e-5) contactPoints.push(`${world.x.toFixed(5)}:${world.z.toFixed(5)}`);
     }
+    check(new Set(contactPoints).size >= 3, `${model.id}/${entries[index].dieType}: ${new Set(contactPoints).size} floor contacts`);
     check(Math.abs(bottom) < 1e-6, `${model.id}: the actual model lands on the floor without a height snap`);
   });
 }
 check(simulateDiceRolls([], 1, defaults).length === 0, 'empty pool is harmless');
 console.log(`PASS: ${rolls} seeded rolls, all result symmetries, no late flips, unchanged motion across results, and extreme pools.`);
+
+const gentle = simulateDiceRolls([{dieType:'d6',targetValue:3}],1,{...defaults,throwForce:1},rng(88))[0];
+const hard = simulateDiceRolls([{dieType:'d6',targetValue:3}],1,{...defaults,throwForce:12},rng(88))[0];
+check(Vector3.Distance(hard.keyframesPos![1],hard.keyframesPos![0]) > Vector3.Distance(gentle.keyframesPos![1],gentle.keyframesPos![0])*3,'throw strength changes launch speed');
+check(hard.bounceFrames!.length > gentle.bounceFrames!.length,'hard throws produce more wall/table contacts');

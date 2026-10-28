@@ -1,7 +1,9 @@
+import recipes from './effectbuilder-recipes.json';
 export type DiceCritOutcomeKind = 'nat20' | 'critfail';
 
 export interface DiceCritEffectPreset {
   id: string;
+  recipeName?: string;
   outcomeKind: DiceCritOutcomeKind;
   name: string;
   description: string;
@@ -149,6 +151,17 @@ export const DICE_CRITFAIL_EFFECTS: DiceCritEffectPreset[] = [
     upwardDriftSpeed: -0.8
   }
 ];
+
+for (const recipe of recipes) {
+  const outcomeKind = recipe.sourceKind === 'caster' ? 'nat20' : 'critfail';
+  const preset: DiceCritEffectPreset = {
+    id: 'fx-builder-' + recipe.name.toLowerCase().replaceAll(' ', '-'), recipeName: recipe.name,
+    name: recipe.name, description: recipe.description, outcomeKind,
+    primaryColorHex: recipe.specs[0].color, secondaryColorHex: recipe.specs.at(-1)!.color,
+    bloomBoost: 0.5, particleCount: 32, hasShockwaveRing: false, hasLightPillar: false, upwardDriftSpeed: 1,
+  };
+  (outcomeKind === 'nat20' ? DICE_NAT20_EFFECTS : DICE_CRITFAIL_EFFECTS).push(preset);
+}
 
 export function resolveNat20Effect(effectId: string | null | undefined): DiceCritEffectPreset {
   if (!effectId) return DICE_NAT20_EFFECTS[0];

@@ -38,7 +38,7 @@ export function simulateDiceRolls(entries: readonly DiceMotionEntry[], sizeScale
   const halfW = Math.max(2.5, physics.boundaryWidth * 0.5 - sizeScale);
   const halfD = Math.max(2, physics.boundaryDepth * 0.5 - sizeScale);
   const gravity = 24 * Math.max(0.15, physics.gravity);
-  const force = (3.5 + physics.throwForce * 2.15) / Math.max(0.25, Math.pow(physics.mass, 0.35));
+  const force = (2.5 + physics.throwForce * 3.0) / Math.max(0.25, Math.pow(physics.mass, 0.35));
   const spin = Math.min(50, physics.spinForce * 2.4);
   const bodies: Body[] = entries.map((entry, i) => {
     const side = i % 2 ? 1 : -1;
@@ -76,7 +76,7 @@ export function simulateDiceRolls(entries: readonly DiceMotionEntry[], sizeScale
           // A padded tray gradually dissipates extreme high-restitution throws too.
           const restitution = Math.min(0.92, Math.max(0, physics.restitution)) * Math.exp(-Math.max(0, elapsed - 3) * 0.6);
           body.velocity.y = impact > 1.1 ? impact * restitution : 0;
-          const drag = Math.exp(-(3 + Math.max(0, physics.friction) * 13) * DT);
+          const drag = Math.exp(-(1.5 + Math.max(0, physics.friction) * 5) * DT);
           body.velocity.x *= drag; body.velocity.z *= drag;
           body.angular.scaleInPlace(Math.exp(-(2 + physics.friction * 5) * DT));
           if (!body.rest && body.velocity.y < 0.8 && (body.angular.length() < 3 || elapsed > 4)) {
@@ -91,12 +91,14 @@ export function simulateDiceRolls(entries: readonly DiceMotionEntry[], sizeScale
         body.position.y = Math.max(body.position.y, supportHeight(body));
         if (body.position.x > halfW || body.position.x < -halfW) {
           body.position.x = Math.max(-halfW, Math.min(halfW, body.position.x));
-          body.velocity.x *= -Math.max(0.05, physics.wallRestitution); body.rest = undefined;
+          body.angular.z += body.velocity.x * 0.12;
+          body.velocity.x *= -Math.min(0.95, Math.max(0.05, physics.wallRestitution)); body.rest = undefined;
           recordImpact(body, steps);
         }
         if (body.position.z > halfD || body.position.z < -halfD) {
           body.position.z = Math.max(-halfD, Math.min(halfD, body.position.z));
-          body.velocity.z *= -Math.max(0.05, physics.wallRestitution); body.rest = undefined;
+          body.angular.x -= body.velocity.z * 0.12;
+          body.velocity.z *= -Math.min(0.95, Math.max(0.05, physics.wallRestitution)); body.rest = undefined;
           recordImpact(body, steps);
         }
         const quiet = body.rest && restError < 0.0005 && speed < 0.008 && Math.hypot(body.velocity.x, body.velocity.z) < 0.008 && Math.abs(body.velocity.y) < 0.05 && body.position.y - supportHeight(body) < 0.003;

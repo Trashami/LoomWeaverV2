@@ -96,7 +96,8 @@ export function buildBabylonDieVertexData(
 ): BuiltBabylonDieGeometry {
   const table = getPolyhedronRawTable(type, chamferOverride);
   const radius = baseRadius * table.scaleFactor;
-  const unitVectors = table.vertices.map(v => new Vector3(v[0], v[1], v[2]).normalize());
+  const radiusScale = Math.max(...table.vertices.map(v => Math.hypot(...v)));
+  const unitVectors = table.vertices.map(v => Vector3.FromArray(v).scale(1 / radiusScale));
   const firstCut = chamferGeom(unitVectors, table.faces, table.chamfer);
   const cg = faceted ? chamferGeom(firstCut.vectors, firstCut.faces, 0.82) : firstCut;
 

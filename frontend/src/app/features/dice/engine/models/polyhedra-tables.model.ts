@@ -98,32 +98,19 @@ export function getPolyhedronRawTable(
     case 'd100': {
       const vertices: number[][] = [];
       for (let i = 0, b = 0; i < 10; ++i, b += (Math.PI * 2) / 10) {
-        vertices.push([Math.cos(b), Math.sin(b), 0.105 * (i % 2 ? 1 : -1)]);
+        vertices.push([Math.cos(b), Math.sin(b), Math.pow(Math.tan(Math.PI / 10), 2) * (i % 2 ? 1 : -1)]);
       }
       vertices.push([0, 0, -1], [0, 0, 1]);
       return {
         vertices,
+        // Ten coplanar kite faces. The old triangular caps left protruding
+        // unnumbered belt triangles that could balance the die on a single point.
         faces: [
-          [5, 7, 11, 1],
-          [4, 2, 10, 2],
-          [1, 3, 11, 3],
-          [0, 8, 10, 4],
-          [7, 9, 11, 5],
-          [8, 6, 10, 6],
-          [9, 1, 11, 7],
-          [2, 0, 10, 8],
-          [3, 5, 11, 9],
-          [6, 4, 10, 10],
-          [1, 0, 2, -1],
-          [1, 2, 3, -1],
-          [3, 2, 4, -1],
-          [3, 4, 5, -1],
-          [5, 4, 6, -1],
-          [5, 6, 7, -1],
-          [7, 6, 8, -1],
-          [7, 8, 9, -1],
-          [9, 8, 0, -1],
-          [9, 0, 1, -1]
+          [5, 6, 7, 11, 1], [4, 3, 2, 10, 2],
+          [1, 2, 3, 11, 3], [0, 9, 8, 10, 4],
+          [7, 8, 9, 11, 5], [8, 7, 6, 10, 6],
+          [9, 0, 1, 11, 7], [2, 1, 0, 10, 8],
+          [3, 4, 5, 11, 9], [6, 5, 4, 10, 10]
         ],
         chamfer: chamferOverride ? Math.min(0.985, chamferOverride - 0.01) : 0.945,
         scaleFactor: 0.96,

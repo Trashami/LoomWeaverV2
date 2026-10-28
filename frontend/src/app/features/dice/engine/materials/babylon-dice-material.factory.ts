@@ -1,3 +1,4 @@
+import { DiceLightPlugin, updateDiceLight } from './dice-light.plugin';
 import { setNumberWorldSize } from './number-layout';
 import { addDiceModelFrame } from '../models/model-frame.builder';
 import {
@@ -45,32 +46,6 @@ export function hexToColor3(hex: string): Color3 {
   return new Color3(r / 255, g / 255, b / 255);
 }
 
-function evaluateWaveform(waveform: DicePulseWaveform, tSec: number, speedHz: number, minVal: number, maxVal: number): number {
-  const phase = tSec * Math.max(0.1, speedHz);
-  let norm = 0.5;
-  switch (waveform) {
-    case 'heartbeat': {
-      const p1 = Math.max(0, Math.sin(phase * Math.PI * 2));
-      const p2 = Math.max(0, Math.sin(phase * Math.PI * 2 - 0.65)) * 0.55;
-      norm = Math.min(1, p1 + p2);
-      break;
-    }
-    case 'sawtooth':
-      norm = phase - Math.floor(phase);
-      break;
-    case 'flicker':
-      norm = 0.5 + 0.35 * Math.sin(phase * 9.7) + 0.15 * Math.cos(phase * 23.3);
-      break;
-    case 'sine':
-    default:
-      norm = 0.5 + 0.5 * Math.sin(phase * Math.PI * 2);
-      break;
-  }
-  const lo = Math.min(minVal, maxVal);
-  const hi = Math.max(minVal, maxVal);
-  return lo + Math.max(0, Math.min(1, norm)) * (hi - lo);
-}
-
 export function buildDieFaceMaterials(
   type: DicePolyhedronType,
   skin: DiceSkinConfig,
@@ -100,8 +75,12 @@ export function buildDieFaceMaterials(
       : surface === 'obsidian' ? 0.065 : surface === 'glass' ? 0.035 : roughness;
     mat.environmentIntensity = surface === 'stone' ? 0.4 : 1.05;
     mat.clearCoat.isEnabled = ['glass', 'obsidian', 'resin'].includes(surface);
-    mat.clearCoat.intensity = surface === 'obsidian' ? 1 : 0.65;
-    mat.clearCoat.roughness = 0.04;
+    mat.clearCoat.intensity = custom.clearcoat ?? 0.65;
+    mat.clearCoat.roughness = custom.clearcoatRoughness ?? 0.04;
+    if (custom.surfaceEffect === 'iridescent') { mat.iridescence.isEnabled = true; mat.iridescence.intensity = 0.85; }
+    if (custom.surfaceEffect === 'frosted') { mat.roughness = 0.9; mat.clearCoat.isEnabled = false; }
+    if (custom.surfaceEffect === 'polished') { mat.roughness = 0.06; mat.clearCoat.isEnabled = true; mat.clearCoat.intensity = 1; }
+    if (custom.surfaceEffect === 'brushed') { mat.anisotropy.isEnabled = true; mat.anisotropy.intensity = 0.7; }
     if (surface === 'glass') {
       mat.subSurface.isRefractionEnabled = true;
       mat.subSurface.indexOfRefraction = 1.5;
@@ -126,10 +105,7 @@ export function buildDieFaceMaterials(
     scene
   );
   configure(bevelMat);
-  if (custom.coreOuterGlowEnabled) {
-    const cGlow = hexToColor3(custom.coreOuterGlowColor || custom.glowColorHex || skin.emissiveColor);
-    bevelMat.emissiveColor = cGlow.scale(Math.max(custom.glowIntensity, custom.coreOuterGlowOpacity ?? 0) * 0.18);
-  }
+  new DiceLightPlugin(bevelMat, custom);
   if (surface !== 'glass' && coreAlpha < 0.99) {
     bevelMat.alpha = Math.min(0.96, coreAlpha + 0.06);
   }
@@ -167,23 +143,10 @@ export function buildDieFaceMaterials(
     faceMat.useParallaxOcclusion = faceMat.useParallax;
     faceMat.parallaxScaleBias = 0.025 * numberDepth;
 
-    const hasEmissive =
-      custom.glowIntensity > 0.05 ||
-      custom.coreInnerGlowEnabled ||
-      custom.coreOuterGlowEnabled ||
-      custom.numberInnerGlowEnabled ||
-      custom.numberOuterGlowEnabled;
-
-    if (hasEmissive) {
-      faceMat.emissiveTexture = createBabylonDynamicTextureFromCanvas(
-        `lw-face-emis-${type}-${i + 1}`,
-        canvases.emissiveCanvas,
-        scene
-      );
-      faceMat.emissiveColor = glowColor3.scale(0.5 + custom.glowIntensity * 0.7);
-    } else {
-      faceMat.emissiveColor = Color3.Black();
-    }
+    faceMat.emissiveTexture = createBabylonDynamicTextureFromCanvas(
+      `lw-face-emis-${type}-${i + 1}`, canvases.emissiveCanvas, scene);
+    faceMat.emissiveColor = Color3.White();
+    new DiceLightPlugin(faceMat, custom);
 
     configure(faceMat);
 
@@ -264,44 +227,7 @@ export function applyVeinPulseToDieMaterials(
   custom: DiceCustomRuntimeConfig,
   elapsedSeconds: number
 ): void {
-  const anyPulse = custom.veinPulse || custom.corePulseEnabled || custom.numberPulseEnabled;
-  if (!anyPulse) {
-    return;
-  }
-
-  const coreGlow = hexToColor3(custom.coreOuterGlowColor || custom.glowColorHex || skin.emissiveColor);
-  const numGlow = hexToColor3(custom.numberOuterGlowColor || custom.glowColorHex || skin.emissiveColor);
-
-  const coreFactor = custom.corePulseEnabled
-    ? evaluateWaveform(
-        custom.corePulseWaveform ?? 'heartbeat',
-        elapsedSeconds,
-        custom.corePulseSpeed ?? 1.4,
-        custom.corePulseMin ?? 0.3,
-        custom.corePulseMax ?? 1.0
-      )
-    : 0.65;
-
-  const numFactor = custom.numberPulseEnabled
-    ? evaluateWaveform(
-        custom.numberPulseWaveform ?? 'sine',
-        elapsedSeconds,
-        custom.numberPulseSpeed ?? 1.6,
-        custom.numberPulseMin ?? 0.4,
-        custom.numberPulseMax ?? 1.0
-      )
-    : coreFactor;
-
-  if (materials[0] && custom.corePulseEnabled) {
-    materials[0].emissiveColor = coreGlow.scale(0.22 * coreFactor);
-  }
-
-  const blendedColor = Color3.Lerp(coreGlow, numGlow, 0.55);
-  const pulseLevel = Math.max(0.1, (coreFactor * 0.45 + numFactor * 0.55) * Math.max(0.35, custom.glowIntensity));
-
-  for (let i = 1; i < materials.length; i++) {
-    materials[i].emissiveColor = blendedColor.scale(pulseLevel);
-  }
+  updateDiceLight(materials, elapsedSeconds);
 }
 
 export function disposeDieMaterials(instance: BuiltBabylonDieInstance): void {

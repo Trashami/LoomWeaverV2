@@ -1,3 +1,4 @@
+import { loadDiceFonts } from './dice-fonts';
 import { drawMaterialSurface } from './material-surface.texture';
 import { DiceSkinSurfaceStyle } from '../skins/dice-skin.types';
 
@@ -30,18 +31,7 @@ export function preloadDiceSurfaceAssets(): Promise<void> {
     img.onerror = () => done();
     img.src = '/assets/dice/rock_face_diff_2k.jpg';
 
-    if (typeof FontFace !== 'undefined' && document.fonts) {
-      const font = new FontFace('Nordic Chance', 'url(/assets/dice/Nordic_Chance.ttf)');
-      font
-        .load()
-        .then(loaded => {
-          document.fonts.add(loaded);
-          done();
-        })
-        .catch(() => done());
-    } else {
-      done();
-    }
+    void loadDiceFonts().then(done);
   });
 
   return assetsPreloadPromise;

@@ -9,7 +9,8 @@ export function rollShape(type: DicePolyhedronType) {
   const cached = shapeCache.get(type);
   if (cached) return cached;
   const table = getPolyhedronRawTable(type);
-  const vertices = table.vertices.map(v => Vector3.FromArray(v).normalize());
+  const radiusScale = Math.max(...table.vertices.map(v => Math.hypot(...v)));
+  const vertices = table.vertices.map(v => Vector3.FromArray(v).scale(1 / radiusScale));
   const faces = table.faces.filter(face => face.at(-1)! > 0).map(face => {
     const points = face.slice(0, -1).map(index => vertices[index]);
     const center = points.reduce((sum, v) => sum.add(v), Vector3.Zero()).scale(1 / points.length);

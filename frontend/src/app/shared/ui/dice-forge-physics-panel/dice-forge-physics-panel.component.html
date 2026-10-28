@@ -2,30 +2,35 @@
 @if (activeToolId() === 'effects') {
   <div class="lw-dice-inspector__body">
     <section class="lw-dice-inspector__group">
+      <label class="lw-dice-inspector__label" for="dice-finish">Surface effect</label>
+      <select id="dice-finish" class="lw-dice-inspector__select lw-dice-inspector__select--full" [value]="customConfig().surfaceEffect || 'natural'" (change)="patch('surfaceEffect', $any($event.target).value)">
+        <option value="natural">Natural</option><option value="iridescent">Iridescent</option>
+        <option value="frosted">Frosted</option><option value="polished">Mirror polish</option><option value="brushed">Brushed</option>
+      </select>
       <label class="lw-dice-inspector__slider">
         <div class="lw-dice-inspector__slider-head">
-          <span>Luminary Bloom Intensity</span>
+          <span>Light halo</span>
           <strong>{{ (customConfig().glowIntensity * 100) | number:'1.0-0' }}%</strong>
         </div>
         <input type="range" min="0" max="1" step="0.05" [value]="customConfig().glowIntensity" (input)="patchNum('glowIntensity', $event)" />
       </label>
       <label class="lw-dice-inspector__slider">
         <div class="lw-dice-inspector__slider-head">
-          <span>Metallic Specular Reflection</span>
+          <span>Metal reflection</span>
           <strong>{{ (customConfig().reflectionMetallic * 100) | number:'1.0-0' }}%</strong>
         </div>
         <input type="range" min="0" max="1" step="0.05" [value]="customConfig().reflectionMetallic" (input)="patchNum('reflectionMetallic', $event)" />
       </label>
       <label class="lw-dice-inspector__slider">
         <div class="lw-dice-inspector__slider-head">
-          <span>Surface Micro-Roughness</span>
+          <span>Roughness</span>
           <strong>{{ (customConfig().surfaceRoughness * 100) | number:'1.0-0' }}%</strong>
         </div>
         <input type="range" min="0.04" max="0.95" step="0.03" [value]="customConfig().surfaceRoughness" (input)="patchNum('surfaceRoughness', $event)" />
       </label>
       <label class="lw-dice-inspector__slider">
         <div class="lw-dice-inspector__slider-head">
-          <span>Clearcoat Polish Gloss</span>
+          <span>Polish</span>
           <strong>{{ (customConfig().clearcoat * 100) | number:'1.0-0' }}%</strong>
         </div>
         <input type="range" min="0" max="1" step="0.05" [value]="customConfig().clearcoat" (input)="patchNum('clearcoat', $event)" />
@@ -40,7 +45,7 @@
     </section>
 
     <section class="lw-dice-inspector__group">
-      <span class="lw-dice-inspector__label">Acoustic Roll Sound Profile</span>
+      <span class="lw-dice-inspector__label">Roll sound</span>
       <select
         class="lw-dice-inspector__select lw-dice-inspector__select--full"
         [value]="customConfig().soundProfileId"
@@ -94,37 +99,37 @@
         <code>{{ customConfig().physics.friction | number:'1.2-2' }}</code>
       </label>
       <label class="lw-dice-inspector__phys-row" title="Bounce restitution on invisible floor">
-        <span>restitution</span>
+        <span>Table bounce</span>
         <input type="range" min="0" max="0.95" step="0.05" [value]="customConfig().physics.restitution" (input)="patchPhysicsNum('restitution', $event)" />
         <code>{{ customConfig().physics.restitution | number:'1.2-2' }}</code>
       </label>
       <label class="lw-dice-inspector__phys-row" title="Air resistance during throw">
-        <span>linearDamping</span>
+        <span>Air resistance</span>
         <input type="range" min="0" max="0.95" step="0.05" [value]="customConfig().physics.linearDamping" (input)="patchPhysicsNum('linearDamping', $event)" />
         <code>{{ customConfig().physics.linearDamping | number:'1.2-2' }}</code>
       </label>
       <label class="lw-dice-inspector__phys-row" title="Rotational spin resistance">
-        <span>angularDamping</span>
+        <span>Spin resistance</span>
         <input type="range" min="0" max="0.95" step="0.05" [value]="customConfig().physics.angularDamping" (input)="patchPhysicsNum('angularDamping', $event)" />
         <code>{{ customConfig().physics.angularDamping | number:'1.2-2' }}</code>
       </label>
       <label class="lw-dice-inspector__phys-row">
-        <span>spinForce</span>
+        <span>Spin</span>
         <input type="range" min="0" max="15" step="0.5" [value]="customConfig().physics.spinForce" (input)="patchPhysicsNum('spinForce', $event)" />
         <code>{{ customConfig().physics.spinForce }}</code>
       </label>
       <label class="lw-dice-inspector__phys-row" title="How hard the dice are thrown">
-        <span>throwForce</span>
+        <span>Throw strength</span>
         <input type="range" min="1" max="15" step="0.5" [value]="customConfig().physics.throwForce" (input)="patchPhysicsNum('throwForce', $event)" />
         <code>{{ customConfig().physics.throwForce }}</code>
       </label>
       <label class="lw-dice-inspector__phys-row" title="From how high or low the dice are thrown">
-        <span>startingHeight</span>
+        <span>Release height</span>
         <input type="range" min="2" max="20" step="0.5" [value]="customConfig().physics.startingHeight" (input)="patchPhysicsNum('startingHeight', $event)" />
         <code>{{ customConfig().physics.startingHeight }}</code>
       </label>
       <label class="lw-dice-inspector__phys-row">
-        <span>settleTimeout</span>
+        <span>Roll duration</span>
         <input type="range" min="1000" max="10000" step="500" [value]="customConfig().physics.settleTimeout" (input)="patchPhysicsNum('settleTimeout', $event)" />
         <code>{{ customConfig().physics.settleTimeout }}</code>
       </label>
@@ -167,10 +172,10 @@
           Preview Angle
         </button>
       </div>
-      <label class="lw-dice-inspector__phys-row" title="Camera Pitch Angle (85° = Top-Down Game View)">
-        <span>camPitch°</span>
+      <label class="lw-dice-inspector__phys-row" title="Camera Pitch Angle (85Â° = Top-Down Game View)">
+        <span>camPitchÂ°</span>
         <input type="range" min="15" max="89" step="1" [value]="customConfig().physics.rollCameraPitchDeg" (input)="patchPhysicsNum('rollCameraPitchDeg', $event); previewRollCameraRequested.emit()" />
-        <code>{{ customConfig().physics.rollCameraPitchDeg }}°</code>
+        <code>{{ customConfig().physics.rollCameraPitchDeg }}Â°</code>
       </label>
       <label class="lw-dice-inspector__phys-row">
         <span>camDistance</span>
@@ -267,7 +272,7 @@
           <div class="lw-dice-inspector__preset-item">
             <div class="lw-dice-inspector__preset-info" (click)="loadPresetRequested.emit(preset)">
               <strong>{{ preset.name }}</strong>
-              <small>{{ preset.config.surfaceStyleOverride || 'obsidian' }} · {{ preset.updatedAt }}</small>
+              <small>{{ preset.config.surfaceStyleOverride || 'obsidian' }} Â· {{ preset.updatedAt }}</small>
             </div>
             <button ngpButton type="button" class="lw-dice-inspector__del-btn" (click)="deletePresetRequested.emit(preset.id)" title="Delete Preset">
               Delete
@@ -298,7 +303,7 @@
           <div class="lw-dice-inspector__preset-item">
             <div class="lw-dice-inspector__preset-info">
               <strong>{{ mp.name }}</strong>
-              <small>{{ mp.creatorHandle }} · {{ mp.downloadsCount }} imports · {{ mp.tagline }}</small>
+              <small>{{ mp.creatorHandle }} Â· {{ mp.downloadsCount }} imports Â· {{ mp.tagline }}</small>
             </div>
             <button ngpButton type="button" class="lw-dice-inspector__reset-btn" (click)="importMarketPresetRequested.emit(mp)">
               Import

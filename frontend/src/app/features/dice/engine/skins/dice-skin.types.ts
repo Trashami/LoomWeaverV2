@@ -91,6 +91,7 @@ export interface DiceSkinConfig {
 export type DiceSkinDefinition = DiceSkinConfig;
 
 export interface DiceCustomRuntimeConfig {
+  surfaceEffect?: 'natural' | 'iridescent' | 'frosted' | 'polished' | 'brushed';
   readonly customName: string;
   readonly skinId: string;
   readonly modelId: string;

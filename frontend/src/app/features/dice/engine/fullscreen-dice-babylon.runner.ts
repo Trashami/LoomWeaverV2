@@ -16,7 +16,7 @@ import { DiceSoundService } from './audio';
 import { BabylonDiceStageService } from './babylon-dice-stage.service';
 import {
   createDieContactShadowDisc,
-  createFullscreenDieTrajectoryPlan,
+  createPhysicsBoxTrajectoryPlans,
   DiePhysicsTrajectoryPlan,
   evaluateDieTrajectoryStep
 } from './dice-physics-trajectory';
@@ -32,7 +32,6 @@ import {
 } from './materials';
 import {
   DICE_SIZE_SCALE_MAP,
-  getRotationForTopValue,
   resolveDiceModel
 } from './models';
 import { resolveDiceSkin } from './skins';
@@ -155,7 +154,6 @@ export class FullscreenDiceBabylonRunner {
       this.critEffectsRunner.clearActiveEffects();
       this.clearMeshes();
 
-      const plans: DiePhysicsTrajectoryPlan[] = [];
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i];
         const built = buildBabylonPolyhedralDie(
@@ -166,31 +164,32 @@ export class FullscreenDiceBabylonRunner {
           model,
           this.scene!
         );
-        const plan = createFullscreenDieTrajectoryPlan(i, entries.length, entry.dieType, entry.value, sizeScale);
-        built.mesh.position.copyFrom(plan.startPos);
-        built.mesh.rotationQuaternion = plan.startQuat.clone();
 
         const shadowDisc = createDieContactShadowDisc(i, sizeScale, this.scene!);
-        shadowDisc.position.x = plan.startPos.x + 0.14;
-        shadowDisc.position.z = plan.startPos.z - 0.14;
 
         this.activeDice.push(built);
         this.activeShadows.push(shadowDisc);
-        plans.push(plan);
       }
 
+      const plans: DiePhysicsTrajectoryPlan[] = createPhysicsBoxTrajectoryPlans(entries.map((entry, i) => ({
+        dieType: entry.dieType, targetValue: entry.value,
+        collisionVertices: Array.from(this.activeDice[i].builtGeometry.vertexData.positions!),
+      })), sizeScale, custom.physics);
+      this.activeDice.forEach((die, i) => {
+        die.mesh.position.copyFrom(plans[i].startPos); die.mesh.rotationQuaternion = plans[i].startQuat.clone();
+      });
       this.soundService.playRollStartClatter(custom.soundProfileId, entries.length);
       const startTime = performance.now();
-      const durationMs = 1120;
-      const floorY = 0.88 * sizeScale;
+      const totalDuration = Math.max(0, ...plans.map(plan => (plan.durationMs ?? 2000) + (plan.delayMs ?? 0)));
 
       const step = () => {
         if (!this.scene) {
           return;
         }
-        const t = Math.min(1, (performance.now() - startTime) / durationMs);
+        const elapsed = performance.now() - startTime;
 
         for (let i = 0; i < this.activeDice.length; i++) {
+          const t = Math.max(0, Math.min(1, (elapsed - (plans[i].delayMs ?? 0)) / (plans[i].durationMs ?? 2000)));
           const pose = evaluateDieTrajectoryStep(plans[i], t, sizeScale, intensity => {
             if (i <= 2) {
               this.soundService.playBounceImpact(custom.soundProfileId, intensity);
@@ -202,7 +201,7 @@ export class FullscreenDiceBabylonRunner {
 
           const shadow = this.activeShadows[i];
           if (shadow) {
-            const heightAboveFloor = Math.max(0, pose.position.y - floorY);
+            const heightAboveFloor = Math.max(0, pose.position.y - plans[i].endPos.y);
             shadow.position.x = pose.position.x + 0.12 + heightAboveFloor * 0.08;
             shadow.position.z = pose.position.z - 0.12 - heightAboveFloor * 0.08;
             const shadowScale = 1 + heightAboveFloor * 0.18;
@@ -210,7 +209,7 @@ export class FullscreenDiceBabylonRunner {
           }
         }
 
-        if (t < 1) {
+        if (elapsed < totalDuration) {
           this.rollStepTimer = window.setTimeout(step, 16);
         } else {
           this.rollStepTimer = null;
@@ -250,15 +249,6 @@ export class FullscreenDiceBabylonRunner {
     this.soundService.playSettleChime(custom.soundProfileId);
 
     const cameraPos = new Vector3(0, 14.2, -0.7);
-    for (let i = 0; i < this.activeDice.length; i++) {
-      const entry = entries[i];
-      if (entry) {
-        const dieMesh = this.activeDice[i].mesh;
-        const toCameraDir = cameraPos.subtract(dieMesh.position).normalize();
-        dieMesh.rotationQuaternion = getRotationForTopValue(entry.dieType, entry.value, 0, toCameraDir);
-      }
-    }
-
     if (this.scene && (isNat20 || isCritFail)) {
       const targetPos = this.activeDice[0]?.mesh.position.clone() ?? new Vector3(0, 0.8, 0);
       if (isNat20) {

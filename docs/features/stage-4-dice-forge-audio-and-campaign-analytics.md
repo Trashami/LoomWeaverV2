@@ -74,3 +74,11 @@ As a GM or Player, I want:
 - Carved/flush/raised lettering changes signed height, beveled inlay shading and parallax occlusion. Customization rebuilds settled dice in place and queues changes made during a throw.
 - Selecting a model applies that model's bevel instead of retaining the previous model's value. The five included profiles are balanced, sharp, deep-beveled, an open edge cage with inset number panels, and a double-faceted cut. The missing built-in GLB placeholder is replaced by the working faceted profile; registered external GLB definitions remain supported.
 - Regression commands: `node scripts/test_dice_geometry.cjs` and `node scripts/test_dice_surfaces.cjs`. The browser preview additionally checks real-font fit, signed engraving pixel differences and saved overlay compatibility. Required release checks remain the production frontend build/prerender and .NET build.
+
+## Natural result-preserving roll motion (2026-10-28)
+
+- Removed the late target-face interpolation and both renderer completion-time pose resets. The same shared pool planner now drives forge and fullscreen rolls.
+- The unnumbered solid is simulated through impacts, friction and damped rocking until it sleeps. A constant local rotational symmetry is applied to the complete trajectory before playback so the supplied result lands face-up (or d4 point-up) without changing the path or seeking the result at the end. Final yaw is preserved rather than realigned to the camera.
+- Floor support follows the actual supplied die mesh vertices. Renderer timers finish the complete planned trajectory, including per-die delays, instead of cutting off active motion at a timeout. Low duration settings speed the entire planned roll rather than truncating it.
+- Motion regressions cover 112 seeded rolls, every target-face symmetry for all seven die types, identical motion across different supplied results, near-zero final velocity, extreme physics settings, and ground contact for all five model profiles: `node scripts/test_dice_motion.cjs`.
+- Motion remains cosmetic; the planner consumes supplied outcomes and does not change result generation or authorization.

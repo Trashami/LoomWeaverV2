@@ -259,7 +259,7 @@ export class BabylonDiceStageService {
     isCriticalSuccess: boolean,
     isCriticalFailure: boolean,
   ): void {
-    if (!this.scene) return;
+    if (!this.scene || !entries.length) return;
     if (this.rollAnimationTimer !== null) {
       clearTimeout(this.rollAnimationTimer);
       this.rollAnimationTimer = null;
@@ -280,32 +280,30 @@ export class BabylonDiceStageService {
     const model = resolveDiceModel(this.currentCustom.modelId);
     const physicsScale = (phys.scale ?? 5) / 5;
     const sizeScale = (DICE_SIZE_SCALE_MAP[this.currentCustom.sizePreset] ?? 1.0) * (model.scaleMultiplier ?? 1.0) * physicsScale;
-    const camPos = this.camera?.position.clone() ?? new Vector3(0, 15.5, -1.2);
 
     const planEntries = entries.map((e) => ({ dieType: e.dieType, targetValue: e.value }));
-    const plans: DiePhysicsTrajectoryPlan[] = createPhysicsBoxTrajectoryPlans(planEntries, sizeScale, phys, camPos);
 
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i];
       const built = buildBabylonPolyhedralDie(`lw-roll-die-${i}`, entry.dieType, this.currentSkin, this.currentCustom, model, this.scene);
-      built.mesh.position.copyFrom(plans[i].startPos);
-      built.mesh.rotationQuaternion = plans[i].startQuat.clone();
       this.activeDice.push(built);
 
       if (phys.enableShadows) {
         const shadow = createDieContactShadowDisc(i, sizeScale, this.scene, phys.shadowTransparency ?? 0.8);
-        shadow.position.x = plans[i].startPos.x;
-        shadow.position.z = plans[i].startPos.z;
         this.activeShadows.push(shadow);
       }
     }
 
+    const plans: DiePhysicsTrajectoryPlan[] = createPhysicsBoxTrajectoryPlans(planEntries.map((entry, i) => ({
+      ...entry, collisionVertices: Array.from(this.activeDice[i].builtGeometry.vertexData.positions!),
+    })), sizeScale, phys);
+    this.activeDice.forEach((die, i) => {
+      die.mesh.position.copyFrom(plans[i].startPos); die.mesh.rotationQuaternion = plans[i].startQuat.clone();
+    });
     this.soundService.playRollStartClatter(this.currentCustom.soundProfileId, entries.length);
     const startTime = performance.now();
     const baseDuration = plans[0]?.durationMs ?? 1050;
-    const maxDelay = (entries.length - 1) * Math.max(0, phys.delay ?? 10);
-    const totalDuration = Math.min(phys.settleTimeout ?? 5000, baseDuration + maxDelay);
-    const floorY = 0.82 * sizeScale;
+    const totalDuration = Math.max(...plans.map(plan => (plan.durationMs ?? baseDuration) + (plan.delayMs ?? 0)));
 
     const step = () => {
       if (!this.scene) return;
@@ -313,7 +311,7 @@ export class BabylonDiceStageService {
 
       for (let i = 0; i < this.activeDice.length; i++) {
         const dDelay = plans[i].delayMs ?? 0;
-        const t = Math.min(1, Math.max(0, elapsed - dDelay) / baseDuration);
+        const t = Math.min(1, Math.max(0, elapsed - dDelay) / (plans[i].durationMs ?? baseDuration));
         const pose = evaluateDieTrajectoryStep(plans[i], t, sizeScale, (intensity) => {
           if (i <= 2) this.soundService.playBounceImpact(this.currentCustom.soundProfileId, intensity);
         });
@@ -322,7 +320,7 @@ export class BabylonDiceStageService {
 
         const shadow = this.activeShadows[i];
         if (shadow) {
-          const h = Math.max(0, pose.position.y - floorY);
+          const h = Math.max(0, pose.position.y - plans[i].endPos.y);
           shadow.position.x = pose.position.x + 0.1 + h * 0.06;
           shadow.position.z = pose.position.z - 0.1 - h * 0.06;
           const sc = 1 + h * 0.14;
@@ -336,14 +334,6 @@ export class BabylonDiceStageService {
         this.isRolling = false;
         this.rollAnimationTimer = null;
         this.soundService.playSettleChime(this.currentCustom.soundProfileId);
-
-        for (let i = 0; i < this.activeDice.length; i++) {
-          const die = this.activeDice[i];
-          const entry = entries[i];
-          const toCam = camPos.subtract(die.mesh.position).normalize();
-          die.mesh.rotationQuaternion = getRotationForTopValue(entry.dieType, entry.value, 0, toCam);
-
-        }
 
         if (this.pendingRebuild) this.syncStageLightingAndRebuild();
         if (isCriticalSuccess) this.previewCritOutcomeEffect('nat20');

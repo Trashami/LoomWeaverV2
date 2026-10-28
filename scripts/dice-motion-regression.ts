@@ -5,6 +5,8 @@ import { simulateDiceRolls } from '../frontend/src/app/features/dice/engine/dice
 import { resultFace, resultSymmetry, rollShape } from '../frontend/src/app/features/dice/engine/dice-roll-orientation';
 import { DEFAULT_DICE_PHYSICS_CONFIG as defaults } from '../frontend/src/app/features/dice/engine/dice-physics.types';
 import { DicePolyhedronType } from '../frontend/src/app/features/dice/engine/models/dice-model.types';
+import { advanceContactRock, beginContactRock } from '../frontend/src/app/features/dice/engine/dice-contact-rocking';
+import { closestRestPose } from '../frontend/src/app/features/dice/engine/dice-roll-orientation';
 
 const check = (condition: boolean, message: string) => { if (!condition) throw new Error(message); };
 const rng = (seed: number) => () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
@@ -76,3 +78,21 @@ const gentle = simulateDiceRolls([{dieType:'d6',targetValue:3}],1,{...defaults,t
 const hard = simulateDiceRolls([{dieType:'d6',targetValue:3}],1,{...defaults,throwForce:12},rng(88))[0];
 check(Vector3.Distance(hard.keyframesPos![1],hard.keyframesPos![0]) > Vector3.Distance(gentle.keyframesPos![1],gentle.keyframesPos![0])*3,'throw strength changes launch speed');
 check(hard.bounceFrames!.length > gentle.bounceFrames!.length,'hard throws produce more wall/table contacts');
+
+// A tipped die crosses flat under its retained momentum, then rocks back with
+// successively smaller excursions. This catches overdamped "98% done" motion.
+const shape = rollShape('d6'), rest = closestRestPose('d6', Quaternion.Identity()).rotation;
+const rotation = Quaternion.RotationAxis(Vector3.Right(), 0.3).multiply(rest);
+const rock = beginContactRock(rotation, rest, new Vector3(-0.4, 0, 0), shape.vertices);
+const peaks: number[] = []; let excursion = 0, previous = rock.angle, crossings = 0;
+for (let frame = 0; frame < 1200 && !rock.finished; frame++) {
+  advanceContactRock(rock, shape.vertices, 1 / 120);
+  if (rock.angle * previous < 0) { peaks.push(excursion); excursion = 0; crossings++; }
+  excursion = Math.max(excursion, Math.abs(rock.angle)); previous = rock.angle;
+}
+check(rock.finished && crossings >= 2, 'contact inertia must rock through flat before stopping');
+check(peaks.slice(1).every((peak, i) => peak < peaks[i]), 'each rock loses energy');
+const short = simulateDiceRolls([{dieType:'d20',targetValue:20}],1,{...defaults,settleTimeout:1000},rng(71))[0];
+const long = simulateDiceRolls([{dieType:'d20',targetValue:20}],1,{...defaults,settleTimeout:10000},rng(71))[0];
+check(short.durationMs === long.durationMs, 'saved timeout settings cannot time-warp physical landing');
+console.log('PASS: retained rocking inertia, decreasing energy, and invariant physical duration.');

@@ -174,6 +174,8 @@ export interface DiceCustomRuntimeConfig {
   readonly fresnelIntensity: number;
   readonly veinPulse: boolean;
   readonly nat20EffectId: string;
+  readonly nat20Customization?: import('../effects/dice-core-effects').DiceCritCustomization;
+  readonly critFailCustomization?: import('../effects/dice-core-effects').DiceCritCustomization;
   readonly critFailEffectId: string;
   readonly critBurstIntensity: number;
   readonly critRingScale: number;

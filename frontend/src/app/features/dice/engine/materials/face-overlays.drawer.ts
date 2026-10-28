@@ -1,6 +1,6 @@
 import { DieFaceLayout } from '../models/face-layout';
 import { resolveDiceModel } from '../models/dice-model.catalog';
-import { faceNumberPlacements, placementFits, numberFont } from './number-layout';
+import { faceNumberPlacements, fitFaceNumberSize, numberFont } from './number-layout';
 import { drawEngravedLabel } from './number-engraving.drawer';
 import { DiceBlendMode } from '../dice-physics.types';
 import { DiceCustomRuntimeConfig, DiceSkinConfig } from '../skins/dice-skin.types';
@@ -157,7 +157,7 @@ function paintFaceNumbers(pair: FaceCanvasPair, label: string, layout: DieFaceLa
   }
   {
     contexts[0].font = numberFont(custom, skin, 100);
-    for (let i = 0; i < 80 && !faceNumberPlacements(layout, label).every(p => placementFits(contexts[0], layout, p, worldFontSize / layout.unitsPerUv, worldFontSize / layout.unitsPerUv * (((custom.numberStrokeWidth ?? 0) + Math.abs(custom.fontTracking ?? 0)) / 100 + 0.065))); i++) worldFontSize *= 0.95;
+    worldFontSize = fitFaceNumberSize(contexts[0], layout, label, worldFontSize, custom);
   }
   for (const placement of faceNumberPlacements(layout, label)) {
     drawEngravedLabel(contexts[0], contexts[1], contexts[2], placement.label,

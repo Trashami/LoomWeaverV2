@@ -1,21 +1,48 @@
-import { Color3, DynamicTexture, Mesh, PBRMaterial, Scene, VertexBuffer } from '@babylonjs/core';
+import { Color3, DynamicTexture, Mesh, PBRMaterial, Scene, Vector3, VertexBuffer, VertexData } from '@babylonjs/core';
 import { DiceCustomRuntimeConfig } from '../skins/dice-skin.types';
 import { BuiltBabylonDieGeometry, DiceModelDefinition, DicePolyhedronType } from './dice-model.types';
 import { addDragonScales, addOpenworkDragon, sculptFaces } from './dragon-face.geometry';
 import { addDragonEye, paintDragonIris } from './dragon-eye.geometry';
 import { SculptMesh } from './sculpt-mesh.builder';
+const sculptCache = new Map<string, { metal: SculptMesh; lens: SculptMesh }>();
+let cachedVertices = 0;
 
 export function buildDragonSculpt(type: DicePolyhedronType, radius: number, chamfer: number, ornament: DiceModelDefinition['ornament']): { metal: SculptMesh; lens: SculptMesh } {
+  const key = `${type}:${radius}:${chamfer}:${ornament}`;
+  const cached = sculptCache.get(key);
+  if (cached) return cached;
   const metal = new SculptMesh(), lens = new SculptMesh();
   for (const face of sculptFaces(type, radius, chamfer)) {
-    if (ornament === 'dragon-openwork') addOpenworkDragon(metal, face);
+    if (ornament === 'dragon-openwork') {
+      const start = metal.positions.length;
+      addOpenworkDragon(metal, face);
+      const center = face.at(0, 0, 0), normal = face.at(0, 0, 1).subtract(center).normalize();
+      // Dress the casting to a shared face plane. Letter inlays meet the metal
+      // instead of needing to hover over the highest strand of the sculpture.
+      for (let i = start; i < metal.positions.length; i += 3) {
+        const point = Vector3.FromArray(metal.positions, i);
+        const excess = Vector3.Dot(point.subtract(center), normal) - face.radius * 0.027;
+        if (excess > 0) {
+          point.subtractInPlace(normal.scale(excess));
+          metal.positions[i] = point.x; metal.positions[i + 1] = point.y; metal.positions[i + 2] = point.z;
+        }
+      }
+    }
     else {
       const eye = type === 'd20' && face.value === 20;
       addDragonScales(metal, face, eye);
       if (eye) addDragonEye(metal, lens, face);
     }
   }
-  return { metal, lens };
+  if (ornament === 'dragon-openwork') VertexData.ComputeNormals(metal.positions, metal.indices, metal.normals);
+  const result = { metal, lens }, count = (metal.positions.length + lens.positions.length) / 3;
+  while (sculptCache.size && cachedVertices + count > 250000) {
+    const oldest = sculptCache.keys().next().value!, value = sculptCache.get(oldest)!;
+    cachedVertices -= (value.metal.positions.length + value.lens.positions.length) / 3;
+    sculptCache.delete(oldest);
+  }
+  if (count <= 250000) { sculptCache.set(key, result); cachedVertices += count; }
+  return result;
 }
 
 export function attachDragonSculpt(parent: Mesh, type: DicePolyhedronType, radius: number, chamfer: number,
@@ -39,8 +66,8 @@ export function attachDragonSculpt(parent: Mesh, type: DicePolyhedronType, radiu
     parent.onDisposeObservable.addOnce(() => bodyMaterial.dispose());
   }
   if (model.ornament) {
-    // Lift only the visible lettering over the metal. The solid collision proxy
-    // and face normals remain unchanged; transparent pixels create real holes.
+    // Inlay rests at the scale crest, with only a subpixel anti-z-fighting gap.
+    // The former 0.16-radius offset made the labels visibly hover in mid-air.
     const positions = Array.from(geometry.vertexData.positions!);
     const normals = geometry.vertexData.normals!;
     const indices = geometry.vertexData.indices!;
@@ -48,7 +75,7 @@ export function attachDragonSculpt(parent: Mesh, type: DicePolyhedronType, radiu
     for (const range of geometry.subMeshRanges.filter(range => range.materialIndex > 0)) {
       const face = faces.find(face => face.value === range.materialIndex)!;
       const vertices = new Set(Array.from(indices).slice(range.indexStart, range.indexStart + range.indexCount));
-      for (const vertex of vertices) for (let axis = 0; axis < 3; axis++) positions[vertex * 3 + axis] += normals[vertex * 3 + axis] * face.radius * 0.16;
+      for (const vertex of vertices) for (let axis = 0; axis < 3; axis++) positions[vertex * 3 + axis] += normals[vertex * 3 + axis] * face.radius * 0.029;
     }
     parent.updateVerticesData(VertexBuffer.PositionKind, positions, true);
   }

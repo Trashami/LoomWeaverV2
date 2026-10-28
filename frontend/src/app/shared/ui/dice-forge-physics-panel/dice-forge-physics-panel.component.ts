@@ -2,6 +2,8 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgpButton } from 'ng-primitives/button';
+import { DiceCritEditorComponent } from '../dice-crit-editor/dice-crit-editor.component';
+import { DiceCritCustomization } from '../../../features/dice/engine/effects/dice-core-effects';
 import { DiceSoundProfile } from '../../../features/dice/engine/audio';
 import {
   DEFAULT_DICE_PHYSICS_CONFIG,
@@ -18,7 +20,7 @@ import {
 @Component({
   selector: 'lw-dice-forge-physics-panel',
   standalone: true,
-  imports: [CommonModule, FormsModule, NgpButton],
+  imports: [CommonModule, FormsModule, NgpButton, DiceCritEditorComponent],
   templateUrl: './dice-forge-physics-panel.component.html',
   styleUrl: '../dice-forge-inspector/dice-forge-inspector.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -48,6 +50,11 @@ export class LwDiceForgePhysicsPanelComponent {
   readonly previewRollCameraRequested = output<void>();
 
   readonly publishTagline = signal<string>('Custom polyhedral set forged in LoomWeaver Studio.');
+  patchCrit(outcome: 'nat20' | 'critfail', value: DiceCritCustomization): void {
+    this.configPatched.emit(outcome === 'nat20'
+      ? { nat20EffectId: value.presetId, nat20Customization: value }
+      : { critFailEffectId: value.presetId, critFailCustomization: value });
+  }
 
   patch<K extends keyof DiceCustomRuntimeConfig>(key: K, value: DiceCustomRuntimeConfig[K]): void {
     this.configPatched.emit({ [key]: value });

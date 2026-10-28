@@ -3,32 +3,19 @@ import { DicePhysicsConfig } from './dice-physics.types';
 import { DiceMotionEntry, DiePhysicsTrajectoryPlan } from './dice-roll-motion.types';
 import { closestRestPose, resultSymmetry, rollShape } from './dice-roll-orientation';
 import { getPolyhedronRawTable } from './models/polyhedra-tables.model';
+import { advanceContactRock, beginContactRock, ContactRock, supportHeight as solidHeight } from './dice-contact-rocking';
 
 const DT = 1 / 120;
 interface Body {
   position: Vector3; velocity: Vector3; angular: Vector3; rotation: Quaternion;
-  vertices: Vector3[]; rest?: Quaternion; restFace: number; quiet: number; asleep: boolean;
+  vertices: Vector3[]; rest?: Quaternion; rock?: ContactRock; restFace: number; quiet: number; asleep: boolean;
   positions: Vector3[]; rotations: Quaternion[]; impacts: number[];
 }
 function supportHeight(body: Body, rotation = body.rotation): number {
-  let bottom = 0;
-  const { x, y, z, w } = rotation;
-  const rowX = 2 * (x * y + w * z), rowY = 1 - 2 * (x * x + z * z), rowZ = 2 * (y * z - w * x);
-  for (const vertex of body.vertices) bottom = Math.min(bottom, rowX * vertex.x + rowY * vertex.y + rowZ * vertex.z);
-  return -bottom;
+  return solidHeight(body.vertices, rotation);
 }
 function recordImpact(body: Body, step: number) {
   if (!body.impacts.length || step - body.impacts.at(-1)! > 10) body.impacts.push(step);
-}
-function settleAngularVelocity(body: Body): number {
-  const inverse = body.rotation.conjugate();
-  const error = body.rest!.multiply(inverse).normalize();
-  if (error.w < 0) error.scaleInPlace(-1);
-  const angle = 2 * Math.acos(Math.min(1, Math.max(-1, error.w)));
-  const sin = Math.sqrt(Math.max(0, 1 - error.w * error.w));
-  const torque = sin > 1e-6 ? new Vector3(error.x, error.y, error.z).scale(80 * angle / sin) : Vector3.Zero();
-  body.angular.addInPlace(torque.subtract(body.angular.scale(18)).scale(DT));
-  return angle;
 }
 
 /** Simulate an unnumbered solid to rest, then pre-orient its entire path to the supplied result. */
@@ -78,32 +65,44 @@ export function simulateDiceRolls(entries: readonly DiceMotionEntry[], sizeScale
           body.velocity.y = impact > 1.1 ? impact * restitution : 0;
           const drag = Math.exp(-(1.5 + Math.max(0, physics.friction) * 5) * DT);
           body.velocity.x *= drag; body.velocity.z *= drag;
-          body.angular.scaleInPlace(Math.exp(-(2 + physics.friction * 5) * DT));
-          if (!body.rest && body.velocity.y < 0.8 && (body.angular.length() < 3 || elapsed > 4)) {
+          if (!body.rock) body.angular.scaleInPlace(Math.exp(-(2 + Math.max(0, physics.friction) * 5) * DT));
+          if (!body.rest && body.velocity.y < 0.3 && body.angular.length() < 2.5) {
             const rest = closestRestPose(entries[i].dieType, body.rotation);
             body.rest = rest.rotation; body.restFace = rest.face;
+            body.rock = beginContactRock(body.rotation, rest.rotation, body.angular, body.vertices);
           }
         } else body.angular.scaleInPlace(Math.exp(-Math.max(0, physics.angularDamping) * 1.6 * DT));
-        let restError = Infinity;
-        if (body.rest && body.velocity.y < 0.8) restError = settleAngularVelocity(body);
-        const speed = body.angular.length();
-        if (speed > 1e-8) body.rotation = Quaternion.RotationAxis(body.angular.scale(1 / speed), speed * DT).multiply(body.rotation).normalize();
-        body.position.y = Math.max(body.position.y, supportHeight(body));
+        if (body.rock) {
+          body.rotation = advanceContactRock(body.rock, body.vertices, DT);
+          body.angular.copyFrom(body.rock.axis).scaleInPlace(body.rock.speed);
+          body.position.y = supportHeight(body); body.velocity.y = 0;
+          // If momentum crosses the tipping barrier, acquire the new support
+          // face without changing orientation or velocity. The die may roll on.
+          const next = closestRestPose(entries[i].dieType, body.rotation);
+          if (next.face !== body.restFace) {
+            body.rest = next.rotation; body.restFace = next.face;
+            body.rock = beginContactRock(body.rotation, next.rotation, body.angular, body.vertices);
+          }
+        } else {
+          const speed = body.angular.length();
+          if (speed > 1e-8) body.rotation = Quaternion.RotationAxis(body.angular.scale(1 / speed), speed * DT).multiply(body.rotation).normalize();
+          body.position.y = Math.max(body.position.y, supportHeight(body));
+        }
         if (body.position.x > halfW || body.position.x < -halfW) {
           body.position.x = Math.max(-halfW, Math.min(halfW, body.position.x));
           body.angular.z += body.velocity.x * 0.12;
-          body.velocity.x *= -Math.min(0.95, Math.max(0.05, physics.wallRestitution)); body.rest = undefined;
+          body.velocity.x *= -Math.min(0.95, Math.max(0.05, physics.wallRestitution)); body.rest = undefined; body.rock = undefined;
           recordImpact(body, steps);
         }
         if (body.position.z > halfD || body.position.z < -halfD) {
           body.position.z = Math.max(-halfD, Math.min(halfD, body.position.z));
           body.angular.x -= body.velocity.z * 0.12;
-          body.velocity.z *= -Math.min(0.95, Math.max(0.05, physics.wallRestitution)); body.rest = undefined;
+          body.velocity.z *= -Math.min(0.95, Math.max(0.05, physics.wallRestitution)); body.rest = undefined; body.rock = undefined;
           recordImpact(body, steps);
         }
-        const quiet = body.rest && restError < 0.0005 && speed < 0.008 && Math.hypot(body.velocity.x, body.velocity.z) < 0.008 && Math.abs(body.velocity.y) < 0.05 && body.position.y - supportHeight(body) < 0.003;
+        const quiet = body.rock?.finished && Math.hypot(body.velocity.x, body.velocity.z) < 0.008;
         body.quiet = quiet ? body.quiet + 1 : 0;
-        if (body.quiet >= 16) {
+        if (body.quiet >= 2) {
           body.asleep = true; body.rotation = body.rest!.clone();
           body.position.y = supportHeight(body); body.velocity.setAll(0); body.angular.setAll(0);
         }
@@ -124,7 +123,7 @@ export function simulateDiceRolls(entries: readonly DiceMotionEntry[], sizeScale
           const impulse = -relative * 0.65;
           a.velocity.x -= impulse * nx; a.velocity.z -= impulse * nz;
           b.velocity.x += impulse * nx; b.velocity.z += impulse * nz;
-          for (const body of [a, b]) { body.asleep = false; body.rest = undefined; body.quiet = 0; recordImpact(body, steps); }
+          for (const body of [a, b]) { body.asleep = false; body.rest = undefined; body.rock = undefined; body.quiet = 0; recordImpact(body, steps); }
         }
       }
     }
@@ -132,8 +131,8 @@ export function simulateDiceRolls(entries: readonly DiceMotionEntry[], sizeScale
     if (bodies.every(body => body.asleep)) break;
   }
   if (bodies.some(body => !body.asleep)) throw new Error('Dice motion did not settle within the simulation budget');
-  const maxDelay = Math.max(0, entries.length - 1) * Math.max(0, physics.delay);
-  const duration = Math.max(900, Math.min(Math.max(900, physics.settleTimeout - maxDelay), steps * DT * 1000));
+  // Never accelerate/decelerate a trajectory to satisfy a cosmetic timeout.
+  const duration = steps * DT * 1000;
   return bodies.map((body, i) => {
     const symmetry = resultSymmetry(entries[i].dieType, body.restFace, entries[i].targetValue);
     // Right multiplication is constant for EVERY frame: there is no late result-seeking rotation.

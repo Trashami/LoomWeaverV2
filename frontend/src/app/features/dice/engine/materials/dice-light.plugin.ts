@@ -19,6 +19,7 @@ export class DiceLightPlugin extends MaterialPluginBase {
   }
   update(seconds: number): void {
     const c = this.config;
+    if (seconds > 0 && !c.corePulseEnabled && !c.numberPulseEnabled) return;
     const corePulse = c.corePulseEnabled ? evaluateDicePulse(c.corePulseWaveform, seconds, c.corePulseSpeed, c.corePulseMin, c.corePulseMax) : 1;
     const inkPulse = c.numberPulseEnabled ? evaluateDicePulse(c.numberPulseWaveform, seconds, c.numberPulseSpeed, c.numberPulseMin, c.numberPulseMax) : 1;
     this.coreLevel = c.coreInnerGlowEnabled ? Math.max(0, Math.min(1, c.coreInnerGlowOpacity)) * corePulse * 0.38 : 0;

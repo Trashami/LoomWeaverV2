@@ -4,7 +4,8 @@ import { buildBabylonDieVertexData, getRotationForTopValue } from '../frontend/s
 import { getPolyhedronRawTable, FACE_VALUES } from '../frontend/src/app/features/dice/engine/models/polyhedra-tables.model';
 import { DICE_MODEL_CATALOG } from '../frontend/src/app/features/dice/engine/models/dice-model.catalog';
 import { DicePolyhedronType } from '../frontend/src/app/features/dice/engine/models/dice-model.types';
-import { faceNumberPlacements, placementFits, numberFont, setNumberWorldSize } from '../frontend/src/app/features/dice/engine/materials/number-layout';
+import { faceNumberPlacements, placementFits, fitFaceNumberSize, numberFont, setNumberWorldSize } from '../frontend/src/app/features/dice/engine/materials/number-layout';
+import { DICE_FONTS } from '../frontend/src/app/features/dice/engine/materials/dice-fonts';
 import { createDefaultRuntimeConfigFromSkin } from '../frontend/src/app/features/dice/engine/skins/dice-skin.types';
 import { OBSIDIAN_SKIN } from '../frontend/src/app/features/dice/engine/skins/obsidian.skin';
 
@@ -28,10 +29,16 @@ export function runDiceGeometryRegression(): string {
       for (const layout of geometry.faceLayouts.values()) {
         const placements = layout.vertexValues ? faceNumberPlacements(layout, '')
           : FACE_VALUES[type].map(value => ({ label: type === 'd100' ? (value === 10 ? '00' : String(value * 10)) : type === 'd10' && value === 10 ? '0' : String(value), x: 0.5, y: 0.5, rotation: 0 }));
-        let fitted = em;
-        if (type === 'd4' || type === 'd100') for (let i = 0; i < 80 && !placements.every(p => placementFits(ctx, layout, p, fitted / layout.unitsPerUv, 0.185 * fitted / layout.unitsPerUv)); i++) fitted *= 0.95;
-        check(fitted > 0.1, 'compact labels remain legible');
-        check(placements.every(p => placementFits(ctx, layout, p, fitted / layout.unitsPerUv, 0.185 * fitted / layout.unitsPerUv)), `${model.id}/${type}: all glyphs fit`);
+        for (const font of DICE_FONTS) for (const placement of placements) {
+          const large = { ...config, fontScale: 3, fontFamily: font.value };
+          ctx.font = numberFont(large, OBSIDIAN_SKIN, 100);
+          const fitted = fitFaceNumberSize(ctx, layout, placement.label, setNumberWorldSize(large, OBSIDIAN_SKIN, model), large);
+          const small = fitFaceNumberSize(ctx, layout, placement.label, em, config);
+          check(fitted > small * 1.2, `${type}: the upper slider range must still enlarge numbers`);
+          check(fitted > 0.1, 'compact labels remain legible');
+          check(faceNumberPlacements(layout, placement.label).every(p => placementFits(ctx, layout, p,
+            fitted / layout.unitsPerUv, 0.185 * fitted / layout.unitsPerUv)), `${model.id}/${type}/${font.label}: maximum-size glyphs fit`);
+        }
       }
       if (type === 'd20') signatures.add(JSON.stringify(geometry.vertexData.positions));
     }

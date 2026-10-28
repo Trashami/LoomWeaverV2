@@ -128,11 +128,7 @@
         <input type="range" min="2" max="20" step="0.5" [value]="customConfig().physics.startingHeight" (input)="patchPhysicsNum('startingHeight', $event)" />
         <code>{{ customConfig().physics.startingHeight }}</code>
       </label>
-      <label class="lw-dice-inspector__phys-row">
-        <span>Roll duration</span>
-        <input type="range" min="1000" max="10000" step="500" [value]="customConfig().physics.settleTimeout" (input)="patchPhysicsNum('settleTimeout', $event)" />
-        <code>{{ customConfig().physics.settleTimeout }}</code>
-      </label>
+      <p>Dice lose energy through contact and always finish flat. Throw settings never override the landing.</p>
     </section>
 
     <section class="lw-dice-inspector__group">
@@ -215,47 +211,12 @@
 <!-- 7. CRIT EFFECTS -->
 @if (activeToolId() === 'crit') {
   <div class="lw-dice-inspector__body">
-    <section class="lw-dice-inspector__group">
-      <span class="lw-dice-inspector__label">Natural 20 Burst Shader</span>
-      <select
-        class="lw-dice-inspector__select lw-dice-inspector__select--full"
-        [value]="customConfig().nat20EffectId"
-        (change)="patch('nat20EffectId', $any($event.target).value)"
-      >
-        @for (fx of nat20Effects(); track fx.id) {
-          <option [value]="fx.id">{{ fx.name }}</option>
-        }
-      </select>
-      <button ngpButton type="button" class="lw-dice-inspector__action-btn" (click)="previewCritRequested.emit('nat20')">
-        Preview Natural 20 Effect
-      </button>
-    </section>
-
-    <section class="lw-dice-inspector__group">
-      <span class="lw-dice-inspector__label">Critical Fail (Nat 1) Fracture</span>
-      <select
-        class="lw-dice-inspector__select lw-dice-inspector__select--full"
-        [value]="customConfig().critFailEffectId"
-        (change)="patch('critFailEffectId', $any($event.target).value)"
-      >
-        @for (fx of critFailEffects(); track fx.id) {
-          <option [value]="fx.id">{{ fx.name }}</option>
-        }
-      </select>
-      <button ngpButton type="button" class="lw-dice-inspector__action-btn lw-dice-inspector__action-btn--crimson" (click)="previewCritRequested.emit('critfail')">
-        Preview Critical Fail Effect
-      </button>
-    </section>
-
-    <section class="lw-dice-inspector__group">
-      <label class="lw-dice-inspector__slider">
-        <div class="lw-dice-inspector__slider-head">
-          <span>Crit Shader Burst Intensity</span>
-          <strong>{{ (customConfig().critBurstIntensity * 100) | number:'1.0-0' }}%</strong>
-        </div>
-        <input type="range" min="0.3" max="2.0" step="0.1" [value]="customConfig().critBurstIntensity" (input)="patchNum('critBurstIntensity', $event)" />
-      </label>
-    </section>
+    <lw-dice-crit-editor title="Natural 20" [presetId]="customConfig().nat20EffectId"
+      [customization]="customConfig().nat20Customization" (changed)="patchCrit('nat20', $event)"
+      (preview)="previewCritRequested.emit('nat20')" />
+    <lw-dice-crit-editor title="Critical fail" [presetId]="customConfig().critFailEffectId"
+      [customization]="customConfig().critFailCustomization" (changed)="patchCrit('critfail', $event)"
+      (preview)="previewCritRequested.emit('critfail')" />
   </div>
 }
 

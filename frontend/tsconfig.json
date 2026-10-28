@@ -19,7 +19,14 @@
       "ES2022",
       "dom"
     ],
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "paths": {
+      "@effectbuilder/*": ["../effectbuilder-studio/src/app/effects/*"],
+      "@effectbuilder-controls": ["../effectbuilder-studio/src/app/shared/components/layer-controls/layer-controls.component.ts"],
+      "@angular/*": ["./node_modules/@angular/*"],
+      "@babylonjs/*": ["./node_modules/@babylonjs/*"],
+      "ng-primitives/*": ["./node_modules/ng-primitives/*"]
+    }
   },
   "angularCompilerOptions": {
     "strictInjectionParameters": true,

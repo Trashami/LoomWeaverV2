@@ -302,7 +302,8 @@
             <span>Number size</span>
             <strong>{{ (customConfig().fontScale * 100) | number:'1.0-0' }}%</strong>
           </div>
-          <input type="range" min="0.6" max="1.4" step="0.04" [value]="customConfig().fontScale" (input)="patchNum('fontScale', $event)" />
+          <input type="range" aria-label="Number size" min="0.4" max="3" step="0.05" [value]="customConfig().fontScale" (input)="patchNum('fontScale', $event)" />
+          <small>Numbers grow to fit each face safely. Wide labels and D4 tips fit automatically.</small>
         </label>
 
         <label class="lw-dice-inspector__slider">

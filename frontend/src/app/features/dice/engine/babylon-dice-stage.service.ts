@@ -91,6 +91,7 @@ export class BabylonDiceStageService {
   private focusDieType: DicePolyhedronType | 'all' = 'all';
   private isRolling = false;
   private rollAnimationTimer: number | null = null;
+  private rebuildTimer: number | null = null;
   private resizeHandler = () => this.engine?.resize();
 
   mountStage(canvas: HTMLCanvasElement, initialSkinIdOrPreset?: string | DiceSkinPresetPayload): void {
@@ -178,6 +179,9 @@ export class BabylonDiceStageService {
   }
 
   applyCustomOverrides(overrides: Partial<DiceCustomRuntimeConfig>): DiceCustomRuntimeConfig {
+    const nonVisual = new Set(['nat20EffectId', 'critFailEffectId', 'nat20Customization',
+      'critFailCustomization', 'critBurstIntensity', 'critRingScale', 'soundProfileId', 'customName']);
+    const needsRebuild = Object.keys(overrides).some(key => !nonVisual.has(key));
     if (overrides.skinId && overrides.skinId !== this.currentSkin.id) {
       this.currentSkin = resolveDiceSkin(overrides.skinId);
     }
@@ -191,7 +195,10 @@ export class BabylonDiceStageService {
       skinId: this.currentSkin.id,
       physics: mergedPhysics,
     };
-    this.syncStageLightingAndRebuild();
+    if (needsRebuild) {
+      if (this.rebuildTimer !== null) clearTimeout(this.rebuildTimer);
+      this.rebuildTimer = window.setTimeout(() => { this.rebuildTimer = null; this.syncStageLightingAndRebuild(); }, 80);
+    }
     return this.getCurrentCustomConfig();
   }
 
@@ -206,7 +213,7 @@ export class BabylonDiceStageService {
 
   clearRollAndReturnToShowcase(): void {
     if (this.rollAnimationTimer !== null) {
-      clearTimeout(this.rollAnimationTimer);
+      cancelAnimationFrame(this.rollAnimationTimer);
       this.rollAnimationTimer = null;
     }
     this.isRolling = false;
@@ -249,11 +256,11 @@ export class BabylonDiceStageService {
     if (outcomeKind === 'nat20') {
       const preset = resolveNat20Effect(this.currentCustom.nat20EffectId);
       this.soundService.playCriticalSuccessFanfare(this.currentCustom.soundProfileId);
-      this.critEffectsRunner.triggerCritEffect(preset, origin, this.scene, this.glowLayer, 0.55 * scaleBoost);
+      this.critEffectsRunner.triggerCritEffect(preset, origin, this.scene, this.glowLayer, 0.55 * scaleBoost, this.currentCustom.nat20Customization);
     } else {
       const preset = resolveCritFailEffect(this.currentCustom.critFailEffectId);
       this.soundService.playCriticalFailureFracture();
-      this.critEffectsRunner.triggerCritEffect(preset, origin, this.scene, this.glowLayer, 0.45 * scaleBoost);
+      this.critEffectsRunner.triggerCritEffect(preset, origin, this.scene, this.glowLayer, 0.45 * scaleBoost, this.currentCustom.critFailCustomization);
     }
   }
 
@@ -264,7 +271,7 @@ export class BabylonDiceStageService {
   ): void {
     if (!this.scene || !entries.length) return;
     if (this.rollAnimationTimer !== null) {
-      clearTimeout(this.rollAnimationTimer);
+      cancelAnimationFrame(this.rollAnimationTimer);
       this.rollAnimationTimer = null;
     }
 
@@ -338,7 +345,7 @@ export class BabylonDiceStageService {
       }
 
       if (elapsed < totalDuration) {
-        this.rollAnimationTimer = window.setTimeout(step, 16);
+        this.rollAnimationTimer = window.requestAnimationFrame(step);
       } else {
         this.isRolling = false;
         this.rollAnimationTimer = null;
@@ -360,8 +367,10 @@ export class BabylonDiceStageService {
   }
 
   dispose(): void {
+    if (this.rebuildTimer !== null) clearTimeout(this.rebuildTimer);
+    this.rebuildTimer = null;
     window.removeEventListener('resize', this.resizeHandler);
-    if (this.rollAnimationTimer !== null) clearTimeout(this.rollAnimationTimer);
+    if (this.rollAnimationTimer !== null) cancelAnimationFrame(this.rollAnimationTimer);
     this.rollAnimationTimer = null;
     this.critEffectsRunner.clearActiveEffects();
     this.clearFloatingBadges();
@@ -376,6 +385,8 @@ export class BabylonDiceStageService {
   }
 
   private syncStageLightingAndRebuild(): void {
+    if (this.rebuildTimer !== null) clearTimeout(this.rebuildTimer);
+    this.rebuildTimer = null;
     if (!this.scene) return;
     const phys = this.currentCustom.physics ?? DEFAULT_DICE_PHYSICS_CONFIG;
     const lightMult = Math.max(0.2, Math.min(3.0, phys.lightIntensity ?? 1.0));

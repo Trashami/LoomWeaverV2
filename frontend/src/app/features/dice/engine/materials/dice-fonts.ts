@@ -1,7 +1,9 @@
 /** Self-hosted numeral faces; legacy saved family strings resolve to the same catalog. */
 export const DICE_FONTS = [
   { label: 'Royal serif', value: 'Cinzel, Georgia, serif', family: 'Loom Royal', file: 'cinzel' },
-  { label: 'Nordic carved', value: '"Nordic Chance", Cinzel, serif', family: 'Loom Nordic', file: 'nordic' },
+  { label: 'Nordic runes', value: '"Nordic Chance", Cinzel, serif', family: 'Loom Nordic Runes', file: 'nordic-runes' },
+  { label: 'Elven flowing script', value: '"Loom Elven", serif', family: 'Loom Elven', file: 'elven-script' },
+  { label: 'Ring inscription', value: '"Loom Ring Script", serif', family: 'Loom Ring Script', file: 'ring-script' },
   { label: 'Medieval', value: '"Loom Medieval", serif', family: 'Loom Medieval', file: 'medievalsharp' },
   { label: 'Gothic', value: '"Loom Gothic", serif', family: 'Loom Gothic', file: 'pirataone' },
   { label: 'Celtic uncial', value: '"Loom Uncial", serif', family: 'Loom Uncial', file: 'uncialantiqua' },

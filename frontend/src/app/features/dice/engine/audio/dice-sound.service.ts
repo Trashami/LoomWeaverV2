@@ -1,4 +1,4 @@
-import { synthesizeDiceImpact, ImpactSurface } from './dice-impact-synthesis';
+import { synthesizeDiceImpact, ImpactSurface, DieSoundMaterial } from './dice-impact-synthesis';
 import { Injectable, signal } from '@angular/core';
 
 export interface DiceSoundProfile {
@@ -11,12 +11,14 @@ export interface DiceSoundProfile {
   decaySeconds: number;
   harmonicRatio: number;
   customAudioUrl?: string;
+  dieMaterial?: DieSoundMaterial;
 }
 
 export const DICE_SOUND_PROFILES: DiceSoundProfile[] = [
   {
     id: 'sfx-stone-rattle',
-    name: 'Dice on stone',
+    name: 'Stone dice on stone',
+    dieMaterial: 'stone',
     description: 'Deep lithic impacts with slate-table scraping resonance',
     materialCategory: 'stone',
     baseFrequencyHz: 260,
@@ -26,7 +28,8 @@ export const DICE_SOUND_PROFILES: DiceSoundProfile[] = [
   },
   {
     id: 'sfx-metal-clink',
-    name: 'Dice on metal',
+    name: 'Metal dice on metal',
+    dieMaterial: 'metal',
     description: 'Crisp metallic strikes with high-frequency harmonic overtones',
     materialCategory: 'metal',
     baseFrequencyHz: 920,
@@ -36,7 +39,7 @@ export const DICE_SOUND_PROFILES: DiceSoundProfile[] = [
   },
   {
     id: 'sfx-crystal-chime',
-    name: 'Dice on glass',
+    name: 'Plastic dice on glass',
     description: 'Crystalline bell-like impacts with shimmering harmonic tail',
     materialCategory: 'glass',
     baseFrequencyHz: 1340,
@@ -46,7 +49,7 @@ export const DICE_SOUND_PROFILES: DiceSoundProfile[] = [
   },
   {
     id: 'sfx-resin-clatter',
-    name: 'Dice on plastic',
+    name: 'Plastic dice on plastic',
     description: 'Snappy tabletop polyhedral clatter across felt and oak',
     materialCategory: 'resin',
     baseFrequencyHz: 520,
@@ -56,7 +59,7 @@ export const DICE_SOUND_PROFILES: DiceSoundProfile[] = [
   },
   {
     id: 'sfx-wood-tumble',
-    name: 'Dice on wood',
+    name: 'Plastic dice on wood',
     description: 'Warm, hollow hardwood knocks with organic grain resonance',
     materialCategory: 'wood',
     baseFrequencyHz: 340,
@@ -66,7 +69,8 @@ export const DICE_SOUND_PROFILES: DiceSoundProfile[] = [
   },
   {
     id: 'sfx-arcane-hum',
-    name: 'Resonant bell core',
+    name: 'Metal dice on wood · soft bell core',
+    dieMaterial: 'metal',
     description: 'Phase-shifted crystalline pulses with sub-octave hum',
     materialCategory: 'bell',
     baseFrequencyHz: 680,
@@ -74,7 +78,15 @@ export const DICE_SOUND_PROFILES: DiceSoundProfile[] = [
     decaySeconds: 0.16,
     harmonicRatio: 1.88
   },
-  { id: 'sfx-felt-soft', name: 'Dice on felt', description: 'Soft padded tray impacts', materialCategory: 'felt', baseFrequencyHz: 240, resonanceQ: 1, decaySeconds: 0.055, harmonicRatio: 1.71 }
+  { id: 'sfx-felt-soft', name: 'Plastic dice on felt', description: 'Soft padded tray impacts', materialCategory: 'felt', baseFrequencyHz: 240, resonanceQ: 1, decaySeconds: 0.055, harmonicRatio: 1.71 },
+  ...(['glass', 'wood', 'felt', 'plastic'] as const).map(surface => ({ id: `sfx-metal-on-${surface}`,
+    name: `Metal dice on ${surface}`, description: `A weighted metal die landing on ${surface}`,
+    materialCategory: surface, dieMaterial: 'metal' as const, baseFrequencyHz: 850, resonanceQ: 2,
+    decaySeconds: 0.08, harmonicRatio: 1.83 })),
+  { id: 'sfx-wood-on-wood', name: 'Wood dice on wood', description: 'Dry wooden knocks',
+    materialCategory: 'wood', dieMaterial: 'wood', baseFrequencyHz: 310, resonanceQ: 1, decaySeconds: 0.04, harmonicRatio: 1.83 },
+  { id: 'sfx-plastic-on-metal', name: 'Plastic dice on metal', description: 'A short hard tray click',
+    materialCategory: 'metal', dieMaterial: 'plastic', baseFrequencyHz: 1150, resonanceQ: 2, decaySeconds: 0.09, harmonicRatio: 1.83 }
 ];
 
 export function resolveDiceSoundProfile(profileId: string | null | undefined): DiceSoundProfile {
@@ -118,16 +130,16 @@ export class DiceSoundService {
     this.playBounceImpact(profileId, Math.min(0.3, diceCount * 0.06));
   }
 
-  playBounceImpact(profileId: string, intensity = 0.75): void {
+  playBounceImpact(profileId: string, intensity = 0.75, bellOnly = false): void {
     const ctx = this.ensureContext();
     if (!ctx || this.voices.size >= 12 || intensity <= 0.01) return;
-    const category = resolveDiceSoundProfile(profileId).materialCategory;
+    const profile = resolveDiceSoundProfile(profileId), category = profile.materialCategory;
     const surface: ImpactSurface = category === 'resin' ? 'plastic' : category === 'arcane' ? 'bell' : category;
     const variant = Math.floor(Math.random() * 4);
-    const key = `${surface}:${variant}`;
+    const key = `${surface}:${profile.dieMaterial ?? 'plastic'}:${variant}:${bellOnly}`;
     let buffer = this.buffers.get(key);
     if (!buffer) {
-      const samples = synthesizeDiceImpact(surface, ctx.sampleRate, variant + 41);
+      const samples = synthesizeDiceImpact(surface, ctx.sampleRate, variant + 41, profile.dieMaterial, bellOnly);
       buffer = ctx.createBuffer(1, samples.length, ctx.sampleRate);
       buffer.getChannelData(0).set(samples); this.buffers.set(key, buffer);
     }
@@ -141,10 +153,10 @@ export class DiceSoundService {
 
   playTumbleResonance(profileId: string, angularSpeed: number): void {
     const category = resolveDiceSoundProfile(profileId).materialCategory;
-    if ((category !== 'bell' && category !== 'arcane') || angularSpeed < 0.6) return;
+    if ((category !== 'bell' && category !== 'arcane') || angularSpeed < 2) return;
     const now = performance.now();
-    if (now - this.lastBell < Math.max(160, 650 / angularSpeed)) return;
-    this.lastBell = now; this.playBounceImpact(profileId, Math.min(0.16, angularSpeed * 0.012));
+    if (now - this.lastBell < 1100) return;
+    this.lastBell = now; this.playBounceImpact(profileId, Math.min(0.14, angularSpeed * 0.008), true);
   }
 
   playSettleChime(_profileId: string): void {

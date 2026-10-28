@@ -1,0 +1,9 @@
+Loom Nordic Runes, Loom Elven, and Loom Ring Script
+Original LoomWeaver numeral designs, copyright 2026 LoomWeaver.
+
+Outlines are authored in scripts/build_dice_fantasy_fonts.py. These are original
+fantasy-inspired Arabic numeral fonts, not fonts extracted from a game or film.
+They contain digits, a period, and a space for use on dice faces. The generator
+and fonts may be used and modified as part of LoomWeaver.
+
+Build dependencies: fonttools and brotli (development only).

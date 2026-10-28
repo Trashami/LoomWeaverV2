@@ -1,0 +1,45 @@
+<section>
+  <h3>{{title()}}</h3>
+  <select [attr.aria-label]="title() + ' effect'" [ngModel]="selected()" (ngModelChange)="choose($event)">
+    @for(group of groups; track group.name){
+      <optgroup [label]="group.name">@for(effect of group.effects; track effect.id){<option [value]="effect.id">{{effect.name}}</option>}</optgroup>
+    }
+  </select>
+  <button ngpButton type="button" (click)="preview.emit()">Preview {{title()}}</button>
+  <details>
+    <summary>Edit effect layers</summary>
+    <p>EffectBuilder's core layers and controls. Up to 4 layers and 96 primary particles per layer in the dice overlay.</p>
+    <label>Layer<select aria-label="Effect layer" [ngModel]="index()" (ngModelChange)="index.set(+$event)">
+      @for(l of definition().layers; track l.id; let i = $index){<option [ngValue]="i">{{i + 1}} · {{l.kind}} / {{l.variant}}</option>}
+    </select></label>
+    <label class="check"><input ngpInput type="checkbox" [ngModel]="layer().enabled" (ngModelChange)="patch({enabled:$event})" />Enabled</label>
+    <label>Style<select aria-label="Effect style" [ngModel]="layer().variant" (ngModelChange)="patch({variant:$event})">@for(v of variants();track v.id){<option [value]="v.id">{{v.name}}</option>}</select></label>
+    <div class="colors"><label>Color<input ngpInput aria-label="Effect color" type="color" [ngModel]="layer().color" (ngModelChange)="patch({color:$event})" /></label><label>Core color<input ngpInput aria-label="Effect core color" type="color" [ngModel]="layer().secondaryColor" (ngModelChange)="patch({secondaryColor:$event})" /></label></div>
+    <label>Blend<select aria-label="Effect blend" [ngModel]="layer().blendMode" (ngModelChange)="patch({blendMode:$event})">@for(mode of blendModes;track mode){<option [value]="mode">{{mode}}</option>}</select></label>
+    <label>Opacity<input ngpInput aria-label="Effect opacity" type="range" min="0" max="1" step=".05" [ngModel]="layer().opacity" (ngModelChange)="patch({opacity:+$event})" /></label>
+    <label>Duration (ms)<input ngpInput aria-label="Effect duration" type="number" min="100" max="5000" step="100" [ngModel]="layer().duration" (ngModelChange)="patch({duration:+$event})" /></label>
+    <label>Delay (ms)<input ngpInput aria-label="Effect delay" type="number" min="0" max="1500" step="50" [ngModel]="layer().delay" (ngModelChange)="patch({delay:+$event})" /></label>
+    <lw-layer-controls [layer]="layer()" (changed)="patch($event)" />
+    @if(canUseParticles()) {<label class="check"><input ngpInput type="checkbox" [ngModel]="layer().particular?.enabled ?? false" (ngModelChange)="toggleParticles($event)" />3D particle sprites</label>}
+    @for(group of settings(); track group.key){
+      <details><summary>{{group.label}}</summary>
+        @for(field of group.fields;track field.key){
+          <label>{{field.label}}
+          @if(field.values){<select [attr.aria-label]="field.label" [ngModel]="settingValue(group.key,field.key)" (ngModelChange)="patchSetting(group.key,field.key,$event)">@for(v of field.values;track v){<option [value]="v">{{v}}</option>}</select>}
+          @else if(field.boolean){<input ngpInput type="checkbox" [ngModel]="settingValue(group.key,field.key)" (ngModelChange)="patchSetting(group.key,field.key,$event)" />}
+          @else if(field.color){<input ngpInput type="color" [ngModel]="settingValue(group.key,field.key)" (ngModelChange)="patchSetting(group.key,field.key,$event)" />}
+          @else {<input ngpInput type="number" [attr.aria-label]="field.label" [min]="field.min ?? 0" [max]="field.max ?? 100" step="any" [ngModel]="settingValue(group.key,field.key)" (ngModelChange)="patchSetting(group.key,field.key,+$event)" />}
+          </label>
+        }
+      </details>
+    }
+    <details><summary>Surface lighting</summary>
+      <label class="check"><input ngpInput type="checkbox" [ngModel]="light().enabled" (ngModelChange)="patchLight('enabled',$event)" />Illuminate the dice</label>
+      @if(light().enabled){
+        <label class="check"><input ngpInput type="checkbox" [ngModel]="light().followColor" (ngModelChange)="patchLight('followColor',$event)" />Match effect color</label>
+        @if(!light().followColor){<label>Light color<input ngpInput type="color" [ngModel]="light().color" (ngModelChange)="patchLight('color',$event)" /></label>}
+        @for(field of lightFields;track field.key){<label>{{field.label}}<input ngpInput type="range" [attr.aria-label]="field.label" [min]="field.min" [max]="field.max" [step]="field.step" [ngModel]="$any(light())[field.key]" (ngModelChange)="patchLight(field.key,+$event)" /></label>}
+      }
+    </details>
+  </details>
+</section>

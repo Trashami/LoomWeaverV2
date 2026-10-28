@@ -146,7 +146,7 @@ export class FullscreenDiceBabylonRunner {
     }
 
     if (this.rollStepTimer !== null) {
-      clearTimeout(this.rollStepTimer);
+      cancelAnimationFrame(this.rollStepTimer);
       this.rollStepTimer = null;
     }
 
@@ -228,7 +228,7 @@ export class FullscreenDiceBabylonRunner {
         }
 
         if (elapsed < totalDuration) {
-          this.rollStepTimer = window.setTimeout(step, 16);
+          this.rollStepTimer = window.requestAnimationFrame(step);
         } else {
           this.rollStepTimer = null;
           this.finalizeStop(entries, Boolean(req.isNat20), Boolean(req.isCritFail), onSettled);
@@ -241,7 +241,7 @@ export class FullscreenDiceBabylonRunner {
 
   clearAll(): void {
     if (this.rollStepTimer !== null) {
-      clearTimeout(this.rollStepTimer);
+      cancelAnimationFrame(this.rollStepTimer);
       this.rollStepTimer = null;
     }
     this.critEffectsRunner.clearActiveEffects();
@@ -276,7 +276,7 @@ export class FullscreenDiceBabylonRunner {
           targetPos,
           this.scene,
           this.glowLayer,
-          0.55 * (custom.critBurstIntensity ?? 1)
+          0.55 * (custom.critBurstIntensity ?? 1), custom.nat20Customization
         );
       } else if (isCritFail) {
         this.soundService.playCriticalFailureFracture();
@@ -285,7 +285,7 @@ export class FullscreenDiceBabylonRunner {
           targetPos,
           this.scene,
           this.glowLayer,
-          0.45 * (custom.critBurstIntensity ?? 1)
+          0.45 * (custom.critBurstIntensity ?? 1), custom.critFailCustomization
         );
       }
     }

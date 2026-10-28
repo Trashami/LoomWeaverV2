@@ -1,3 +1,7 @@
+import { SeededScatterEngine } from '../../frontend/src/app/features/maps/engine/scatter/seeded-scatter.engine';
+import { GlbModelCache } from '../../frontend/src/app/features/maps/engine/rendering/glb-model-cache';
+import { TransformNode } from '@babylonjs/core';
+import { createWaterVolume } from '../../frontend/src/app/features/maps/engine/water/water-volume';
 import { groupWaterNetworks, sampleWaterNetwork } from '../../frontend/src/app/features/maps/engine/water/water-network-field';
 import { createWaterNetworkMesh } from '../../frontend/src/app/features/maps/engine/water/water-network-mesh';
 import { createWaterfallSpray } from '../../frontend/src/app/features/maps/engine/water/waterfall-spray';
@@ -150,4 +154,60 @@ test('feathering broadens natural banks without changing brush width or deepenin
     assert.ok(b.filter((v,i)=>i%3===1&&v<0).length>a.filter((v,i)=>i%3===1&&v<0).length);
     const again=base.slice();WaterChannelTerrain.apply(scene,again,36,27);assert.deepEqual(b,again);
   }finally{scene.dispose();engine.dispose();}
+});
+
+
+test('water volume closes every surface boundary and reaches the carved bed',()=>{
+  const engine=new NullEngine(),scene=new Scene(engine);
+  try {
+    const profiles=[buildWaterProfile(river([[-4,0,0],[4,0,0]]),()=>0)];
+    const top=createWaterNetworkMesh(scene,profiles);
+    const shell=createWaterVolume(scene,top,profiles,()=>-1.3);
+    const vertices=shell.getVerticesData('position')!;
+    assert.ok(vertices.every(Number.isFinite));
+    const count=top.getTotalVertices();
+    for(let i=0;i<count;i++) assert.ok(vertices[(count+i)*3+1]<=-1.3);
+    const edges=new Map<string,number>();
+    for(const triangles of [top.getIndices()!,shell.getIndices()!]) for(let i=0;i<triangles.length;i+=3) {
+      for(const [a,b] of [[triangles[i],triangles[i+1]],[triangles[i+1],triangles[i+2]],[triangles[i+2],triangles[i]]]) {
+        const key=Math.min(a,b)+':'+Math.max(a,b);edges.set(key,(edges.get(key)??0)+1);
+      }
+    }
+    assert.ok([...edges.values()].every(n=>n===2),'surface plus shell is watertight');
+  }finally{scene.dispose();engine.dispose();}
+});
+
+test('downhill rapids persist into runout then settle on the flat',()=>{
+  const profile=buildWaterProfile(river([[0,0,0],[12,0,0]]),x=>Math.max(0,4-x));
+  assert.ok(profile.samples.find(p=>p.x>2)!.fall>.8);
+  assert.ok(profile.samples.find(p=>p.x>4.5)!.fall>.1);
+  assert.ok(profile.samples.at(-1)!.fall<.03);
+});
+
+
+test('scatter repeats only the chosen asset beyond six instances and keeps Y upright',()=>{
+  const engine=new NullEngine(),scene=new Scene(engine);
+  const original=GlbModelCache.getOrLoadTemplate;
+  try {
+    const pivot=new TransformNode('plant',scene);
+    MeshBuilder.CreateBox('leaf',{size:1},scene).parent=pivot;
+    pivot.setEnabled(false);
+    const urls:string[]=[];
+    GlbModelCache.getOrLoadTemplate=(_scene,url)=>{urls.push(url);return {
+      url,templatePivot:pivot,rawWidth:1,rawHeight:1,rawDepth:1,baseOffsetY:0};};
+    const cluster={id:'flowers',x:2,z:3,radius:4.5,density:65,seed:42,modelUrl:'/flowers.glb'};
+    const render=(density:number)=>SeededScatterEngine.rebuildScatterInstances(scene,0,0,[{...cluster,density}]);
+    const count=render(65);assert.ok(count>6);assert.deepEqual(urls,['/flowers.glb']);
+    const placements=()=>scene.transformNodes.filter(n=>/^lw-scatter-node-flowers-\d+$/.test(n.name))
+      .map(n=>[...n.position.asArray(),...n.rotation.asArray()]);
+    const before=placements();assert.equal(before.length,count);
+    assert.ok(before.every(p=>p[3]===0&&p[5]===0));
+    assert.ok(new Set(before.map(p=>p[4])).size>6);
+    assert.ok(before.every(p=>Math.hypot(p[0]-2,p[2]-3)<=4.5));
+    render(65);assert.deepEqual(placements(),before);
+    assert.ok(render(30)<count);assert.equal(render(0),0);
+    GlbModelCache.getOrLoadTemplate=()=>null;
+    assert.equal(render(65),0);
+    assert.equal(scene.meshes.filter(m=>m.name.startsWith('lw-scatter-')).length,0);
+  }finally{GlbModelCache.getOrLoadTemplate=original;scene.dispose();engine.dispose();}
 });

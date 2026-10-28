@@ -33,3 +33,12 @@ Water footprints are grouped into connected networks and remeshed as one clipped
 Brush size controls channel width; bank blend distance and bank feathering control the carved bank transition. The preview shows both footprints. Stroke start is explicit, pointer capture keeps a slow drag active outside the canvas, and cancellation/blur ends the stroke. Stale movement callbacks after release cannot create new circles. The same start/end contract is used by the 2D canvas.
 
 Regression coverage now includes slow held strokes, stale callbacks after release, T-junction topology, legacy circle repair and bank feathering, in addition to the original water tests.
+
+
+## River volume and selected-asset scatter correction
+
+Water now closes its exterior shoreline and underside down to the carved bed. This makes the water body readable from low camera angles; it remains a visual volume, not simulated fluid conservation. The surface network still has no internal junction walls. Slope continuously drives accelerated streaks and roughness, with turbulence decaying over a short downstream runout. Spray explicitly uses texture alpha and standard blending, with smaller, slower mist droplets instead of opaque bouncing squares.
+
+Scatter clusters now use only their stored selected GLB. Pending or unavailable models do not become placeholder rocks/cones, and there is no six-model cutoff. Density scales with painted area, capped at 96 assets per dab and 1,500 per scene. Seeded positions, modest uniform size variation and random yaw repeat across rebuilds; pitch and roll stay zero. Collections remain future work; each cluster retains one source model URL.
+
+Validation adds closed-volume topology, bed depth, rapids settling, selected-model counts above six, density, deterministic transforms, upright yaw and missing-model behavior. Build warnings remain the existing frontend bundle budget and network-limited NuGet audit lookup.

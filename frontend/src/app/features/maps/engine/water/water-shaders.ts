@@ -72,12 +72,14 @@ void main() {
   vec2 direction=normalize(vFlow.xy+vec2(.00001));
   vec2 flowing=vec2(dot(vWorld.xz,vec2(-direction.y,direction.x)),dot(vWorld.xz,direction));
   vec2 coord=mix(vWorld.xz,flowing,vWater.z);
-  float speed = vFlow.z * mix(1.0, 2.8, fall);
+  float speed = vFlow.z * mix(1.0, 4.5, fall);
   vec2 p = coord * vStyle.z;
   p.y -= time * speed;
   p.x += sin(p.y*.6+time*.4) * vStyle.x*.15;
+  p.y *= mix(1.0,.45,fall);
+  float roughness = vStyle.x * (1.0 + fall * 1.8);
   float n = waves(p), nx = waves(p+vec2(.07,0.)), nz = waves(p+vec2(0.,.07));
-  vec3 N = normalize(vNormal + vec3((n-nx)*vStyle.x*7.0, 0., (n-nz)*vStyle.x*7.0));
+  vec3 N = normalize(vNormal + vec3((n-nx)*roughness*4.0, 0., (n-nz)*roughness*4.0));
   vec3 V = normalize(cameraPosition - vWorld);
   if (dot(N,V) < 0.) N = -N;
   float fresnel = pow(1.0-max(dot(N,V),0.),4.0);

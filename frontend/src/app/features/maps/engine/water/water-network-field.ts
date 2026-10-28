@@ -16,7 +16,7 @@ function hitProfile(profile: WaterProfile,x: number,z: number): Hit {
     const a=samples[i-1],b=samples[i],vx=b.x-a.x,vz=b.z-a.z,len=Math.hypot(vx,vz);
     const t=Math.max(0,Math.min(1,((x-a.x)*vx+(z-a.z)*vz)/Math.max(.0001,len*len)));
     const d=Math.hypot(x-a.x-vx*t,z-a.z-vz*t);
-    if(d<distance) {distance=d;level=a.level+(b.level-a.level)*t;dx=vx/Math.max(.001,len);dz=vz/Math.max(.001,len);fall=Math.max(a.fall,b.fall);}
+    if(d<distance) {distance=d;level=a.level+(b.level-a.level)*t;dx=vx/Math.max(.001,len);dz=vz/Math.max(.001,len);fall=a.fall+(b.fall-a.fall)*t;}
   }
   return {profile,distance,level,dx,dz,fall};
 }

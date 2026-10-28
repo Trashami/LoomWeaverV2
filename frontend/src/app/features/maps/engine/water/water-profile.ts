@@ -56,6 +56,16 @@ export function buildWaterProfile(water: WaterSplineNode, ground: GroundSampler)
   const delta = p ? Math.hypot(end[0] - p.x, end[1] - p.z) : 0;
   samples.push({ x: end[0], z: end[1], level, distance: distance + delta,
     fall: p && (p.level - level) / Math.max(.01, delta) > settings.waterfallSlope ? 1 : 0 });
+  // Grade drives rapids continuously; turbulence persists briefly into the runout.
+  let energy = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const a = samples[Math.max(0, i - 1)], b = samples[Math.min(samples.length - 1, i + 1)];
+    const slope = Math.max(0, (a.level - b.level) / Math.max(.01, b.distance - a.distance));
+    const local = Math.max(0, Math.min(1, (slope - .04) / Math.max(.2, settings.waterfallSlope)));
+    const step = i ? samples[i].distance - samples[i - 1].distance : 0;
+    energy = Math.max(local, energy * Math.exp(-step / Math.max(.7, settings.width * .6)));
+    samples[i].fall = energy;
+  }
   return { id: water.id, settings, samples };
 }
 

@@ -1,3 +1,5 @@
+import { createWaterVolume } from './water-volume';
+import { TerrainMeshBuilder } from '../terrain/terrain-mesh.builder';
 import { Scene } from '@babylonjs/core';
 import type { WaterSplineNode } from '../map-scene-contract';
 import { WaterChannelTerrain } from './water-channel-terrain';
@@ -31,6 +33,7 @@ export class WaterSplineBuilder {
       const profile=network[0];
       const mesh=createWaterNetworkMesh(scene,network);
       mesh.material=WaterSurfaceMaterial.create(scene,profile.id,profile.settings);
+      createWaterVolume(scene,mesh,network,(x,z)=>TerrainMeshBuilder.sampleElevationAt(scene,x,z));
     }
     for(const profile of profiles) createWaterfallSpray(scene,profile);
     WaterSurfaceMaterial.configureCapture(scene,splines.length > 0 && profiles.some(p => p.settings.refraction > 0));

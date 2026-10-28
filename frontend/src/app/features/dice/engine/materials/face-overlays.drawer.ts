@@ -38,7 +38,8 @@ export function renderSelectedDiceTexturePreview(
   custom: DiceCustomRuntimeConfig
 ): void {
   const size = targetCanvas.width || 128;
-  const pair = createFaceCanvas('', skin, custom, size);
+  // This thumbnail previews the material; openwork alpha belongs to the 3D faces.
+  const pair = createFaceCanvas('', skin, { ...custom, modelId: 'model-classic-chamfer' }, size);
   const ctx = targetCanvas.getContext('2d');
   if (!ctx) return;
   ctx.clearRect(0, 0, size, size);

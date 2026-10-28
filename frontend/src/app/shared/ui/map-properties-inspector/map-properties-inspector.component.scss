@@ -2,12 +2,23 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 0;
   background: #06140e;
   color: #e9f6ee;
   overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+
+:host *, :host *::before, :host *::after {
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .lw-map-inspector {
+  width: 100%;
   display: flex;
   flex-direction: column;
   padding: 0.85rem 0.95rem 1.25rem;
@@ -69,11 +80,12 @@
 
 .lw-map-inspector__mode-toggle {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.35rem;
 }
 
 .lw-map-inspector__mode-btn {
+  white-space: normal;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -96,7 +108,7 @@
 
 .lw-map-inspector__swatch-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 6rem), 1fr));
   gap: 0.3rem;
 }
 
@@ -113,7 +125,8 @@
   font-weight: 600;
   cursor: pointer;
   overflow: hidden;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 
   &--active {
     border-color: #d9b77a;
@@ -223,7 +236,25 @@
   gap: 0.7rem;
 }
 
+.lw-map-inspector__subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.65rem;
+  border: 1px solid rgba(73, 232, 146, 0.18);
+  border-radius: 8px;
+  background: rgba(9, 26, 18, 0.4);
+}
+
+.lw-map-inspector__section-title {
+  margin: 0;
+  color: #d9b77a;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 .lw-map-inspector__row {
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -237,6 +268,7 @@
 }
 
 .lw-map-inspector__select {
+  width: 100%;
   flex: 1;
   max-width: 170px;
   height: 1.9rem;
@@ -250,6 +282,7 @@
 
 .lw-map-inspector__pill-group {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.25rem;
 }
 
@@ -279,6 +312,8 @@
 .lw-map-inspector__slider-head {
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
   font-size: 0.72rem;
   color: rgba(204, 230, 215, 0.84);
 
@@ -294,6 +329,7 @@
 }
 
 .lw-map-inspector__range {
+  margin-inline: 0;
   width: 100%;
   accent-color: #2ee66b;
   cursor: pointer;

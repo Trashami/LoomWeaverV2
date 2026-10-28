@@ -58,13 +58,14 @@
       @if (effectiveMode() === 'floor-bump') {
         <div class="lw-map-inspector__section">
           <div class="lw-map-inspector__subsection">
-            <span class="lw-map-inspector__subhead">Flooring Action Mode</span>
+            <h4 class="lw-map-inspector__section-title">Floor controls</h4>
             <div class="lw-map-inspector__mode-toggle">
               <button
                 type="button"
                 ngpButton
                 class="lw-map-inspector__mode-btn"
                 [class.lw-map-inspector__mode-btn--active]="!floorBrushActive()"
+                [attr.aria-pressed]="!floorBrushActive()"
                 (click)="floorBrushActiveChange.emit(false)"
               >
                 <lw-icon name="grid" [size]="14" />
@@ -75,6 +76,7 @@
                 ngpButton
                 class="lw-map-inspector__mode-btn"
                 [class.lw-map-inspector__mode-btn--active]="floorBrushActive()"
+                [attr.aria-pressed]="floorBrushActive()"
                 (click)="floorBrushActiveChange.emit(true)"
               >
                 <lw-icon name="pipette" [size]="14" />
@@ -83,9 +85,10 @@
             </div>
           </div>
 
+          @if (!floorBrushActive()) {
           <!-- BUMP, HEIGHT & TILING CONTROLS -->
           <div class="lw-map-inspector__subsection">
-            <span class="lw-map-inspector__subhead">Bump, Height & Tile Relief</span>
+            <h4 class="lw-map-inspector__section-title">Texture & relief</h4>
 
             <div class="lw-map-inspector__slider-block">
               <div class="lw-map-inspector__slider-head">
@@ -139,7 +142,7 @@
           <!-- GLOBAL FLOOR COLORIZE -->
           <div class="lw-map-inspector__subsection">
             <div class="lw-map-inspector__slider-head">
-              <span class="lw-map-inspector__subhead">Colorize Entire Floor</span>
+              <h4 class="lw-map-inspector__section-title">Whole-floor tint</h4>
               <input
                 type="color"
                 class="lw-map-inspector__color-picker"
@@ -203,24 +206,11 @@
             </div>
           </div>
 
+          } @else {
           <!-- INTERACTIVE FLOOR COLOR PAINT BRUSH (PHOTOSHOP BLEND MODES) -->
           <div class="lw-map-inspector__subsection">
-            <div class="lw-map-inspector__slider-head">
-              <span class="lw-map-inspector__subhead">Floor Color Paint Brush (Blend Layer)</span>
-              <button
-                type="button"
-                ngpButton
-                class="lw-map-inspector__pill"
-                [class.lw-map-inspector__pill--active]="floorBrushActive()"
-                (click)="floorBrushActiveChange.emit(!floorBrushActive())"
-              >
-                {{ floorBrushActive() ? 'Brush Active' : 'Enable Brush' }}
-              </button>
-            </div>
-
-            <p class="lw-map-inspector__hint">
-              Click and drag on the map floor to paint natural color variation over the stone/earth using Photoshop-style blending modes while keeping full 3D bump & normal relief.
-            </p>
+            <h4 class="lw-map-inspector__section-title">Paint brush</h4>
+            <p class="lw-map-inspector__hint">Drag on the floor to paint color while preserving its texture and relief.</p>
 
             <div class="lw-map-inspector__row">
               <span class="lw-map-inspector__label">Blend Mode</span>
@@ -239,25 +229,7 @@
               </select>
             </div>
 
-            <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
-              @for (bm of floorBlendModes; track bm.id) {
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  [class.lw-map-inspector__pill--active]="floorBrushBlendMode() === bm.id"
-                  [title]="bm.hint"
-                  (click)="
-                    floorBrushBlendModeChange.emit(bm.id);
-                    floorBrushActiveChange.emit(true)
-                  "
-                >
-                  {{ bm.label }}
-                </button>
-              }
-            </div>
-
-            <div class="lw-map-inspector__slider-head" style="margin-top: 0.25rem">
+            <div class="lw-map-inspector__slider-head">
               <span class="lw-map-inspector__label">Brush Color</span>
               <input
                 type="color"
@@ -310,7 +282,7 @@
 
             <div class="lw-map-inspector__slider-block">
               <div class="lw-map-inspector__slider-head">
-                <span>Draw Pen Size (Brush Radius)</span>
+                <span>Brush radius</span>
                 <strong>{{ floorBrushRadius() }}m</strong>
               </div>
               <input
@@ -326,7 +298,7 @@
 
             <div class="lw-map-inspector__slider-block">
               <div class="lw-map-inspector__slider-head">
-                <span>Pen End Sharpness (Edge Feathering)</span>
+                <span>Edge sharpness</span>
                 <strong>
                   {{ floorBrushSharpness() }}%
                   {{
@@ -397,6 +369,7 @@
               <span>Clear Painted Floor Layer</span>
             </button>
           </div>
+          }
         </div>
       }
 

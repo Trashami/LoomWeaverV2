@@ -1,0 +1,263 @@
+@if (open()) {
+  <div
+    class="lw-custom-item-backdrop"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Create Custom Homebrew Item"
+    (click)="onBackdropClick($event)"
+  >
+    <div class="lw-custom-item-modal" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
+      <header class="lw-custom-item-modal__header">
+        <div>
+          <div class="lw-custom-item-modal__badges">
+            <lw-badge label="Homebrew Workshop" tone="gold" />
+            <lw-badge label="Store Publishing Always Free ($0.00)" tone="emerald" />
+          </div>
+          <h2 class="lw-custom-item-modal__title">Forge Custom Homebrew Item</h2>
+          <p class="lw-custom-item-modal__subtitle">
+            All custom items are marked as Homebrew. You can optionally publish your creation to the
+            Creator Store where homebrew items are always 100% free.
+          </p>
+        </div>
+
+        <button
+          ngpButton
+          type="button"
+          class="lw-custom-item-modal__close"
+          aria-label="Close modal"
+          (click)="close()"
+        >
+          <lw-icon name="close" [size]="18" />
+        </button>
+      </header>
+
+      <div class="lw-custom-item-modal__body">
+        @if (validationError() || saveError()) {
+          <div class="lw-custom-item-modal__error">{{ validationError() || saveError() }}</div>
+        }
+
+        <div class="lw-custom-item-modal__grid-2">
+          <label class="lw-field">
+            <span class="lw-field__label">Item Name *</span>
+            <input
+              type="text"
+              class="lw-field__input"
+              placeholder="e.g., Cinth Aether-Lens Goggles"
+              [ngModel]="name()"
+              (ngModelChange)="name.set($event)"
+            />
+          </label>
+
+          <label class="lw-field">
+            <span class="lw-field__label">In-Game Price (GP) *</span>
+            <input
+              type="number"
+              min="0"
+              class="lw-field__input"
+              [ngModel]="priceGp()"
+              (ngModelChange)="priceGp.set($event)"
+            />
+          </label>
+        </div>
+
+        <div class="lw-custom-item-modal__grid-3">
+          <label class="lw-field">
+            <span class="lw-field__label">Category</span>
+            <select
+              class="lw-field__input"
+              [ngModel]="category()"
+              (ngModelChange)="category.set($event)"
+            >
+              @for (cat of categories; track cat) {
+                <option [value]="cat">{{ cat }}</option>
+              }
+            </select>
+          </label>
+
+          <label class="lw-field">
+            <span class="lw-field__label">Character Slot</span>
+            <select class="lw-field__input" [ngModel]="slot()" (ngModelChange)="slot.set($event)">
+              @for (s of slots; track s) {
+                <option [value]="s">{{ s }}</option>
+              }
+            </select>
+          </label>
+
+          <label class="lw-field">
+            <span class="lw-field__label">Rarity</span>
+            <select
+              class="lw-field__input"
+              [ngModel]="rarity()"
+              (ngModelChange)="rarity.set($event)"
+            >
+              @for (r of rarities; track r) {
+                <option [value]="r">{{ r }}</option>
+              }
+            </select>
+          </label>
+        </div>
+
+        <label class="lw-field">
+          <span class="lw-field__label">Short Description (Shown on Item Card) *</span>
+          <input
+            type="text"
+            maxlength="140"
+            class="lw-field__input"
+            placeholder="Concise summary of the item appearance and quick benefit..."
+            [ngModel]="shortDescription()"
+            (ngModelChange)="shortDescription.set($event)"
+          />
+        </label>
+
+        <div class="lw-custom-item-modal__grid-4">
+          <label class="lw-field">
+            <span class="lw-field__label">Weight (lb)</span>
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              class="lw-field__input"
+              [ngModel]="weightLb()"
+              (ngModelChange)="weightLb.set($event)"
+            />
+          </label>
+
+          <label class="lw-field">
+            <span class="lw-field__label">AC Bonus</span>
+            <input
+              type="number"
+              class="lw-field__input"
+              [ngModel]="acBonus()"
+              (ngModelChange)="acBonus.set($event)"
+            />
+          </label>
+
+          <label class="lw-field">
+            <span class="lw-field__label">Attack Bonus</span>
+            <input
+              type="number"
+              class="lw-field__input"
+              [ngModel]="attackBonus()"
+              (ngModelChange)="attackBonus.set($event)"
+            />
+          </label>
+
+          <label class="lw-field">
+            <span class="lw-field__label">Damage / Mechanical Summary</span>
+            <input
+              type="text"
+              class="lw-field__input"
+              placeholder="e.g., 1d8 Radiant · +1 AC"
+              [ngModel]="damageOrEffectLabel()"
+              (ngModelChange)="damageOrEffectLabel.set($event)"
+            />
+          </label>
+        </div>
+
+        <label class="lw-field">
+          <span class="lw-field__label">Full Mechanical & Item Details (Shown in Detail Modal)</span>
+          <textarea
+            rows="3"
+            class="lw-field__textarea"
+            placeholder="Describe full rules, charges, saving throw DCs, and tactical behavior..."
+            [ngModel]="fullDescription()"
+            (ngModelChange)="fullDescription.set($event)"
+          ></textarea>
+        </label>
+
+        <div class="lw-custom-item-modal__grid-2">
+          <label class="lw-field">
+            <span class="lw-field__label">Lore / Campaign Origin Notes (Optional)</span>
+            <input
+              type="text"
+              class="lw-field__input"
+              placeholder="e.g., Forged in the Cinth Artificer quarter..."
+              [ngModel]="loreNotes()"
+              (ngModelChange)="loreNotes.set($event)"
+            />
+          </label>
+
+          <label class="lw-field">
+            <span class="lw-field__label">Properties (Comma Separated)</span>
+            <input
+              type="text"
+              class="lw-field__input"
+              placeholder="Finesse, Light, Homebrew"
+              [ngModel]="propertiesText()"
+              (ngModelChange)="propertiesText.set($event)"
+            />
+          </label>
+        </div>
+
+        <div class="lw-field">
+          <span class="lw-field__label">Small Thumbnail Image (Select Preset or Enter URL)</span>
+          <div class="lw-custom-item-modal__img-row">
+            <img
+              class="lw-custom-item-modal__img-preview"
+              [src]="imageUrl()"
+              alt="Item thumbnail preview"
+            />
+            <input
+              type="text"
+              class="lw-field__input"
+              placeholder="/assets/previews-png/..."
+              [ngModel]="imageUrl()"
+              (ngModelChange)="imageUrl.set($event)"
+            />
+          </div>
+
+          <div class="lw-custom-item-modal__presets">
+            @for (preset of artworkPresets; track preset.url) {
+              <button
+                ngpButton
+                type="button"
+                class="lw-custom-item-modal__preset-chip"
+                [class.lw-custom-item-modal__preset-chip--active]="imageUrl() === preset.url"
+                (click)="selectPresetImage(preset.url)"
+              >
+                {{ preset.label }}
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="lw-custom-item-modal__toggles">
+          <label class="lw-check-row">
+            <input
+              type="checkbox"
+              [ngModel]="requiresAttunement()"
+              (ngModelChange)="requiresAttunement.set($event)"
+            />
+            <span>Requires Attunement</span>
+          </label>
+
+          <label class="lw-check-row lw-check-row--store">
+            <input
+              type="checkbox"
+              [ngModel]="publishToStore()"
+              (ngModelChange)="publishToStore.set($event)"
+            />
+            <span>
+              <strong>Publish to Creator Store (Always Free — $0.00)</strong> · Share this Homebrew
+              item with the LoomWeaver community at zero cost.
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <footer class="lw-custom-item-modal__footer">
+        <lw-button variant="secondary" size="sm" label="Cancel" (pressed)="close()" />
+        <lw-button
+          variant="emerald"
+          size="sm"
+          [label]="
+            publishToStore()
+              ? 'Create Homebrew & Publish Free to Store'
+              : 'Create Custom Homebrew Item'
+          "
+          [disabled]="busy()" (pressed)="submitCustomItem()"
+        />
+      </footer>
+    </div>
+  </div>
+}

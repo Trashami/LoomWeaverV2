@@ -1,0 +1,186 @@
+@if (item(); as selected) {
+  <div
+    class="lw-item-modal-backdrop"
+    role="dialog"
+    aria-modal="true"
+    [attr.aria-label]="selected.name + ' item details'"
+    (click)="onBackdropClick($event)"
+  >
+    <div class="lw-item-modal" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
+      <header class="lw-item-modal__header">
+        <div class="lw-item-modal__identity">
+          <div class="lw-item-modal__image-frame">
+            <img
+              class="lw-item-modal__image"
+              [src]="selected.imageUrl || '/assets/previews-png/obj-c4468a17dd78e8a4.png'"
+              [alt]="selected.name"
+            />
+          </div>
+
+          <div class="lw-item-modal__title-col">
+            <div class="lw-item-modal__badges">
+              <lw-badge [label]="selected.rarity" [tone]="rarityTone()" />
+              <lw-badge [label]="selected.category" tone="neutral" />
+              <lw-badge [label]="'Slot: ' + selected.slot" tone="neutral" />
+              @if (selected.isHomebrew) {
+                <lw-badge label="Homebrew" tone="gold" />
+              } @else {
+                <lw-badge [label]="selected.source" tone="emerald" />
+              }
+              @if (selected.isHomebrew && selected.publishedToStore) {
+                <lw-badge label="Published Store · Always Free ($0.00)" tone="emerald" />
+              }
+            </div>
+
+            <h2 class="lw-item-modal__title">{{ selected.name }}</h2>
+            <p class="lw-item-modal__short">{{ selected.shortDescription }}</p>
+          </div>
+        </div>
+
+        <button
+          ngpButton
+          type="button"
+          class="lw-item-modal__close"
+          aria-label="Close item details"
+          (click)="closed.emit()"
+        >
+          <lw-icon name="close" [size]="18" />
+        </button>
+      </header>
+
+      <div class="lw-item-modal__content">
+        <div class="lw-item-modal__stats-grid">
+          <div class="lw-item-modal__stat-box">
+            <span class="lw-item-modal__stat-label">Value / Price</span>
+            <span class="lw-item-modal__stat-value lw-item-modal__stat-value--gold">
+              {{ selected.priceLabel }}
+            </span>
+          </div>
+
+          <div class="lw-item-modal__stat-box">
+            <span class="lw-item-modal__stat-label">Weight</span>
+            <span class="lw-item-modal__stat-value">{{ selected.weightLb }} lb</span>
+          </div>
+
+          <div class="lw-item-modal__stat-box">
+            <span class="lw-item-modal__stat-label">Attunement</span>
+            <span class="lw-item-modal__stat-value">
+              {{ selected.requiresAttunement ? 'Required' : 'Not Required' }}
+            </span>
+          </div>
+
+          <div class="lw-item-modal__stat-box">
+            <span class="lw-item-modal__stat-label">Bonuses</span>
+            <span class="lw-item-modal__stat-value lw-item-modal__stat-value--emerald">
+              AC +{{ selected.acBonus }} · Atk +{{ selected.attackBonus }}
+            </span>
+          </div>
+        </div>
+
+        <div class="lw-item-modal__section">
+          <h3 class="lw-item-modal__section-title">Mechanical Profile & Effect</h3>
+          <div class="lw-item-modal__formula-banner">
+            {{ selected.damageOrEffectLabel }}
+          </div>
+          <p class="lw-item-modal__prose">{{ selected.fullDescription }}</p>
+        </div>
+
+        @if (selected.loreNotes) {
+          <div class="lw-item-modal__section">
+            <h3 class="lw-item-modal__section-title">Campaign & World Lore</h3>
+            <p class="lw-item-modal__prose lw-item-modal__prose--lore">
+              {{ selected.loreNotes }}
+            </p>
+          </div>
+        }
+
+        @if (selected.properties.length > 0) {
+          <div class="lw-item-modal__section">
+            <h3 class="lw-item-modal__section-title">Properties & Keywords</h3>
+            <div class="lw-item-modal__tags">
+              @for (prop of selected.properties; track prop) {
+                <span class="lw-item-modal__tag">{{ prop }}</span>
+              }
+            </div>
+          </div>
+        }
+
+        @if (selected.isHomebrew) {
+          <div class="lw-item-modal__homebrew-box">
+            <div class="lw-item-modal__homebrew-info">
+              <span class="lw-item-modal__homebrew-title">
+                Homebrew Creation by {{ selected.creatorUsername }}
+              </span>
+              <span class="lw-item-modal__homebrew-sub">
+                {{
+                  selected.publishedToStore
+                    ? 'Published to the Creator Store — Always Free ($0.00) for all tables.'
+                    : 'Private / Campaign Homebrew — Publish to the Creator Store anytime (Always Free).'
+                }}
+              </span>
+            </div>
+
+            @if (canPublish() && !selected.publishedToStore) {
+              <lw-button
+                variant="gold"
+                size="sm"
+                label="Publish to Store (Always Free)"
+                (pressed)="publishToStoreRequested.emit(selected)"
+              />
+            }
+          </div>
+        }
+
+        @if (isGm() && collections().length > 0) {
+          <div class="lw-item-modal__section">
+            <h3 class="lw-item-modal__section-title">
+              GM Item Collections ({{ targetCampaignName() }})
+            </h3>
+            <div class="lw-item-modal__collections">
+              @for (col of collections(); track col.id) {
+                <lw-button
+                  [variant]="isItemInCollection(col, selected.id) ? 'gold' : 'secondary'"
+                  size="xs"
+                  [label]="
+                    (isItemInCollection(col, selected.id) ? 'Included: ' : '+ Add to ') + col.name
+                  "
+                  (pressed)="
+                    toggleItemInCollectionRequested.emit({
+                      collectionId: col.id,
+                      itemId: selected.id,
+                    })
+                  "
+                />
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      <footer class="lw-item-modal__footer">
+        <div class="lw-item-modal__target-hint">
+          Target Character in <strong>{{ targetCampaignName() }}</strong>:
+          <span class="lw-item-modal__target-char">{{ targetCharacterName() }}</span>
+        </div>
+
+        <div class="lw-item-modal__footer-btns">
+          <lw-button variant="secondary" size="sm" label="Close" (pressed)="closed.emit()" />
+          <lw-button
+            variant="gold"
+            size="sm"
+            [label]="'Add to ' + targetCharacterName() + ' Backpack'"
+            [disabled]="!canAdd()"
+            (pressed)="addToCharacterRequested.emit({ item: selected, equipNow: false })"
+          />
+          <lw-button
+            variant="emerald"
+            size="sm"
+            [label]="'Equip on ' + targetCharacterName()"
+            [disabled]="!canAdd()"
+            (pressed)="addToCharacterRequested.emit({ item: selected, equipNow: true })"
+          />
+        </div>
+      </footer>
+    </div>
+  </div>
+}

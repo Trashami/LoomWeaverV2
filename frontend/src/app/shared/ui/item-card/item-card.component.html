@@ -1,0 +1,88 @@
+<article
+  class="lw-item-card"
+  [class.lw-item-card--homebrew]="item().isHomebrew"
+  [class.lw-item-card--in-collection]="inActiveCollection()"
+>
+  <button
+    ngpButton
+    type="button"
+    class="lw-item-card__body"
+    (click)="onCardClick()"
+    [attr.aria-label]="'Inspect details for ' + item().name"
+  >
+    <div class="lw-item-card__top">
+      <div class="lw-item-card__thumb-wrap">
+        <img
+          class="lw-item-card__thumb"
+          [src]="resolvedImageUrl()"
+          [alt]="item().name"
+          loading="lazy"
+          (error)="onImageError()"
+        />
+      </div>
+
+      <div class="lw-item-card__head-meta">
+        <div class="lw-item-card__badges">
+          <lw-badge [label]="item().rarity" [tone]="rarityTone()" />
+          <lw-badge [label]="item().category" tone="neutral" />
+          @if (item().isHomebrew) {
+            <lw-badge label="Homebrew" tone="gold" />
+          }
+          @if (item().isHomebrew && item().publishedToStore) {
+            <lw-badge label="Store · Free" tone="emerald" />
+          }
+        </div>
+
+        <h3 class="lw-item-card__title">{{ item().name }}</h3>
+
+        <div class="lw-item-card__price-row">
+          <span class="lw-item-card__price">{{ item().priceLabel }}</span>
+          <span class="lw-item-card__dot">·</span>
+          <span class="lw-item-card__slot">{{ item().slot }}</span>
+          @if (item().weightLb > 0) {
+            <span class="lw-item-card__dot">·</span>
+            <span class="lw-item-card__weight">{{ item().weightLb }} lb</span>
+          }
+        </div>
+      </div>
+    </div>
+
+    <p class="lw-item-card__desc">{{ item().shortDescription }}</p>
+
+    <div class="lw-item-card__bonus-strip">
+      <span class="lw-item-card__bonus-text">{{ item().damageOrEffectLabel }}</span>
+      @if (item().isHomebrew) {
+        <span class="lw-item-card__creator">by {{ item().creatorUsername }}</span>
+      }
+    </div>
+  </button>
+
+  <footer class="lw-item-card__footer">
+    <lw-button
+      variant="secondary"
+      size="xs"
+      label="Details"
+      (pressed)="onCardClick()"
+    />
+
+    <div class="lw-item-card__actions">
+      @if (isGm() && activeCollectionName()) {
+        <lw-button
+          [variant]="inActiveCollection() ? 'gold' : 'ghost'"
+          size="xs"
+          [label]="inActiveCollection() ? 'In Collection' : '+ Collection'"
+          [title]="'Toggle in GM collection: ' + activeCollectionName()"
+          (pressed)="toggleCollectionRequested.emit(item())"
+        />
+      }
+
+      <lw-button
+        variant="emerald"
+        size="xs"
+        [label]="'Add to ' + targetCharacterName()"
+        [disabled]="!canAdd()"
+            (pressed)="addToCharacterRequested.emit({ item: item(), equipNow: false })"
+      />
+    </div>
+  </footer>
+</article>

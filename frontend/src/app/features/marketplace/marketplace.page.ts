@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { ItemMarketComponent } from '../items/market/item-market.component';
 import { HttpClient } from '@angular/common/http';
 import { AuthSessionService } from '../../core/services/auth-session.service';
 import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
@@ -80,7 +81,7 @@ const DEFAULT_CREATOR_MODULES: readonly LwCreatorModuleItem[] = [
 @Component({
   selector: 'lw-marketplace-page',
   standalone: true,
-  imports: [
+  imports: [ItemMarketComponent,
     LwPanelComponent,
     LwBadgeComponent,
     LwButtonComponent,

@@ -109,6 +109,7 @@ export class AppComponent {
     { id: 'world-lore', label: 'World & Lore', route: '/world-lore' },
     { id: 'quests-story', label: 'Quests & Story', route: '/campaigns' },
     { id: 'characters', label: 'Characters', route: '/characters' },
+    { id: 'items', label: 'Items', route: '/items' },
     { id: 'maps-scenes', label: 'Maps & Scenes', route: '/maps' },
     { id: 'session-log', label: 'Session Log', route: '/loom' },
     { id: 'handouts-clues', label: 'Handouts & Clues', route: '/assets' },

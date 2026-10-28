@@ -1,0 +1,5 @@
+:host { display: block; }
+.controls { display: flex; flex-wrap: wrap; gap: 1rem; margin-block: 1rem; }
+label { display: grid; gap: .5rem; flex: 1; }
+input, select { background: var(--lw-color-surface, #101e19); color: inherit; border: 1px solid var(--lw-color-border, #345345); padding: .65rem; border-radius: .4rem; }
+.items { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); gap: 1rem; }

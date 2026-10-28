@@ -1,0 +1,321 @@
+<div class="lw-page lw-items-page">
+  <lw-panel
+    eyebrow="Compendium Armory, Custom Homebrew Workshop & GM Merchant Collections"
+    title="Items, Relics & Campaign Equipment Vault"
+    subtitle="Browse standard and custom Homebrew items, add equipment directly to your character in the selected campaign, publish free Homebrew creations to the store, and curate GM merchant collections."
+    [elevated]="true"
+  >
+    <div panelActions class="lw-items-header-actions">
+      <lw-badge
+        [label]="'Campaign: ' + store.activeCampaign().name"
+        tone="emerald"
+      />
+      <lw-badge
+        [label]="'Character: ' + (catalog.targetCampaignCharacter()?.name ?? 'No character assigned')"
+        tone="gold"
+      />
+      <lw-button
+        variant="emerald"
+        size="sm"
+        label="Create Custom Item (Homebrew)"
+        (pressed)="openCreateCustomItemModal()"
+      />
+      @if (isEffectiveGm()) {
+        <lw-button
+          variant="gold"
+          size="sm"
+          label="New GM Item Collection"
+          (pressed)="openCreateCollectionModal()"
+        />
+      }
+    </div>
+
+    <div class="lw-items-campaign-bar">
+      <div class="lw-items-campaign-bar__char">
+        <span class="lw-items-campaign-bar__label">
+          Active Campaign Character ({{ store.activeCampaign().name }}):
+        </span>
+        @if (isEffectiveGm() && catalog.availableCampaignCharacters().length > 1) {
+          <select
+            class="lw-items-select lw-items-select--inline"
+            aria-label="Select campaign character to receive items"
+            [ngModel]="catalog.targetCampaignCharacter()?.characterKey"
+            (ngModelChange)="catalog.setTargetCharacterKey($event)"
+          >
+            @for (ch of catalog.availableCampaignCharacters(); track ch.characterKey) {
+              <option [value]="ch.characterKey">
+                {{ ch.name }} ({{ ch.classOrArchetype }} · Lv.{{ ch.level }})
+              </option>
+            }
+          </select>
+        } @else {
+          <strong class="lw-items-campaign-bar__char-name">
+            {{ (catalog.targetCampaignCharacter()?.name ?? 'No character assigned') }}
+          </strong>
+          <span class="lw-items-campaign-bar__char-sub">
+            ({{ catalog.targetCampaignCharacter()?.classOrArchetype }} · Lv.{{
+              catalog.targetCampaignCharacter()?.level
+            }})
+          </span>
+        }
+        <a
+          class="lw-items-campaign-bar__sheet-link"
+          [routerLink]="['/characters']"
+          [queryParams]="{ focus: catalog.targetCampaignCharacter()?.characterKey }"
+        >
+          Open Character Sheet
+        </a>
+      </div>
+
+      <div class="lw-items-campaign-bar__status" role="status">
+        {{ catalog.statusBanner() }}
+      </div>
+    </div>
+  </lw-panel>
+
+  @if (isEffectiveGm()) {
+    <lw-panel
+      eyebrow="GM Merchant & Location Preparation"
+      title="Custom Item Collections ({{ store.activeCampaign().name }})"
+      subtitle="Collections are private until published. Merchant and location preparation stays private; merchant pages are planned."
+    >
+      <div panelActions class="lw-items-header-actions">
+        <lw-button
+          variant="gold"
+          size="xs"
+          label="Create Named Collection"
+          (pressed)="openCreateCollectionModal()"
+        />
+      </div>
+
+      <div class="lw-collections-strip">
+        @for (col of catalog.collectionsForActiveCampaign(); track col.id) {
+          <div
+            class="lw-collection-card"
+            [class.lw-collection-card--active]="catalog.selectedCollectionId() === col.id"
+          >
+            <div class="lw-collection-card__head">
+              <div>
+                <h3 class="lw-collection-card__title">{{ col.name }}</h3>
+                <p class="lw-collection-card__desc">{{ col.description }}</p>
+              </div>
+              <lw-badge [label]="col.itemIds.length + ' Items'" tone="gold" />
+            </div>
+
+            <div class="lw-collection-card__merchant">
+              <span class="lw-collection-card__merchant-label">Merchant Assignment:</span>
+              <span class="lw-collection-card__merchant-val">
+                {{ col.assignedMerchantName || 'Unassigned Merchant' }}
+                @if (col.assignedLocationName) {
+                  · <strong>{{ col.assignedLocationName }}</strong>
+                }
+              </span>
+            </div>
+
+            <div class="lw-collection-card__actions">
+              <lw-button
+                [variant]="catalog.selectedCollectionId() === col.id ? 'emerald' : 'secondary'"
+                size="xs"
+                [label]="
+                  catalog.selectedCollectionId() === col.id
+                    ? 'Showing Collection'
+                    : 'Filter by Collection'
+                "
+                (pressed)="
+                  catalog.selectedCollectionId.set(
+                    catalog.selectedCollectionId() === col.id ? 'All' : col.id
+                  )
+                "
+              />
+              <lw-button
+                variant="ghost"
+                size="xs"
+                label="Edit / Assign Merchant"
+                (pressed)="openEditCollectionModal(col)"
+              />
+            </div>
+          </div>
+        }
+      </div>
+    </lw-panel>
+  }
+
+  <lw-panel
+    eyebrow="Dynamic Search, Filtering & Sorting"
+    [title]="'Item Catalog (' + catalog.filteredAndSortedItems().length + ' Items)'"
+    subtitle="Select any item card to open a medium-sized modal with full mechanical and lore details."
+  >
+    <div class="lw-items-controls">
+      <div class="lw-items-controls__top">
+        <div class="lw-items-search-wrap">
+          <input
+            type="search"
+            class="lw-items-search-input"
+            placeholder="Search items by name, description, property, bonus, or creator..."
+            aria-label="Search items"
+            [ngModel]="catalog.searchQuery()"
+            (ngModelChange)="catalog.searchQuery.set($event)"
+          />
+          @if (catalog.searchQuery()) {
+            <button
+              ngpButton
+              type="button"
+              class="lw-items-search-clear"
+              (click)="catalog.searchQuery.set('')"
+            >
+              Clear
+            </button>
+          }
+        </div>
+
+        <div class="lw-items-selects">
+          <label class="lw-items-select-group">
+            <span>Rarity</span>
+            <select
+              class="lw-items-select"
+              [ngModel]="catalog.selectedRarity()"
+              (ngModelChange)="catalog.selectedRarity.set($event)"
+            >
+              @for (rar of rarityOptions; track rar) {
+                <option [value]="rar">{{ rar === 'All' ? 'All Rarities' : rar }}</option>
+              }
+            </select>
+          </label>
+
+          <label class="lw-items-select-group">
+            <span>Origin / Store</span>
+            <select
+              class="lw-items-select"
+              [ngModel]="catalog.selectedSource()"
+              (ngModelChange)="catalog.selectedSource.set($event)"
+            >
+              <option value="All">All Sources</option>
+              <option value="Official">Official / Core Rules</option>
+              <option value="Homebrew">Homebrew Items</option>
+              <option value="StoreFree">Published Store Homebrew (Free)</option>
+            </select>
+          </label>
+
+          <label class="lw-items-select-group">
+            <span>Collection</span>
+            <select
+              class="lw-items-select"
+              [ngModel]="catalog.selectedCollectionId()"
+              (ngModelChange)="catalog.selectedCollectionId.set($event)"
+            >
+              <option value="All">All Collections</option>
+              @for (col of catalog.collectionsForActiveCampaign(); track col.id) {
+                <option [value]="col.id">{{ col.name }} ({{ col.itemIds.length }})</option>
+              }
+            </select>
+          </label>
+
+          <label class="lw-items-select-group">
+            <span>Sort By</span>
+            <select
+              class="lw-items-select"
+              [ngModel]="catalog.sortBy()"
+              (ngModelChange)="catalog.sortBy.set($event)"
+            >
+              @for (opt of sortOptions; track opt.value) {
+                <option [value]="opt.value">{{ opt.label }}</option>
+              }
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="lw-items-category-pills">
+        @for (cat of categoryOptions; track cat) {
+          <lw-button
+            [variant]="catalog.selectedCategory() === cat ? 'gold' : 'secondary'"
+            size="xs"
+            [label]="cat"
+            (pressed)="catalog.selectedCategory.set(cat)"
+          />
+        }
+
+        @if (
+          catalog.searchQuery() ||
+          catalog.selectedCategory() !== 'All' ||
+          catalog.selectedRarity() !== 'All' ||
+          catalog.selectedSource() !== 'All' ||
+          catalog.selectedCollectionId() !== 'All'
+        ) {
+          <lw-button
+            variant="ghost"
+            size="xs"
+            label="Reset Filters"
+            (pressed)="resetAllFilters()"
+          />
+        }
+      </div>
+    </div>
+
+    @if (catalog.filteredAndSortedItems().length === 0) {
+      <div class="lw-items-empty">
+        <p class="lw-items-empty__title">No items match your active filters.</p>
+        <p class="lw-items-empty__sub">
+          Try clearing your search filter or forge a new custom Homebrew item.
+        </p>
+        <div class="lw-items-empty__actions">
+          <lw-button variant="secondary" size="sm" label="Reset Filters" (pressed)="resetAllFilters()" />
+          <lw-button
+            variant="emerald"
+            size="sm"
+            label="Create Custom Item (Homebrew)"
+            (pressed)="openCreateCustomItemModal()"
+          />
+        </div>
+      </div>
+    } @else {
+      <div class="lw-items-grid">
+        @for (item of catalog.filteredAndSortedItems(); track item.id) {
+          <lw-item-card
+            [item]="item"
+            [canAdd]="!!catalog.targetCampaignCharacter() && !catalog.busy()"
+            [targetCharacterName]="(catalog.targetCampaignCharacter()?.name ?? 'No character assigned')"
+            [isGm]="isEffectiveGm()"
+            [activeCollectionName]="activeOrDefaultCollectionName()"
+            [inActiveCollection]="isItemInActiveCollection(item.id)"
+            (itemSelected)="catalog.openItemDetail($event)"
+            (addToCharacterRequested)="
+              catalog.addItemToCampaignCharacter($event.item, $event.equipNow)
+            "
+            (toggleCollectionRequested)="handleCardToggleCollection($event)"
+          />
+        }
+      </div>
+    }
+  </lw-panel>
+</div>
+
+<lw-item-detail-modal
+  [item]="catalog.inspectedItem()"
+  [canAdd]="!!catalog.targetCampaignCharacter() && !catalog.busy()"
+  [canPublish]="!!catalog.inspectedItem() && catalog.canPublish(catalog.inspectedItem()!)"
+  [targetCharacterName]="(catalog.targetCampaignCharacter()?.name ?? 'No character assigned')"
+  [targetCampaignName]="store.activeCampaign().name"
+  [isGm]="isEffectiveGm()"
+  [collections]="catalog.collectionsForActiveCampaign()"
+  (closed)="catalog.closeItemDetail()"
+  (addToCharacterRequested)="catalog.addItemToCampaignCharacter($event.item, $event.equipNow)"
+  (publishToStoreRequested)="catalog.publishHomebrewToStore($event)"
+  (toggleItemInCollectionRequested)="
+    catalog.toggleItemInCollection($event.collectionId, $event.itemId)
+  "
+/>
+
+<lw-item-custom-modal [saveError]="saveError()" [busy]="catalog.busy()"
+  [(open)]="customItemModalOpen"
+  (itemCreated)="handleCustomItemCreated($event)"
+/>
+
+<lw-item-collection-modal [saveError]="saveError()" [busy]="catalog.busy()"
+  [(open)]="collectionModalOpen"
+  [campaignName]="store.activeCampaign().name"
+  [editingCollection]="editingCollection()"
+  [availableItems]="catalog.allItems()"
+  [campaignLocations]="catalog.campaignLocations()"
+  (collectionSaved)="handleCollectionSaved($event)"
+/>

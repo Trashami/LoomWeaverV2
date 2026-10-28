@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Items/catalog.json" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\LoomWeaver.Domain\LoomWeaver.Domain.csproj" />
     <ProjectReference Include="..\LoomWeaver.GameSystems\LoomWeaver.GameSystems.csproj" />

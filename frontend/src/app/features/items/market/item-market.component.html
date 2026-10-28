@@ -1,0 +1,26 @@
+<lw-panel title="Free Homebrew Items & Collections" subtitle="Community creations credited to their authors. Private collections are never listed.">
+  <p role="status">{{ status() }}</p>
+  <div class="controls">
+    <label>Search items or creators <input type="search" [ngModel]="search()" (ngModelChange)="search.set($event)" /></label>
+    <label>Published collection <select [ngModel]="collectionId()" (ngModelChange)="collectionId.set($event)">
+      <option value="">All published homebrew items</option>
+      @for (collection of collections(); track collection.id) {
+        <option [value]="collection.id">{{ collection.name }} — by {{ collection.createdByUsername }} · Free</option>
+      }
+    </select></label>
+  </div>
+  @if (collectionId()) { @for (collection of collections(); track collection.id) { @if (collection.id === collectionId()) {
+    <p>{{ collection.description }} — by {{ collection.createdByUsername }} · Free ($0.00)</p>
+  } } }
+  <div class="items">
+    @for (item of filtered(); track item.id) {
+      <lw-item-card [item]="item" [canAdd]="!!catalog.targetCampaignCharacter() && !catalog.busy()"
+        [targetCharacterName]="catalog.targetCampaignCharacter()?.name ?? 'No character assigned'"
+        (itemSelected)="selected.set($event)" (addToCharacterRequested)="catalog.addItemToCampaignCharacter($event.item, $event.equipNow)" />
+    } @empty { <p>No published items match your search.</p> }
+  </div>
+  <p role="status">{{ catalog.statusBanner() }}</p>
+</lw-panel>
+<lw-item-detail-modal [item]="selected()" [canAdd]="!!catalog.targetCampaignCharacter() && !catalog.busy()"
+  [targetCharacterName]="catalog.targetCampaignCharacter()?.name ?? 'No character assigned'"
+  (closed)="selected.set(null)" (addToCharacterRequested)="catalog.addItemToCampaignCharacter($event.item, $event.equipNow)" />

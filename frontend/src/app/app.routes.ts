@@ -186,6 +186,6 @@ export const APP_ROUTES: Routes = [
   { path: 'npcs', redirectTo: 'campaigns', pathMatch: 'full' },
   { path: 'monsters', redirectTo: 'encounters', pathMatch: 'full' },
   { path: 'spells', redirectTo: 'effects', pathMatch: 'full' },
-  { path: 'items', redirectTo: 'assets', pathMatch: 'full' },
+  { path: 'items', canActivate: [authGuard], loadComponent: () => import('./features/items/items.page').then(m => m.ItemsPageComponent) },
   { path: '**', redirectTo: '' },
 ];

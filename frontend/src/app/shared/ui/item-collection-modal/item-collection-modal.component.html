@@ -1,0 +1,163 @@
+@if (open()) {
+  <div
+    class="lw-col-modal-backdrop"
+    role="dialog"
+    aria-modal="true"
+    aria-label="GM Item Collection Builder"
+    (click)="onBackdropClick($event)"
+  >
+    <div class="lw-col-modal" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
+      <header class="lw-col-modal__header">
+        <div>
+          <div class="lw-col-modal__badges">
+            <lw-badge label="GM Collection & Merchant Vault" tone="gold" />
+            <lw-badge [label]="'Campaign: ' + campaignName()" tone="emerald" />
+          </div>
+          <h2 class="lw-col-modal__title">
+            {{
+              editingCollection()
+                ? 'Edit GM Item Collection'
+                : 'Create Custom GM Item Collection'
+            }}
+          </h2>
+          <p class="lw-col-modal__subtitle">
+            Group items into a named collection and optionally assign it to a Merchant in a
+            Location within {{ campaignName() }}.
+          </p>
+        </div>
+
+        <button
+          ngpButton
+          type="button"
+          class="lw-col-modal__close"
+          aria-label="Close collection modal"
+          (click)="close()"
+        >
+          <lw-icon name="close" [size]="18" />
+        </button>
+      </header>
+
+      <div class="lw-col-modal__body">
+        @if (errorMessage() || saveError()) {
+          <div class="lw-col-modal__error">{{ errorMessage() || saveError() }}</div>
+        }
+
+        <div class="lw-col-modal__grid-2">
+          <label class="lw-col-field">
+            <span class="lw-col-field__label">Custom Collection Name *</span>
+            <input
+              type="text"
+              class="lw-col-field__input"
+              placeholder="e.g., Cinth Artificer Guild Armory"
+              [ngModel]="name()"
+              (ngModelChange)="name.set($event)"
+            />
+          </label>
+
+          <label class="lw-col-field">
+            <span class="lw-col-field__label">Collection Notes / Theme</span>
+            <input
+              type="text"
+              class="lw-col-field__input"
+              placeholder="e.g., Masterwork brass weapons, lenses, and wards"
+              [ngModel]="description()"
+              (ngModelChange)="description.set($event)"
+            />
+          </label>
+        </div>
+
+        <div class="lw-col-modal__merchant-box">
+          <div class="lw-col-modal__merchant-head">
+            <span class="lw-col-modal__merchant-title">
+              Merchant & Campaign Location Assignment (Ready for Merchant Pages)
+            </span>
+            <span class="lw-col-modal__merchant-sub">
+              Bind this collection to a shopkeeper or quartermaster at a location in
+              {{ campaignName() }}.
+            </span>
+          </div>
+
+          <div class="lw-col-modal__grid-2">
+            <label class="lw-col-field">
+              <span class="lw-col-field__label">Assigned Merchant / Shop Name</span>
+              <input
+                type="text"
+                class="lw-col-field__input"
+                placeholder="e.g., Guildmaster Bram — Brass Foundry Emporium"
+                [ngModel]="assignedMerchantName()"
+                (ngModelChange)="assignedMerchantName.set($event)"
+              />
+            </label>
+
+            <label class="lw-col-field">
+              <span class="lw-col-field__label">Campaign Location ({{ campaignName() }})</span>
+              <select
+                class="lw-col-field__input"
+                [ngModel]="assignedLocationKey()"
+                (ngModelChange)="assignedLocationKey.set($event)"
+              >
+                <option value="">Unassigned Location</option>
+                @for (loc of campaignLocations(); track loc.key) {
+                  <option [value]="loc.key">{{ loc.name }}</option>
+                }
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="lw-col-modal__picker">
+          <div class="lw-col-modal__picker-bar">
+            <span class="lw-col-field__label">
+              Select Items in Collection ({{ selectedItemIds().length }} selected)
+            </span>
+            <input
+              type="text"
+              class="lw-col-field__input lw-col-field__input--compact"
+              placeholder="Filter items to add..."
+              [ngModel]="itemSearchQuery()"
+              (ngModelChange)="itemSearchQuery.set($event)"
+            />
+          </div>
+
+          <div class="lw-col-modal__item-list">
+            @for (it of filteredPickerItems(); track it.id) {
+              <button
+                ngpButton
+                type="button"
+                class="lw-col-modal__item-row"
+                [class.lw-col-modal__item-row--selected]="isItemSelected(it.id)"
+                (click)="toggleItem(it.id)"
+              >
+                <img
+                  class="lw-col-modal__item-thumb"
+                  [src]="it.imageUrl || '/assets/previews-png/obj-c4468a17dd78e8a4.png'"
+                  [alt]="it.name"
+                />
+                <div class="lw-col-modal__item-meta">
+                  <span class="lw-col-modal__item-name">{{ it.name }}</span>
+                  <span class="lw-col-modal__item-sub">
+                    {{ it.category }} · {{ it.rarity }} · {{ it.priceLabel }}
+                  </span>
+                </div>
+                <span class="lw-col-modal__item-state">
+                  {{ isItemSelected(it.id) ? 'Included' : 'Add' }}
+                </span>
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+
+      <label><input type="checkbox" [ngModel]="publishedToStore()" (ngModelChange)="publishedToStore.set($event)" /> Publish collection to the marketplace for free (all homebrew items must be published first).</label>
+      <footer class="lw-col-modal__footer">
+        <lw-button variant="secondary" size="sm" label="Cancel" (pressed)="close()" />
+        <lw-button
+          variant="gold"
+          size="sm"
+          [label]="editingCollection() ? 'Save Collection Changes' : 'Create Item Collection'"
+          [disabled]="busy()" (pressed)="saveCollection()"
+        />
+      </footer>
+    </div>
+  </div>
+}

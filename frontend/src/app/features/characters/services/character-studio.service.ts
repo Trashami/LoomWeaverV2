@@ -1,3 +1,5 @@
+import { syncCatalogInventory } from './catalog-inventory-sync';
+import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { AdventureGuideService } from '../../../core/services/adventure-guide.service';
 import { AuthSessionService } from '../../../core/services/auth-session.service';
@@ -18,6 +20,7 @@ import { CharacterCompendiumCatalogService } from './character-compendium-catalo
 
 @Injectable({ providedIn: 'root' })
 export class CharacterStudioService {
+  private readonly http = inject(HttpClient);
   private readonly store = inject(LoomWeaverStoreService);
   private readonly adventureGuide = inject(AdventureGuideService);
   private readonly auth = inject(AuthSessionService);
@@ -96,7 +99,16 @@ export class CharacterStudioService {
 
   private lastInitializedAccountId = '';
 
+  mergeCatalogInventory(campaignId: number, characterKey: string, equipment: readonly EquipmentLoadoutItemVm[]): void {
+    this.sheets.update(sheets => sheets.map(sheet => {
+      if (sheet.campaignId !== campaignId || sheet.characterKey !== characterKey) return sheet;
+      const ids = new Set(equipment.map(e => e.id));
+      return this.recalculate({ ...sheet, equipment: [...equipment, ...sheet.equipment.filter(e => !ids.has(e.id))] }, sheet.systemCode);
+    }));
+  }
+
   constructor() {
+    syncCatalogInventory(this.http, this.store, this.auth, () => this.sheets.update(rows => rows.map(s => ({ ...s, equipment: s.equipment.filter(e => !e.id.startsWith('inv-')) }))), (campaign, key, items) => this.mergeCatalogInventory(campaign, key, items));
     effect(() => {
       const profile = this.auth.activeProfile();
       const authorized = this.authorizedSheetsForActiveCampaign();

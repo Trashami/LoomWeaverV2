@@ -627,6 +627,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       modelUrl: asset.modelUrl || undefined,
       albedoUrl: asset.albedoUrl,
       normalUrl: asset.normalUrl,
+      heightUrl: asset.heightUrl,
       isFloor: asset.isFloor,
       placementMode: hasPlacedSelection ? cur.placementMode : (asset.defaultPlacement ?? 'floor'),
       elevationY: hasPlacedSelection
@@ -663,7 +664,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.equipAssetOnNode(asset);
 
     if (asset.isFloor && asset.albedoUrl && asset.normalUrl) {
-      this.applyFloorTextureToScene(asset.name, asset.albedoUrl, asset.normalUrl);
+      this.applyFloorTextureToScene(asset.name, asset.albedoUrl, asset.normalUrl, asset.heightUrl);
       return;
     }
 
@@ -1240,7 +1241,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       }
       const node = this.selectedNode();
       if (node.albedoUrl && node.normalUrl) {
-        this.applyFloorTextureToScene(node.name, node.albedoUrl, node.normalUrl);
+        this.applyFloorTextureToScene(node.name, node.albedoUrl, node.normalUrl, node.heightUrl);
       }
       return;
     }

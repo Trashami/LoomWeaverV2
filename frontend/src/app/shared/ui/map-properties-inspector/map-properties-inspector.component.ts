@@ -1,3 +1,4 @@
+import { LwButtonComponent } from '../button/button.component';
 import { LwWaterControlsComponent } from '../water-controls/water-controls.component';
 import { DEFAULT_WATER, WaterSettings } from '../../../features/maps/engine/water/water-settings';
 import type { WaterSplineNode } from '../../../features/maps/engine/map-scene-contract';
@@ -86,6 +87,7 @@ export interface LwSelectedSceneNode {
   readonly modelUrl?: string;
   readonly albedoUrl?: string;
   readonly normalUrl?: string;
+  readonly heightUrl?: string;
   readonly isFloor?: boolean;
   readonly materialId: string;
   readonly heightSquares: number;
@@ -112,7 +114,7 @@ export interface LwSelectedSceneNode {
 @Component({
   selector: 'lw-map-properties-inspector',
   standalone: true,
-  imports: [NgpButton, LwIconComponent, LwWallSurfaceControlsComponent, LwWaterControlsComponent],
+  imports: [LwButtonComponent, NgpButton, LwIconComponent, LwWallSurfaceControlsComponent, LwWaterControlsComponent],
   templateUrl: './map-properties-inspector.component.html',
   styleUrl: './map-properties-inspector.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -1,3 +1,6 @@
+import { sampleWaterShoreline } from '../../frontend/src/app/features/maps/engine/water/water-shoreline';
+import { packFloorRelief } from '../../frontend/src/app/features/maps/engine/terrain/floor-texture-relief';
+import { TerrainMeshBuilder } from '../../frontend/src/app/features/maps/engine/terrain/terrain-mesh.builder';
 import { SeededScatterEngine } from '../../frontend/src/app/features/maps/engine/scatter/seeded-scatter.engine';
 import { GlbModelCache } from '../../frontend/src/app/features/maps/engine/rendering/glb-model-cache';
 import { TransformNode } from '@babylonjs/core';
@@ -210,4 +213,37 @@ test('scatter repeats only the chosen asset beyond six instances and keeps Y upr
     assert.equal(render(65),0);
     assert.equal(scene.meshes.filter(m=>m.name.startsWith('lw-scatter-')).length,0);
   }finally{GlbModelCache.getOrLoadTemplate=original;scene.dispose();engine.dispose();}
+});
+
+
+test('water shoreline clips to high banks and fades down onto low banks',()=>{
+ const profiles=[buildWaterProfile(river([[-4,0,0],[4,0,0]]),()=>0)];
+ const level=profiles[0].samples[0].level;
+ const high=sampleWaterShoreline(profiles,0,1.7,()=>level+.1);
+ assert.ok(high.coverage<0);
+ const wet=sampleWaterShoreline(profiles,0,1.6,()=>level-.12);
+ assert.ok(wet.coverage>0);assert.ok(wet.level>level-.12);
+ const edge=sampleWaterShoreline(profiles,0,2.25,()=>level-.2);
+ assert.ok(Math.abs(edge.level-(level-.2))<.001);assert.ok(edge.depth<.001);
+});
+
+test('floor height slider changes texture relief without changing terrain or river elevation',()=>{
+ const engine=new NullEngine(),scene=new Scene(engine);
+ try {
+  const ground=MeshBuilder.CreateGround('lw-terrain-ground',{width:36,height:27,subdivisions:64,updatable:true},scene);
+  TerrainMeshBuilder.configureFloorProperties(scene,{albedoUrl:'',normalUrl:'',heightUrl:'',heightScale:100});
+  TerrainMeshBuilder.applyVertexReliefAndHeightMap(scene,ground,0);
+  const before=Array.from(ground.getVerticesData('position')!);
+  TerrainMeshBuilder.configureFloorProperties(scene,{heightScale:220});
+  assert.deepEqual(Array.from(ground.getVerticesData('position')!),before);
+  TerrainMeshBuilder.applyVertexReliefAndHeightMap(scene,ground,0);
+  assert.deepEqual(Array.from(ground.getVerticesData('position')!),before);
+ }finally{scene.dispose();engine.dispose();}
+});
+
+test('height channel preserves normal RGB and uses the supplied height map in alpha',()=>{
+ const normals=new Uint8ClampedArray([128,128,255,255,140,120,250,255]);
+ const height=new Uint8ClampedArray([32,32,32,255,220,220,220,255]);
+ assert.deepEqual(Array.from(packFloorRelief(normals,height)),[128,128,255,32,140,120,250,220]);
+ assert.equal(normals[3],255);
 });

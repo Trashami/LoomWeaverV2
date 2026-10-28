@@ -42,3 +42,12 @@ Water now closes its exterior shoreline and underside down to the carved bed. Th
 Scatter clusters now use only their stored selected GLB. Pending or unavailable models do not become placeholder rocks/cones, and there is no six-model cutoff. Density scales with painted area, capped at 96 assets per dab and 1,500 per scene. Seeded positions, modest uniform size variation and random yaw repeat across rebuilds; pitch and roll stay zero. Collections remain future work; each cluster retains one source model URL.
 
 Validation adds closed-volume topology, bed depth, rapids settling, selected-model counts above six, density, deterministic transforms, upright yaw and missing-model behavior. Build warnings remain the existing frontend bundle budget and network-limited NuGet audit lookup.
+
+
+## Bank contact and texture relief
+
+The render mesh now extends into the feathered bank and clips against the actual carved terrain sampler. Low exposed edges taper down to the ground, and shallow alpha/foam soften contact instead of outlining a raised blue skirt. Carving remains reversible and unchanged by texture relief.
+
+Floor height maps are passed from asset selection through scene rebuilds and packed into the normal texture alpha for parallax occlusion. The Texture Height / Relief Depth control changes surface detail only; Raise/Lower owns terrain geometry. Missing height maps retain normal shading without synthetic vertex ridges. A texture-only effect does not change collisions or the floor silhouette.
+
+The shared map inspector puts facing controls before placement/scale settings and provides relative 45-degree turns. Clear Painted Floor Layer uses lw-button with the danger variant; fullWidth now sizes the shared component host as well as its button. Tests cover terrain invariance, normal/height packing and bank contact in addition to the existing water/scatter suite.

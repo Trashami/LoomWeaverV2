@@ -31,7 +31,7 @@ export class WaterSplineBuilder {
     this.rendered.set(scene,profiles);
     for(const network of WaterChannelTerrain.getNetworks(scene)) {
       const profile=network[0];
-      const mesh=createWaterNetworkMesh(scene,network);
+      const mesh=createWaterNetworkMesh(scene,network,(x,z)=>TerrainMeshBuilder.sampleElevationAt(scene,x,z));
       mesh.material=WaterSurfaceMaterial.create(scene,profile.id,profile.settings);
       createWaterVolume(scene,mesh,network,(x,z)=>TerrainMeshBuilder.sampleElevationAt(scene,x,z));
     }

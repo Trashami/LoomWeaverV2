@@ -97,11 +97,11 @@ void main() {
   color = mix(color,reflected,vDeep.a*(.12+fresnel*.8));
   float spec = pow(max(dot(N,normalize(L+V)),0.),mix(160.,32.,clamp(vStyle.x*.4,0.,1.)));
   color += lightColor * spec * vDeep.a * 1.4;
-  float shore = (1.0-smoothstep(.02,.4,depth)) * (.35+.65*noise(coord*5.-time*.25));
+  float shore = (1.0-smoothstep(.02,.4,depth)) * (.12+.35*noise(coord*5.-time*.25));
   float streak = smoothstep(.52,.85,waves(vec2(p.x*2.8,p.y*.25)));
   float rapids = max(fall*.8,clamp(vStyle.x-1.,0.,1.)*.5)*streak;
   float whitewater = clamp((shore + rapids)*vStyle.y,0.,.9);
   color = mix(color,vec3(.82,.94,.96)*max(vec3(.35),lightColor),whitewater);
-  float edge = smoothstep(0.,.08,depth);
+  float edge = smoothstep(0.,.12,depth);
   gl_FragColor = vec4(color,edge * clamp(vShallow.a + fresnel*.12 + whitewater*.1,.0,1.));
 }`;

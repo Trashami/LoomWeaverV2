@@ -839,6 +839,7 @@ export class BabylonMapStageService {
         state.floorAlbedoUrl,
         state.floorNormalUrl,
         state.floorTilingScale ?? 10,
+        state.floorHeightUrl,
       );
     }
     TerrainMeshBuilder.applyVertexReliefAndHeightMap(this.scene, ground, state.terrainRelief);

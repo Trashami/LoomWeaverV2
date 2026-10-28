@@ -124,7 +124,7 @@
 
             <div class="lw-map-inspector__slider-block">
               <div class="lw-map-inspector__slider-head">
-                <span>Height Map Depth (Elevation Relief)</span>
+                <span>Texture Height / Relief Depth</span>
                 <strong>{{ floorHeightScale() }}%</strong>
               </div>
               <input
@@ -359,15 +359,8 @@
               </div>
             </div>
 
-            <button
-              type="button"
-              ngpButton
-              class="lw-map-inspector__danger-btn"
-              (click)="clearFloorPaint.emit()"
-            >
-              <lw-icon name="trash" [size]="14" />
-              <span>Clear Painted Floor Layer</span>
-            </button>
+            <lw-button label="Clear Painted Floor Layer" variant="danger" size="sm"
+              [fullWidth]="true" (pressed)="clearFloorPaint.emit()" />
           </div>
           }
         </div>
@@ -702,6 +695,7 @@
                 max="180"
                 step="5"
                 class="lw-map-inspector__range"
+                aria-label="Facing angle in degrees"
                 [value]="node.rotationDeg"
                 (input)="onNumInput($event, rotationChange)"
               />
@@ -867,6 +861,60 @@
               Click any placed Wall, Door, 3D Object, or Light in the scene to select it and edit its placement, dimensions, and paint color here.
             </p>
           }
+
+          <!-- D. ORIENTATION & COMPASS ROTATION -->
+          <div class="lw-map-inspector__group-box">
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
+                <span>Facing / Y-axis rotation</span>
+                <strong>{{ node.rotationDeg }}°</strong>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="360"
+                step="5"
+                class="lw-map-inspector__range"
+                aria-label="Facing angle in degrees"
+                [value]="node.rotationDeg"
+                (input)="onNumInput($event, rotationChange)"
+              />
+              <div class="lw-map-inspector__pill-group">
+                <lw-button label="Left 45&#176;" size="sm" (pressed)="rotationChange.emit((node.rotationDeg + 315) % 360)" />
+                <lw-button label="Right 45&#176;" size="sm" (pressed)="rotationChange.emit((node.rotationDeg + 45) % 360)" />
+              </div>
+              <div class="lw-map-inspector__pill-group">
+                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="rotationChange.emit(0)">
+                  0° N
+                </button>
+                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="rotationChange.emit(90)">
+                  90° E
+                </button>
+                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="rotationChange.emit(180)">
+                  180° S
+                </button>
+                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="rotationChange.emit(270)">
+                  270° W
+                </button>
+              </div>
+            </div>
+
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
+                <span>Lean / Tilt Pitch</span>
+                <strong>{{ node.tiltDeg ?? 0 }}°</strong>
+              </div>
+              <input
+                type="range"
+                min="-45"
+                max="45"
+                step="1"
+                class="lw-map-inspector__range"
+                [value]="node.tiltDeg ?? 0"
+                (input)="onNumInput($event, tiltChange)"
+              />
+            </div>
+          </div>
 
           <!-- A. PLACEMENT MODE TOGGLE: ON THE FLOOR vs CUSTOM POSITION -->
           <div class="lw-map-inspector__group-box">
@@ -1166,55 +1214,6 @@
                 class="lw-map-inspector__range"
                 [value]="node.opacity ?? 1"
                 (input)="onNumInput($event, opacityChange)"
-              />
-            </div>
-          </div>
-
-          <!-- D. ORIENTATION & COMPASS ROTATION -->
-          <div class="lw-map-inspector__group-box">
-            <div class="lw-map-inspector__slider-block">
-              <div class="lw-map-inspector__slider-head">
-                <span>Compass Rotation (Facing)</span>
-                <strong>{{ node.rotationDeg }}°</strong>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="360"
-                step="5"
-                class="lw-map-inspector__range"
-                [value]="node.rotationDeg"
-                (input)="onNumInput($event, rotationChange)"
-              />
-              <div class="lw-map-inspector__pill-group">
-                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="rotationChange.emit(0)">
-                  0° N
-                </button>
-                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="rotationChange.emit(90)">
-                  90° E
-                </button>
-                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="rotationChange.emit(180)">
-                  180° S
-                </button>
-                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="rotationChange.emit(270)">
-                  270° W
-                </button>
-              </div>
-            </div>
-
-            <div class="lw-map-inspector__slider-block">
-              <div class="lw-map-inspector__slider-head">
-                <span>Lean / Tilt Pitch</span>
-                <strong>{{ node.tiltDeg ?? 0 }}°</strong>
-              </div>
-              <input
-                type="range"
-                min="-45"
-                max="45"
-                step="1"
-                class="lw-map-inspector__range"
-                [value]="node.tiltDeg ?? 0"
-                (input)="onNumInput($event, tiltChange)"
               />
             </div>
           </div>

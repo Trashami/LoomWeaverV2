@@ -1,3 +1,4 @@
+import { configureFloorRelief } from './floor-texture-relief';
 import { WaterChannelTerrain } from '../water/water-channel-terrain';
 import {
   Color3,
@@ -51,7 +52,6 @@ export class TerrainMeshBuilder {
   private static compositeDynTex: DynamicTexture | null = null;
   private static eraserScratchCanvas: HTMLCanvasElement | null = null;
   private static imageCache = new Map<string, HTMLImageElement>();
-  private static heightPixelsCache = new Map<string, { data: Uint8ClampedArray; w: number; h: number }>();
 
   static getCellStepMeters(): number {
     return this.activeGridMode === '10 ft' ? 3.0 : 1.5;
@@ -160,7 +160,7 @@ export class TerrainMeshBuilder {
   }
 
   /**
-   * Applies both procedural/heightmap floor relief (`floorHeightScale`) and
+   * Applies procedural terrain elevation and
    * user-sculpted `customElevations` onto the ground mesh vertices.
    */
   static applyVertexReliefAndHeightMap(
@@ -174,14 +174,7 @@ export class TerrainMeshBuilder {
       this.customElevations = new Float32Array(positions.length / 3);
     }
 
-    const heightFactor = (this.floorHeightScale - 100) / 100; // 0 at default 100%, -1 at 0%, +1 at 200%
-    const baseAmp =
-      baseReliefScale <= 0 ? 0 : (Math.min(100, baseReliefScale) / 100) * 0.35;
-    const heightPixels = this.activeHeightUrl
-      ? this.heightPixelsCache.get(this.activeHeightUrl)
-      : undefined;
-    const uScale = this.floorTilingScale;
-    const vScale = Math.round(this.floorTilingScale * 0.8);
+    const baseAmp = baseReliefScale <= 0 ? 0 : (Math.min(100, baseReliefScale) / 100) * 0.35;
 
     for (let i = 0; i < positions.length; i += 3) {
       const x = positions[i];
@@ -192,34 +185,8 @@ export class TerrainMeshBuilder {
       const baseWave =
         baseAmp === 0 ? 0 : Math.sin(x * 0.35) * Math.cos(z * 0.35) * baseAmp * edgeFactor;
 
-      // Micro-height relief from heightmap texture or stone cellular pattern
-      let microHeight = 0;
-      if (Math.abs(heightFactor) > 0.01) {
-        if (heightPixels) {
-          const u = (((x + this.GROUND_W / 2) / this.GROUND_W) * uScale) % 1;
-          const v = (((this.GROUND_H / 2 - z) / this.GROUND_H) * vScale) % 1;
-          const px = Math.min(
-            heightPixels.w - 1,
-            Math.max(0, Math.floor((u < 0 ? u + 1 : u) * heightPixels.w)),
-          );
-          const py = Math.min(
-            heightPixels.h - 1,
-            Math.max(0, Math.floor((v < 0 ? v + 1 : v) * heightPixels.h)),
-          );
-          const lum = heightPixels.data[(py * heightPixels.w + px) * 4] / 255;
-          microHeight = (lum - 0.5) * 0.65 * heightFactor;
-        } else {
-          const freqX = x * (uScale * 0.35);
-          const freqZ = z * (vScale * 0.35);
-          microHeight =
-            (Math.sin(freqX) * Math.cos(freqZ) * 0.5 +
-              Math.cos(freqX * 0.5 - freqZ * 0.5) * 0.5) *
-            0.38 *
-            heightFactor;
-        }
-      }
-
-      positions[i + 1] = baseWave + microHeight + (this.customElevations[vIdx] ?? 0);
+      // Texture height is material relief; only terrain tools change the ground geometry.
+      positions[i + 1] = baseWave + (this.customElevations[vIdx] ?? 0);
     }
 
     WaterChannelTerrain.apply(scene, positions, this.GROUND_W, this.GROUND_H);
@@ -340,10 +307,8 @@ export class TerrainMeshBuilder {
   ): void {
     this.activeAlbedoUrl = albedoUrl;
     this.activeNormalUrl = normalUrl;
-    if (heightUrl !== undefined) {
-      this.activeHeightUrl = heightUrl;
-      this.ensureHeightMapLoaded(scene, heightUrl);
-    }
+    this.activeHeightUrl = heightUrl ?? '';
+
     this.floorTilingScale = tilingScale;
     const ground = scene.getMeshByName('lw-terrain-ground') as Mesh | null;
     if (ground) {
@@ -368,8 +333,7 @@ export class TerrainMeshBuilder {
     }
     if (config.heightUrl !== undefined && config.heightUrl !== this.activeHeightUrl) {
       this.activeHeightUrl = config.heightUrl;
-      this.ensureHeightMapLoaded(scene, config.heightUrl);
-      needsVertexReliefUpdate = true;
+      needsMaterialRebuild = true;
     }
     if (config.tilingScale !== undefined && config.tilingScale !== this.floorTilingScale) {
       this.floorTilingScale = config.tilingScale;
@@ -387,7 +351,7 @@ export class TerrainMeshBuilder {
     }
     if (config.heightScale !== undefined && config.heightScale !== this.floorHeightScale) {
       this.floorHeightScale = config.heightScale;
-      needsVertexReliefUpdate = true;
+      needsMaterialRebuild = true;
     }
     if (
       (config.colorHex !== undefined && config.colorHex !== this.floorColorHex) ||
@@ -519,29 +483,6 @@ export class TerrainMeshBuilder {
       g: parseInt(clean.substring(2, 4), 16) || 0,
       b: parseInt(clean.substring(4, 6), 16) || 0,
     };
-  }
-
-  private static ensureHeightMapLoaded(scene: Scene, url: string): void {
-    if (!url || this.heightPixelsCache.has(url) || typeof Image === 'undefined') return;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      if (typeof document === 'undefined') return;
-      const c = document.createElement('canvas');
-      c.width = Math.min(256, img.naturalWidth || 256);
-      c.height = Math.min(256, img.naturalHeight || 256);
-      const ctx = c.getContext('2d');
-      if (!ctx) return;
-      ctx.drawImage(img, 0, 0, c.width, c.height);
-      const imgData = ctx.getImageData(0, 0, c.width, c.height);
-      this.heightPixelsCache.set(url, { data: imgData.data, w: c.width, h: c.height });
-      const ground = scene.getMeshByName('lw-terrain-ground') as Mesh | null;
-      if (ground && Math.abs(this.floorHeightScale - 100) > 1) {
-        this.applyVertexReliefAndHeightMap(scene, ground);
-        this.rebuildGridOverlay(scene);
-      }
-    };
-    img.src = url;
   }
 
   private static loadOrGetAlbedoImage(
@@ -682,6 +623,7 @@ export class TerrainMeshBuilder {
       }
     }
 
+    configureFloorRelief(scene, mat, this.activeNormalUrl, this.activeHeightUrl, this.floorHeightScale, uScale, vScale);
     ground.material = mat;
     ground.receiveShadows = true;
   }

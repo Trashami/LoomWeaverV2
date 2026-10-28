@@ -25,6 +25,7 @@ export type LwButtonShape = 'default' | 'pill' | 'square';
   standalone: true,
   imports: [RouterLink, NgpButton, LwIconComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[style.width]': 'fullWidth() ? "100%" : null', '[style.min-width]': '"0"' },
   templateUrl: './button.component.html',
   styleUrl: './button.component.scss',
 })

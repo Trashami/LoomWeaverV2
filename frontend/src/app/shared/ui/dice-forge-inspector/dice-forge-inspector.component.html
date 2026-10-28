@@ -92,6 +92,7 @@
             >
               <div class="lw-dice-inspector__card-top">
                 <strong>{{ model.name }}</strong>
+                <small>{{ model.edgeSharpnessLabel }}</small>
 
               </div>
 
@@ -106,7 +107,7 @@
           </div>
           <input
             type="range"
-            min="0.88"
+            min="0.70"
             max="0.995"
             step="0.005"
             [value]="customConfig().chamferBevelFactor"
@@ -436,20 +437,7 @@
         }
       </section>
 
-      <section class="lw-dice-inspector__group">
-        <span class="lw-dice-inspector__label">Face Frame &amp; Border Inlay</span>
-        <div class="lw-dice-inspector__chip-grid">
-          @for (ov of overlayStyles; track ov) {
-            <button ngpButton type="button" class="lw-dice-inspector__pill" [class.is-active]="customConfig().faceOverlayStyle === ov" (click)="patch('faceOverlayStyle', ov)">
-              {{ ov | uppercase }}
-            </button>
-          }
-        </div>
-        <div class="lw-dice-inspector__row">
-          <span class="lw-dice-inspector__label">Border Inlay Color</span>
-          <input type="color" [value]="customConfig().borderColorHex" (input)="patch('borderColorHex', $any($event.target).value)" />
-        </div>
-      </section>
+
     </div>
   }
 

@@ -1,3 +1,5 @@
+import { setNumberWorldSize } from './number-layout';
+import { addDiceModelFrame } from '../models/model-frame.builder';
 import {
   Color3,
   CubeTexture,
@@ -13,11 +15,10 @@ import { DicePulseWaveform } from '../dice-physics.types';
 import {
   buildBabylonDieVertexData,
   BuiltBabylonDieGeometry,
-  D4_FACE_NUMBERS,
   DICE_SIZE_SCALE_MAP,
   DiceModelDefinition,
   DicePolyhedronType,
-  FACE_VALUES
+  FACE_VALUES, resolveDiceModel
 } from '../models';
 import { DiceCustomRuntimeConfig, DiceSkinConfig } from '../skins/dice-skin.types';
 import {
@@ -74,8 +75,12 @@ export function buildDieFaceMaterials(
   type: DicePolyhedronType,
   skin: DiceSkinConfig,
   custom: DiceCustomRuntimeConfig,
-  scene: Scene
+  scene: Scene,
+  geometry?: BuiltBabylonDieGeometry
 ): PBRMaterial[] {
+  const model = resolveDiceModel(custom.modelId);
+  const layoutGeometry = geometry ?? buildBabylonDieVertexData(type);
+  const worldFontSize = setNumberWorldSize(custom, skin, model);
   const materials: PBRMaterial[] = [];
   const surface = custom.surfaceStyleOverride ?? skin.surfaceStyle;
   if (!scene.environmentTexture) {
@@ -133,16 +138,17 @@ export function buildDieFaceMaterials(
   // Slots 1..N: Numbered polyhedral faces
   const faceVals = FACE_VALUES[type];
   const texSize = type === 'd20' || type === 'd12' ? 256 : 384;
-  const normalStrength = 1.4 + bumpIntensity * 1.1 + numberDepth * 1.8;
+  const normalStrength = 3.5;
 
   for (let i = 0; i < faceVals.length; i++) {
     const val = faceVals[i];
     const label = type === 'd100' ? (val === 10 ? '00' : `${val * 10}`) : type === 'd10' && val === 10 ? '0' : String(val);
 
+    const layout = layoutGeometry.faceLayouts.get(val)!;
     const canvases =
       type === 'd4'
-        ? createD4FaceCanvas(D4_FACE_NUMBERS[i] ?? [1, 2, 3], skin, custom, texSize)
-        : createFaceCanvas(label, skin, custom, texSize);
+        ? createD4FaceCanvas(layout, skin, custom, texSize, worldFontSize)
+        : createFaceCanvas(label, skin, custom, texSize, layout, worldFontSize);
 
     const faceMat = new PBRMaterial(`lw-die-face-${type}-${i + 1}`, scene);
     faceMat.albedoTexture = createBabylonDynamicTextureFromCanvas(
@@ -156,7 +162,10 @@ export function buildDieFaceMaterials(
       scene,
       normalStrength
     );
-    faceMat.bumpTexture.level = Math.max(0.05, bumpIntensity * 0.85 + numberDepth * 0.55);
+    faceMat.bumpTexture.level = 1;
+    faceMat.useParallax = surface !== 'glass' && numberDepth > 0.03;
+    faceMat.useParallaxOcclusion = faceMat.useParallax;
+    faceMat.parallaxScaleBias = 0.025 * numberDepth;
 
     const hasEmissive =
       custom.glowIntensity > 0.05 ||
@@ -200,18 +209,23 @@ export function buildBabylonPolyhedralDie(
   const builtGeometry = buildBabylonDieVertexData(
     type,
     1.15 * sizeMultiplier,
-    chamfer
+    chamfer,
+    model.id === 'model-custom-glb'
   );
 
   const mesh = new Mesh(name, scene);
   builtGeometry.vertexData.applyToMesh(mesh, true);
 
-  const faceMaterials = buildDieFaceMaterials(type, skin, custom, scene);
+  const faceMaterials = buildDieFaceMaterials(type, skin, custom, scene, builtGeometry);
   const multiMat = new MultiMaterial(`${name}-multimat`, scene);
   multiMat.subMaterials = faceMaterials.slice();
   mesh.material = multiMat;
 
   applySubMeshesToDieMesh(mesh, builtGeometry);
+  if (model.id === 'model-caged-filigree') {
+    faceMaterials[0].alpha = 0.08;
+    addDiceModelFrame(mesh, type, 1.15 * sizeMultiplier, faceMaterials[0], scene);
+  }
 
   if (model.geometryMode === 'glb-mesh' && model.glbAssetDirectory && model.glbFileName) {
     void attachOptionalGlbChildMesh(mesh, type, model, scene);

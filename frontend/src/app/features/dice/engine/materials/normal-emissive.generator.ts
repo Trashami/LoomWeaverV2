@@ -61,11 +61,12 @@ export function createBabylonNormalTextureFromHeightCanvas(
       dst[idx] = Math.round((nx * 0.5 + 0.5) * 255);
       dst[idx + 1] = Math.round((ny * 0.5 + 0.5) * 255);
       dst[idx + 2] = Math.round((nz * 0.5 + 0.5) * 255);
-      dst[idx + 3] = 255;
+      dst[idx + 3] = src[idx];
     }
   }
 
   nCtx.putImageData(outImg, 0, 0);
+  normalTex.gammaSpace = false;
   normalTex.update(false);
   return normalTex;
 }

@@ -71,6 +71,7 @@ export class BabylonDiceStageService {
     distance: 11.8,
   });
 
+  private pendingRebuild = false;
   private engine: Engine | null = null;
   private scene: Scene | null = null;
   private camera: ArcRotateCamera | null = null;
@@ -344,6 +345,7 @@ export class BabylonDiceStageService {
 
         }
 
+        if (this.pendingRebuild) this.syncStageLightingAndRebuild();
         if (isCriticalSuccess) this.previewCritOutcomeEffect('nat20');
         else if (isCriticalFailure) this.previewCritOutcomeEffect('critfail');
       }
@@ -387,8 +389,21 @@ export class BabylonDiceStageService {
     }
     if (this.glowLayer) this.glowLayer.intensity = 0.48 * this.currentCustom.glowIntensity;
     this.updateBoundaryWireframe();
-    if (!this.isRolling && this.stageMode() === 'showcase') {
-      this.rebuildShowcaseDice();
+    if (this.isRolling) { this.pendingRebuild = true; return; }
+    this.pendingRebuild = false;
+    if (this.stageMode() === 'showcase') this.rebuildShowcaseDice();
+    else {
+      const model = resolveDiceModel(this.currentCustom.modelId);
+      this.activeDice = this.activeDice.map(previous => {
+        const next = buildBabylonPolyhedralDie(previous.mesh.name, previous.dieType,
+          this.currentSkin, this.currentCustom, model, this.scene!);
+        next.mesh.position.copyFrom(previous.mesh.position);
+        next.mesh.rotation.copyFrom(previous.mesh.rotation);
+        next.mesh.rotationQuaternion = previous.mesh.rotationQuaternion?.clone() ?? null;
+        next.mesh.scaling.copyFrom(previous.mesh.scaling);
+        disposeDieMaterials(previous); previous.mesh.dispose();
+        return next;
+      });
     }
   }
 

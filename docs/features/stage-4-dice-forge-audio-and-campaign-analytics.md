@@ -66,3 +66,11 @@ As a GM or Player, I want:
 - Dice route starts with the global navigation collapsed. Forge rolls retain engraved numerals and report results through Alertify without floating result badges.
 - Notifications use a compact panel, at most two visible cards, and 4.5-second roll / 3-second status defaults.
 - Validation: `node scripts/test_dice_surfaces.cjs`, frontend production build with public prerender, and serial .NET API build. Repository-wide source limits have existing violations outside this slice.
+
+## Face layout, engraving and model revision (2026-10-27)
+
+- Mesh UVs and glyph placement share a projected face polygon. Lettering uses one world-space em size for the set, measured against every printable face including corner labels, percentile pairs, tracking and stroke. Glyphs and their effects are clipped to the actual face boundary.
+- D4 vertex identities determine its labels. The three faces sharing a vertex repeat its value, and settling that value puts the corresponding point upward. All saved circular face overlays are ignored; the border UI is removed. Resin uses a cloud field rather than circular strokes.
+- Carved/flush/raised lettering changes signed height, beveled inlay shading and parallax occlusion. Customization rebuilds settled dice in place and queues changes made during a throw.
+- Selecting a model applies that model's bevel instead of retaining the previous model's value. The five included profiles are balanced, sharp, deep-beveled, an open edge cage with inset number panels, and a double-faceted cut. The missing built-in GLB placeholder is replaced by the working faceted profile; registered external GLB definitions remain supported.
+- Regression commands: `node scripts/test_dice_geometry.cjs` and `node scripts/test_dice_surfaces.cjs`. The browser preview additionally checks real-font fit, signed engraving pixel differences and saved overlay compatibility. Required release checks remain the production frontend build/prerender and .NET build.

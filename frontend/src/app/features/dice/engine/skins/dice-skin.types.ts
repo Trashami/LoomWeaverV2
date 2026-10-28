@@ -1,3 +1,4 @@
+import { DICE_MODEL_CATALOG } from '../models/dice-model.catalog';
 import {
   DEFAULT_DICE_PHYSICS_CONFIG,
   DiceBlendMode,
@@ -202,11 +203,7 @@ export interface MarketplaceDicePreset {
 }
 
 export function createDefaultRuntimeConfigFromSkin(skin: DiceSkinConfig): DiceCustomRuntimeConfig {
-  const overlayStyle: DiceOverlayType = skin.hasCelticBorder
-    ? 'celtic-cage'
-    : skin.hasArcaneRunes
-      ? 'arcane-runes'
-      : 'none';
+  const overlayStyle: DiceOverlayType = 'none';
 
   return {
     customName: skin.name,
@@ -216,7 +213,7 @@ export function createDefaultRuntimeConfigFromSkin(skin: DiceSkinConfig): DiceCu
     diceSize: 'medium',
     surfaceStyleOverride: skin.surfaceStyle,
     bumpMapIntensity: Math.max(0.4, Math.min(2.5, (skin.bumpScale || 0.03) * 32)),
-    chamferBevelFactor: 0.955,
+    chamferBevelFactor: DICE_MODEL_CATALOG.find(model => model.id === skin.defaultModelId)?.chamferFactor ?? 0.955,
 
     coreColorHex: skin.baseColor,
     coreSecondaryColorHex: skin.accentColor,

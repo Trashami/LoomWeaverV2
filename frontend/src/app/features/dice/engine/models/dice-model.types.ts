@@ -1,3 +1,4 @@
+import { DieFaceLayout } from './face-layout';
 import { Quaternion, Vector3, VertexData } from '@babylonjs/core';
 
 export type DicePolyhedronType = 'd4' | 'd6' | 'd8' | 'd10' | 'd12' | 'd20' | 'd100';
@@ -52,6 +53,7 @@ export interface BuiltBabylonDieGeometry {
   vertexData: VertexData;
   subMeshRanges: SubMeshRange[];
   faceNormalsByValue: Map<number, Vector3>;
+  faceLayouts: Map<number, DieFaceLayout>;
 }
 
 export interface DieFaceTargetPose {

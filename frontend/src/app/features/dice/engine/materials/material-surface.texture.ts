@@ -18,7 +18,7 @@ export function drawMaterialSurface(
   ctx: CanvasRenderingContext2D, size: number, style: DiceSkinSurfaceStyle,
   color: string, height = false, intensity = 1,
 ): boolean {
-  if (!['wood', 'stone', 'obsidian', 'glass', 'plastic'].includes(style)) return false;
+  if (!['wood', 'stone', 'obsidian', 'glass', 'plastic', 'resin'].includes(style)) return false;
   const key = `${size}:${style}:${color}:${height}:${intensity}`;
   const cached = cache.get(key);
   if (cached) { ctx.drawImage(cached, 0, 0); return true; }
@@ -52,6 +52,8 @@ export function drawMaterialSurface(
       relief = (broad - 0.5) * 0.009;
       shade = 0.65 + broad * 0.3;
       base = [8 + rgb[0] * 0.025, 7 + rgb[1] * 0.025, 12 + rgb[2] * 0.025];
+    } else if (style === 'resin') {
+      shade = 0.7 + noise(u * 4 + broad, v * 5) * 0.5;
     } else if (style === 'glass') {
       shade = 0.97 + broad * 0.03;
       base = rgb.map(c => 215 + c * 0.14);

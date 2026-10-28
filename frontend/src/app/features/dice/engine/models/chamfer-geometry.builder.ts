@@ -1,3 +1,4 @@
+import { DieFaceLayout, projectDieFace } from './face-layout';
 import { Quaternion, Vector3, VertexData } from '@babylonjs/core';
 import {
   BuiltBabylonDieGeometry,
@@ -7,6 +8,7 @@ import {
 import { getPolyhedronRawTable } from './polyhedra-tables.model';
 
 const cachedFaceNormals = new Map<DicePolyhedronType, Map<number, Vector3>>();
+const cachedFaceUpVectors = new Map<DicePolyhedronType, Map<number, Vector3>>();
 
 export function chamferGeom(
   vectors: Vector3[],
@@ -89,12 +91,14 @@ export function chamferGeom(
 export function buildBabylonDieVertexData(
   type: DicePolyhedronType,
   baseRadius = 1.15,
-  chamferOverride?: number
+  chamferOverride?: number,
+  faceted = false
 ): BuiltBabylonDieGeometry {
   const table = getPolyhedronRawTable(type, chamferOverride);
   const radius = baseRadius * table.scaleFactor;
   const unitVectors = table.vertices.map(v => new Vector3(v[0], v[1], v[2]).normalize());
-  const cg = chamferGeom(unitVectors, table.faces, table.chamfer);
+  const firstCut = chamferGeom(unitVectors, table.faces, table.chamfer);
+  const cg = faceted ? chamferGeom(firstCut.vectors, firstCut.faces, 0.82) : firstCut;
 
   const positions: number[] = [];
   const normals: number[] = [];
@@ -102,12 +106,12 @@ export function buildBabylonDieVertexData(
   const indices: number[] = [];
   const subMeshRanges: SubMeshRange[] = [];
   const faceNormalsByValue = new Map<number, Vector3>();
+  const faceLayouts = new Map<number, DieFaceLayout>();
+  const d4VertexValues = type === 'd4' ? unitVectors.map((_, vertex) =>
+    table.faces.find(face => !face.slice(0, -1).includes(vertex))!.at(-1)!) : [];
+  const faceUpVectorsByValue = new Map<number, Vector3>();
 
   const scaledVectors = cg.vectors.map(v => v.scale(radius));
-  const uvFromAngle = (a: number, tab: number): [number, number] => [
-    (Math.cos(a) * (1 + tab * 2) + 1) / 2,
-    (Math.sin(a) * (1 + tab * 2) + 1) / 2
-  ];
 
   for (let i = 0; i < cg.faces.length; ++i) {
     const ii = cg.faces[i];
@@ -125,11 +129,16 @@ export function buildBabylonDieVertexData(
     const faceNormal = Vector3.Cross(v1.subtract(v0), v2.subtract(v0)).normalize();
     if (Vector3.Dot(faceNormal, center) < 0) faceNormal.scaleInPlace(-1);
 
+    const layout = projectDieFace(ii.slice(0, fl).map(index => scaledVectors[index]), faceNormal,
+      type === 'd4' && rawMatIdx > 0 ? table.faces[i].slice(0, -1).map(vertex => d4VertexValues[vertex]) : undefined);
+    if (rawMatIdx > 0) faceLayouts.set(rawMatIdx, layout);
+    const aa = (Math.PI * 2) / fl;
     if (rawMatIdx > 0) {
       faceNormalsByValue.set(rawMatIdx, faceNormal.clone());
+      const textUp = scaledVectors[ii[0]].subtract(center).normalize();
+      faceUpVectorsByValue.set(rawMatIdx, textUp);
     }
 
-    const aa = (Math.PI * 2) / fl;
     const startIdx = indices.length;
 
     for (let j = 0; j < fl - 2; ++j) {
@@ -137,9 +146,9 @@ export function buildBabylonDieVertexData(
       const pB = scaledVectors[ii[j + 1]];
       const pC = scaledVectors[ii[j + 2]];
 
-      const [u0, v0uv] = uvFromAngle(table.af, table.tab);
-      const [u1, v1uv] = uvFromAngle(aa * (j + 1) + table.af, table.tab);
-      const [u2, v2uv] = uvFromAngle(aa * (j + 2) + table.af, table.tab);
+      const [u0, v0uv] = layout.polygon[0];
+      const [u1, v1uv] = layout.polygon[j + 1];
+      const [u2, v2uv] = layout.polygon[j + 2];
 
       const baseVert = positions.length / 3;
       positions.push(pA.x, pA.y, pA.z, pB.x, pB.y, pB.z, pC.x, pC.y, pC.z);
@@ -169,6 +178,7 @@ export function buildBabylonDieVertexData(
 
   if (!cachedFaceNormals.has(type)) {
     cachedFaceNormals.set(type, faceNormalsByValue);
+    cachedFaceUpVectors.set(type, faceUpVectorsByValue);
   }
 
   const vertexData = new VertexData();
@@ -177,7 +187,7 @@ export function buildBabylonDieVertexData(
   vertexData.uvs = uvs;
   vertexData.indices = indices;
 
-  return { vertexData, subMeshRanges, faceNormalsByValue };
+  return { vertexData, subMeshRanges, faceNormalsByValue, faceLayouts };
 }
 
 export function getRotationForTopValue(
@@ -190,6 +200,7 @@ export function getRotationForTopValue(
     buildBabylonDieVertexData(type, 1.0);
   }
   const map = cachedFaceNormals.get(type)!;
+  const upMap = cachedFaceUpVectors.get(type);
   let lookup = targetValue;
   if (type === 'd100') {
     lookup = targetValue === 0 || targetValue === 100 ? 10 : Math.max(1, Math.min(10, Math.round(targetValue / 10)));
@@ -198,11 +209,33 @@ export function getRotationForTopValue(
   }
 
   const normal = map.get(lookup) ?? map.get(1) ?? new Vector3(0, 1, 0);
-  const desiredDir = targetDirection ? targetDirection.normalizeToNew() : new Vector3(0, 1, 0);
-  const up = type === 'd4' ? desiredDir.scale(-1) : desiredDir;
+  // Gravity always pulls the underside flat face flush to the horizontal floor (y = 0)
+  const targetAxis = type === 'd4' ? new Vector3(0, -1, 0) : (targetDirection?.normalizeToNew() ?? Vector3.Up());
 
   const alignQ = new Quaternion();
-  Quaternion.FromUnitVectorsToRef(normal.normalizeToNew(), up, alignQ);
-  const yawQ = Quaternion.RotationAxis(desiredDir, yawRadians);
+  Quaternion.FromUnitVectorsToRef(normal.normalizeToNew(), targetAxis, alignQ);
+
+  let autoYaw = 0;
+  if (type === 'd4') {
+    // Orient one of the 3 sloped numbered faces directly toward the viewer (-Z) while flat on its base
+    const frontFaceIdx = lookup === 1 ? 4 : 1;
+    const frontLocalNormal = map.get(frontFaceIdx);
+    if (frontLocalNormal) {
+      const worldFront = new Vector3();
+      frontLocalNormal.rotateByQuaternionToRef(alignQ, worldFront);
+      autoYaw = Math.atan2(worldFront.x, -worldFront.z);
+    }
+  } else if (upMap) {
+    // Orient the top face's number so its top points straight up on screen (+Z)
+    const localUp = upMap.get(lookup);
+    if (localUp && localUp.lengthSquared() > 1e-6) {
+      const worldUp = new Vector3();
+      localUp.rotateByQuaternionToRef(alignQ, worldUp);
+      autoYaw = -Math.atan2(worldUp.x, worldUp.z);
+    }
+  }
+
+  const yawAxis = targetDirection && type !== 'd4' ? targetAxis : Vector3.Up();
+  const yawQ = Quaternion.RotationAxis(yawAxis, autoYaw + yawRadians);
   return yawQ.multiply(alignQ);
 }

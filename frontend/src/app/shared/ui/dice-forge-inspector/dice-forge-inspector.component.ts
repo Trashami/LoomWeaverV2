@@ -13,7 +13,6 @@ import { DiceCritEffectPreset } from '../../../features/dice/engine/effects';
 import { DiceModelDefinition, DiceSizePreset } from '../../../features/dice/engine/models';
 import {
   DiceCustomRuntimeConfig,
-  DiceOverlayType,
   DiceSkinConfig,
   DiceSkinSurfaceStyle,
   MarketplaceDicePreset,
@@ -68,7 +67,6 @@ export class LwDiceForgeInspectorComponent {
   readonly sizePresets: readonly DiceSizePreset[] = ['small', 'medium', 'large'];
   readonly blendModes: readonly DiceBlendMode[] = ['normal', 'multiply', 'screen', 'overlay', 'additive'];
   readonly pulseWaveforms: readonly DicePulseWaveform[] = ['sine', 'heartbeat', 'sawtooth', 'flicker'];
-  readonly overlayStyles: readonly DiceOverlayType[] = ['none', 'recessed-plate', 'celtic-cage', 'arcane-runes'];
   readonly fontFamilies: ReadonlyArray<{ label: string; value: string }> = [
     { label: 'Cinzel Royal Serif', value: 'Cinzel, Georgia, serif' },
     { label: 'Nordic Runic', value: '"Nordic Chance", Cinzel, serif' },
@@ -88,6 +86,11 @@ export class LwDiceForgeInspectorComponent {
   readonly numberSwatches = ['#ffd978', '#49e892', '#63d2ff', '#ffffff', '#ff4769', '#ffb340', '#d08bff', '#f5e6c4'];
 
   patch<K extends keyof DiceCustomRuntimeConfig>(key: K, value: DiceCustomRuntimeConfig[K]): void {
+    if (key === 'modelId') {
+      const model = this.models().find(model => model.id === value);
+      if (model) this.configPatched.emit({ modelId: model.id, chamferBevelFactor: model.chamferFactor });
+      return;
+    }
     if (key === 'surfaceStyleOverride') {
       this.configPatched.emit({ surfaceStyleOverride: value as DiceSkinSurfaceStyle,
         coreGradientEnabled: false, coreInnerGlowEnabled: false, coreOuterGlowEnabled: false,

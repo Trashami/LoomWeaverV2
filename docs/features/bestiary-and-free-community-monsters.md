@@ -17,15 +17,15 @@ The authenticated `/bestiary` route and left navigation entry follow the Items l
 
 Read repository and nested agent instructions, Angular/component/backend standards, Items requirements, and the Obsidian start page, vision, release gates, authorization, GraphRAG, Angular design and encounter notes. Legacy MythWeaver describes Monster entities, but does not replace current campaign membership or privacy requirements. The vault is a design archive; this feature does not claim every proposed graph projection or live combat feature is shipped.
 
-## Verification and remaining release work
+## Verification
 
 `backend/tests/Bestiary.Checks` checks campaign-role downscoping, witness visibility, asset URL validation, fractional challenge ratings and anonymous denial across every bestiary endpoint.
 
 Run `dotnet build backend/src/LoomWeaver.Api/LoomWeaver.Api.csproj --no-restore -m:1`, `dotnet run --project backend/tests/Bestiary.Checks/Bestiary.Checks.csproj --no-restore -p:BuildInParallel=false`, and `npm run build` in frontend (includes public-route pre-rendering).
 
-Authenticated two-account browser/database round trips, persistence across process restarts, responsive visual review and live encounter integration remain release gates. No local frontend was listening when browser verification was attempted. The global source-limit check also reports existing unrelated oversized files; new bestiary source files remain below 500 lines.
+Authenticated two-account API/database round trips and persistence across process restarts passed. The signed-in catalog and player controls were visually reviewed. The final loaded-detail modal browser recheck was interrupted by concurrent release browser use; authenticated detail API checks passed. The global source-limit check reports existing unrelated oversized files; new bestiary source files remain below 500 lines.
 
-## Production preparation — 2026-10-28
+## Production preparation â€” 2026-10-28
 
 Server-source import resolved 1,110 inherited statblocks and processed 5,201 definitions: 5,184 existing identities updated and 17 inserted. No catalog identities were deleted. Verified 3,369 image paths and 3,099 token paths. Expanded source_id to VARCHAR(128) to fit supplied source IDs. Catalog backup: `lw_bestiary_backup_20261028_072621`.
 
@@ -33,4 +33,6 @@ Eight QftIS definitions reference missing Human/Dragonborn (Silver) templates in
 
 Staged checks passed: 34 local regression checks, 37 authenticated API/permission checks, and 8 persistence checks after service restart. The authenticated test used existing users in different campaign roles, temporary records, guaranteed cleanup and a final cache restart. Backend build/publish and frontend build passed; frontend warnings and 19 global source-size violations are pre-existing outside this feature.
 
-Production deployment: application commit `843c9b7`; both API services healthy. Nginx CSR whitelist updated to include `/bestiary` with a retained config backup. Browser confirmed the signed-in page, navigation, 5,821-monster catalog and player controls. Final staged checks again passed 37 authenticated plus 8 restart-persistence checks, with guaranteed cleanup.
+Production deployment: combined application commit `8c588bf` preserves the concurrently released Atlas endpoints. Both API services are healthy. Authenticated checks on ports 5000 and 5001 verified the 5,821-monster catalog, complete monster details, player permission denial and Atlas routes. Live module SHA256: `1bfd311fa0555e8b49a3aec1263eea47ec07d09cc075d629b9562e0fa0f124bb`. Rollback files are retained under `/var/www/loomweaver/releases/bestiary-combined-8c588bf`.
+
+Nginx CSR whitelist includes `/bestiary` with a retained config backup. Browser confirmed the signed-in page, navigation, catalog and player controls. Final combined staged checks passed 37 authenticated plus 8 restart-persistence checks, with guaranteed cleanup; eight Atlas checks also passed.

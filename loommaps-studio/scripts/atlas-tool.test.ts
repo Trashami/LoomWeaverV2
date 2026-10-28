@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createAtlas, applyAtlasBrush, sampleAtlas, strokePoints } from '../../frontend/src/app/features/maps/engine/atlas/atlas-terrain';
-import { cloneAtlas, DEFAULT_ATLAS_BRUSH, validateAtlas } from '../../frontend/src/app/features/maps/engine/atlas/atlas-document';
+import { createAtlas, applyAtlasBrush, sampleAtlas, strokePoints, weatherTerrain, carveDrainage } from '../../frontend/src/app/features/maps/engine/atlas/atlas-terrain';
+import { cloneAtlas, DEFAULT_ATLAS_BRUSH, validateAtlas, atlasRelief } from '../../frontend/src/app/features/maps/engine/atlas/atlas-document';
 import { atlasPreview } from '../../frontend/src/app/features/maps/engine/atlas/atlas-export';
 
 test('landmass generation is deterministic, bounded, and includes coast, sea and high land',()=>{
@@ -51,4 +51,23 @@ test('player raster export never draws a GM-only location name',()=>{
     atlasPreview(d,32,true);assert.deepEqual(names,['Known Village']);names.length=0;
     atlasPreview(d,32,false);assert.deepEqual(names,['Secret Vault','Known Village']);
   }finally{Object.assign(globalThis,{document:previous});}
+});
+
+test('talus relaxation removes needles and conserves total terrain mass',()=>{
+ const n=32,h=Array((n+1)**2).fill(0);h[16*33+16]=2;
+ weatherTerrain(h,n,20);assert.ok(h[16*33+16]<1);assert.ok(Math.abs(h.reduce((a,b)=>a+b,0)-2)<1e-8);
+});
+test('continent scaling reduces relief without changing the stored heights',()=>{
+ const d=createAtlas(19,32),before=d.heights.slice(),r=atlasRelief(d);d.widthKm=300;
+ assert.ok(atlasRelief(d)>r);assert.deepEqual(d.heights,before);
+});
+test('brush radius is circular in physical kilometres on a rectangular atlas',()=>{
+ const d=createAtlas(19,128);d.heights.fill(0);d.widthKm=4000;d.heightKm=2000;
+ applyAtlasBrush(d,'raise',0,0,{...DEFAULT_ATLAS_BRUSH,radius:24});
+ assert.ok(Math.abs(sampleAtlas(d,12,0)-sampleAtlas(d,0,24))<.002);
+ assert.equal(sampleAtlas(d,0,50),0);
+});
+test('drainage carving is deterministic and preserves finite heightfields',()=>{
+ const a=createAtlas(88,32).heights,b=a.slice();carveDrainage(a,32);carveDrainage(b,32);
+ assert.deepEqual(a,b);assert.ok(a.every(Number.isFinite));
 });

@@ -1,5 +1,5 @@
 <header class="atlas-toolbar">
-  <div class="identity"><span>LOOMMAPS / WORLD ATLAS</span><strong>{{editor.document().name}}</strong><small>{{editor.document().widthKm}} × {{editor.document().heightKm}} km · Rev {{editor.document().revision}} {{editor.dirty()?'· Unsaved edits':''}}</small></div>
+  <div class="identity"><strong>{{editor.document().name}}</strong><small>{{editor.document().widthKm}} × {{editor.document().heightKm}} km {{editor.dirty()?'· Unsaved edits':''}}</small></div>
   <div class="file-actions">
     @if (!editor.auth.isAuthenticated()) {<a class="sign-in" href="https://loom-weaver.com/login" target="_blank" rel="noopener">Sign in for cloud saves</a>}
     <lw-button label="New atlas" size="sm" variant="secondary" [disabled]="editor.busy()" (pressed)="editor.newAtlas()" />
@@ -12,11 +12,14 @@
     <input #file type="file" accept=".json,.atlas.json" hidden (change)="importFile($event)" />
   </div>
 </header>
-<div class="atlas-workspace" [class.collapsed]="!properties()">
+<div class="atlas-workspace" [class.collapsed]="!properties()" [class.dock-collapsed]="dockCollapsed()">
+  @if (!dockCollapsed()) {
+    <lw-map-tool-dock [tools]="tools" [activeToolId]="activeDock()" (toolSelected)="chooseTool($event)" (collapseRequested)="dockCollapsed.set(true)" />
+  }
   <div class="atlas-viewport" [attr.aria-busy]="editor.busy()">
     <canvas #canvas aria-label="World Atlas 3D terrain editor" tabindex="0"></canvas>
     <div class="view-tools">
-      <lw-button label="Navigate" size="sm" [active]="editor.tool()==='navigate'" (pressed)="editor.tool.set('navigate')" />
+      <lw-button label="Tools" size="sm" variant="secondary" (pressed)="dockCollapsed.set(!dockCollapsed())" />
       <lw-button label="Undo" size="sm" variant="secondary" [disabled]="!editor.canUndo()||editor.busy()" (pressed)="editor.undo()" />
       <lw-button label="Redo" size="sm" variant="secondary" [disabled]="!editor.canRedo()||editor.busy()" (pressed)="editor.redo()" />
     </div>
@@ -24,6 +27,7 @@
       <lw-button label="Top down" size="sm" [active]="top()" (pressed)="top.set(true)" />
       <lw-button label="3D relief" size="sm" [active]="!top()" (pressed)="top.set(false)" />
       <lw-button label="Fit world" size="sm" variant="secondary" (pressed)="frameAll()" />
+      <lw-button label="Clouds" size="sm" [active]="clouds()" (pressed)="clouds.set(!clouds())" />
       <lw-button label="Grid" size="sm" [active]="grid()" (pressed)="grid.set(!grid())" />
       <lw-button label="Locations" size="sm" [active]="labels()" (pressed)="labels.set(!labels())" />
       <lw-button label="Player PNG" size="sm" variant="secondary" (pressed)="editor.exportPng()" />
@@ -33,11 +37,11 @@
     @if (editor.busy()) {<div class="busy-overlay">Working with your campaign…</div>}
   </div>
   <aside [hidden]="!properties()" aria-label="World Atlas properties">
-    <lw-atlas-controls [document]="editor.document()" [brush]="editor.brush()" [tool]="editor.tool()" [selected]="editor.selected()"
+    <lw-atlas-controls [section]="section()" [document]="editor.document()" [brush]="editor.brush()" [tool]="editor.tool()" [selected]="editor.selected()"
       [locations]="editor.locations()" [locationDraft]="draft()" [disabled]="editor.busy()"
       (toolChanged)="editor.tool.set($event)" (brushChanged)="editor.brush.set($event)" (worldChanged)="editor.change($event)"
       (draftChanged)="setDraft($event)" (markerChanged)="editor.updateMarker($event)" (markerRemoved)="editor.removeMarker()"
       (markerSelected)="focus($event)" (regenerate)="editor.regenerate($event)" />
   </aside>
 </div>
-<footer role="status">{{editor.status()}}</footer>
+@if (editor.status()) {<footer class="atlas-status" role="status">{{editor.status()}}</footer>}

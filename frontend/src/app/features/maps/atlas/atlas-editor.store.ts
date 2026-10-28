@@ -20,7 +20,7 @@ export class AtlasEditorStore {
   readonly selected=computed(()=>this.document().markers.find(m=>m.id===this.selectedId())??null);
   readonly locations=signal<AtlasLocation[]>([]);
   readonly atlases=signal<AtlasSummary[]>([]);
-  readonly status=signal('New atlas. Save to your campaign or export a JSON backup.');
+  readonly status=signal('');
   readonly busy=signal(false);
   readonly dirty=signal(false);
   readonly canUndo=signal(false);
@@ -53,7 +53,7 @@ export class AtlasEditorStore {
     try{
       const [atlases,locations]=await Promise.all([firstValueFrom(this.http.get<AtlasSummary[]>(this.base())),firstValueFrom(this.http.get<AtlasLocation[]>(this.base()+'/locations'))]);
       if(session!==this.session)return;this.atlases.set(atlases);this.locations.set(locations);
-      this.status.set('Campaign atlases ready. New edits remain unsaved until you choose Save atlas.');
+      this.status.set('');
     }catch(e){if(session===this.session)this.status.set(this.error(e));}
   }
   private error(e:unknown):string{

@@ -4,7 +4,7 @@ World Atlas is a dedicated mode at `https://maps.loom-weaver.com/?mode=atlas`. T
 
 ## Shipped first slice
 
-- Seeded island/continent heightfield, 192 × 192 editable cells divided into 32-cell render chunks. World scale defaults to 1,200 × 900 km and is independent of terrain resolution. Rectangular world proportions are respected in rendering and raster export.
+- Seeded island/continent heightfield, 256 × 256 editable cells divided into 32-cell render chunks. World scale defaults to 4,800 × 3,600 km and is independent of terrain resolution. Rectangular world proportions are respected in rendering and raster export.
 - Continuous raise, lower/carve, mountain-ridge, smooth, and flatten brushes with radius, strength and edge feathering. One stroke is one undo step; undo/redo retains the current accepted server revision.
 - Separate biome-color layer: natural, grassland, forest, desert, tundra, volcanic, and wetland. Procedural surface detail, slope-driven rock, high-altitude snow, directional relief shading, adjustable sea level, animated ocean and shallow shoreline foam. These are visual terrain tools, not geological or fluid simulation.
 - Top-down and tilted 3D camera views, grid, location visibility, fit-world, and a terrain-following brush outline. Reduced-motion preference stops ocean animation.
@@ -34,3 +34,16 @@ The first authenticated atlas request applies the idempotent table creation in `
 ## Boundaries
 
 This is a bounded continent editor, not an infinite streamed globe. Dynamic LOD, erosion simulation, river drainage, political boundary polygons in the 3D editor, custom uploaded marker meshes, city street/interior generation and multiplayer terrain collaboration are not part of this slice. Terrain biomes are painted colors with procedural surface shading; this does not yet expose the battlemap asset texture library. Existing battlemap water, object painting, and room tools remain separate.
+
+
+## Continental rendering and authoring update
+
+New worlds default to 4,800 × 3,600 km and 256 × 256 editable cells. Existing documents retain their original heights, biomes, locations, and resolution. The generator builds warped connected ranges, cuts downhill drainage channels, and relaxes steep talus; the mountain brush uses the same continuous range field with bounded growth. These are deterministic terrain synthesis heuristics, not a full geological simulation.
+
+World scale presets cover island, region, continent, and world extents. One normalized elevation unit represents 8 km; displayed relief uses 32-fold vertical exaggeration with bounded limits for readability. World coordinates, marker elevations, brush outlines, ocean depth, and terrain geometry share the same elevation data. Physical brush radii account for rectangular map proportions. Biome painting changes only the biome layer. Cross-chunk neighbour normals remove lighting seams.
+
+The ocean uses fine multi-frequency animated noise, shallow-water color, restrained highlights, and a depth-based shoreline foam band. Procedural translucent cloud cover defaults on and can be toggled in the bottom viewport bar. Clouds are a view setting, not saved geographic data; JSON and player PNG remain terrain/location exports. Reduced-motion stops water and cloud animation.
+
+Atlas now uses the shared battlemap tool dock, a compact file bar, contextual right-hand inspector, and bottom view controls. Right-drag orbits; middle-drag pans; wheel/pinch zoom stays inside the canvas. Cloud and rendering changes do not alter campaign location privacy or save permissions.
+
+Validation adds deterministic drainage, mass-conserving talus relaxation, world-scale relief, and kilometre-consistent rectangular brushes to the atlas regression suite.

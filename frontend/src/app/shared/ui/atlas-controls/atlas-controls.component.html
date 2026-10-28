@@ -1,10 +1,5 @@
 <fieldset [disabled]="disabled()">
-  <header><span>WORLD ATLAS</span><h2>Shape your world</h2></header>
-  <nav aria-label="Atlas properties">
-    @for (tab of sections; track tab) {
-      <button ngpButton type="button" [class.active]="section()===tab" [attr.aria-pressed]="section()===tab" (click)="pickSection(tab)">{{tab}}</button>
-    }
-  </nav>
+  <header><span>ACTIVE TOOL CONFIGURATION</span><h2>{{section()}}</h2></header>
   @if (section()==='Terrain' || section()==='Biomes') {
     <section>
       <h3>{{section()==='Terrain' ? 'Sculpt terrain' : 'Paint biome regions'}}</h3>
@@ -13,7 +8,7 @@
           <lw-button [label]="item.label" size="sm" [active]="tool()===item.id" (pressed)="toolChanged.emit(item.id)" />
         }</div>
       } @else {
-        <p>Paint colors independently of the terrain height. Steep slopes and high peaks retain rock and snow.</p>
+
         <div class="choices">@for (b of biomes; track b.name; let i=$index) {
           <button ngpButton type="button" class="swatch" [class.active]="brush().biome===i" (click)="setBrush('biome',i);toolChanged.emit('biome')">
             <span [style.background]="b.color"></span>{{b.name}}
@@ -34,7 +29,7 @@
           <input type="range" min="-.5" max="1.5" step=".01" [ngModel]="brush().flattenHeight" (ngModelChange)="setBrush('flattenHeight',$event)" />
         </label>
       }
-      <p>Drag to paint. Right-drag to orbit; scroll to zoom. Choose Navigate to pan and explore.</p>
+
     </section>
   }
   @if (section()==='Locations') {
@@ -76,7 +71,7 @@
         <label>North / south <output>{{((.5-m.z/240)*document().heightKm).toFixed(0)}} km</output>
           <input type="range" min="-119" max="119" step=".5" [ngModel]="m.z" (change)="markerChanged.emit({z:+$any($event.target).value})" />
         </label>
-        <code>{{m.locationKey}}</code>
+
         <lw-button label="Remove miniature" variant="danger" size="sm" (pressed)="markerRemoved.emit()" />
         <p>Removing a miniature keeps the campaign location and its lore.</p>
       </section>
@@ -90,13 +85,19 @@
   }
   @if (section()==='World') {
     <section><h3>World &amp; scale</h3>
+      <div class="choices">
+        <lw-button label="Island · 300 km" size="sm" variant="secondary" (pressed)="worldChanged.emit({widthKm:300,heightKm:225})" />
+        <lw-button label="Region · 1200 km" size="sm" variant="secondary" (pressed)="worldChanged.emit({widthKm:1200,heightKm:900})" />
+        <lw-button label="Continent · 4800 km" size="sm" variant="secondary" (pressed)="worldChanged.emit({widthKm:4800,heightKm:3600})" />
+        <lw-button label="World · 12000 km" size="sm" variant="secondary" (pressed)="worldChanged.emit({widthKm:12000,heightKm:9000})" />
+      </div>
       <label>Atlas name<input maxlength="160" [ngModel]="document().name" (change)="worldChanged.emit({name:$any($event.target).value})" /></label>
       <label>Width (km)<input type="number" min="10" max="20000" [ngModel]="document().widthKm" (change)="worldChanged.emit({widthKm:+$any($event.target).value})" /></label>
       <label>Height (km)<input type="number" min="10" max="20000" [ngModel]="document().heightKm" (change)="worldChanged.emit({heightKm:+$any($event.target).value})" /></label>
       <label>Sea level <output>{{document().seaLevel.toFixed(2)}}</output>
         <input type="range" min="-.5" max=".65" step=".01" [ngModel]="document().seaLevel" (change)="worldChanged.emit({seaLevel:+$any($event.target).value})" />
       </label>
-      <p>{{document().resolution}} × {{document().resolution}} terrain cells. Travel distances use your world scale; sculpting resolution remains independent.</p>
+
     </section>
     <section><h3>Landmass generator</h3>
       <label>Seed<input #seed type="number" [value]="document().seed" /></label>

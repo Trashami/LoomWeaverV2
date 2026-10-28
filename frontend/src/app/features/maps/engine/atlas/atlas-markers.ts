@@ -1,5 +1,5 @@
 import { Color3, DynamicTexture, Mesh, MeshBuilder, Scene, StandardMaterial, TransformNode, Vector3 } from '@babylonjs/core';
-import { AtlasDocument, AtlasMarker, ATLAS_RELIEF } from './atlas-document';
+import { AtlasDocument, AtlasMarker, atlasRelief } from './atlas-document';
 import { sampleAtlas } from './atlas-terrain';
 
 /** Asset-free miniatures: marker visuals are independent of the canonical campaign location ID. */
@@ -11,7 +11,7 @@ export class AtlasMarkers {
     const signature=JSON.stringify([doc.markers,selected,visible]);
     if(signature===this.signature){
       for(let i=0;i<this.roots.length;i++){
-        const m=doc.markers[i];this.roots[i].position.y=Math.max(doc.seaLevel,sampleAtlas(doc,m.x,m.z))*ATLAS_RELIEF+.25;
+        const m=doc.markers[i];this.roots[i].position.y=Math.max(doc.seaLevel,sampleAtlas(doc,m.x,m.z))*atlasRelief(doc)+.25;
         this.roots[i].position.z=m.z*doc.heightKm/doc.widthKm;
       }
       return;
@@ -21,7 +21,7 @@ export class AtlasMarkers {
   }
   private build(doc: AtlasDocument,m:AtlasMarker,selected:boolean):void {
     const root=new TransformNode('atlas-location-'+m.id,this.scene);this.roots.push(root);
-    root.position=new Vector3(m.x,Math.max(doc.seaLevel,sampleAtlas(doc,m.x,m.z))*ATLAS_RELIEF+.25,m.z*doc.heightKm/doc.widthKm);
+    root.position=new Vector3(m.x,Math.max(doc.seaLevel,sampleAtlas(doc,m.x,m.z))*atlasRelief(doc)+.25,m.z*doc.heightKm/doc.widthKm);
     const stone=new StandardMaterial('marker-stone',this.scene);stone.diffuseColor=Color3.FromHexString(m.color);stone.specularColor=Color3.Black();
     const roof=new StandardMaterial('marker-roof',this.scene);roof.diffuseColor=Color3.FromHexString('#493a39');
     const base=MeshBuilder.CreateCylinder('atlas-marker',{diameter:selected?4:3,height:.3,tessellation:32},this.scene);

@@ -14,10 +14,10 @@ export class LwAtlasControlsComponent {
   readonly worldChanged=output<Partial<Pick<AtlasDocument,'name'|'widthKm'|'heightKm'|'seaLevel'>>>();
   readonly markerChanged=output<Partial<AtlasMarker>>();readonly draftChanged=output<Partial<AtlasLocationDraft>>();
   readonly markerRemoved=output<void>();readonly markerSelected=output<string>();readonly regenerate=output<number>();
-  readonly section=signal('Terrain');readonly sections=['Terrain','Biomes','Locations','World'];readonly biomes=ATLAS_BIOMES;
+  readonly section=input('Terrain');readonly sections=['Terrain','Biomes','Locations','World'];readonly biomes=ATLAS_BIOMES;
   readonly terrainTools:readonly {id:AtlasTool;label:string}[]=[{id:'raise',label:'Raise land'},{id:'lower',label:'Lower / carve'},
     {id:'mountains',label:'Mountain range'},{id:'smooth',label:'Smooth'},{id:'flatten',label:'Flatten'}];
   readonly kinds:AtlasMarkerKind[]=['city','town','village','castle','ruin','landmark'];
   setBrush(key:keyof AtlasBrush,value:number):void{this.brushChanged.emit({...this.brush(),[key]:value});}
-  pickSection(section:string):void{this.section.set(section);if(section==='Biomes')this.toolChanged.emit('biome');if(section==='Locations')this.toolChanged.emit('navigate');}
+  pickSection(section:string):void{if(section==='Biomes')this.toolChanged.emit('biome');if(section==='Locations')this.toolChanged.emit('navigate');}
 }

@@ -48,3 +48,6 @@ export function validateAtlas(value: unknown): AtlasDocument {
   }
   return d;
 }
+
+/** One height unit represents 8 km; 32-fold visual exaggeration keeps relief legible. */
+export function atlasRelief(doc: Pick<AtlasDocument, "widthKm">): number { return Math.max(1.5,Math.min(26,ATLAS_SIZE*8/doc.widthKm*32)); }

@@ -49,6 +49,13 @@ def main():
                     # Shared assets stay on the server; never publish local uploads.
                     if item.is_file():
                         tar.add(item, arcname=item.name)
+                # The shared dice renderer loads these bundled, licensed fonts by absolute URL.
+                # Keep this allowlist separate from private uploads and the shared asset catalog.
+                fonts = root / 'frontend/public/dice-fonts'
+                if fonts.is_dir():
+                    for font in fonts.iterdir():
+                        if font.is_file() and font.suffix in ('.woff2', '.txt'):
+                            tar.add(font, arcname='dice-fonts/' + font.name)
             config = connection.NGINX_MAPS_CONF
             with ssh.open_sftp() as sftp:
                 sftp.put(str(archive), f'/tmp/maps-{release}.tar.gz')

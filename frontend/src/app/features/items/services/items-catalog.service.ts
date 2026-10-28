@@ -23,7 +23,8 @@ export class ItemsCatalogService {
   readonly sortBy = signal<LwItemSortOption>('name-asc');
   readonly inspectedItemId = signal<string | null>(null);
   readonly selectedTargetCharacterKey = signal('');
-  readonly statusBanner = signal('Loading items...');
+  readonly statusBanner = signal('Loading items…');
+  readonly characterNotice = signal('');
   readonly busy = signal(false);
   readonly serverIsGm = signal(false);
   readonly collectionsForActiveCampaign = computed(() => this.allCollections().filter(c => c.campaignId === this.store.activeCampaignId()));
@@ -101,9 +102,11 @@ export class ItemsCatalogService {
       let cancelled = false;
       onCleanup(() => { cancelled = true; });
       this.allItems.set([]); this.allCollections.set([]); this.selectedTargetCharacterKey.set('');
+      this.characterNotice.set('');
+      this.statusBanner.set('Loading items…');
       this.serverIsGm.set(false); this.inspectedItemId.set(null); this.selectedCollectionId.set('All');
       this.http.get<readonly LwCatalogItemVm[]>('/api/v2/items').subscribe({
-        next: items => { if (!cancelled) { this.allItems.set(items); this.statusBanner.set('Homebrew store downloads are always free. GP is the in-game item value.'); } },
+        next: items => { if (!cancelled) { this.allItems.set(items); this.statusBanner.set(''); } },
         error: e => { if (!cancelled) this.fail(e); },
       });
       this.http.get<{ characterKey: string; isGm: boolean }>(`/api/v2/campaigns/${campaign}/items-context`).subscribe({
@@ -113,7 +116,11 @@ export class ItemsCatalogService {
           if (context.isGm) this.http.get<readonly LwItemCollectionVm[]>(`/api/v2/campaigns/${campaign}/item-collections`).subscribe({
             next: rows => { if (!cancelled) this.allCollections.set(rows); }, error: e => { if (!cancelled) this.fail(e); },
           });
-        }, error: e => { if (!cancelled) this.fail(e); },
+        }, error: e => {
+          if (!cancelled) this.characterNotice.set(e.status === 403
+            ? 'No character assigned in this campaign.'
+            : 'Character access is temporarily unavailable.');
+        },
       });
     });
   }

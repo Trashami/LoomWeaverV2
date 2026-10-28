@@ -44,6 +44,8 @@ export class ItemsPageComponent {
   readonly store = inject(LoomWeaverStoreService);
   readonly catalog = inject(ItemsCatalogService);
 
+  readonly showFilters = signal(false);
+  readonly activeFilterCount = computed(() => Number(this.catalog.selectedRarity() !== 'All') + Number(this.catalog.selectedSource() !== 'All') + Number(this.catalog.selectedCollectionId() !== 'All'));
   readonly saveError = signal('');
   readonly customItemModalOpen = signal<boolean>(false);
   readonly collectionModalOpen = signal<boolean>(false);

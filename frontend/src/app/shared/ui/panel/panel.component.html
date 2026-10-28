@@ -1,5 +1,7 @@
 <section
   class="lw-panel"
+  [class.lw-panel--studio]="variant() === 'studio'"
+  [class.lw-panel--page-header]="variant() === 'page-header'"
   [class.lw-panel--elevated]="elevated()"
   [class.lw-panel--padded]="padded()">
   @if (title() || eyebrow() || subtitle()) {
@@ -9,9 +11,11 @@
           <span class="lw-panel__eyebrow">{{ eyebrow() }}</span>
         }
         @if (title()) {
-          <h3 class="lw-panel__title">
-            <span>{{ title() }}</span>
-          </h3>
+          @if (variant() === 'page-header') {
+            <h1 class="lw-panel__title">{{ title() }}</h1>
+          } @else {
+            <h3 class="lw-panel__title">{{ title() }}</h3>
+          }
         }
         @if (subtitle()) {
           <p class="lw-panel__subtitle">{{ subtitle() }}</p>

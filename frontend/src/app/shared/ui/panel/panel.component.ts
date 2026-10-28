@@ -8,6 +8,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LwPanelComponent {
+  readonly variant = input<'default' | 'studio' | 'page-header'>('default');
   readonly title = input<string>('');
   readonly subtitle = input<string>('');
   readonly eyebrow = input<string>('');

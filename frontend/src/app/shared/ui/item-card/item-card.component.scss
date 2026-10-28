@@ -8,8 +8,8 @@
   justify-content: space-between;
   height: 100%;
   border-radius: var(--lw-radius-md, 12px);
-  border: 1px solid rgba(73, 232, 146, 0.18);
-  background: linear-gradient(165deg, rgba(10, 26, 20, 0.94), rgba(5, 14, 11, 0.97));
+  border: 1px solid var(--lw-border-studio);
+  background: var(--lw-bg-studio);
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.36);
   transition:
     border-color 150ms ease,

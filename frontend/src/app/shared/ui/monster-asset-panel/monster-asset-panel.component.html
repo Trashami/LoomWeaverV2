@@ -1,0 +1,41 @@
+<section class="lw-map">
+  <div class="lw-map__title-row">
+    <h3 class="lw-map__title">Tokens and 3D models for {{ campaignName() }}</h3>
+    @if (hasSuggestions()) {
+      <lw-button variant="ghost" size="xs" label="Fill empty slots with name matches" (pressed)="applySuggestions()" />
+    }
+  </div>
+  <p class="lw-map__hint">
+    Assignments apply only to this campaign and only you can see or change them. Library entries whose
+    names match this monster are listed first.
+  </p>
+
+  <div class="lw-map__grid">
+    @for (slot of slots; track slot.slot) {
+      <div class="lw-map__slot">
+        <div class="lw-map__preview">
+          <img [src]="previewFor(slot)" [alt]="slot.label + ' preview'" (error)="onPreviewError($event)" />
+        </div>
+        <label class="lw-map__field">
+          <span>{{ slot.label }}</span>
+          <select
+            class="lw-map__input"
+            [ngModel]="draft()[slot.slot]"
+            (ngModelChange)="setSlot(slot.slot, $event)"
+          >
+            <option value="">None</option>
+            @for (o of optionsFor(slot.kind); track o.id) {
+              <option [value]="o.assetUrl">
+                {{ o.matchScore > 0 ? 'Match: ' : '' }}{{ o.name }} ({{ o.origin }})
+              </option>
+            }
+          </select>
+        </label>
+      </div>
+    }
+  </div>
+
+  <div class="lw-map__actions">
+    <lw-button variant="emerald" size="sm" label="Save assignments" [disabled]="busy()" (pressed)="save()" />
+  </div>
+</section>

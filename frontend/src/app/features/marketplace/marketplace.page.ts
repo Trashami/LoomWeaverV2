@@ -1,3 +1,4 @@
+import { MonsterMarketComponent } from '../bestiary/market/monster-market.component';
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { ItemMarketComponent } from '../items/market/item-market.component';
 import { HttpClient } from '@angular/common/http';
@@ -81,7 +82,7 @@ const DEFAULT_CREATOR_MODULES: readonly LwCreatorModuleItem[] = [
 @Component({
   selector: 'lw-marketplace-page',
   standalone: true,
-  imports: [ItemMarketComponent,
+  imports: [MonsterMarketComponent, ItemMarketComponent,
     LwPanelComponent,
     LwBadgeComponent,
     LwButtonComponent,

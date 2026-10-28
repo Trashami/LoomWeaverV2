@@ -111,6 +111,7 @@ export class AppComponent {
     { id: 'quests-story', label: 'Quests & Story', route: '/campaigns' },
     { id: 'characters', label: 'Characters', route: '/characters' },
     { id: 'items', label: 'Items', route: '/items' },
+    { id: 'bestiary', label: 'Bestiary', route: '/bestiary' },
     { id: 'maps-scenes', label: 'Maps & Scenes', route: '/maps' },
     { id: 'session-log', label: 'Session Log', route: '/loom' },
     { id: 'handouts-clues', label: 'Handouts & Clues', route: '/assets' },

@@ -1,0 +1,141 @@
+@use '../monster-card/monster-form' as form;
+
+:host {
+  display: contents;
+}
+
+.lw-mcol__heading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.lw-mcol__title {
+  margin: 0;
+  font-family: var(--lw-font-display, 'Cinzel', serif);
+  font-size: 1.15rem;
+  color: #f6f2e9;
+}
+
+.lw-mcol__sub {
+  margin: 0;
+  font-size: 0.8rem;
+  color: rgba(214, 230, 221, 0.78);
+}
+
+.lw-mcol__error {
+  @include form.error;
+}
+
+.lw-mcol__section {
+  @include form.panel-section;
+}
+
+.lw-mcol__section-title {
+  @include form.section-title;
+}
+
+.lw-mcol__hint {
+  @include form.hint;
+}
+
+.lw-mcol__field {
+  @include form.field;
+}
+
+.lw-mcol__input {
+  @include form.input;
+}
+
+.lw-mcol__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.lw-mcol__chip {
+  @include form.chip;
+}
+
+.lw-mcol__chip--active {
+  @include form.chip(true);
+}
+
+.lw-mcol__selected {
+  @include form.chip(true);
+  cursor: default;
+}
+
+.lw-mcol__remove {
+  border: none;
+  background: transparent;
+  color: #ffb3b3;
+  font-family: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.lw-mcol__results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.lw-mcol__result {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.42rem 0.6rem;
+  border-radius: 7px;
+  border: 1px solid rgba(73, 232, 146, 0.14);
+  background: rgba(4, 12, 9, 0.7);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    border-color: rgba(73, 232, 146, 0.4);
+    outline: none;
+  }
+}
+
+.lw-mcol__result--selected {
+  border-color: rgba(217, 183, 122, 0.55);
+}
+
+.lw-mcol__result-name {
+  font-size: 0.82rem;
+  color: #f3efe6;
+}
+
+.lw-mcol__result-sub {
+  font-size: 0.72rem;
+  color: rgba(212, 228, 219, 0.7);
+  text-transform: capitalize;
+}
+
+.lw-mcol__result-state {
+  font-size: 0.72rem;
+  color: #d9b77a;
+}
+
+.lw-mcol__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.lw-mcol__footer-btns {
+  display: flex;
+  gap: 0.5rem;
+}

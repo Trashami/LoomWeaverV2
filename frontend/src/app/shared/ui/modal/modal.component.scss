@@ -1,0 +1,109 @@
+:host {
+  display: contents;
+}
+
+.lw-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(2, 8, 6, 0.82);
+  backdrop-filter: blur(6px);
+}
+
+.lw-modal {
+  width: 100%;
+  max-width: 720px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  border: 1px solid rgba(217, 183, 122, 0.38);
+  background: linear-gradient(170deg, rgba(10, 26, 20, 0.98), rgba(4, 12, 9, 0.99));
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.72),
+    0 0 0 1px rgba(73, 232, 146, 0.14);
+  overflow: hidden;
+
+  &[data-size='sm'] {
+    max-width: 480px;
+  }
+
+  &[data-size='lg'] {
+    max-width: 940px;
+  }
+}
+
+.lw-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  border-bottom: 1px solid rgba(73, 232, 146, 0.16);
+  background: rgba(6, 18, 13, 0.85);
+}
+
+.lw-modal__heading {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.lw-modal__close {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(73, 232, 146, 0.22);
+  background: rgba(8, 22, 16, 0.8);
+  color: #d9e8df;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    border-color: rgba(217, 183, 122, 0.55);
+    color: #d9b77a;
+    outline: none;
+  }
+}
+
+.lw-modal__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 1.1rem 1.25rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.95rem;
+}
+
+.lw-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid rgba(73, 232, 146, 0.16);
+  background: rgba(4, 12, 9, 0.92);
+
+  &:empty {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .lw-modal-backdrop {
+    padding: 0.5rem;
+  }
+
+  .lw-modal {
+    max-height: 94vh;
+  }
+}

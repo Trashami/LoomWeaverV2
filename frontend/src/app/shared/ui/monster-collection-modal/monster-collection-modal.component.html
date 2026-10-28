@@ -1,0 +1,90 @@
+@if (open()) {
+  <lw-modal
+    [open]="true"
+    size="md"
+    [ariaLabel]="editing() ? 'Edit monster collection' : 'Create monster collection'"
+    closeLabel="Close collection editor"
+    [closeOnBackdrop]="false"
+    (closed)="open.set(false)"
+  >
+    <div modalHeader class="lw-mcol__heading">
+      <lw-badge label="DM only" tone="gm" />
+      <h2 class="lw-mcol__title">{{ editing() ? 'Edit ' + editing()!.name : 'New monster collection' }}</h2>
+      <p class="lw-mcol__sub">Players in your campaigns never see your collections.</p>
+    </div>
+
+    @if (localError() || errorMessage()) {
+      <div class="lw-mcol__error">{{ localError() || errorMessage() }}</div>
+    }
+
+    <section class="lw-mcol__section">
+      <label class="lw-mcol__field">
+        <span>Name *</span>
+        <input class="lw-mcol__input" type="text" maxlength="140" placeholder="e.g. Undead of the Ashen Vale"
+          [ngModel]="name()" (ngModelChange)="name.set($event)" />
+      </label>
+      <label class="lw-mcol__field">
+        <span>Description</span>
+        <input class="lw-mcol__input" type="text" maxlength="600" [ngModel]="description()" (ngModelChange)="description.set($event)" />
+      </label>
+
+      <div class="lw-mcol__field">
+        <span>Assign to campaigns</span>
+        @if (campaigns().length === 0) {
+          <p class="lw-mcol__hint">You are not the DM of any campaign yet.</p>
+        } @else {
+          <div class="lw-mcol__chips">
+            @for (c of campaigns(); track c.id) {
+              <button ngpButton type="button" class="lw-mcol__chip" [class.lw-mcol__chip--active]="isAssigned(c.id)"
+                [attr.aria-pressed]="isAssigned(c.id)" (click)="toggleCampaign(c.id)">
+                {{ c.label }}
+              </button>
+            }
+          </div>
+        }
+      </div>
+    </section>
+
+    <section class="lw-mcol__section">
+      <h3 class="lw-mcol__section-title">Monsters ({{ monsterKeys().length }})</h3>
+      @if (monsterKeys().length > 0) {
+        <div class="lw-mcol__chips">
+          @for (k of monsterKeys(); track k) {
+            <span class="lw-mcol__selected">
+              {{ label(k) }}
+              <button ngpButton type="button" class="lw-mcol__remove" [attr.aria-label]="'Remove ' + label(k)" (click)="removeKey(k)">x</button>
+            </span>
+          }
+        </div>
+      }
+      <label class="lw-mcol__field">
+        <span>Find monsters to add</span>
+        <input class="lw-mcol__input" type="search" placeholder="Search the bestiary..." [ngModel]="query()" (ngModelChange)="onQuery($event)" />
+      </label>
+      <div class="lw-mcol__results">
+        @for (m of pickerResults(); track m.key) {
+          <button ngpButton type="button" class="lw-mcol__result" [class.lw-mcol__result--selected]="monsterKeys().includes(m.key)"
+            (click)="toggleMonster(m)">
+            <span class="lw-mcol__result-name">{{ m.name }}</span>
+            <span class="lw-mcol__result-sub">CR {{ m.challengeRating }} - {{ m.creatureType }}</span>
+            <span class="lw-mcol__result-state">{{ monsterKeys().includes(m.key) ? 'Included' : 'Add' }}</span>
+          </button>
+        } @empty {
+          <p class="lw-mcol__hint">No monsters match that search.</p>
+        }
+      </div>
+    </section>
+
+    <div modalFooter class="lw-mcol__footer">
+      <div>
+        @if (editing(); as e) {
+          <lw-button variant="danger" size="sm" label="Delete collection" [disabled]="busy()" (pressed)="collectionDeleted.emit(e.id)" />
+        }
+      </div>
+      <div class="lw-mcol__footer-btns">
+        <lw-button variant="secondary" size="sm" label="Cancel" (pressed)="open.set(false)" />
+        <lw-button variant="gold" size="sm" [label]="editing() ? 'Save collection' : 'Create collection'" [disabled]="busy()" (pressed)="save()" />
+      </div>
+    </div>
+  </lw-modal>
+}

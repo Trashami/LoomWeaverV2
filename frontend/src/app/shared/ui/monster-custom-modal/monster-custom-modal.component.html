@@ -1,0 +1,155 @@
+@if (open()) {
+  <lw-modal
+    [open]="true"
+    size="lg"
+    [ariaLabel]="editing() ? 'Edit custom monster' : 'Create custom monster'"
+    closeLabel="Close custom monster editor"
+    [closeOnBackdrop]="false"
+    (closed)="open.set(false)"
+  >
+    <div modalHeader class="lw-mcm__heading">
+      <div class="lw-mcm__badges">
+        <lw-badge label="Homebrew" tone="gold" />
+        <lw-badge label="Market price: always free" tone="emerald" />
+      </div>
+      <h2 class="lw-mcm__title">{{ editing() ? 'Edit ' + editing()!.summary.name : 'Create a custom monster' }}</h2>
+      <p class="lw-mcm__sub">Credited to {{ creatorUsername() || 'your account' }}.</p>
+    </div>
+
+    @if (localError() || errorMessage()) {
+      <div class="lw-mcm__error">{{ localError() || errorMessage() }}</div>
+    }
+
+    <section class="lw-mcm__section">
+      <h3 class="lw-mcm__section-title">Identity</h3>
+      <div class="lw-mcm__grid lw-mcm__grid--3">
+        <label class="lw-mcm__field lw-mcm__field--span2">
+          <span>Name *</span>
+          <input class="lw-mcm__input" type="text" maxlength="160" [ngModel]="draft().name" (ngModelChange)="setText('name', $event)" />
+        </label>
+        <label class="lw-mcm__field">
+          <span>Challenge rating</span>
+          <select class="lw-mcm__input" [ngModel]="draft().challengeRating" (ngModelChange)="setText('challengeRating', $event)">
+            @for (cr of crs; track cr) {
+              <option [value]="cr">{{ cr }}</option>
+            }
+          </select>
+        </label>
+        <label class="lw-mcm__field">
+          <span>Size</span>
+          <select class="lw-mcm__input" [ngModel]="draft().size" (ngModelChange)="setText('size', $event)">
+            @for (s of sizes; track s) {
+              <option [value]="s">{{ s }}</option>
+            }
+          </select>
+        </label>
+        <label class="lw-mcm__field">
+          <span>Type</span>
+          <select class="lw-mcm__input" [ngModel]="draft().creatureType" (ngModelChange)="setText('creatureType', $event)">
+            @for (t of types; track t) {
+              <option [value]="t">{{ t }}</option>
+            }
+          </select>
+        </label>
+        <label class="lw-mcm__field">
+          <span>Alignment</span>
+          <input class="lw-mcm__input" type="text" [ngModel]="draft().alignment" (ngModelChange)="setText('alignment', $event)" />
+        </label>
+      </div>
+      <label class="lw-mcm__field">
+        <span>Short description (shown on the bestiary card)</span>
+        <input class="lw-mcm__input" type="text" maxlength="280" [ngModel]="draft().shortDescription" (ngModelChange)="setText('shortDescription', $event)" />
+      </label>
+      <label class="lw-mcm__field">
+        <span>Image URL (site path or https)</span>
+        <input class="lw-mcm__input" type="text" placeholder="/uploads/monsters/ash-wight.png" [ngModel]="draft().imageUrl" (ngModelChange)="setText('imageUrl', $event)" />
+      </label>
+    </section>
+
+    <section class="lw-mcm__section">
+      <h3 class="lw-mcm__section-title">Defenses and movement</h3>
+      <div class="lw-mcm__grid lw-mcm__grid--3">
+        <label class="lw-mcm__field">
+          <span>Armor class</span>
+          <input class="lw-mcm__input" type="number" min="1" max="30" [ngModel]="draft().armorClass" (ngModelChange)="setNumber('armorClass', $event)" />
+        </label>
+        <label class="lw-mcm__field lw-mcm__field--span2">
+          <span>Armor note</span>
+          <input class="lw-mcm__input" type="text" placeholder="natural armor" [ngModel]="draft().armorClassNote" (ngModelChange)="setText('armorClassNote', $event)" />
+        </label>
+        <label class="lw-mcm__field">
+          <span>Hit points</span>
+          <input class="lw-mcm__input" type="number" min="1" max="2000" [ngModel]="draft().hitPoints" (ngModelChange)="setNumber('hitPoints', $event)" />
+        </label>
+        <label class="lw-mcm__field">
+          <span>Hit dice</span>
+          <input class="lw-mcm__input" type="text" placeholder="4d8 + 4" [ngModel]="draft().hitDice" (ngModelChange)="setText('hitDice', $event)" />
+        </label>
+        <label class="lw-mcm__field">
+          <span>Speed</span>
+          <input class="lw-mcm__input" type="text" [ngModel]="draft().speed" (ngModelChange)="setText('speed', $event)" />
+        </label>
+      </div>
+      <div class="lw-mcm__abilities">
+        @for (a of abilities; track a.key) {
+          <label class="lw-mcm__field lw-mcm__field--ability">
+            <span>{{ a.label }}</span>
+            <input class="lw-mcm__input" type="number" min="1" max="30" [ngModel]="draft()[a.key]" (ngModelChange)="setNumber(a.key, $event)" />
+          </label>
+        }
+      </div>
+      <div class="lw-mcm__grid lw-mcm__grid--2">
+        <label class="lw-mcm__field"><span>Saving throws</span>
+          <input class="lw-mcm__input" type="text" placeholder="Dex +4, Wis +3" [ngModel]="draft().savingThrows" (ngModelChange)="setText('savingThrows', $event)" /></label>
+        <label class="lw-mcm__field"><span>Skills</span>
+          <input class="lw-mcm__input" type="text" placeholder="Perception +5, Stealth +6" [ngModel]="draft().skills" (ngModelChange)="setText('skills', $event)" /></label>
+        <label class="lw-mcm__field"><span>Damage resistances</span>
+          <input class="lw-mcm__input" type="text" [ngModel]="draft().damageResistances" (ngModelChange)="setText('damageResistances', $event)" /></label>
+        <label class="lw-mcm__field"><span>Damage immunities</span>
+          <input class="lw-mcm__input" type="text" [ngModel]="draft().damageImmunities" (ngModelChange)="setText('damageImmunities', $event)" /></label>
+        <label class="lw-mcm__field"><span>Condition immunities</span>
+          <input class="lw-mcm__input" type="text" [ngModel]="draft().conditionImmunities" (ngModelChange)="setText('conditionImmunities', $event)" /></label>
+        <label class="lw-mcm__field"><span>Senses</span>
+          <input class="lw-mcm__input" type="text" placeholder="darkvision 60 ft., passive Perception 12" [ngModel]="draft().senses" (ngModelChange)="setText('senses', $event)" /></label>
+        <label class="lw-mcm__field"><span>Languages</span>
+          <input class="lw-mcm__input" type="text" [ngModel]="draft().languages" (ngModelChange)="setText('languages', $event)" /></label>
+      </div>
+    </section>
+
+    <section class="lw-mcm__section">
+      <h3 class="lw-mcm__section-title">Features</h3>
+      <p class="lw-mcm__hint">One per line, written as "Name. Description" - for example "Bite. Melee Weapon Attack: +5 to hit, reach 5 ft."</p>
+      @for (g of featureGroups; track g.key) {
+        <label class="lw-mcm__field">
+          <span>{{ g.label }}</span>
+          <textarea class="lw-mcm__input" rows="3" [ngModel]="featureText()[g.key]" (ngModelChange)="setFeatureText(g.key, $event)"></textarea>
+        </label>
+      }
+      <label class="lw-mcm__field">
+        <span>Lore</span>
+        <textarea class="lw-mcm__input" rows="3" [ngModel]="draft().loreText" (ngModelChange)="setText('loreText', $event)"></textarea>
+      </label>
+    </section>
+
+    <div modalFooter class="lw-mcm__footer">
+      <div class="lw-mcm__publish">
+        <button
+          ngpSwitch
+          type="button"
+          class="lw-mcm__switch"
+          [ngpSwitchChecked]="draft().publishToMarket"
+          (ngpSwitchCheckedChange)="setPublish($event)"
+          [disabled]="!!editing()?.summary?.isPublished"
+          aria-label="Publish to the market for free"
+        >
+          <span ngpSwitchThumb class="lw-mcm__switch-thumb"></span>
+        </button>
+        <span>{{ editing()?.summary?.isPublished ? 'Published to the market (free)' : 'Publish to the market (always free)' }}</span>
+      </div>
+      <div class="lw-mcm__footer-btns">
+        <lw-button variant="secondary" size="sm" label="Cancel" (pressed)="open.set(false)" />
+        <lw-button variant="gold" size="sm" [label]="editing() ? 'Save changes' : 'Create monster'" [disabled]="busy()" (pressed)="save()" />
+      </div>
+    </div>
+  </lw-modal>
+}

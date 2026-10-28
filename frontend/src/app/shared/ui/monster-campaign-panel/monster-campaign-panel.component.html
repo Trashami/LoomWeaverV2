@@ -1,0 +1,124 @@
+<div class="lw-mcp">
+  <section class="lw-mcp__section">
+    <h3 class="lw-mcp__title">Add to {{ campaignName() }}</h3>
+    <p class="lw-mcp__hint">
+      Prep placements are visible only to you as DM of this campaign. Players learn about a creature
+      when you record the meeting in the Loom.
+    </p>
+
+    <div class="lw-mcp__row">
+      <lw-button
+        [variant]="inCampaign() ? 'secondary' : 'emerald'"
+        size="sm"
+        [label]="inCampaign() ? 'In campaign bestiary' : 'Add to campaign'"
+        [disabled]="busy() || inCampaign()"
+        (pressed)="addToCampaign()"
+      />
+    </div>
+
+    <div class="lw-mcp__row">
+      <label class="lw-mcp__field lw-mcp__field--grow">
+        <span>Session</span>
+        <select
+          class="lw-mcp__input"
+          [ngModel]="sessionId() || sessions()[0]?.id"
+          (ngModelChange)="sessionId.set($event)"
+          [disabled]="sessions().length === 0"
+        >
+          @for (s of sessions(); track s.id) {
+            <option [value]="s.id">{{ s.label }}</option>
+          } @empty {
+            <option value="">No sessions in this campaign</option>
+          }
+        </select>
+      </label>
+      <lw-button
+        variant="gold"
+        size="sm"
+        label="Add to session"
+        [disabled]="busy() || sessions().length === 0"
+        (pressed)="addToSession()"
+      />
+    </div>
+
+    <div class="lw-mcp__row">
+      <label class="lw-mcp__field lw-mcp__field--grow">
+        <span>Encounter</span>
+        <select
+          class="lw-mcp__input"
+          [ngModel]="encounterId() || encounters()[0]?.id"
+          (ngModelChange)="encounterId.set($event)"
+          [disabled]="encounters().length === 0"
+        >
+          @for (e of encounters(); track e.id) {
+            <option [value]="e.id">{{ e.label }}</option>
+          } @empty {
+            <option value="">No encounters in this campaign</option>
+          }
+        </select>
+      </label>
+      <label class="lw-mcp__field lw-mcp__field--qty">
+        <span>Count</span>
+        <input
+          type="number"
+          min="1"
+          max="50"
+          class="lw-mcp__input"
+          [ngModel]="encounterCount()"
+          (ngModelChange)="encounterCount.set($event)"
+        />
+      </label>
+      <lw-button
+        variant="gold"
+        size="sm"
+        label="Add to encounter"
+        [disabled]="busy() || encounters().length === 0"
+        (pressed)="addToEncounter()"
+      />
+    </div>
+
+    @if (placements().length > 0) {
+      <ul class="lw-mcp__placements">
+        @for (p of placements(); track p.id) {
+          <li class="lw-mcp__placement">
+            <span>{{ placementLabel(p) }}</span>
+            <button
+              ngpButton
+              type="button"
+              class="lw-mcp__remove"
+              [attr.aria-label]="'Remove placement ' + placementLabel(p)"
+              (click)="placementRemoved.emit(p.id)"
+            >
+              Remove
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+
+  <section class="lw-mcp__section">
+    <div class="lw-mcp__title-row">
+      <h3 class="lw-mcp__title">Your collections</h3>
+      <lw-button variant="ghost" size="xs" label="New collection" (pressed)="createCollectionRequested.emit()" />
+    </div>
+    @if (collections().length === 0) {
+      <p class="lw-mcp__hint">You have no monster collections yet.</p>
+    } @else {
+      <div class="lw-mcp__chips">
+        @for (c of collections(); track c.id) {
+          <button
+            ngpButton
+            type="button"
+            class="lw-mcp__chip"
+            [class.lw-mcp__chip--active]="isInCollection(c)"
+            [attr.aria-pressed]="isInCollection(c)"
+            (click)="collectionToggled.emit(c.id)"
+          >
+            {{ isInCollection(c) ? 'In ' : 'Add to ' }}{{ c.name }}
+          </button>
+        }
+      </div>
+    }
+  </section>
+</div>

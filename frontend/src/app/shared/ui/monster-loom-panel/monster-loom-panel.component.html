@@ -1,0 +1,157 @@
+<div class="lw-mlp">
+  <section class="lw-mlp__section">
+    <div class="lw-mlp__title-row">
+      <h3 class="lw-mlp__title">Loom history</h3>
+      <div class="lw-mlp__summary">
+        <lw-badge [label]="'Met ' + sightings().length + 'x'" tone="neutral" />
+        @if (lastOutcome(); as last) {
+          <lw-badge [label]="'Last: ' + last" [tone]="outcomeTone(last)" />
+        }
+      </div>
+    </div>
+
+    @if (sightings().length === 0) {
+      <p class="lw-mlp__hint">
+        The Loom has no record of the party meeting {{ monsterName() }} in this campaign yet.
+      </p>
+    } @else {
+      <ol class="lw-mlp__timeline">
+        @for (s of sightings(); track s.id) {
+          <li class="lw-mlp__entry">
+            <div class="lw-mlp__entry-head">
+              <lw-badge [label]="s.outcome" [tone]="outcomeTone(s.outcome)" />
+              <span class="lw-mlp__when">{{ s.occurredAt | date: 'mediumDate' }}</span>
+              @if (isGm() && s.visibility !== 'party') {
+                <lw-badge [label]="s.visibility === 'gm' ? 'DM only' : 'Witnesses only'" tone="gm" />
+              }
+            </div>
+            <p class="lw-mlp__where">
+              {{ s.sessionLabel || 'Unlogged session' }}
+              @if (s.locationName) {
+                <span> at {{ s.locationName }}</span>
+              }
+              @if (s.encounterLabel) {
+                <span> during {{ s.encounterLabel }}</span>
+              }
+            </p>
+            @if (s.witnessCharacterKeys.length > 0) {
+              <p class="lw-mlp__witnesses">
+                Witnessed by
+                @for (w of s.witnessCharacterKeys; track w; let last = $last) {
+                  <span>{{ witnessLabel(w) }}{{ last ? '' : ', ' }}</span>
+                }
+              </p>
+            }
+            @if (s.notes) {
+              <p class="lw-mlp__notes">{{ s.notes }}</p>
+            }
+          </li>
+        }
+      </ol>
+    }
+  </section>
+
+  @if (isGm()) {
+    <section class="lw-mlp__section">
+      <h3 class="lw-mlp__title">Record a meeting</h3>
+      <p class="lw-mlp__hint">
+        Only you can write campaign canon. Choose who may know about it: the whole party, only the
+        characters who witnessed it, or you alone.
+      </p>
+
+      @if (formError()) {
+        <div class="lw-mlp__error">{{ formError() }}</div>
+      }
+
+      <div class="lw-mlp__row">
+        <label class="lw-mlp__field">
+          <span>Outcome</span>
+          <select class="lw-mlp__input" [ngModel]="outcome()" (ngModelChange)="outcome.set($event)">
+            @for (o of outcomes; track o) {
+              <option [value]="o">{{ o }}</option>
+            }
+          </select>
+        </label>
+        <label class="lw-mlp__field lw-mlp__field--grow">
+          <span>Session</span>
+          <select
+            class="lw-mlp__input"
+            [ngModel]="sessionId() || sessions()[0]?.id"
+            (ngModelChange)="sessionId.set($event)"
+          >
+            @for (s of sessions(); track s.id) {
+              <option [value]="s.id">{{ s.label }}</option>
+            } @empty {
+              <option value="">No sessions</option>
+            }
+          </select>
+        </label>
+      </div>
+
+      <div class="lw-mlp__row">
+        <label class="lw-mlp__field lw-mlp__field--grow">
+          <span>Location</span>
+          <input
+            type="text"
+            class="lw-mlp__input"
+            placeholder="Defaults to the session location"
+            [ngModel]="locationName()"
+            (ngModelChange)="locationName.set($event)"
+          />
+        </label>
+        <label class="lw-mlp__field lw-mlp__field--grow">
+          <span>Encounter (optional)</span>
+          <select class="lw-mlp__input" [ngModel]="encounterId()" (ngModelChange)="encounterId.set($event)">
+            <option value="">None</option>
+            @for (e of encounters(); track e.id) {
+              <option [value]="e.id">{{ e.label }}</option>
+            }
+          </select>
+        </label>
+        <label class="lw-mlp__field">
+          <span>Who knows</span>
+          <select class="lw-mlp__input" [ngModel]="visibility()" (ngModelChange)="visibility.set($event)">
+            <option value="party">Whole party</option>
+            <option value="witnesses">Witnesses only</option>
+            <option value="gm">DM only</option>
+          </select>
+        </label>
+      </div>
+
+      @if (characters().length > 0) {
+        <div class="lw-mlp__witness-picker">
+          <span class="lw-mlp__label">Witnesses (defaults to the whole party)</span>
+          <div class="lw-mlp__chips">
+            @for (c of characters(); track c.id) {
+              <button
+                ngpButton
+                type="button"
+                class="lw-mlp__chip"
+                [class.lw-mlp__chip--active]="witnesses().includes(c.id)"
+                [attr.aria-pressed]="witnesses().includes(c.id)"
+                (click)="toggleWitness(c.id)"
+              >
+                {{ c.label }}
+              </button>
+            }
+          </div>
+        </div>
+      }
+
+      <label class="lw-mlp__field">
+        <span>Notes</span>
+        <textarea
+          rows="2"
+          class="lw-mlp__input"
+          placeholder="What happened, what the party learned, what carries forward"
+          [ngModel]="notes()"
+          (ngModelChange)="notes.set($event)"
+        ></textarea>
+      </label>
+
+      <div class="lw-mlp__actions">
+        <lw-button variant="emerald" size="sm" label="Record in the Loom" [disabled]="busy()" (pressed)="record()" />
+      </div>
+    </section>
+  }
+</div>

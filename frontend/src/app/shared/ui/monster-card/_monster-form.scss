@@ -1,0 +1,92 @@
+// Shared form styling for the bestiary panels and modals (component styles @use this partial).
+
+@mixin panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid rgba(73, 232, 146, 0.16);
+  background: rgba(6, 18, 13, 0.7);
+}
+
+@mixin section-title {
+  margin: 0;
+  font-family: var(--lw-font-display, 'Cinzel', serif);
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #d9b77a;
+}
+
+@mixin hint {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: rgba(206, 224, 214, 0.72);
+}
+
+@mixin field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  min-width: 0;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #d9b77a;
+}
+
+@mixin input {
+  width: 100%;
+  padding: 0.46rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid rgba(73, 232, 146, 0.24);
+  background: rgba(5, 15, 11, 0.92);
+  color: #edf5f0;
+  font-size: 0.82rem;
+  font-family: inherit;
+  text-transform: none;
+  letter-spacing: normal;
+
+  &:focus {
+    outline: none;
+    border-color: #49e892;
+  }
+}
+
+@mixin row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+@mixin error {
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 99, 99, 0.4);
+  background: rgba(60, 12, 12, 0.45);
+  color: #ffb3b3;
+  font-size: 0.78rem;
+}
+
+@mixin chip($active: false) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.24rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  border: 1px solid rgba(73, 232, 146, 0.22);
+  background: rgba(14, 38, 28, 0.82);
+  color: #c8e6d5;
+  cursor: pointer;
+  font-family: inherit;
+
+  @if $active {
+    border-color: rgba(217, 183, 122, 0.6);
+    background: rgba(40, 32, 14, 0.75);
+    color: #f0d7a7;
+  }
+}

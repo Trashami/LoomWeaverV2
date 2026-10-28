@@ -1,0 +1,78 @@
+@use '../monster-card/monster-form' as form;
+
+:host {
+  display: block;
+}
+
+.lw-map {
+  @include form.panel-section;
+}
+
+.lw-map__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.lw-map__title {
+  @include form.section-title;
+}
+
+.lw-map__hint {
+  @include form.hint;
+}
+
+.lw-map__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.lw-map__slot {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  padding: 0.55rem;
+  border-radius: 9px;
+  border: 1px solid rgba(73, 232, 146, 0.14);
+  background: rgba(4, 12, 9, 0.7);
+}
+
+.lw-map__preview {
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
+  border-radius: 9px;
+  border: 1px solid rgba(217, 183, 122, 0.3);
+  background: radial-gradient(circle at 50% 35%, rgba(25, 64, 48, 0.65), rgba(4, 12, 9, 0.95));
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+}
+
+.lw-map__field {
+  @include form.field;
+  flex: 1 1 auto;
+}
+
+.lw-map__input {
+  @include form.input;
+}
+
+.lw-map__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .lw-map__grid {
+    grid-template-columns: 1fr;
+  }
+}

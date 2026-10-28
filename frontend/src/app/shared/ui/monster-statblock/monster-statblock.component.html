@@ -1,0 +1,71 @@
+<div class="lw-statblock">
+  <div class="lw-statblock__core">
+    <div class="lw-statblock__core-box">
+      <span class="lw-statblock__label">Armor Class</span>
+      <span class="lw-statblock__value">{{ detail().armorClassLabel }}</span>
+    </div>
+    <div class="lw-statblock__core-box">
+      <span class="lw-statblock__label">Hit Points</span>
+      <span class="lw-statblock__value">{{ detail().hitPointsLabel }}</span>
+    </div>
+    <div class="lw-statblock__core-box">
+      <span class="lw-statblock__label">Speed</span>
+      <span class="lw-statblock__value">{{ detail().speedLabel }}</span>
+    </div>
+    <div class="lw-statblock__core-box">
+      <span class="lw-statblock__label">Challenge</span>
+      <span class="lw-statblock__value lw-statblock__value--gold">
+        {{ detail().summary.challengeRating }} ({{ detail().experiencePoints }} XP)
+      </span>
+    </div>
+  </div>
+
+  <div class="lw-statblock__abilities">
+    @for (a of abilities(); track a.label) {
+      <div class="lw-statblock__ability">
+        <span class="lw-statblock__ability-label">{{ a.label }}</span>
+        <span class="lw-statblock__ability-score">{{ a.score }}</span>
+        <span class="lw-statblock__ability-mod">{{ a.mod }}</span>
+      </div>
+    }
+  </div>
+
+  @if (properties().length > 0) {
+    <dl class="lw-statblock__props">
+      @for (p of properties(); track p.label) {
+        <div class="lw-statblock__prop">
+          <dt>{{ p.label }}</dt>
+          <dd>{{ p.value }}</dd>
+        </div>
+      }
+    </dl>
+  }
+
+  @for (section of sections(); track section.title) {
+    <section class="lw-statblock__section">
+      <h3 class="lw-statblock__section-title">{{ section.title }}</h3>
+      @for (f of section.features; track $index) {
+        <p class="lw-statblock__feature">
+          <strong class="lw-statblock__feature-name">{{ f.name }}.</strong>
+          {{ f.text }}
+        </p>
+      }
+    </section>
+  }
+
+  @if (detail().loreText) {
+    <section class="lw-statblock__section">
+      <h3 class="lw-statblock__section-title">Lore</h3>
+      <p class="lw-statblock__lore">{{ detail().loreText }}</p>
+    </section>
+  }
+
+  @if (detail().environments.length > 0) {
+    <div class="lw-statblock__envs">
+      <span class="lw-statblock__label">Environments</span>
+      @for (env of detail().environments; track env) {
+        <span class="lw-statblock__env">{{ env }}</span>
+      }
+    </div>
+  }
+</div>

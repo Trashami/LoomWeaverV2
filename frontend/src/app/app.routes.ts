@@ -158,6 +158,12 @@ export const APP_ROUTES: Routes = [
       import('./features/statistics/statistics.page').then((m) => m.StatisticsPageComponent),
   },
   {
+    path: 'bestiary',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/bestiary/bestiary.page').then((m) => m.BestiaryPageComponent),
+  },
+  {
     path: 'loom',
     canActivate: [authGuard],
     loadComponent: () =>
@@ -184,7 +190,7 @@ export const APP_ROUTES: Routes = [
   { path: 'notes', redirectTo: 'loom', pathMatch: 'full' },
   { path: 'locations', redirectTo: 'weave', pathMatch: 'full' },
   { path: 'npcs', redirectTo: 'campaigns', pathMatch: 'full' },
-  { path: 'monsters', redirectTo: 'encounters', pathMatch: 'full' },
+  { path: 'monsters', redirectTo: 'bestiary', pathMatch: 'full' },
   { path: 'spells', redirectTo: 'effects', pathMatch: 'full' },
   { path: 'items', canActivate: [authGuard], loadComponent: () => import('./features/items/items.page').then(m => m.ItemsPageComponent) },
   { path: '**', redirectTo: '' },

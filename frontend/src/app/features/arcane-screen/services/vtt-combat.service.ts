@@ -424,6 +424,8 @@ export class VttCombatService {
   concludeEncounterAndAwardXp(encounterId: string): void {
     const enc =
       this.encounterDetails().find((e) => e.id === encounterId) ?? this.encounterDetails()[0];
+    if (!enc || enc.completed || enc.campaignId !== this.store.activeCampaignId() ||
+        !this.store.isGmForActiveCampaign() || this.store.viewerRole() !== 'gm') return;
     const partyCount = Math.max(1, enc.partyMembers.filter((p) => p.includedInEncounter).length);
     const perHero = Math.floor(enc.totalXp / partyCount);
     this.encounterDetails.update((list) =>
@@ -432,6 +434,15 @@ export class VttCombatService {
     this.xpAwardBanner.set(
       `Encounter Concluded: Awarded ${enc.totalXp.toLocaleString()} XP (${perHero.toLocaleString()} XP each to ${partyCount} party heroes). Level-Up Ready in Character Studio!`,
     );
+    // The Loom: record that the party met (and defeated) each creature, where and when (server enforces DM-only).
+    this.http
+      .post(`/api/v2/campaigns/${enc.campaignId}/bestiary/encounters/concluded?role=${this.store.viewerRole()}`, {
+        encounterId: enc.id, encounterLabel: enc.name, sessionId: enc.sessionId, sessionLabel: enc.sessionTitle,
+        locationName: enc.sceneName || enc.environment,
+        witnessCharacterKeys: enc.partyMembers.filter((p) => p.includedInEncounter).map((p) => p.compositeKey),
+        monsters: enc.monsters.map((m) => ({ monsterKey: m.creatureId, monsterName: m.name, outcome: 'defeated' })),
+      })
+      .subscribe({ error: () => this.xpAwardBanner.update(message => `${message} Monster history could not be saved; record the meeting in the Bestiary.`) });
   }
 
   addCustomActionRule(

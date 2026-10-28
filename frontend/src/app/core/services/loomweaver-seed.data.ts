@@ -13,6 +13,8 @@ export const LW_NAVIGATION: readonly NavDestination[] = [
   { id: 'home', label: 'Overview Hub', subtitle: 'Architecture & active table', route: '/home', icon: 'home', group: 'Core' },
   { id: 'campaigns', label: 'Campaigns', subtitle: 'Acts, sessions & story beats', route: '/campaigns', icon: 'landmark', group: 'Core' },
   { id: 'characters', label: 'Characters', subtitle: 'Party sheets & advancement', route: '/characters', icon: 'users', group: 'Core' },
+  { id: 'items', label: 'Items', subtitle: 'Equipment, homebrew & GM collections', route: '/items', icon: 'shopping-bag', group: 'Core' },
+  { id: 'bestiary', label: 'Bestiary', subtitle: 'Monsters, homebrew & DM collections', route: '/bestiary', icon: 'book-open', group: 'Core' },
   { id: 'maps', label: 'Map Studio', subtitle: '2D/3D terrain, walls & scatter', route: '/maps', icon: 'map', group: 'Core' },
   { id: 'encounters', label: 'Encounters', subtitle: 'Build encounters, maps, tokens & traps', route: '/encounters', icon: 'swords', group: 'Play & Engines' },
   { id: 'arcane-screen', label: 'Arcane Screen VTT', subtitle: 'Live GM/Player encounter & VTT table', route: '/arcane-screen', icon: 'shield', group: 'Play & Engines' },

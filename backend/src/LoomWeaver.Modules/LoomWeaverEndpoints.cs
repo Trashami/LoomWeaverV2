@@ -8,6 +8,7 @@ using LoomWeaver.Modules.ActionStudio;
 using LoomWeaver.Modules.Adventures;
 using LoomWeaver.Modules.Audio;
 using LoomWeaver.Modules.Auth;
+using LoomWeaver.Modules.Bestiary;
 using LoomWeaver.Modules.Items;
 using LoomWeaver.Modules.Characters;
 using LoomWeaver.Modules.Dice;
@@ -51,6 +52,7 @@ public static class LoomWeaverEndpoints
             api.MapTableRealtimeEndpoints();
             api.MapAuthAndCheckoutEndpoints();
             api.MapCompendiumAndStudioEndpoints();
+            api.MapBestiaryEndpoints();
             api.MapItemsEndpoints();
             MapCoreEndpoints(api);
         }

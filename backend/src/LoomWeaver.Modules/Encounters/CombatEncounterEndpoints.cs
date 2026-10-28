@@ -11,19 +11,34 @@ namespace LoomWeaver.Modules.Encounters;
 public static class CombatEncounterEndpoints
 {
     private static readonly List<VttTokenDto> ActiveTokens = SeedVttTokens();
-    private static readonly List<object> SavedEncounters = [];
 
     public static void MapCombatEncounterEndpoints(this IEndpointRouteBuilder group)
     {
         group.MapGet("/campaigns/{campaignId:int}/vtt-tokens", (int campaignId) =>
             Results.Ok(ActiveTokens));
 
-        group.MapGet("/campaigns/{campaignId:int}/encounters", (int campaignId) =>
-            Results.Ok(SavedEncounters));
-
-        group.MapPost("/campaigns/{campaignId:int}/encounters", (int campaignId, object encounterPayload) =>
+        group.MapGet("/campaigns/{campaignId:int}/encounters", async (
+            int campaignId, string? role, HttpContext ctx, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
         {
-            SavedEncounters.Insert(0, encounterPayload);
+            var (user, access) = await Bestiary.BestiaryCampaignEndpoints.ResolveAsync(ctx, campaignId, role, repo, ct);
+            if (user is null) return Results.Unauthorized();
+            if (!access.IsEffectiveGm) return Results.StatusCode(403);
+            return Results.Ok(await CampaignEncounterRepository.ListAsync(repo, campaignId, ct));
+        });
+
+        group.MapPost("/campaigns/{campaignId:int}/encounters", async (
+            int campaignId, System.Text.Json.JsonElement encounterPayload, string? role,
+            HttpContext ctx, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
+        {
+            var (user, access) = await Bestiary.BestiaryCampaignEndpoints.ResolveAsync(ctx, campaignId, role, repo, ct);
+            if (user is null) return Results.Unauthorized();
+            if (!access.IsEffectiveGm) return Results.StatusCode(403);
+            if (encounterPayload.ValueKind != System.Text.Json.JsonValueKind.Object ||
+                !encounterPayload.TryGetProperty("id", out var id) || id.ValueKind != System.Text.Json.JsonValueKind.String ||
+                string.IsNullOrWhiteSpace(id.GetString()) || id.GetString()!.Length > 64 ||
+                !encounterPayload.TryGetProperty("campaignId", out var campaign) || !campaign.TryGetInt32(out var cid) || cid != campaignId)
+                return Results.BadRequest(new { message = "An encounter must belong to this campaign and have a valid ID." });
+            await CampaignEncounterRepository.SaveAsync(repo, campaignId, id.GetString()!, encounterPayload, ct);
             return Results.Ok(encounterPayload);
         });
 

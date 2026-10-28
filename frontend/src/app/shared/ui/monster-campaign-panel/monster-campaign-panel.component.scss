@@ -1,0 +1,101 @@
+@use '../monster-card/monster-form' as form;
+
+:host {
+  display: block;
+}
+
+.lw-mcp {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.lw-mcp__section {
+  @include form.panel-section;
+}
+
+.lw-mcp__title {
+  @include form.section-title;
+}
+
+.lw-mcp__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.lw-mcp__hint {
+  @include form.hint;
+}
+
+.lw-mcp__row {
+  @include form.row;
+}
+
+.lw-mcp__field {
+  @include form.field;
+}
+
+.lw-mcp__field--grow {
+  flex: 1 1 220px;
+}
+
+.lw-mcp__field--qty {
+  flex: 0 0 80px;
+}
+
+.lw-mcp__input {
+  @include form.input;
+}
+
+.lw-mcp__placements {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.lw-mcp__placement {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.38rem 0.6rem;
+  border-radius: 7px;
+  border: 1px solid rgba(73, 232, 146, 0.14);
+  background: rgba(4, 12, 9, 0.7);
+  font-size: 0.78rem;
+  color: #e4efe9;
+}
+
+.lw-mcp__remove {
+  border: none;
+  background: transparent;
+  color: #ff9c9c;
+  font-size: 0.72rem;
+  font-family: inherit;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+    outline: none;
+  }
+}
+
+.lw-mcp__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.lw-mcp__chip {
+  @include form.chip;
+}
+
+.lw-mcp__chip--active {
+  @include form.chip(true);
+}

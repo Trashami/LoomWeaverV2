@@ -55,6 +55,7 @@ namespace LoomWeaver.Api
             {
                 await MySqlUserAuthStore.EnsureDatabaseReadyAsync(repo);
                 await LoomWeaver.Modules.Knowledge.ConnectedStoryEngine.EnsureSchemaAndSeedAsync(repo, graph);
+                await LoomWeaver.Modules.Bestiary.BestiaryPersistence.EnsureReadyAsync(repo);
             });
 
             // Enforce OWASP security headers, auth rate-limiting, and unified JWT / HttpOnly cookie auth

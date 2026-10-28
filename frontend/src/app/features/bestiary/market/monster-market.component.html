@@ -1,0 +1,14 @@
+<lw-panel title="Free community monsters" subtitle="Custom creatures credited to their creators. Every monster is always free.">
+  @if (error()) {
+    <p role="alert">{{ error() }}</p>
+    <lw-button label="Try again" (pressed)="load()" />
+  }
+  <div class="monster-market-grid">
+    @for (monster of monsters(); track monster.key) {
+      <lw-monster-card [monster]="monster" (monsterSelected)="open($event.key)" />
+    }
+  </div>
+  @if (loading()) { <p role="status">Loading community monsters...</p> }
+  @else if (!error() && monsters().length === 0) { <p>No community monsters published yet. Create yours in the Bestiary.</p> }
+  @if (!loading() && monsters().length < total()) { <lw-button label="Load more monsters" (pressed)="load()" /> }
+</lw-panel>

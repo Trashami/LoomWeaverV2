@@ -1,0 +1,138 @@
+@if (open()) {
+<lw-modal
+  [open]="true"
+  size="md"
+  [ariaLabel]="(detail()?.summary?.name ?? 'Monster') + ' details'"
+  closeLabel="Close monster details"
+  (closed)="close()"
+>
+  <div modalHeader class="lw-mdm__identity">
+    @if (detail(); as d) {
+      <div class="lw-mdm__image-frame">
+        <img class="lw-mdm__image" [src]="imageUrl()" [alt]="d.summary.name" (error)="onImageError()" />
+      </div>
+      <div class="lw-mdm__title-col">
+        <div class="lw-mdm__badges">
+          <lw-badge [label]="'CR ' + d.summary.challengeRating" tone="gold" />
+          <lw-badge [label]="d.summary.size + ' ' + d.summary.creatureType" tone="neutral" />
+          @if (d.summary.isCustom) {
+            <lw-badge label="Homebrew" tone="gold" />
+            @if (d.summary.isPublished) {
+              <lw-badge label="Market: Free" tone="emerald" />
+            } @else {
+              <lw-badge label="Private draft" tone="draft" />
+            }
+          } @else {
+            <lw-badge [label]="d.summary.source" tone="emerald" />
+          }
+        </div>
+        <h2 class="lw-mdm__title">{{ d.summary.name }}</h2>
+        <p class="lw-mdm__short">{{ d.alignment }}. {{ d.summary.shortDescription }}</p>
+      </div>
+    } @else {
+      <h2 class="lw-mdm__title">{{ loading() ? 'Opening the bestiary...' : 'Monster unavailable' }}</h2>
+    }
+  </div>
+
+  @if (loading() && !detail()) {
+    <p class="lw-mdm__state">Loading full statblock...</p>
+  } @else if (errorMessage() && !detail()) {
+    <p class="lw-mdm__state lw-mdm__state--error">{{ errorMessage() }}</p>
+  } @else if (detail(); as d) {
+    <nav ngpTabset class="lw-mdm__tabs" aria-label="Monster detail sections">
+      <div ngpTabList class="lw-mdm__tab-list">
+        @for (tab of tabs(); track tab.id) {
+          <button
+            ngpTabButton
+            ngpButton
+            type="button"
+            class="lw-mdm__tab"
+            [class.lw-mdm__tab--active]="activeTab() === tab.id"
+            [ngpTabButtonValue]="tab.id"
+            (click)="activeTab.set(tab.id)"
+          >
+            {{ tab.label }}
+          </button>
+        }
+      </div>
+    </nav>
+
+    @switch (activeTab()) {
+      @case ('loom') {
+        <lw-monster-loom-panel
+          [monsterName]="d.summary.name"
+          [sightings]="sightings()"
+          [isGm]="isGm()"
+          [sessions]="sessions()"
+          [encounters]="encounters()"
+          [characters]="characters()"
+          [busy]="busy()"
+          (sightingRecorded)="sightingRecorded.emit($event)"
+        />
+      }
+      @case ('prep') {
+        @if (isGm()) {
+          <lw-monster-campaign-panel
+            [monsterKey]="d.summary.key"
+            [campaignName]="campaignName()"
+            [sessions]="sessions()"
+            [encounters]="encounters()"
+            [placements]="placements()"
+            [collections]="collections()"
+            [busy]="busy()"
+            (placementRequested)="placementRequested.emit($event)"
+            (placementRemoved)="placementRemoved.emit($event)"
+            (collectionToggled)="collectionToggled.emit($event)"
+            (createCollectionRequested)="createCollectionRequested.emit()"
+          />
+        }
+      }
+      @case ('assets') {
+        @if (isGm()) {
+          <lw-monster-asset-panel
+            [campaignName]="campaignName()"
+            [assignment]="assignment()"
+            [tokenOptions]="tokenOptions()"
+            [modelOptions]="modelOptions()"
+            [busy]="busy()"
+            (assignmentSaved)="assignmentSaved.emit($event)"
+          />
+        }
+      }
+      @default {
+        <lw-monster-statblock [detail]="d" />
+      }
+    }
+  }
+
+  <div modalFooter class="lw-mdm__footer">
+    <div class="lw-mdm__credit">
+      @if (detail(); as d) {
+        @if (d.summary.isCustom) {
+          Created by <strong>{{ d.summary.creatorUsername }}</strong>
+          {{ d.summary.isPublished ? ' - free for every table in the market.' : ' - private until published.' }}
+        } @else {
+          Source: <strong>{{ d.summary.source }}</strong>
+        }
+      }
+    </div>
+    <div class="lw-mdm__footer-btns">
+      @if (detail(); as d) {
+        @if (d.summary.ownedByViewer) {
+          <lw-button variant="secondary" size="sm" label="Edit" (pressed)="editRequested.emit(d.summary.key)" />
+          @if (!d.summary.isPublished) {
+            <lw-button
+              variant="gold"
+              size="sm"
+              label="Publish to market (free)"
+              [disabled]="busy()"
+              (pressed)="publishRequested.emit(d.summary.key)"
+            />
+          }
+        }
+      }
+      <lw-button variant="secondary" size="sm" label="Close" (pressed)="close()" />
+    </div>
+  </div>
+</lw-modal>
+}

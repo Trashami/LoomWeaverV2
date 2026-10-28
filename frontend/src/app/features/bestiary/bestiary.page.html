@@ -1,0 +1,229 @@
+<div class="lw-page lw-bestiary-page">
+  <lw-panel
+    eyebrow="Monster Compendium, Homebrew Workshop & DM Collections"
+    title="Bestiary"
+    subtitle="Every creature in the LoomWeaver database, plus free community homebrew. Open any monster for its full statblock; DMs can prep it into their campaign, sessions, and encounters."
+    [elevated]="true"
+  >
+    <div panelActions class="lw-bestiary-actions">
+      <lw-badge [label]="'Campaign: ' + store.activeCampaign().name" tone="emerald" />
+      <lw-badge [label]="campaign.isEffectiveGm() ? 'DM view' : 'Player view'" [tone]="campaign.isEffectiveGm() ? 'gm' : 'players'" />
+      <lw-button variant="emerald" size="sm" label="Create custom monster" (pressed)="catalog.openCreateCustom()" />
+      @if (campaign.isEffectiveGm()) {
+        <lw-button variant="gold" size="sm" label="New collection" (pressed)="openCreateCollection()" />
+      }
+    </div>
+
+    <div class="lw-bestiary-status">
+      <span>
+        {{ catalog.total() }} monsters available
+        @if (!catalog.databaseOnline()) {
+          <span class="lw-bestiary-status__warn"> - compendium database offline, showing the SRD fallback set</span>
+        }
+      </span>
+      <span class="lw-bestiary-status__note">Community monsters are always free and credit their creator.</span>
+    </div>
+  </lw-panel>
+
+  @if (campaign.isEffectiveGm()) {
+    <lw-panel
+      eyebrow="DM only - hidden from players"
+      [title]="'Your monster collections (' + campaign.collections().length + ')'"
+      subtitle="Group creatures for a region, faction, or arc and assign the collection to any campaign you run."
+    >
+      @if (campaign.collections().length === 0) {
+        <div class="lw-bestiary-empty lw-bestiary-empty--compact">
+          <p class="lw-bestiary-empty__sub">No collections yet. Create one, then add monsters from their detail view.</p>
+          <lw-button variant="gold" size="sm" label="Create collection" (pressed)="openCreateCollection()" />
+        </div>
+      } @else {
+        <div class="lw-bestiary-collections">
+          @for (col of campaign.collections(); track col.id) {
+            <div class="lw-bestiary-collection" [class.lw-bestiary-collection--active]="campaign.activeCollectionId() === col.id">
+              <div class="lw-bestiary-collection__head">
+                <div>
+                  <h3 class="lw-bestiary-collection__title">{{ col.name }}</h3>
+                  @if (col.description) {
+                    <p class="lw-bestiary-collection__desc">{{ col.description }}</p>
+                  }
+                </div>
+                <lw-badge [label]="col.monsterKeys.length + ' monsters'" tone="gold" />
+              </div>
+              <p class="lw-bestiary-collection__campaigns">{{ campaignNames(col.assignedCampaignIds) }}</p>
+              <div class="lw-bestiary-collection__actions">
+                <lw-button
+                  [variant]="campaign.activeCollectionId() === col.id ? 'emerald' : 'secondary'"
+                  size="xs"
+                  [label]="campaign.activeCollectionId() === col.id ? 'Showing collection' : 'Show monsters'"
+                  (pressed)="toggleCollectionFilter(col)"
+                />
+                <lw-button variant="ghost" size="xs" label="Edit" (pressed)="openEditCollection(col)" />
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </lw-panel>
+  }
+
+  <lw-panel
+    eyebrow="Search, filter & sort"
+    [title]="campaign.activeCollection() ? 'Collection: ' + campaign.activeCollection()!.name : 'Monsters (' + catalog.total() + ')'"
+    subtitle="Select a monster to open its complete details."
+  >
+    <div class="lw-bestiary-controls">
+      <div class="lw-bestiary-source-tabs" role="group" aria-label="Monster source">
+        @for (tab of sourceTabs; track tab.id) {
+          <lw-button
+            [variant]="catalog.sourceFilter() === tab.id && !catalog.collectionKeys() ? 'gold' : 'secondary'"
+            size="xs"
+            [label]="tab.label"
+            (pressed)="selectSource(tab.id)"
+          />
+        }
+      </div>
+
+      <div class="lw-bestiary-controls__row">
+        <div class="lw-bestiary-search">
+          <input
+            type="search"
+            class="lw-bestiary-input"
+            placeholder="Search monsters by name, type, source, or creator..."
+            aria-label="Search monsters"
+            [ngModel]="catalog.searchQuery()"
+            (ngModelChange)="onSearch($event)"
+          />
+          @if (catalog.searchQuery()) {
+            <button ngpButton type="button" class="lw-bestiary-search__clear" (click)="onSearch('')">Clear</button>
+          }
+        </div>
+
+        <label class="lw-bestiary-select-group">
+          <span>Type</span>
+          <select class="lw-bestiary-input" [ngModel]="catalog.typeFilter()" (ngModelChange)="setType($event)">
+            <option value="all">All types</option>
+            @for (t of types; track t) {
+              <option [value]="t">{{ t }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="lw-bestiary-select-group">
+          <span>Challenge</span>
+          <select class="lw-bestiary-input" [ngModel]="catalog.crBandId()" (ngModelChange)="setCrBand($event)">
+            @for (b of crBands; track b.id) {
+              <option [value]="b.id">{{ b.label }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="lw-bestiary-select-group">
+          <span>Sort by</span>
+          <select class="lw-bestiary-input" [ngModel]="catalog.sortBy()" (ngModelChange)="setSort($event)">
+            @for (o of sortOptions; track o.value) {
+              <option [value]="o.value">{{ o.label }}</option>
+            }
+          </select>
+        </label>
+
+        @if (hasActiveFilters()) {
+          <lw-button variant="ghost" size="xs" label="Reset filters" (pressed)="resetFilters()" />
+        }
+      </div>
+    </div>
+
+    @if (catalog.listError()) {
+      <div class="lw-bestiary-empty">
+        <p class="lw-bestiary-empty__title">The bestiary could not be loaded.</p>
+        <p class="lw-bestiary-empty__sub">{{ catalog.listError() }}</p>
+        <lw-button variant="secondary" size="sm" label="Try again" (pressed)="catalog.reload()" />
+      </div>
+    } @else if (!catalog.loading() && catalog.monsters().length === 0) {
+      <div class="lw-bestiary-empty">
+        <p class="lw-bestiary-empty__title">
+          {{ catalog.collectionKeys() ? 'This collection is empty.' : 'No monsters match your filters.' }}
+        </p>
+        <p class="lw-bestiary-empty__sub">Clear your filters or forge a new creature of your own.</p>
+        <div class="lw-bestiary-empty__actions">
+          <lw-button variant="secondary" size="sm" label="Reset filters" (pressed)="resetFilters()" />
+          <lw-button variant="emerald" size="sm" label="Create custom monster" (pressed)="catalog.openCreateCustom()" />
+        </div>
+      </div>
+    } @else {
+      <div class="lw-bestiary-grid">
+        @for (m of catalog.monsters(); track m.key) {
+          <lw-monster-card
+            [monster]="m"
+            [assignedImageUrl]="campaign.isEffectiveGm() ? assignedImage(m.key) : null"
+            [inCollection]="campaign.isEffectiveGm() && collectionKeySet().has(m.key)"
+            (monsterSelected)="openMonster($event.key)"
+          />
+        }
+      </div>
+
+      <div class="lw-bestiary-more">
+        @if (catalog.loading()) {
+          <span class="lw-bestiary-more__label">Loading monsters...</span>
+        } @else if (catalog.hasMore() && !catalog.collectionKeys()) {
+          <lw-button
+            variant="secondary"
+            size="sm"
+            [label]="'Load more (' + catalog.monsters().length + ' of ' + catalog.total() + ')'"
+            (pressed)="catalog.loadMore()"
+          />
+        }
+      </div>
+    }
+  </lw-panel>
+</div>
+
+<lw-monster-detail-modal
+  [open]="detailOpen()"
+  [detail]="catalog.detail()"
+  [loading]="catalog.detailLoading()"
+  [errorMessage]="catalog.detailError()"
+  [campaignName]="store.activeCampaign().name"
+  [isGm]="campaign.isEffectiveGm()"
+  [busy]="campaign.busy()"
+  [sessions]="campaign.sessionOptions()"
+  [encounters]="campaign.encounterOptions()"
+  [characters]="campaign.characterOptions()"
+  [placements]="openPlacements()"
+  [collections]="campaign.collections()"
+  [assignment]="openAssignment()"
+  [tokenOptions]="tokenOptions()"
+  [modelOptions]="modelOptions()"
+  [sightings]="campaign.sightings()"
+  (closed)="closeMonster()"
+  (placementRequested)="onPlacement($event)"
+  (placementRemoved)="campaign.removePlacement($event)"
+  (collectionToggled)="onCollectionToggled($event)"
+  (createCollectionRequested)="openCreateCollection()"
+  (assignmentSaved)="onAssignment($event)"
+  (sightingRecorded)="onSighting($event)"
+  (publishRequested)="catalog.publish($event)"
+  (editRequested)="catalog.openEditCustom()"
+/>
+
+<lw-monster-custom-modal
+  [(open)]="catalog.customModalOpen"
+  [editing]="catalog.editingCustom()"
+  [creatorUsername]="auth.activeProfile().username"
+  [busy]="catalog.customSaving()"
+  [errorMessage]="catalog.customError()"
+  (monsterSaved)="catalog.saveCustom($event)"
+/>
+
+<lw-monster-collection-modal
+  [(open)]="collectionModalOpen"
+  [editing]="editingCollection()"
+  [campaigns]="campaign.gmCampaignOptions()"
+  [defaultCampaignId]="store.activeCampaignId()"
+  [pickerResults]="catalog.pickerResults()"
+  [monsterLabels]="catalog.knownNames()"
+  [busy]="campaign.busy()"
+  [errorMessage]="campaign.collectionError()"
+  (pickerSearch)="catalog.searchPicker($event)"
+  (collectionSaved)="saveCollection($event)"
+  (collectionDeleted)="deleteCollection($event)"
+/>

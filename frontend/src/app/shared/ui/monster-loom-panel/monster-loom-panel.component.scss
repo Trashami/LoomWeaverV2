@@ -1,0 +1,145 @@
+@use '../monster-card/monster-form' as form;
+
+:host {
+  display: block;
+}
+
+.lw-mlp {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.lw-mlp__section {
+  @include form.panel-section;
+}
+
+.lw-mlp__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.lw-mlp__title {
+  @include form.section-title;
+}
+
+.lw-mlp__summary {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.lw-mlp__hint {
+  @include form.hint;
+}
+
+.lw-mlp__error {
+  @include form.error;
+}
+
+.lw-mlp__timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.lw-mlp__entry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem 0.65rem;
+  border-left: 3px solid rgba(73, 232, 146, 0.45);
+  border-radius: 0 8px 8px 0;
+  background: rgba(4, 12, 9, 0.72);
+}
+
+.lw-mlp__entry-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.lw-mlp__when {
+  font-family: var(--lw-font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.72rem;
+  color: rgba(212, 228, 219, 0.7);
+}
+
+.lw-mlp__where,
+.lw-mlp__witnesses,
+.lw-mlp__notes {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: rgba(232, 241, 236, 0.9);
+}
+
+.lw-mlp__witnesses {
+  color: rgba(206, 224, 214, 0.75);
+}
+
+.lw-mlp__notes {
+  font-style: italic;
+  color: rgba(238, 229, 212, 0.85);
+}
+
+.lw-mlp__row {
+  @include form.row;
+}
+
+.lw-mlp__field {
+  @include form.field;
+}
+
+.lw-mlp__field--grow {
+  flex: 1 1 180px;
+}
+
+.lw-mlp__input {
+  @include form.input;
+  text-transform: capitalize;
+}
+
+textarea.lw-mlp__input,
+input.lw-mlp__input {
+  text-transform: none;
+  resize: vertical;
+}
+
+.lw-mlp__label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #d9b77a;
+}
+
+.lw-mlp__witness-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.lw-mlp__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.lw-mlp__chip {
+  @include form.chip;
+}
+
+.lw-mlp__chip--active {
+  @include form.chip(true);
+}
+
+.lw-mlp__actions {
+  display: flex;
+  justify-content: flex-end;
+}

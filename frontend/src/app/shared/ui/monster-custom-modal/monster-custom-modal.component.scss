@@ -1,0 +1,159 @@
+@use '../monster-card/monster-form' as form;
+
+:host {
+  display: contents;
+}
+
+.lw-mcm__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.lw-mcm__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.lw-mcm__title {
+  margin: 0;
+  font-family: var(--lw-font-display, 'Cinzel', serif);
+  font-size: 1.18rem;
+  color: #f6f2e9;
+}
+
+.lw-mcm__sub {
+  margin: 0;
+  font-size: 0.8rem;
+  color: rgba(214, 230, 221, 0.78);
+}
+
+.lw-mcm__error {
+  @include form.error;
+}
+
+.lw-mcm__section {
+  @include form.panel-section;
+}
+
+.lw-mcm__section-title {
+  @include form.section-title;
+}
+
+.lw-mcm__hint {
+  @include form.hint;
+}
+
+.lw-mcm__grid {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.lw-mcm__grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.lw-mcm__grid--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.lw-mcm__field {
+  @include form.field;
+}
+
+.lw-mcm__field--span2 {
+  grid-column: span 2;
+}
+
+.lw-mcm__input {
+  @include form.input;
+}
+
+textarea.lw-mcm__input {
+  resize: vertical;
+}
+
+.lw-mcm__abilities {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.lw-mcm__field--ability {
+  text-align: center;
+}
+
+.lw-mcm__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.lw-mcm__publish {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.8rem;
+  color: rgba(214, 230, 221, 0.86);
+}
+
+.lw-mcm__switch {
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  padding: 2px;
+  border: 1px solid rgba(90, 212, 148, 0.3);
+  background: rgba(18, 34, 27, 0.95);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+
+  &[data-checked] {
+    border-color: rgba(73, 232, 146, 0.65);
+    background: rgba(20, 70, 46, 0.95);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.7;
+  }
+}
+
+.lw-mcm__switch-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #9cb5a7;
+  transition:
+    transform 140ms ease,
+    background 140ms ease;
+
+  [data-checked] & {
+    transform: translateX(16px);
+    background: #49e892;
+  }
+}
+
+.lw-mcm__footer-btns {
+  display: flex;
+  gap: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .lw-mcm__grid--2,
+  .lw-mcm__grid--3 {
+    grid-template-columns: 1fr;
+  }
+
+  .lw-mcm__field--span2 {
+    grid-column: auto;
+  }
+
+  .lw-mcm__abilities {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

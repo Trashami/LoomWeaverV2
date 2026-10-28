@@ -204,6 +204,16 @@ public static class LoomAndWeaveEndpoints
                     m.Visibility))
                 .ToList();
 
+            // Bestiary canon: when/where the party met a creature and what happened, filtered per player character.
+            var (_, monsterAccess) = await LoomWeaver.Modules.Bestiary.BestiaryCampaignEndpoints.ResolveAsync(
+                httpContext, campaignId, req.Role, repo, ct);
+            if (monsterAccess.UserId != 0)
+            {
+                await LoomWeaver.Modules.Bestiary.BestiaryPersistence.EnsureReadyAsync(repo, ct);
+                citations.AddRange(LoomWeaver.Modules.Bestiary.BestiaryCampaignStore.LoomCitations(
+                    campaignId, monsterAccess.IsEffectiveGm, monsterAccess.BoundCharacterKey, q));
+            }
+
             var matchingNotes = CampaignNotes
                 .Where(n => n.CampaignId == campaignId)
                 .Where(n =>

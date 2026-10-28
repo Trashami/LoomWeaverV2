@@ -1,8 +1,8 @@
 <div class="lw-dice-inspector">
   <header class="lw-dice-inspector__header">
     <div>
-      <span class="lw-dice-inspector__eyebrow">ACTIVE DICE TOOL CONFIGURATION</span>
-      <h2 class="lw-dice-inspector__title">{{ activeToolMeta().label | uppercase }} INSPECTOR</h2>
+      <span class="lw-dice-inspector__eyebrow">CUSTOMIZE DICE</span>
+      <h2 class="lw-dice-inspector__title">{{ activeToolMeta().label | uppercase }}</h2>
     </div>
     <button
       ngpButton
@@ -21,95 +21,7 @@
   @if (activeToolId() === 'skin') {
     <div class="lw-dice-inspector__body">
       <section class="lw-dice-inspector__group">
-        <div class="lw-dice-inspector__row">
-          <span class="lw-dice-inspector__label">3D Polyhedral Geometry</span>
-          <strong class="lw-dice-inspector__val">{{ models().length }} Meshes</strong>
-        </div>
-        <div class="lw-dice-inspector__cards">
-          @for (model of models(); track model.id) {
-            <button
-              ngpButton
-              type="button"
-              class="lw-dice-inspector__card-btn"
-              [class.is-active]="customConfig().modelId === model.id"
-              (click)="patch('modelId', model.id)"
-            >
-              <div class="lw-dice-inspector__card-top">
-                <strong>{{ model.name }}</strong>
-                <span>{{ model.edgeSharpnessLabel }}</span>
-              </div>
-              <small>{{ model.description }}</small>
-            </button>
-          }
-        </div>
-
-        <label class="lw-dice-inspector__slider">
-          <div class="lw-dice-inspector__slider-head">
-            <span>Edge Chamfer / Bevel Factor</span>
-            <strong>{{ customConfig().chamferBevelFactor | number:'1.3-3' }}</strong>
-          </div>
-          <input
-            type="range"
-            min="0.88"
-            max="0.995"
-            step="0.005"
-            [value]="customConfig().chamferBevelFactor"
-            (input)="patchNum('chamferBevelFactor', $event)"
-          />
-        </label>
-
-        <div class="lw-dice-inspector__row">
-          <span class="lw-dice-inspector__label">Dice Scale Preset</span>
-          <div class="lw-dice-inspector__pills">
-            @for (sz of sizePresets; track sz) {
-              <button
-                ngpButton
-                type="button"
-                class="lw-dice-inspector__pill"
-                [class.is-active]="customConfig().sizePreset === sz"
-                (click)="patch('sizePreset', sz)"
-              >
-                {{ sz | uppercase }}
-              </button>
-            }
-          </div>
-        </div>
-      </section>
-
-      <section class="lw-dice-inspector__group">
-        <span class="lw-dice-inspector__label">Surface Material &amp; Bump Map</span>
-        <div class="lw-dice-inspector__chip-grid">
-          @for (st of surfaceStyles; track st) {
-            <button
-              ngpButton
-              type="button"
-              class="lw-dice-inspector__pill"
-              [class.is-active]="(customConfig().surfaceStyleOverride || 'obsidian') === st"
-              (click)="patch('surfaceStyleOverride', st)"
-            >
-              {{ st | uppercase }}
-            </button>
-          }
-        </div>
-
-        <label class="lw-dice-inspector__slider">
-          <div class="lw-dice-inspector__slider-head">
-            <span>Skin Bump Map Depth / Relief</span>
-            <strong>{{ (customConfig().bumpMapIntensity * 100) | number:'1.0-0' }}%</strong>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max="2.5"
-            step="0.05"
-            [value]="customConfig().bumpMapIntensity"
-            (input)="patchNum('bumpMapIntensity', $event)"
-          />
-        </label>
-      </section>
-
-      <section class="lw-dice-inspector__group">
-        <span class="lw-dice-inspector__label">Curated Base Skin Templates</span>
+        <span class="lw-dice-inspector__label">Ready-made styles</span>
         <div class="lw-dice-inspector__cards">
           @for (skin of skins(); track skin.id) {
             <button
@@ -132,7 +44,95 @@
             </button>
           }
         </div>
+      </section>      <section class="lw-dice-inspector__group">
+        <span class="lw-dice-inspector__label">Material</span>
+        <div class="lw-dice-inspector__chip-grid">
+          @for (st of surfaceStyles; track st) {
+            <button
+              ngpButton
+              type="button"
+              class="lw-dice-inspector__pill"
+              [class.is-active]="(customConfig().surfaceStyleOverride || 'obsidian') === st"
+              (click)="patch('surfaceStyleOverride', st)"
+            >
+              {{ st | uppercase }}
+            </button>
+          }
+        </div>
+
+        <label class="lw-dice-inspector__slider">
+          <div class="lw-dice-inspector__slider-head">
+            <span>Texture depth</span>
+            <strong>{{ (customConfig().bumpMapIntensity * 100) | number:'1.0-0' }}%</strong>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="2.5"
+            step="0.05"
+            [value]="customConfig().bumpMapIntensity"
+            (input)="patchNum('bumpMapIntensity', $event)"
+          />
+        </label>
       </section>
+
+      <section class="lw-dice-inspector__group">
+        <div class="lw-dice-inspector__row">
+          <span class="lw-dice-inspector__label">Shape</span>
+          <strong class="lw-dice-inspector__val">{{ models().length }} shapes</strong>
+        </div>
+        <div class="lw-dice-inspector__cards">
+          @for (model of models(); track model.id) {
+            <button
+              ngpButton
+              type="button"
+              class="lw-dice-inspector__card-btn"
+              [class.is-active]="customConfig().modelId === model.id"
+              (click)="patch('modelId', model.id)"
+            >
+              <div class="lw-dice-inspector__card-top">
+                <strong>{{ model.name }}</strong>
+
+              </div>
+
+            </button>
+          }
+        </div>
+
+        <label class="lw-dice-inspector__slider">
+          <div class="lw-dice-inspector__slider-head">
+            <span>Edge sharpness</span>
+            <strong>{{ customConfig().chamferBevelFactor | number:'1.3-3' }}</strong>
+          </div>
+          <input
+            type="range"
+            min="0.88"
+            max="0.995"
+            step="0.005"
+            [value]="customConfig().chamferBevelFactor"
+            (input)="patchNum('chamferBevelFactor', $event)"
+          />
+        </label>
+
+        <div class="lw-dice-inspector__row">
+          <span class="lw-dice-inspector__label">Size</span>
+          <div class="lw-dice-inspector__pills">
+            @for (sz of sizePresets; track sz) {
+              <button
+                ngpButton
+                type="button"
+                class="lw-dice-inspector__pill"
+                [class.is-active]="customConfig().sizePreset === sz"
+                (click)="patch('sizePreset', sz)"
+              >
+                {{ sz | uppercase }}
+              </button>
+            }
+          </div>
+        </div>
+      </section>
+
+
     </div>
   }
 
@@ -141,7 +141,7 @@
     <div class="lw-dice-inspector__body">
       <section class="lw-dice-inspector__group">
         <div class="lw-dice-inspector__row">
-          <span class="lw-dice-inspector__label">Core Primary Pigment</span>
+          <span class="lw-dice-inspector__label">Body color</span>
           <div class="lw-dice-inspector__color-wrap">
             <input type="color" [value]="customConfig().coreColorHex" (input)="patch('coreColorHex', $any($event.target).value)" />
             <code>{{ customConfig().coreColorHex }}</code>
@@ -155,14 +155,14 @@
 
         <label class="lw-dice-inspector__slider">
           <div class="lw-dice-inspector__slider-head">
-            <span>Core Opacity / Transparency</span>
+            <span>Opacity</span>
             <strong>{{ (customConfig().coreOpacity * 100) | number:'1.0-0' }}%</strong>
           </div>
           <input type="range" min="0.15" max="1" step="0.02" [value]="customConfig().coreOpacity" (input)="patchNum('coreOpacity', $event)" />
         </label>
 
         <div class="lw-dice-inspector__row">
-          <span class="lw-dice-inspector__label">Two-Tone Gradient Overlay</span>
+          <span class="lw-dice-inspector__label">Two-tone color</span>
           <button ngpButton type="button" class="lw-dice-inspector__switch" [class.is-on]="customConfig().coreGradientEnabled" (click)="patch('coreGradientEnabled', !customConfig().coreGradientEnabled)">
             {{ customConfig().coreGradientEnabled ? 'Enabled' : 'Off' }}
           </button>
@@ -170,14 +170,14 @@
 
         @if (customConfig().coreGradientEnabled) {
           <div class="lw-dice-inspector__row">
-            <span class="lw-dice-inspector__label">Secondary Pigment</span>
+            <span class="lw-dice-inspector__label">Second color</span>
             <div class="lw-dice-inspector__color-wrap">
               <input type="color" [value]="customConfig().coreSecondaryColorHex" (input)="patch('coreSecondaryColorHex', $any($event.target).value)" />
               <code>{{ customConfig().coreSecondaryColorHex }}</code>
             </div>
           </div>
           <div class="lw-dice-inspector__row">
-            <span class="lw-dice-inspector__label">Layer Blend Mode</span>
+            <span class="lw-dice-inspector__label">Color blend</span>
             <select class="lw-dice-inspector__select" [value]="customConfig().coreBlendMode" (change)="patch('coreBlendMode', $any($event.target).value)">
               @for (bm of blendModes; track bm) {
                 <option [value]="bm">{{ bm | uppercase }}</option>
@@ -189,7 +189,7 @@
 
       <section class="lw-dice-inspector__group">
         <div class="lw-dice-inspector__row">
-          <span class="lw-dice-inspector__label">Inner Glow (Layer FX)</span>
+          <span class="lw-dice-inspector__label">Inner glow</span>
           <button ngpButton type="button" class="lw-dice-inspector__switch" [class.is-on]="customConfig().coreInnerGlowEnabled" (click)="patch('coreInnerGlowEnabled', !customConfig().coreInnerGlowEnabled)">
             {{ customConfig().coreInnerGlowEnabled ? 'Active' : 'Off' }}
           </button>
@@ -216,7 +216,7 @@
         }
 
         <div class="lw-dice-inspector__row">
-          <span class="lw-dice-inspector__label">Outer Glow (Layer FX)</span>
+          <span class="lw-dice-inspector__label">Outer glow</span>
           <button ngpButton type="button" class="lw-dice-inspector__switch" [class.is-on]="customConfig().coreOuterGlowEnabled" (click)="patch('coreOuterGlowEnabled', !customConfig().coreOuterGlowEnabled)">
             {{ customConfig().coreOuterGlowEnabled ? 'Active' : 'Off' }}
           </button>

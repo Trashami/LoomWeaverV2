@@ -36,7 +36,7 @@ export class LwAlertifyService {
     readonly durationMs?: number;
   }): void {
     const id = `ajs-roll-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const durationMs = params.durationMs ?? 14000;
+    const durationMs = params.durationMs ?? 4500;
     const modSign = params.modifier >= 0 ? `+${params.modifier}` : `${params.modifier}`;
     const breakdown = params.modifiersBreakdown?.trim()
       ? `${modSign} (${params.modifiersBreakdown.trim()})`
@@ -81,7 +81,7 @@ export class LwAlertifyService {
     rollType: string,
     detail: string,
     tone: 'emerald' | 'gold' | 'crimson' = 'emerald',
-    durationMs = 5000,
+    durationMs = 3000,
   ): void {
     const id = `ajs-status-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     this.pushToast({
@@ -108,7 +108,7 @@ export class LwAlertifyService {
   }
 
   private pushToast(toast: LwAlertifyToastVm): void {
-    this.toasts.update((list) => [...list.slice(-3), toast]);
+    this.toasts.update((list) => [...list.slice(-1), toast]);
     if (typeof window !== 'undefined') {
       const timer = setTimeout(() => this.dismiss(toast.id), toast.durationMs);
       this.timers.set(toast.id, timer);

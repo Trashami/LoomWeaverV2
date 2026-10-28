@@ -66,7 +66,8 @@ export class AppComponent {
   readonly showAllModules = signal<boolean>(true);
   readonly leftNavCollapsed = signal<boolean>(
     this.resolveInitialBrowserPath().startsWith('/arcane-screen') ||
-      this.resolveInitialBrowserPath().startsWith('/maps'),
+      this.resolveInitialBrowserPath().startsWith('/maps') ||
+      this.resolveInitialBrowserPath().startsWith('/dice'),
   );
   readonly rightGuideCollapsed = signal<boolean>(true);
 
@@ -161,7 +162,7 @@ export class AppComponent {
             this.rightGuideCollapsed.set(true);
           }
           if (nextUrl.startsWith('/dice')) {
-            this.leftNavCollapsed.set(false);
+            this.leftNavCollapsed.set(true);
             this.rightGuideCollapsed.set(true);
           }
           if (nextUrl.startsWith('/arcane-screen') || nextUrl.startsWith('/maps')) {

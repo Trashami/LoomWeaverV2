@@ -206,7 +206,7 @@ export function createDefaultRuntimeConfigFromSkin(skin: DiceSkinConfig): DiceCu
     ? 'celtic-cage'
     : skin.hasArcaneRunes
       ? 'arcane-runes'
-      : 'recessed-plate';
+      : 'none';
 
   return {
     customName: skin.name,
@@ -220,22 +220,22 @@ export function createDefaultRuntimeConfigFromSkin(skin: DiceSkinConfig): DiceCu
 
     coreColorHex: skin.baseColor,
     coreSecondaryColorHex: skin.accentColor,
-    coreGradientEnabled: true,
+    coreGradientEnabled: false,
     coreGradientType: 'radial',
     coreGradientAngle: 135,
     coreOpacity: skin.surfaceStyle === 'glass' ? (skin.refractionAlpha ?? 0.78) : 1.0,
     coreBlendMode: 'normal',
-    coreInnerGlowEnabled: skin.hasVeinPulse,
+    coreInnerGlowEnabled: false,
     coreInnerGlowColor: skin.emissiveColor,
     coreInnerGlowOpacity: 0.55,
     coreInnerGlowSize: 16,
     coreInnerGlowChoke: 0.25,
-    coreOuterGlowEnabled: skin.emissiveIntensity > 0.35,
+    coreOuterGlowEnabled: false,
     coreOuterGlowColor: skin.emissiveColor,
     coreOuterGlowOpacity: 0.65,
     coreOuterGlowSize: 18,
     coreOuterGlowSpread: 0.3,
-    corePulseEnabled: skin.hasVeinPulse,
+    corePulseEnabled: false,
     corePulseWaveform: 'heartbeat',
     corePulseSpeed: 1.4,
     corePulseMin: 0.35,

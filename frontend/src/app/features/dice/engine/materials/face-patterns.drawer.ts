@@ -1,3 +1,4 @@
+import { drawMaterialSurface } from './material-surface.texture';
 import { DiceSkinSurfaceStyle } from '../skins/dice-skin.types';
 
 let preloadedRockImage: HTMLImageElement | null = null;
@@ -80,6 +81,7 @@ export function drawSurfaceBackground(
   coreColorHex: string,
   accentColorHex: string
 ): void {
+  if (drawMaterialSurface(ctx, size, surfaceStyle, coreColorHex)) return;
   ctx.fillStyle = coreColorHex;
   ctx.fillRect(0, 0, size, size);
 
@@ -292,6 +294,7 @@ export function drawSurfaceBumpHeight(
   if (amp <= 0.02) {
     return;
   }
+  if (drawMaterialSurface(hCtx, size, surfaceStyle, '#808080', true, amp)) return;
   hCtx.save();
   if (surfaceStyle === 'stone' || surfaceStyle === 'obsidian') {
     for (let i = 0; i < 360; i++) {

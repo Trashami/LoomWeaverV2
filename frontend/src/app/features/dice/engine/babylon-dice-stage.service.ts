@@ -18,7 +18,6 @@ import { DiceSoundService } from './audio';
 import { DEFAULT_DICE_PHYSICS_CONFIG, DicePhysicsConfig } from './dice-physics.types';
 import {
   createDieContactShadowDisc,
-  createFloatingResultBadge,
   createPhysicsBoxTrajectoryPlans,
   DiePhysicsTrajectoryPlan,
   evaluateDieTrajectoryStep,
@@ -342,16 +341,7 @@ export class BabylonDiceStageService {
           const entry = entries[i];
           const toCam = camPos.subtract(die.mesh.position).normalize();
           die.mesh.rotationQuaternion = getRotationForTopValue(entry.dieType, entry.value, 0, toCam);
-          this.activeBadges.push(
-            createFloatingResultBadge(
-              entry.value,
-              die.mesh.position,
-              this.currentCustom.glowColorHex,
-              isCriticalSuccess && entry.value === Math.max(...FACE_VALUES[entry.dieType]),
-              isCriticalFailure && entry.value === 1,
-              this.scene,
-            ),
-          );
+
         }
 
         if (isCriticalSuccess) this.previewCritOutcomeEffect('nat20');

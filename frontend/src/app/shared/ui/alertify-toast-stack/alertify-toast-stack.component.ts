@@ -32,9 +32,11 @@ import { LwIconComponent } from '../icon/icon.component';
                     <span class="lw-alertify-pill lw-alertify-pill--natural" [class.is-crit]="toast.isNat20" [class.is-fail]="toast.isCritFail">
                       {{ toast.naturalRollLabel }}
                     </span>
+                    @if (toast.modifiersBreakdown && !toast.modifiersBreakdown.startsWith('+0')) {
                     <span class="lw-alertify-pill lw-alertify-pill--mods">
                       Modifiers: <strong>{{ toast.modifiersBreakdown }}</strong>
                     </span>
+                    }
                   </div>
                   <div class="lw-alertify-card__equation">
                     <span>Formula: <strong>{{ toast.formula }}</strong></span>
@@ -74,13 +76,13 @@ import { LwIconComponent } from '../icon/icon.component';
     `
       .lw-alertify-stack {
         position: fixed;
-        right: 2rem;
-        bottom: 9.5rem;
+        right: 1rem;
+        bottom: 1rem;
         z-index: 100001;
         display: flex;
         flex-direction: column;
         gap: 0.55rem;
-        width: min(410px, calc(100vw - 2rem));
+        width: min(320px, calc(100vw - 2rem));
         pointer-events: none;
       }
 
@@ -95,7 +97,7 @@ import { LwIconComponent } from '../icon/icon.component';
         box-shadow:
           0 16px 38px rgba(0, 0, 0, 0.78),
           0 0 22px rgba(73, 232, 146, 0.16);
-        padding: 0.7rem 0.8rem 0.78rem;
+        padding: 0.5rem 0.6rem;
         color: #ecfdf5;
         cursor: pointer;
         animation: lwAlertifyPopIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
@@ -224,7 +226,7 @@ import { LwIconComponent } from '../icon/icon.component';
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        min-width: 62px;
+        min-width: 42px;
         padding: 0.32rem 0.5rem;
         border-radius: 0.55rem;
         background: rgba(73, 232, 146, 0.14);

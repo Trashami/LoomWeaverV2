@@ -58,3 +58,11 @@ As a GM or Player, I want:
 - [x] Reward & Purchase Economy: Users earn Loommarks on every roll (`+15` standard, `+35` on Nat 20), claim Campaign Milestone rewards, redeem Loommarks, or unlock sets in the Vault Store (`/api/v2/campaigns/{campaignId}/dice-forge/unlock`).
 - [x] Backend .NET 10 endpoints provide cryptographic dice rolls (`RandomNumberGenerator.GetInt32`) with SHA-256 verification digests, adaptive audio scene presets, and live campaign analytics aggregation.
 - [x] Every file in `features/dice/` and `LoomWeaver.Modules/Dice` stays strictly under 300 lines, and both `dotnet build` and `npm run build` succeed with zero errors.
+
+## Dice material and usability revision (2026-10-27)
+
+- Shared renderer now uses PBR materials with a studio reflection environment, clear glass transmission, polished black obsidian, warm wood grain and irregular stone relief. Cached procedural color and height maps use matching fields; glass and obsidian have smooth surfaces rather than stone pits.
+- Shared inspector puts styles and material before shape, uses shorter labels and a bounded responsive width. Choosing a material clears decorative body overlays that would hide its texture; explicit number styling remains configurable.
+- Dice route starts with the global navigation collapsed. Forge rolls retain engraved numerals and report results through Alertify without floating result badges.
+- Notifications use a compact panel, at most two visible cards, and 4.5-second roll / 3-second status defaults.
+- Validation: `node scripts/test_dice_surfaces.cjs`, frontend production build with public prerender, and serial .NET API build. Repository-wide source limits have existing violations outside this slice.

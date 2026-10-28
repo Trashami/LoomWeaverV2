@@ -15,19 +15,19 @@ export const DICE_FORGE_DOCK_TOOLS: readonly DiceForgeDockToolItem[] = [
     id: 'skin',
     label: 'Dice Skin',
     icon: 'cube',
-    hint: '3D Polyhedral Model, Surface Texture & Bump Map Relief'
+    hint: 'Choose a style, material and shape.'
   },
   {
     id: 'core',
     label: 'Core Color',
     icon: 'pipette',
-    hint: 'Core Pigment, Transparency, Inner/Outer Glow & Pulse FX'
+    hint: 'Change body color, transparency and glow.'
   },
   {
     id: 'font',
     label: 'Dice Font',
     icon: 'note',
-    hint: 'Typeface Family, Weight, Scale, Stroke & Drop Shadow'
+    hint: 'Choose how the numbers look.'
   },
   {
     id: 'numbers',

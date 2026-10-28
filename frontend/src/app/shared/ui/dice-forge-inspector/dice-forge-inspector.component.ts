@@ -88,6 +88,13 @@ export class LwDiceForgeInspectorComponent {
   readonly numberSwatches = ['#ffd978', '#49e892', '#63d2ff', '#ffffff', '#ff4769', '#ffb340', '#d08bff', '#f5e6c4'];
 
   patch<K extends keyof DiceCustomRuntimeConfig>(key: K, value: DiceCustomRuntimeConfig[K]): void {
+    if (key === 'surfaceStyleOverride') {
+      this.configPatched.emit({ surfaceStyleOverride: value as DiceSkinSurfaceStyle,
+        coreGradientEnabled: false, coreInnerGlowEnabled: false, coreOuterGlowEnabled: false,
+        faceOverlayStyle: 'none', reflectionMetallic: value === 'metal' ? 0.9 : 0,
+        surfaceRoughness: value === 'stone' ? 0.85 : value === 'wood' ? 0.6 : 0.08 });
+      return;
+    }
     if (key === 'numberDepth') {
       const numVal = Number(value);
       this.configPatched.emit({

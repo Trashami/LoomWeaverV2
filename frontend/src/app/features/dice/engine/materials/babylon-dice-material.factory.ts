@@ -1,11 +1,11 @@
 import {
   Color3,
-  FresnelParameters,
+  CubeTexture,
+  PBRMaterial,
   Mesh,
   MultiMaterial,
   Scene,
   SceneLoader,
-  StandardMaterial,
   SubMesh
 } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
@@ -34,7 +34,7 @@ import {
 export interface BuiltBabylonDieInstance {
   mesh: Mesh;
   dieType: DicePolyhedronType;
-  faceMaterials: StandardMaterial[];
+  faceMaterials: PBRMaterial[];
   multiMaterial: MultiMaterial;
   builtGeometry: BuiltBabylonDieGeometry;
 }
@@ -75,35 +75,57 @@ export function buildDieFaceMaterials(
   skin: DiceSkinConfig,
   custom: DiceCustomRuntimeConfig,
   scene: Scene
-): StandardMaterial[] {
-  const materials: StandardMaterial[] = [];
+): PBRMaterial[] {
+  const materials: PBRMaterial[] = [];
+  const surface = custom.surfaceStyleOverride ?? skin.surfaceStyle;
+  if (!scene.environmentTexture) {
+    scene.environmentTexture = CubeTexture.CreateFromPrefilteredData('/assets/object-library/studio.env', scene);
+  }
   const metallic = Math.max(0, Math.min(1, custom.reflectionMetallic ?? skin.metalness));
   const roughness = Math.max(0.04, Math.min(1, custom.surfaceRoughness ?? skin.roughness));
   const glowColor3 = hexToColor3(custom.glowColorHex || skin.emissiveColor);
-  const borderColor3 = hexToColor3(custom.borderColorHex || skin.borderColor || custom.glowColorHex || skin.accentColor);
   const coreAlpha = Math.max(0.12, Math.min(1, custom.coreOpacity ?? 1.0));
   const bumpIntensity = Math.max(0, Math.min(3.0, custom.bumpMapIntensity ?? 1.0));
   const numberDepth = Math.abs(custom.numberDepth ?? 0.75);
 
-  const specIntensity = 0.18 + metallic * 0.82;
-  const specularColor = Color3.Lerp(new Color3(specIntensity, specIntensity, specIntensity), borderColor3, metallic * 0.55);
-  const specularPower = Math.round(12 + (1 - roughness) * 116 + (custom.clearcoat ?? 0) * 48);
+  const configure = (mat: PBRMaterial) => {
+    mat.metallic = surface === 'metal' ? Math.max(0.75, metallic) : 0;
+    mat.roughness = surface === 'stone' ? Math.max(0.78, roughness)
+      : surface === 'wood' ? Math.max(0.48, roughness)
+      : surface === 'obsidian' ? 0.065 : surface === 'glass' ? 0.035 : roughness;
+    mat.environmentIntensity = surface === 'stone' ? 0.4 : 1.05;
+    mat.clearCoat.isEnabled = ['glass', 'obsidian', 'resin'].includes(surface);
+    mat.clearCoat.intensity = surface === 'obsidian' ? 1 : 0.65;
+    mat.clearCoat.roughness = 0.04;
+    if (surface === 'glass') {
+      mat.subSurface.isRefractionEnabled = true;
+      mat.subSurface.indexOfRefraction = 1.5;
+      mat.subSurface.minimumThickness = 0.15;
+      mat.subSurface.maximumThickness = 1.8;
+      mat.subSurface.tintColor = Color3.Lerp(Color3.White(), hexToColor3(custom.coreColorHex || '#e3f3ee'), 0.12);
+      mat.subSurface.tintColorAtDistance = 3;
+      mat.subSurface.refractionIntensity = 0.9;
+      mat.subSurface.linkRefractionWithTransparency = false;
+      mat.alpha = Math.min(0.5, coreAlpha);
+      mat.backFaceCulling = false;
+      mat.separateCullingPass = true;
+    }
+  };
 
   // Slot 0: Chamfer bevel / frame material
-  const bevelMat = new StandardMaterial(`lw-die-bevel-${type}-${skin.id}`, scene);
+  const bevelMat = new PBRMaterial(`lw-die-bevel-${type}-${skin.id}`, scene);
   const bevelCanvas = createBevelCanvas(skin, custom, 128);
-  bevelMat.diffuseTexture = createBabylonDynamicTextureFromCanvas(
+  bevelMat.albedoTexture = createBabylonDynamicTextureFromCanvas(
     `lw-bevel-diff-${type}-${skin.id}`,
     bevelCanvas,
     scene
   );
-  bevelMat.specularColor = specularColor;
-  bevelMat.specularPower = specularPower;
-  if (custom.glowIntensity > 0.2 || custom.coreOuterGlowEnabled) {
+  configure(bevelMat);
+  if (custom.coreOuterGlowEnabled) {
     const cGlow = hexToColor3(custom.coreOuterGlowColor || custom.glowColorHex || skin.emissiveColor);
     bevelMat.emissiveColor = cGlow.scale(Math.max(custom.glowIntensity, custom.coreOuterGlowOpacity ?? 0) * 0.18);
   }
-  if (coreAlpha < 0.99) {
+  if (surface !== 'glass' && coreAlpha < 0.99) {
     bevelMat.alpha = Math.min(0.96, coreAlpha + 0.06);
   }
   materials.push(bevelMat);
@@ -122,8 +144,8 @@ export function buildDieFaceMaterials(
         ? createD4FaceCanvas(D4_FACE_NUMBERS[i] ?? [1, 2, 3], skin, custom, texSize)
         : createFaceCanvas(label, skin, custom, texSize);
 
-    const faceMat = new StandardMaterial(`lw-die-face-${type}-${i + 1}`, scene);
-    faceMat.diffuseTexture = createBabylonDynamicTextureFromCanvas(
+    const faceMat = new PBRMaterial(`lw-die-face-${type}-${i + 1}`, scene);
+    faceMat.albedoTexture = createBabylonDynamicTextureFromCanvas(
       `lw-face-diff-${type}-${i + 1}`,
       canvases.diffuseCanvas,
       scene
@@ -154,20 +176,9 @@ export function buildDieFaceMaterials(
       faceMat.emissiveColor = Color3.Black();
     }
 
-    faceMat.specularColor = specularColor;
-    faceMat.specularPower = specularPower;
+    configure(faceMat);
 
-    if (coreAlpha < 0.99 || (custom.fresnelIntensity ?? 0) > 0.15) {
-      faceMat.alpha = coreAlpha;
-      if ((custom.fresnelIntensity ?? 0) > 0.15) {
-        const fresnel = new FresnelParameters();
-        fresnel.bias = 0.12;
-        fresnel.power = Math.max(1.2, 3.4 - (custom.fresnelIntensity ?? 0.35) * 1.6);
-        fresnel.leftColor = glowColor3.scale(custom.fresnelIntensity ?? 0.5);
-        fresnel.rightColor = Color3.Black();
-        faceMat.emissiveFresnelParameters = fresnel;
-      }
-    }
+    faceMat.alpha = surface === 'glass' ? Math.min(0.5, coreAlpha) : coreAlpha;
 
     materials.push(faceMat);
   }
@@ -234,7 +245,7 @@ export function applySubMeshesToDieMesh(
 }
 
 export function applyVeinPulseToDieMaterials(
-  materials: StandardMaterial[],
+  materials: PBRMaterial[],
   skin: DiceSkinConfig,
   custom: DiceCustomRuntimeConfig,
   elapsedSeconds: number
@@ -281,7 +292,7 @@ export function applyVeinPulseToDieMaterials(
 
 export function disposeDieMaterials(instance: BuiltBabylonDieInstance): void {
   for (const mat of instance.faceMaterials) {
-    mat.diffuseTexture?.dispose();
+    mat.albedoTexture?.dispose();
     mat.bumpTexture?.dispose();
     mat.emissiveTexture?.dispose();
     mat.dispose();

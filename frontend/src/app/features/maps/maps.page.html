@@ -65,7 +65,7 @@
       <section class="lw-maps-studio__stage-column" aria-label="Interactive 2D/3D Map Viewport">
         <div
           class="lw-maps-studio__viewport-wrap"
-          [class.lw-maps-studio__viewport-wrap--split]="cameraView() === 'split-2d-3d'"
+
         >
           <div
             class="lw-maps-studio__canvas-pane"
@@ -74,36 +74,14 @@
             <canvas
               #babylonCanvas
               class="lw-maps-studio__canvas"
-              aria-label="3D Tactical Scene Canvas"
+              aria-label="Live tactical scene: overhead or 3D view"
             ></canvas>
             <div class="lw-maps-studio__pane-tag">
               <span>
-                3D Scene View · {{ celestialMode() === 'sun' ? 'Sunlight' : 'Moonlight' }} ({{
+                {{ cameraView() === 'real-2d' || cameraView() === 'top-down' ? 'Locked Top Down' : cameraView() === 'split-2d-3d' ? '3D + Locked Top Down' : '3D Scene View' }} · {{ celestialMode() === 'sun' ? 'Sunlight' : 'Moonlight' }} ({{
                   celestialAzimuthDeg()
                 }}° / {{ celestialAltitudeDeg() }}°) · Rev {{ sceneGraph().revision }}
               </span>
-            </div>
-          </div>
-
-          <div
-            class="lw-maps-studio__canvas-pane lw-maps-studio__canvas-pane--2d"
-            [class.lw-maps-studio__canvas-pane--hidden]="!show2dCanvas()"
-          >
-            <canvas
-              #real2dCanvas
-              width="960"
-              height="620"
-              class="lw-maps-studio__canvas"
-              aria-label="Authoritative Real 2D Tactical Canvas"
-              (pointerdown)="on2dCanvasDown($event)"
-              (pointermove)="on2dCanvasMove($event)"
-              (pointerup)="onSurfaceReleaseAt(0, 0)"
-              (pointercancel)="onSurfaceReleaseAt(0, 0)"
-              (click)="on2dCanvasClick($event)"
-              (wheel)="on2dCanvasWheel($event)"
-            ></canvas>
-            <div class="lw-maps-studio__pane-tag">
-              <span>2D Bump/Height Map Renderer · Normal + Height Relief</span>
             </div>
           </div>
 

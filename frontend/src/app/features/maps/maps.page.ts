@@ -322,15 +322,8 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     return Array.from(cats);
   });
 
-  readonly show3dCanvas = computed(
-    () => this.dimensionMode() === '3d' && this.cameraView() !== 'real-2d',
-  );
-  readonly show2dCanvas = computed(
-    () =>
-      this.dimensionMode() === '2d' ||
-      this.cameraView() === 'real-2d' ||
-      this.cameraView() === 'split-2d-3d',
-  );
+  readonly show3dCanvas = computed(() => true);
+  readonly show2dCanvas = computed(() => false);
 
   @HostListener('window:keydown.escape')
   onEscapePressed(): void {
@@ -379,6 +372,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
           (rx, rz) => this.onSurfaceReleaseAt(rx, rz),
           () => { if(this.activeDockToolId() === 'water') this.waterEditor.beginStroke(); },
         );
+        this.stage.setCameraMode(this.cameraView());
         this.syncSurfaceLock();
         this.syncGhostCursorToStage();
         this.pushCelestialLightToStage();
@@ -1642,6 +1636,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
 
   onCameraViewChange(view: LwMapCameraView): void {
     this.cameraView.set(view);
+    this.dimensionMode.set(view === 'real-2d' ? '2d' : '3d');
     this.stage.setCameraMode(view);
     setTimeout(() => {
       this.stage.resize();

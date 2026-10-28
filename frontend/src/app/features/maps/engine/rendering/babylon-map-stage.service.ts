@@ -1,3 +1,4 @@
+import { MapCameraViews } from './map-camera-views';
 import { WaterChannelTerrain } from '../water/water-channel-terrain';
 import { WallBrushController } from '../walls/wall-brush-controller';
 import { Injectable, signal } from '@angular/core';
@@ -85,6 +86,7 @@ export class BabylonMapStageService {
   private engine: Engine | null = null;
   private scene: Scene | null = null;
   private camera: ArcRotateCamera | null = null;
+  private cameraViews: MapCameraViews | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private wheelAbortController: AbortController | null = null;
   private selectedPosition: Vector3 | null = null;
@@ -157,20 +159,28 @@ export class BabylonMapStageService {
       this.camera.upperRadiusLimit = 68;
       this.camera.wheelPrecision = 18;
       this.camera.attachControl(canvas, true);
+      this.cameraViews = new MapCameraViews(this.scene, this.camera, canvas);
       this.applyCameraPointerButtons();
 
       // Intercept laptop trackpad pinch-to-zoom (ctrlKey + wheel) so the browser never zooms the page
       this.wheelAbortController = new AbortController();
+      for (const type of ['pointerdown', 'pointermove', 'wheel']) {
+        canvas.addEventListener(type, (event) => {
+          this.cameraViews?.pointerAt((event as MouseEvent).clientX);
+          this.applyCameraPointerButtons();
+        }, { capture: true, signal: this.wheelAbortController.signal });
+      }
       canvas.addEventListener(
         'wheel',
         (evt: WheelEvent) => {
           evt.preventDefault();
           evt.stopPropagation();
-          if (evt.ctrlKey && this.camera) {
+          const zoomCamera = (this.scene?.cameraToUseForPointers ?? this.camera) as ArcRotateCamera | null;
+          if (evt.ctrlKey && zoomCamera) {
             const zoomDelta = evt.deltaY * 0.045;
-            const minR = this.camera.lowerRadiusLimit ?? 4;
-            const maxR = this.camera.upperRadiusLimit ?? 68;
-            this.camera.radius = Math.max(minR, Math.min(maxR, this.camera.radius + zoomDelta));
+            const minR = zoomCamera.lowerRadiusLimit ?? 4;
+            const maxR = zoomCamera.upperRadiusLimit ?? 68;
+            zoomCamera.radius = Math.max(minR, Math.min(maxR, zoomCamera.radius + zoomDelta));
           }
         },
         { passive: false, signal: this.wheelAbortController.signal },
@@ -334,6 +344,7 @@ export class BabylonMapStageService {
 
       this.engine.runRenderLoop(() => {
         if (this.scene && this.engine) {
+          this.cameraViews?.update();
           this.scene.render();
           const now = performance.now();
           if (now - this.lastFpsUpdateMs >= 500) {
@@ -402,7 +413,7 @@ export class BabylonMapStageService {
         this.scene.pointerX,
         this.scene.pointerY,
         null,
-        this.camera,
+        this.scene.cameraToUseForPointers ?? this.camera,
       );
       if (Math.abs(ray.direction.y) > 0.0001) {
         const t = -ray.origin.y / ray.direction.y;
@@ -464,7 +475,7 @@ export class BabylonMapStageService {
 
   private applyCameraPointerButtons(forceAllButtons = false): void {
     if (!this.camera) return;
-    const pointers = this.camera.inputs.attached['pointers'] as
+    const pointers = (this.scene?.cameraToUseForPointers ?? this.camera).inputs.attached['pointers'] as
       | ArcRotateCameraPointersInput
       | undefined;
     if (pointers) {
@@ -781,24 +792,8 @@ export class BabylonMapStageService {
   }
 
   setCameraMode(mode: MapRenderMode | string): void {
-    if (!this.camera) return;
-    if (mode === '2D Blueprint' || mode === 'top-down' || mode === 'real-2d') {
-      this.camera.alpha = -Math.PI / 2;
-      this.camera.beta = 0.02;
-      this.camera.radius = 31;
-    } else if (mode === 'first-person') {
-      this.camera.alpha = -Math.PI / 2.1;
-      this.camera.beta = 1.32;
-      this.camera.radius = 11;
-    } else if (mode === '3D Tabletop' || mode === 'isometric') {
-      this.camera.alpha = -Math.PI / 2.3;
-      this.camera.beta = 0.78;
-      this.camera.radius = 25;
-    } else {
-      this.camera.alpha = -Math.PI / 2.15;
-      this.camera.beta = 0.65;
-      this.camera.radius = 26;
-    }
+    this.cameraViews?.setMode(mode);
+    this.applyCameraPointerButtons();
   }
 
   setQualityPreset(preset: string): void {
@@ -1005,5 +1000,6 @@ export class BabylonMapStageService {
     this.scene = null;
     this.engine = null;
     this.camera = null;
+    this.cameraViews = null;
   }
 }

@@ -32,7 +32,7 @@ def command(ssh, script, sudo=False):
 def main():
     root = Path(__file__).resolve().parents[1]
     dist = Path(sys.argv[1]).resolve() if len(sys.argv)>1 else root / 'loommaps-studio/dist/loommaps-studio/browser'
-    html = (dist / 'index.html').read_text(encoding='utf-8')
+    html = (dist / 'index.html').read_bytes().decode('utf-8')
     if 'lw-maps-studio-root' not in html:
         raise RuntimeError('Build is not the standalone map editor')
     release = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')

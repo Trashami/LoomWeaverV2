@@ -25,7 +25,7 @@ export class WaterSurfaceMaterial {
   static create(scene: Scene, id: string, settings: WaterSettings): ShaderMaterial {
     const mat = new ShaderMaterial('lw-water-material-' + id, scene,
       { vertexSource: WATER_VERTEX, fragmentSource: WATER_FRAGMENT }, {
-        attributes: ['position', 'normal', 'uv', 'waterData'],
+        attributes: ['position','normal','uv','waterData','waterFlow','waterShallow','waterDeep','waterStyle'],
         uniforms: ['world', 'worldViewProjection', 'time', 'waveHeight', 'flowSpeed', 'waveScale',
           'intensity', 'foam', 'opacity', 'reflectivity', 'refraction', 'width',
           'shallowColor', 'deepColor', 'cameraPosition', 'lightDirection', 'lightColor'],

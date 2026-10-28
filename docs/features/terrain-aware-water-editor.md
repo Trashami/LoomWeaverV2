@@ -25,3 +25,11 @@ The platform Save Draft API still saves revision metadata rather than the full r
 - https://doc.babylonjs.com/toolsAndResources/assetLibraries/materialsLibrary/waterMat
 - https://doc.babylonjs.com/features/featuresDeepDive/particles/fluid_renderer/fluid_demos
 - User-supplied Playground https://playground.babylonjs.com/#XKPVRC#3 and pasted Node Material setup were visual references. This implementation does not import or redistribute that demo's third-party assets or camera behavior.
+
+## Connected-surface correction
+
+Water footprints are grouped into connected networks and remeshed as one clipped heightfield surface. Overlapping strokes and legacy circular dabs share an exterior shoreline, eliminating internal cap overlap, foam seams and transparent double layers. Junctions blend flow vectors, height and per-body material settings. Level-separated water remains independent.
+
+Brush size controls channel width; bank blend distance and bank feathering control the carved bank transition. The preview shows both footprints. Stroke start is explicit, pointer capture keeps a slow drag active outside the canvas, and cancellation/blur ends the stroke. Stale movement callbacks after release cannot create new circles. The same start/end contract is used by the 2D canvas.
+
+Regression coverage now includes slow held strokes, stale callbacks after release, T-junction topology, legacy circle repair and bank feathering, in addition to the original water tests.

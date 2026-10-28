@@ -4,6 +4,7 @@ export interface WaterSettings {
   readonly width: number;
   readonly depth: number;
   readonly bankWidth: number;
+  readonly bankFeathering: number;
   readonly flowSpeed: number;
   readonly intensity: number;
   readonly waveHeight: number;
@@ -18,7 +19,7 @@ export interface WaterSettings {
   readonly deepColor: string;
 }
 export const DEFAULT_WATER: WaterSettings = {
-  mode: 'river', width: 3, depth: .9, bankWidth: 1, flowSpeed: 1.4,
+  mode: 'river', width: 3, depth: .9, bankWidth: 1, bankFeathering: 75, flowSpeed: 1.4,
   intensity: .65, waveHeight: .045, waveScale: 2.5, foam: .55,
   opacity: .85, reflectivity: .45, refraction: .12, waterfallSlope: .65,
   spray: .5, shallowColor: '#44aeb0', deepColor: '#0b344b',
@@ -38,7 +39,7 @@ export function normalizeWater(settings: Partial<WaterSettings>): WaterSettings 
   const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, Number.isFinite(v) ? v : a));
   return { ...s, mode: s.mode === 'pond' ? 'pond' : 'river', width: clamp(s.width, 1, 14),
     depth: clamp(s.depth, .15, 4), bankWidth: clamp(s.bankWidth, .2, 4),
-    flowSpeed: clamp(s.flowSpeed, 0, 5), intensity: clamp(s.intensity, 0, 2),
+    bankFeathering: clamp(s.bankFeathering, 0, 100), flowSpeed: clamp(s.flowSpeed, 0, 5), intensity: clamp(s.intensity, 0, 2),
     waveHeight: clamp(s.waveHeight, 0, .18), waveScale: clamp(s.waveScale, .5, 8),
     foam: clamp(s.foam, 0, 1), opacity: clamp(s.opacity, .2, 1),
     reflectivity: clamp(s.reflectivity, 0, 1), refraction: clamp(s.refraction, 0, .3),

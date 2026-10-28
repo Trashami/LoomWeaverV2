@@ -1,10 +1,13 @@
 import type { Scene } from '@babylonjs/core';
 import type { WaterSplineNode } from '../map-scene-contract';
-import { buildWaterProfile, channelBed, WaterProfile } from './water-profile';
+import { groupWaterNetworks, sampleWaterNetwork } from './water-network-field';
+import { buildWaterProfile, WaterProfile } from './water-profile';
 
 /** Carving is a reversible scene layer, never added repeatedly to sculpt offsets. */
 export class WaterChannelTerrain {
   private static bodies = new WeakMap<Scene, readonly WaterSplineNode[]>();
+  private static networks = new WeakMap<Scene, WaterProfile[][]>();
+  static getNetworks(scene: Scene): readonly WaterProfile[][] { return this.networks.get(scene) ?? []; }
   private static profiles = new WeakMap<Scene, WaterProfile[]>();
   private static bases = new WeakMap<Scene, { positions: Float32Array; width: number; height: number }>();
   static configure(scene: Scene, bodies: readonly WaterSplineNode[]): void { this.bodies.set(scene, bodies); }
@@ -20,16 +23,25 @@ export class WaterChannelTerrain {
     const profiles = (this.bodies.get(scene) ?? []).map(w => buildWaterProfile(w,
       (x, z) => sampleGrid(base, width, height, x, z)));
     this.profiles.set(scene, profiles);
-    for (const profile of profiles) {
-      if (!profile.samples.length) continue;
-      const margin = profile.settings.width / 2 + profile.settings.bankWidth;
-      const xs = profile.samples.map(p => p.x), zs = profile.samples.map(p => p.z);
-      const minX = Math.min(...xs) - margin, maxX = Math.max(...xs) + margin;
-      const minZ = Math.min(...zs) - margin, maxZ = Math.max(...zs) + margin;
-      for (let i = 0; i < positions.length; i += 3) {
-        const x = positions[i], z = positions[i + 2];
-        if (x < minX || x > maxX || z < minZ || z > maxZ) continue;
-        positions[i + 1] = Math.min(positions[i + 1], channelBed(profile, x, z, base[i + 1]));
+    const networks=groupWaterNetworks(profiles);
+    this.networks.set(scene,networks);
+    for(const network of networks) {
+      const margin=Math.max(...network.map(p=>p.settings.width/2+p.settings.bankWidth))+1;
+      const samples=network.flatMap(p=>p.samples);
+      const minX=Math.min(...samples.map(p=>p.x))-margin,maxX=Math.max(...samples.map(p=>p.x))+margin;
+      const minZ=Math.min(...samples.map(p=>p.z))-margin,maxZ=Math.max(...samples.map(p=>p.z))+margin;
+      for(let i=0;i<positions.length;i+=3) {
+        const x=positions[i],z=positions[i+2];
+        if(x<minX||x>maxX||z<minZ||z>maxZ)continue;
+        const f=sampleWaterNetwork(network,x,z),s=f.settings;
+        const bank=.08+s.bankWidth*s.bankFeathering/100;
+        if(f.coverage < -bank)continue;
+        let bed=f.level-.035-s.depth*f.depth;
+        if(f.coverage<0) {
+          const t=Math.min(1,-f.coverage/bank),feather=t*t*(3-2*t);
+          bed=f.level-.035+(base[i+1]-f.level+.035)*feather;
+        }
+        positions[i+1]=Math.min(positions[i+1],bed);
       }
     }
   }

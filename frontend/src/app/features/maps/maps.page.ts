@@ -377,6 +377,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
           (hx, hz) => this.onCanvasHoverAt(hx, hz),
           (dx, dz, holdTicks) => this.onSurfaceDragAt(dx, dz, holdTicks),
           (rx, rz) => this.onSurfaceReleaseAt(rx, rz),
+          () => { if(this.activeDockToolId() === 'water') this.waterEditor.beginStroke(); },
         );
         this.syncSurfaceLock();
         this.syncGhostCursorToStage();
@@ -943,6 +944,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         colorHex: isFloorPaint ? this.floorBrushColorHex() : (node.colorHex ?? '#ffffff'),
         surfaceFinish: node.surfaceFinish ?? 'standard',
         brushSharpness: this.floorBrushSharpness(),
+        waterBankWidth: tool === 'water' ? 0.08 + this.waterEditor.settings().bankWidth * this.waterEditor.settings().bankFeathering / 100 : undefined,
         terrainFeathering: this.terrainFeathering(),
       },
       this.wallStartAnchor(),
@@ -1574,6 +1576,16 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.gridSizeLabel.set(mode);
     this.stage.setGridMode(mode);
     this.render2dViewport();
+  }
+
+  on2dCanvasDown(event: PointerEvent): void {
+    if(event.button!==0 || this.activeDockToolId()!=='water')return;
+    const canvas=this.canvas2dRef?.nativeElement;
+    if(!canvas)return;
+    canvas.setPointerCapture(event.pointerId);
+    this.waterEditor.beginStroke();
+    const point=Real2dMapRenderer.screenToWorld(canvas,event.clientX,event.clientY);
+    this.waterEditor.draw(point.x,point.z);
   }
 
   on2dCanvasMove(event: MouseEvent): void {

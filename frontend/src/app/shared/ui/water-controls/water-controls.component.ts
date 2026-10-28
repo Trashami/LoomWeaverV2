@@ -19,9 +19,10 @@ export class LwWaterControlsComponent {
   readonly presets = WATER_PRESETS;
   readonly sections: readonly { title: string; fields: readonly Field[] }[] = [
     { title: 'Channel & banks', fields: [
-      { key:'width',label:'Width / pond diameter',min:1,max:14,step:.25,unit:'m' },
+      { key:'width',label:'Brush size / pond diameter',min:1,max:14,step:.25,unit:'m' },
       { key:'depth',label:'Channel / basin depth',min:.15,max:4,step:.05,unit:'m' },
-      { key:'bankWidth',label:'Bank feathering',min:.2,max:4,step:.1,unit:'m' },
+      { key:'bankWidth',label:'Bank blend distance',min:.2,max:4,step:.1,unit:'m' },
+      { key:'bankFeathering',label:'Bank feathering',min:0,max:100,step:5,unit:'%' },
     ] },
     { title:'Flow & surface',fields: [
       { key:'flowSpeed',label:'Flow speed',min:0,max:5,step:.1,unit:'x' },

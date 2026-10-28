@@ -6,6 +6,8 @@ import { settingsForWater } from '../engine/water/water-profile';
 export class MapWaterEditor {
   readonly settings = signal<WaterSettings>(DEFAULT_WATER);
   readonly selectedId = signal<string | null>(null);
+  private drawing=false;
+  beginStroke(): void { this.finish(); this.drawing=true; }
   private activeId: string | null = null;
   private serial = 0;
   constructor(
@@ -32,6 +34,7 @@ export class MapWaterEditor {
       } : w) }));
   }
   draw(x: number,z: number): void {
+    if(!this.drawing)return;
     const settings = this.settings();
     if (!this.activeId) {
       this.history(settings.mode === 'pond' ? 'Create still pond and basin' : 'Carve river channel');
@@ -57,12 +60,13 @@ export class MapWaterEditor {
       return;
     }
     const last = water.points[water.points.length-1];
-    if (Math.hypot(x-last[0],z-last[2]) < .5 || water.points.length >= 256) return;
+    if (Math.hypot(x-last[0],z-last[2]) < Math.max(.06,settings.width*.025) || water.points.length >= 512) return;
     const point: readonly [number,number,number] = [x,this.ground(x,z),z];
     this.commit(cur => ({ ...cur,revision: cur.revision+1,
       waterSplines: cur.waterSplines.map(w => w.id === water.id ? { ...w,points: [...w.points,point] } : w) }));
   }
   finish(): void {
+    this.drawing=false;
     const water = this.scene().waterSplines.find(w => w.id === this.activeId);
     if (water) this.settings.set(settingsForWater(water));
     this.activeId = null;

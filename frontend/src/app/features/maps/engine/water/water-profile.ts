@@ -44,7 +44,7 @@ export function buildWaterProfile(water: WaterSplineNode, ground: GroundSampler)
       const level = Math.min(previous, raw);
       const p = samples[samples.length - 1];
       const delta = p ? Math.hypot(x - p.x, z - p.z) : 0;
-      if (p && delta < .01) continue;
+      if (p && delta < .12) continue;
       distance += delta;
       const slope = p ? (p.level - level) / Math.max(.01, delta) : 0;
       samples.push({ x, z, level, distance, fall: slope > settings.waterfallSlope ? Math.min(1, slope / 2) : 0 });

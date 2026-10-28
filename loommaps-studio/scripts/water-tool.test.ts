@@ -1,3 +1,5 @@
+import { groupWaterNetworks, sampleWaterNetwork } from '../../frontend/src/app/features/maps/engine/water/water-network-field';
+import { createWaterNetworkMesh } from '../../frontend/src/app/features/maps/engine/water/water-network-mesh';
 import { createWaterfallSpray } from '../../frontend/src/app/features/maps/engine/water/waterfall-spray';
 import { MapWaterEditor } from '../../frontend/src/app/features/maps/application/map-water-editor';
 import type { MapSceneGraphState } from '../../frontend/src/app/features/maps/engine/map-scene-contract';
@@ -82,7 +84,7 @@ test('one drag is one history entry; settings edit the selected waterbody and de
   let scene = { revision:1, waterSplines:[] } as unknown as MapSceneGraphState;
   const history: MapSceneGraphState[] = [];
   const editor = new MapWaterEditor(()=>scene,update=>{scene=update(scene);},()=>history.push(scene),()=>0);
-  editor.draw(0,0); editor.draw(2,0); editor.draw(2.01,0); editor.finish();
+  editor.beginStroke(); editor.draw(0,0); editor.draw(2,0); editor.draw(2.01,0); editor.finish();
   assert.equal(history.length,1); assert.equal(scene.waterSplines.length,1);
   assert.equal(scene.waterSplines[0].points.length,2);
   editor.change({...editor.settings(),width:5,foam:.9});
@@ -101,4 +103,51 @@ test('waterfall spray has a bounded emitter budget across many waterbodies', () 
     assert.ok(scene.particleSystems.length>0);
     assert.ok(scene.particleSystems.length<=8);
   } finally {scene.dispose();engine.dispose();}
+});
+
+test('a slow held stroke remains one river and release ignores stale drawing callbacks',()=>{
+  let scene={revision:1,waterSplines:[]} as unknown as MapSceneGraphState;
+  let snapshots=0;
+  const editor=new MapWaterEditor(()=>scene,update=>{scene=update(scene);},()=>snapshots++,()=>0);
+  editor.beginStroke();
+  for(let i=0;i<50;i++){editor.draw(i*.07,0);editor.draw(i*.07,0);}
+  editor.finish();editor.draw(9,9);
+  assert.equal(scene.waterSplines.length,1);assert.equal(snapshots,1);
+  assert.ok(scene.waterSplines[0].points.length>15);
+  const profile=buildWaterProfile(scene.waterSplines[0],()=>0);
+  assert.ok(profile.samples.length>10);
+});
+test('tributaries merge into one surface with no foam shoreline through the junction',()=>{
+  const profiles=[buildWaterProfile(river([[-6,0,0],[6,0,0]]),()=>0),
+    buildWaterProfile({...river([[0,0,-6],[0,0,0]]),id:'branch'},()=>0)];
+  const groups=groupWaterNetworks(profiles);assert.equal(groups.length,1);
+  const junction=sampleWaterNetwork(groups[0],0,0);
+  assert.ok(junction.coverage>1.4);assert.ok(junction.depth>.99);
+  assert.ok(Number.isFinite(junction.dx)&&Number.isFinite(junction.dz));
+  const engine=new NullEngine(),scene=new Scene(engine);
+  try {
+    const mesh=createWaterNetworkMesh(scene,groups[0]);
+    assert.equal(scene.meshes.length,1);assert.ok(mesh.getTotalVertices()>100);
+    assert.ok(mesh.getVerticesData('normal')!.filter((_,i)=>i%3===1).every(n=>n>.99));
+    assert.equal(mesh.getVerticesData('waterFlow')!.length,mesh.getTotalVertices()*4);
+    assert.ok(mesh.getVerticesData('position')!.every(Number.isFinite));
+  }finally{scene.dispose();engine.dispose();}
+});
+test('legacy circular dabs become a connected surface without internal cap edges',()=>{
+  const profiles=Array.from({length:12},(_,i)=>buildWaterProfile({...river([[i*.7,0,0]]),id:'dab-'+i},()=>0));
+  const groups=groupWaterNetworks(profiles);assert.equal(groups.length,1);
+  for(let x=.5;x<7;x+=.25)assert.ok(sampleWaterNetwork(groups[0],x,0).depth>.99);
+});
+test('feathering broadens natural banks without changing brush width or deepening the bed repeatedly',()=>{
+  const engine=new NullEngine(),scene=new Scene(engine);
+  try {
+    const ground=MeshBuilder.CreateGround('bank',{width:36,height:27,subdivisions:64},scene);
+    const base=new Float32Array(ground.getVerticesData('position')!);
+    const hard={...river([[-5,0,0],[5,0,0]]),settings:{...DEFAULT_WATER,bankFeathering:0}};
+    WaterChannelTerrain.configure(scene,[hard]);const a=base.slice();WaterChannelTerrain.apply(scene,a,36,27);
+    WaterChannelTerrain.configure(scene,[{...hard,settings:{...hard.settings,bankFeathering:100}}]);
+    const b=base.slice();WaterChannelTerrain.apply(scene,b,36,27);
+    assert.ok(b.filter((v,i)=>i%3===1&&v<0).length>a.filter((v,i)=>i%3===1&&v<0).length);
+    const again=base.slice();WaterChannelTerrain.apply(scene,again,36,27);assert.deepEqual(b,again);
+  }finally{scene.dispose();engine.dispose();}
 });

@@ -95,8 +95,10 @@
               height="620"
               class="lw-maps-studio__canvas"
               aria-label="Authoritative Real 2D Tactical Canvas"
-              (mousemove)="on2dCanvasMove($event)"
-              (mouseup)="onSurfaceReleaseAt(0, 0)"
+              (pointerdown)="on2dCanvasDown($event)"
+              (pointermove)="on2dCanvasMove($event)"
+              (pointerup)="onSurfaceReleaseAt(0, 0)"
+              (pointercancel)="onSurfaceReleaseAt(0, 0)"
               (click)="on2dCanvasClick($event)"
               (wheel)="on2dCanvasWheel($event)"
             ></canvas>

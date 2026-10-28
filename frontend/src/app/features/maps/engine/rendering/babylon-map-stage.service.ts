@@ -67,6 +67,7 @@ export interface GhostAssetConfig {
   readonly rotationRad: number;
   readonly heightMeters: number;
   readonly thicknessMeters: number;
+  readonly waterBankWidth?: number;
   readonly wallDrawMode: WallDrawMode;
   readonly wallStampScale?: number;
   readonly wallOffsetY?: number;
@@ -130,6 +131,7 @@ export class BabylonMapStageService {
     onGroundHovered?: (x: number, z: number) => void,
     onSurfaceDrag?: (x: number, z: number, holdTicks: number) => void,
     onSurfaceRelease?: (x: number, z: number) => void,
+    onSurfaceStart?: () => void,
   ): void {
     this.dispose();
 
@@ -213,6 +215,16 @@ export class BabylonMapStageService {
         this.resizeObserver.observe(canvas);
       }
 
+      const cancelSurfaceStroke=() => {
+        if(this.isLeftPointerDown) {
+          this.isLeftPointerDown=false;this.stopHoldTimer();
+          const h=this.hoverCoords();onSurfaceRelease?.(h.x,h.z);
+        }
+        this.wallBrush.finish();
+      };
+      canvas.addEventListener('pointercancel',cancelSurfaceStroke,{signal:this.wheelAbortController.signal});
+      window.addEventListener('blur',cancelSurfaceStroke,{signal:this.wheelAbortController.signal});
+
       this.scene.onPointerObservable.add((pointerInfo) => {
         if (!this.scene) return;
         const evt = pointerInfo.event as PointerEvent;
@@ -236,9 +248,12 @@ export class BabylonMapStageService {
 
           if (evt.button === 0) {
             this.isLeftPointerDown = true;
+            try { canvas.setPointerCapture(evt.pointerId); } catch { /* Pointer already released. */ }
             this.holdTicks = 0;
             const groundPt = this.pickGroundCoordinates();
             if (groundPt && this.surfaceLockEnabled && onSurfaceDrag) {
+              this.hoverCoords.set(groundPt);
+              onSurfaceStart?.();
               onSurfaceDrag(groundPt.x, groundPt.z, 0);
               this.startHoldTimer(onSurfaceDrag);
             }
@@ -268,8 +283,9 @@ export class BabylonMapStageService {
             evt.clientX - this.pointerDownClientX,
             evt.clientY - this.pointerDownClientY,
           );
-          if (this.surfaceLockEnabled && onSurfaceRelease && groundPt) {
-            onSurfaceRelease(groundPt.x, groundPt.z);
+          if (this.surfaceLockEnabled && onSurfaceRelease) {
+            const release=groundPt ?? this.hoverCoords();
+            onSurfaceRelease(release.x,release.z);
           }
           if (dragDist > 7 && !this.surfaceLockEnabled) {
             return;
@@ -539,7 +555,8 @@ export class BabylonMapStageService {
       this.ghostConfig.kind === 'scatter' ||
       this.ghostConfig.kind === 'floor-paint'
     ) {
-      const radius = Math.max(0.4, this.ghostConfig.scale);
+      const waterRadius=Math.max(.4,this.ghostConfig.scale);
+      const radius=waterRadius+(this.ghostConfig.kind==='water'?this.ghostConfig.waterBankWidth ?? 0:0);
       const pts: Vector3[] = [];
       const steps = 48;
       for (let i = 0; i <= steps; i++) {
@@ -560,7 +577,7 @@ export class BabylonMapStageService {
       ring.isPickable = false;
 
       // For Terrain Raise/Lower or Floor Paint Brush, also render the inner feathering core ring
-      if (this.ghostConfig.kind === 'floor-paint' || this.ghostConfig.kind === 'terrain') {
+      if (this.ghostConfig.kind === 'floor-paint' || this.ghostConfig.kind === 'terrain' || this.ghostConfig.kind === 'water') {
         const coreFrac =
           this.ghostConfig.kind === 'floor-paint'
             ? Math.max(0.08, Math.min(0.95, (this.ghostConfig.brushSharpness ?? 25) / 100))
@@ -568,7 +585,7 @@ export class BabylonMapStageService {
                 0.08,
                 Math.min(0.95, 1.0 - ((this.ghostConfig.terrainFeathering ?? 80) / 100) * 0.92),
               );
-        const innerR = radius * coreFrac;
+        const innerR = this.ghostConfig.kind==='water'?waterRadius:radius*coreFrac;
         const innerPts: Vector3[] = [];
         for (let i = 0; i <= 36; i++) {
           const angle = (i / 36) * Math.PI * 2;

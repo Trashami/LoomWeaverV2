@@ -1,7 +1,7 @@
 import { Scene } from '@babylonjs/core';
 import type { WaterSplineNode } from '../map-scene-contract';
 import { WaterChannelTerrain } from './water-channel-terrain';
-import { createWaterMesh } from './water-surface-geometry';
+import { createWaterNetworkMesh } from './water-network-mesh';
 import { WaterSurfaceMaterial } from './water-surface-material';
 import { createWaterfallSpray } from './waterfall-spray';
 
@@ -27,12 +27,12 @@ export class WaterSplineBuilder {
     }
     const profiles = WaterChannelTerrain.getProfiles(scene);
     this.rendered.set(scene,profiles);
-    for (const profile of profiles) {
-      if (!profile.samples.length) continue;
-      const mesh = createWaterMesh(scene,profile);
-      mesh.material = WaterSurfaceMaterial.create(scene,profile.id,profile.settings);
-      createWaterfallSpray(scene,profile);
+    for(const network of WaterChannelTerrain.getNetworks(scene)) {
+      const profile=network[0];
+      const mesh=createWaterNetworkMesh(scene,network);
+      mesh.material=WaterSurfaceMaterial.create(scene,profile.id,profile.settings);
     }
+    for(const profile of profiles) createWaterfallSpray(scene,profile);
     WaterSurfaceMaterial.configureCapture(scene,splines.length > 0 && profiles.some(p => p.settings.refraction > 0));
   }
 }

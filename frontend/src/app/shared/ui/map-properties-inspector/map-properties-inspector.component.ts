@@ -1,3 +1,6 @@
+import { LwWaterControlsComponent } from '../water-controls/water-controls.component';
+import { DEFAULT_WATER, WaterSettings } from '../../../features/maps/engine/water/water-settings';
+import type { WaterSplineNode } from '../../../features/maps/engine/map-scene-contract';
 import { LwWallSurfaceControlsComponent } from '../wall-surface-controls/wall-surface-controls.component';
 import { DEFAULT_WALL_BRUSH, WallBrushSettings } from '../../../features/maps/engine/walls/wall-surface.models';
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
@@ -109,12 +112,18 @@ export interface LwSelectedSceneNode {
 @Component({
   selector: 'lw-map-properties-inspector',
   standalone: true,
-  imports: [NgpButton, LwIconComponent, LwWallSurfaceControlsComponent],
+  imports: [NgpButton, LwIconComponent, LwWallSurfaceControlsComponent, LwWaterControlsComponent],
   templateUrl: './map-properties-inspector.component.html',
   styleUrl: './map-properties-inspector.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LwMapPropertiesInspectorComponent {
+  readonly waterSettings = input<WaterSettings>(DEFAULT_WATER);
+  readonly waterBodies = input<readonly WaterSplineNode[]>([]);
+  readonly selectedWaterId = input<string | null>(null);
+  readonly waterSettingsChange = output<WaterSettings>();
+  readonly waterSelected = output<string>();
+  readonly waterRemoved = output<void>();
   readonly wallBrush = input<WallBrushSettings>(DEFAULT_WALL_BRUSH);
   readonly wallSmoothing = input<number>(75);
   readonly wallBrushChange = output<WallBrushSettings>();
@@ -164,8 +173,6 @@ export class LwMapPropertiesInspectorComponent {
   readonly lightShowFixture = input<boolean>(true);
 
   readonly scatterDensity = input<number>(65);
-  readonly waterWidthMeters = input<number>(3.0);
-  readonly waterFlowSpeed = input<number>(1.4);
 
   readonly paintSwatches = DEFAULT_OBJECT_PAINT_SWATCHES;
   readonly floorBrushSwatches = DEFAULT_FLOOR_BRUSH_SWATCHES;
@@ -239,8 +246,6 @@ export class LwMapPropertiesInspectorComponent {
   readonly deleteNode = output<void>();
   readonly scatterDensityChange = output<number>();
   readonly clearScatter = output<void>();
-  readonly waterWidthChange = output<number>();
-  readonly waterFlowChange = output<number>();
   readonly clearWater = output<void>();
 
   readonly effectiveMode = computed<string>(() => {

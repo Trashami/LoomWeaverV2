@@ -1,3 +1,4 @@
+import type { WaterSettings } from './water/water-settings';
 import type { WallPaintDab } from './walls/wall-surface.models';
 
 export type MapRenderMode = '2D Blueprint' | '3D Tabletop' | 'Linked 2D <-> 3D';
@@ -111,6 +112,7 @@ export interface MapStampNode {
 }
 
 export interface WaterSplineNode {
+  readonly settings?: WaterSettings;
   readonly id: string;
   readonly name: string;
   readonly width: number;

@@ -1,3 +1,4 @@
+import { MapWaterEditor } from './application/map-water-editor';
 import { DEFAULT_WALL_BRUSH, WallBrushSettings, WallPaintDab } from './engine/walls/wall-surface.models';
 import {
   AfterViewInit,
@@ -219,9 +220,11 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   readonly lightShowFixture = signal<boolean>(true);
 
   readonly scatterDensity = signal<number>(65);
-  readonly waterWidthMeters = signal<number>(3.0);
-  readonly waterFlowSpeed = signal<number>(1.4);
-  private activeWaterSplineId: string | null = null;
+  readonly waterEditor = new MapWaterEditor(
+    () => this.sceneGraph(), update => this.commitSceneUpdate(update),
+    label => this.recordHistoryBeforeEdit(label), (x,z) => this.stage.sampleWaterBankElevation(x,z),
+  );
+  readonly waterWidthMeters = computed(() => this.waterEditor.settings().width);
   private lastScatterPaintPos: { x: number; z: number } | null = null;
 
   readonly selectedSceneKey = signal<string>('scene-forgotten-crypt');
@@ -522,7 +525,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.rightDockCollapsed.set(false);
     this.wallStartAnchor.set(null);
     this.freehandWallPoints.set([]);
-    this.activeWaterSplineId = null;
+    this.waterEditor.finish();
 
     if (dockToolId !== 'select') {
       this.selectedPlacedId.set(null);
@@ -990,34 +993,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     }
 
     if (tool === 'water') {
-      if (!this.activeWaterSplineId) {
-        this.activeWaterSplineId = `water-${Date.now()}`;
-        this.commitSceneUpdate((cur) => ({
-          ...cur,
-          revision: cur.revision + 1,
-          waterSplines: [
-            ...cur.waterSplines,
-            {
-              id: this.activeWaterSplineId!,
-              name: 'River Stream',
-              width: this.waterWidthMeters(),
-              flowSpeed: this.waterFlowSpeed(),
-              colorHex: '#1b6d82',
-              points: [[x, 0.09, z]],
-            },
-          ],
-        }));
-        return;
-      }
-      this.commitSceneUpdate((cur) => ({
-        ...cur,
-        waterSplines: cur.waterSplines.map((ws) => {
-          if (ws.id !== this.activeWaterSplineId) return ws;
-          const last = ws.points[ws.points.length - 1];
-          if (last && Math.hypot(x - last[0], z - last[2]) < 0.45) return ws;
-          return { ...ws, points: [...ws.points, [x, 0.09, z]] };
-        }),
-      }));
+      this.waterEditor.draw(x,z);
       return;
     }
 
@@ -1068,7 +1044,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   onSurfaceReleaseAt(x: number, z: number): void {
-    this.activeWaterSplineId = null;
+    this.waterEditor.finish();
     this.lastScatterPaintPos = null;
     this.lastFloorPaintPos = null;
     const tool = this.activeDockToolId();
@@ -1918,6 +1894,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   onClearWaterSplines(): void {
+    this.waterEditor.select('');
     this.recordHistoryBeforeEdit('Clear Water Splines');
     this.commitSceneUpdate((cur) => ({ ...cur, revision: cur.revision + 1, waterSplines: [] }));
   }
@@ -1964,6 +1941,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     if (prev) {
       this.sceneGraph.set(prev.sceneGraph);
       this.stage.syncSceneGraph(prev.sceneGraph);
+      this.waterEditor.select(this.waterEditor.selectedId() ?? '');
       this.render2dViewport();
     }
   }
@@ -1973,6 +1951,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     if (next) {
       this.sceneGraph.set(next.sceneGraph);
       this.stage.syncSceneGraph(next.sceneGraph);
+      this.waterEditor.select(this.waterEditor.selectedId() ?? '');
       this.render2dViewport();
     }
   }

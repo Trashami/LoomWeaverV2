@@ -1,0 +1,27 @@
+# Terrain-aware water editor
+
+## Implemented scope
+
+- A continuous river drag creates one waterbody and one undo entry. Existing water can be selected in the inspector, edited or removed.
+- River levels are oriented downhill from sampled uncarved terrain. Sharp drops activate falling-water shading, faster streaks and capped plunge spray. This is a visual terrain-aware flow model, not a dynamic fluid-volume simulation.
+- Pond mode creates a level circular basin, sized by click/drag or diameter. Its lowest bank sets the water level and directional current is disabled.
+- Carving is a reversible terrain layer. Beds and feathered banks are recomputed from the original sculpted terrain, never accumulated into it. Removing/undoing water restores the bed.
+- Shader controls cover flow speed, turbulence, waves, ripple scale, foam, opacity, shallow/deep colors, Fresnel reflectivity and captured-scene refraction. Reflection is a procedural environment approximation; refraction uses one shared 512px scene capture.
+- Spray is capped at eight emitters per scene, 160 particles each. No third-party textures, remote Node Materials or demo models are required.
+- Shared `lw-water-controls` owns inspector layout, presets, labels, keyboard focus and width containment. Existing real-2D water footprints use the same physical widths.
+
+## Verification
+
+Run `node scripts/check-water-tool.mjs` and `node scripts/check-wall-surfaces.mjs` in `loommaps-studio`, `npm run build` there, and `dotnet build LoomWeaver.Server.csproj` in `backend`.
+
+Tests cover downhill direction, waterfall thresholds, level ponds, finite mesh data and winding, channel feathering, repeatable excavation and restoration, malformed points/settings, one history entry per drag, selected-body editing/removal and bounded spray. Browser checks cover drawing an animated river and a separate steep-terrain fixture with a waterfall and pond.
+
+## Existing limitations
+
+The platform Save Draft API still saves revision metadata rather than the full rendered scene. Water settings and paths are represented in scene state and undo snapshots but are not yet durably persisted across reloads. Terrain carving, shading and particles do not introduce new server authorization or asset-publication paths. Existing GM/player scene authorization remains the server's responsibility.
+
+## References
+
+- https://doc.babylonjs.com/toolsAndResources/assetLibraries/materialsLibrary/waterMat
+- https://doc.babylonjs.com/features/featuresDeepDive/particles/fluid_renderer/fluid_demos
+- User-supplied Playground https://playground.babylonjs.com/#XKPVRC#3 and pasted Node Material setup were visual references. This implementation does not import or redistribute that demo's third-party assets or camera behavior.

@@ -1,3 +1,4 @@
+import { WaterChannelTerrain } from '../water/water-channel-terrain';
 import {
   Color3,
   DynamicTexture,
@@ -221,6 +222,7 @@ export class TerrainMeshBuilder {
       positions[i + 1] = baseWave + microHeight + (this.customElevations[vIdx] ?? 0);
     }
 
+    WaterChannelTerrain.apply(scene, positions, this.GROUND_W, this.GROUND_H);
     ground.updateVerticesData('position', positions);
     this.recomputeNormals(ground, positions);
     ground.refreshBoundingInfo();

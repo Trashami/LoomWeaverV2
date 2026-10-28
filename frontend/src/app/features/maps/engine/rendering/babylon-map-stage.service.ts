@@ -1,3 +1,4 @@
+import { WaterChannelTerrain } from '../water/water-channel-terrain';
 import { WallBrushController } from '../walls/wall-brush-controller';
 import { Injectable, signal } from '@angular/core';
 import {
@@ -703,6 +704,10 @@ export class BabylonMapStageService {
     TerrainMeshBuilder.clearFloorPaint(this.scene);
   }
 
+  sampleWaterBankElevation(x: number, z: number): number {
+    return this.scene ? WaterChannelTerrain.sampleBase(this.scene,x,z) : 0;
+  }
+
   resetTerrainElevations(): void {
     TerrainMeshBuilder.resetElevations();
     if (this.scene) {
@@ -739,6 +744,8 @@ export class BabylonMapStageService {
       plateauLimit,
     );
     if (this.lastState) {
+      const ground = this.scene.getMeshByName('lw-terrain-ground');
+      if (ground) TerrainMeshBuilder.applyVertexReliefAndHeightMap(this.scene, ground as import('@babylonjs/core').Mesh, this.lastState.terrainRelief);
       WallMeshBuilder.rebuildWallMeshes(this.scene, this.lastState.walls, this.hideGmSecrets);
       WaterSplineBuilder.rebuildWaterSplines(this.scene, this.lastState.waterSplines);
       this.rebuildStamps(this.scene, this.lastState.stamps);
@@ -807,7 +814,8 @@ export class BabylonMapStageService {
     if (!this.scene) return;
     this.lastState = state;
 
-    TerrainMeshBuilder.buildTerrainAndGrid(this.scene, state.biome, state.terrainRelief);
+    WaterChannelTerrain.configure(this.scene, state.waterSplines);
+    const ground = TerrainMeshBuilder.buildTerrainAndGrid(this.scene, state.biome, state.terrainRelief);
     if (state.floorAlbedoUrl && state.floorNormalUrl) {
       TerrainMeshBuilder.applyFloorBumpTexture(
         this.scene,
@@ -816,6 +824,8 @@ export class BabylonMapStageService {
         state.floorTilingScale ?? 10,
       );
     }
+    TerrainMeshBuilder.applyVertexReliefAndHeightMap(this.scene, ground, state.terrainRelief);
+    TerrainMeshBuilder.rebuildGridOverlay(this.scene);
     WaterSplineBuilder.rebuildWaterSplines(this.scene, state.waterSplines);
     SceneLightingController.syncLights(this.scene, state.lights);
     const scatterCount = SeededScatterEngine.rebuildScatterInstances(

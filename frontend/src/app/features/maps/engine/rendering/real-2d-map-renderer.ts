@@ -194,7 +194,7 @@ export class Real2dMapRenderer {
       ctx.save();
       ctx.strokeStyle = water.colorHex || '#1b6d82';
       ctx.fillStyle = water.colorHex || '#1b6d82';
-      const wPx = Math.max(8, water.width * scale * 0.75);
+      const wPx = Math.max(8, water.width * scale);
       if (water.points.length === 1) {
         const sx = toScreenX(water.points[0][0]);
         const sy = toScreenY(water.points[0][2]);

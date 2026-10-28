@@ -233,8 +233,12 @@
             [torchIntensity]="torchIntensity()"
             [lightShowFixture]="lightShowFixture()"
             [scatterDensity]="scatterDensity()"
-            [waterWidthMeters]="waterWidthMeters()"
-            [waterFlowSpeed]="waterFlowSpeed()"
+            [waterSettings]="waterEditor.settings()"
+            [waterBodies]="sceneGraph().waterSplines"
+            [selectedWaterId]="waterEditor.selectedId()"
+            (waterSettingsChange)="waterEditor.change($event); syncGhostCursorToStage()"
+            (waterSelected)="waterEditor.select($event); syncGhostCursorToStage()"
+            (waterRemoved)="waterEditor.removeSelected()"
             (openAssetModal)="assetModalOpen.set(true)"
             (cancelPlacement)="cancelActivePlacement()"
             (resetTerrain)="stage.resetTerrainElevations()"
@@ -298,8 +302,6 @@
             (deleteNode)="onDeleteSelectedPlacedNode()"
             (scatterDensityChange)="scatterDensity.set($event)"
             (clearScatter)="onClearScatterClusters()"
-            (waterWidthChange)="waterWidthMeters.set($event); syncGhostCursorToStage()"
-            (waterFlowChange)="waterFlowSpeed.set($event)"
             (clearWater)="onClearWaterSplines()"
           />
         </aside>

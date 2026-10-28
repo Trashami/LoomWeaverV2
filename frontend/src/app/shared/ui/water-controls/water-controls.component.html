@@ -1,0 +1,47 @@
+<section>
+  <h4>Waterbody</h4>
+  <label>Edit water
+    <select aria-label="Edit waterbody" [value]="selectedId() ?? ''" (change)="selectBody($event)">
+      <option value="" [selected]="!selectedId()">New water</option>
+      @for (body of bodies(); track body.id) { <option [value]="body.id" [selected]="body.id === selectedId()">{{ body.name }} {{ $index+1 }}</option> }
+    </select>
+  </label>
+  <div class="modes" aria-label="Water drawing mode">
+    <button type="button" ngpButton [attr.aria-pressed]="settings().mode === 'river'"
+      (click)="patch({ mode:'river', flowSpeed: settings().flowSpeed || 1.4 })">River / stream</button>
+    <button type="button" ngpButton [attr.aria-pressed]="settings().mode === 'pond'"
+      (click)="patch({ mode:'pond', flowSpeed:0, waveHeight:.012, intensity:.15 })">Still pond</button>
+  </div>
+  <div class="presets">
+    @for (preset of presets; track preset.name) {
+      <button type="button" ngpButton (click)="settingsChange.emit(preset.settings)">{{ preset.name }}</button>
+    }
+  </div>
+  <p>{{ settings().mode === 'pond' ? 'Click for a pond, or drag outward to size its level basin.' : 'Drag a continuous river. Flow follows the land downhill; steep drops become waterfalls.' }}</p>
+  @if (selectedId()) {
+    <p>Changes below update this waterbody and its carved bed.</p>
+    <button type="button" ngpButton (click)="selected.emit('')">Draw new water</button>
+  }
+</section>
+@for (section of sections; track section.title) {
+  <section>
+    <h4>{{ section.title }}</h4>
+    @if (section.title === 'Water appearance') {
+      <label>Shallow water <input type="color" aria-label="Shallow water color" [value]="settings().shallowColor" (input)="changeColor('shallowColor',$event)" /></label>
+      <label>Deep water <input type="color" aria-label="Deep water color" [value]="settings().deepColor" (input)="changeColor('deepColor',$event)" /></label>
+    }
+    @for (field of section.fields; track field.key) {
+      <label [class.inactive]="settings().mode === 'pond' && field.key === 'flowSpeed'">
+        <span>{{ field.label }}</span><strong>{{ numeric(field.key).toFixed(2) }}{{ field.unit ?? '' }}</strong>
+        <input type="range" [attr.aria-label]="field.label" [min]="field.min" [max]="field.max"
+          [step]="field.step" [value]="numeric(field.key)"
+          [disabled]="settings().mode === 'pond' && field.key === 'flowSpeed'" (input)="changeNumber(field.key,$event)" />
+      </label>
+    }
+  </section>
+}
+<section class="actions">
+  @if (selectedId()) { <button type="button" ngpButton (click)="remove.emit()">Remove selected water</button> }
+  @if (bodies().length) { <button type="button" ngpButton (click)="clear.emit()">Clear all water</button> }
+  <p>Removing water restores its bed. Use Undo to restore the waterbody.</p>
+</section>

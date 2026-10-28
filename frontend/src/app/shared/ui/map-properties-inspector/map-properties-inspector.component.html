@@ -1561,54 +1561,11 @@
         </div>
       }
 
-      <!-- 8. WATER SPLINE TOOL -->
+      <!-- 8. WATER TOOL -->
       @if (effectiveMode() === 'water') {
-        <div class="lw-map-inspector__section">
-          <div class="lw-map-inspector__slider-block">
-            <div class="lw-map-inspector__slider-head">
-              <span>River / Stream Width</span>
-              <strong>{{ waterWidthMeters().toFixed(1) }}m</strong>
-            </div>
-            <input
-              type="range"
-              min="1.0"
-              max="10.0"
-              step="0.5"
-              class="lw-map-inspector__range"
-              [value]="waterWidthMeters()"
-              (input)="onNumInput($event, waterWidthChange)"
-            />
-          </div>
-
-          <div class="lw-map-inspector__slider-block">
-            <div class="lw-map-inspector__slider-head">
-              <span>Flow Speed</span>
-              <strong>{{ waterFlowSpeed().toFixed(1) }}x</strong>
-            </div>
-            <input
-              type="range"
-              min="0.0"
-              max="4.0"
-              step="0.2"
-              class="lw-map-inspector__range"
-              [value]="waterFlowSpeed()"
-              (input)="onNumInput($event, waterFlowChange)"
-            />
-          </div>
-
-          <p class="lw-map-inspector__hint">
-            Left-click and drag across the terrain to paint rivers, streams, or pools. Right-drag orbits the camera.
-          </p>
-
-          <button
-            type="button"
-            ngpButton
-            class="lw-map-inspector__cancel-btn"
-            (click)="clearWater.emit()"
-          >
-            Clear All Water Splines
-          </button>
-        </div>
+        <lw-water-controls [settings]="waterSettings()" [bodies]="waterBodies()" [selectedId]="selectedWaterId()"
+          (settingsChange)="waterSettingsChange.emit($event)" (selected)="waterSelected.emit($event)"
+          (remove)="waterRemoved.emit()" (clear)="clearWater.emit()" />
       }
 
       <!-- 9. SURFACE SCATTER BRUSH TOOL -->

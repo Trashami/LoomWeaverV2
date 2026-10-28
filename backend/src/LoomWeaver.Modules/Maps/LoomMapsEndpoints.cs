@@ -14,6 +14,7 @@ public static class LoomMapsEndpoints
     public static void MapLoomMapsEndpoints(this IEndpointRouteBuilder group)
     {
         group.MapLoomMapsStudioStage1Endpoints();
+        Features.WorldAtlas.AtlasEndpoints.MapWorldAtlasEndpoints(group);
         group.MapBuildWallsAndPathsEndpoints();
 
         group.MapGet("/campaigns/{campaignId:int}/maps/{sceneKey}/scene-graph", (

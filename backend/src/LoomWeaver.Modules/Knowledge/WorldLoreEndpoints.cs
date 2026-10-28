@@ -11,29 +11,32 @@ public static class WorldLoreEndpoints
 {
     public static RouteGroupBuilder MapWorldLoreEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/campaigns/{campaignId:int}/world-lore", (
+        var world=Maps.Features.WorldAtlas.AtlasAccess.WorldLoreGroup(api);
+        world.MapGet("", async (
             int campaignId,
             string? role,
             string? mapId,
-            HttpContext httpContext) =>
+            HttpContext httpContext, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
         {
+            await Maps.Features.WorldAtlas.AtlasLocationBridge.Hydrate(repo,campaignId,ct);
             var isGm = IsGm(httpContext, campaignId, role);
             return Results.Ok(BuildWorkspace(campaignId, isGm, mapId));
         });
 
-        api.MapGet("/campaigns/{campaignId:int}/world-lore/locations/{locationKey}", (
+        world.MapGet("/locations/{locationKey}", async (
             int campaignId,
             string locationKey,
             string? role,
-            HttpContext httpContext) =>
+            HttpContext httpContext, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
         {
+            await Maps.Features.WorldAtlas.AtlasLocationBridge.Hydrate(repo,campaignId,ct);
             var isGm = IsGm(httpContext, campaignId, role);
             var list = GetCampaignList(WorldLoreStateStore.LocationsByCampaign, campaignId);
             var found = list.FirstOrDefault(l =>
                 string.Equals(l.LocationKey, locationKey, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(l.CompositeKey, locationKey, StringComparison.OrdinalIgnoreCase));
 
-            if (found is null || (!isGm && found.Visibility == "gm"))
+            if (found is null || (!isGm && (found.Visibility == "gm" || found.DiscoveryStatus == "undiscovered")))
             {
                 return Results.NotFound(new { message = "Location not found or not authorized." });
             }
@@ -41,11 +44,11 @@ public static class WorldLoreEndpoints
             return Results.Ok(SanitizeLocationForViewer(found, isGm));
         });
 
-        api.MapPost("/campaigns/{campaignId:int}/world-lore/locations", (
+        world.MapPost("/locations", async (
             int campaignId,
             string? role,
             UpsertLocationRequest req,
-            HttpContext httpContext) =>
+            HttpContext httpContext, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
         {
             if (!IsGm(httpContext, campaignId, role))
             {
@@ -132,10 +135,11 @@ public static class WorldLoreEndpoints
             if (mIdx >= 0) markers[mIdx] = markerDto;
             else markers.Add(markerDto);
 
+            await Maps.Features.WorldAtlas.AtlasLocationBridge.PersistExisting(repo,campaignId,updated,req.XPercent,req.YPercent,ct);
             return Results.Ok(updated);
         });
 
-        api.MapPost("/campaigns/{campaignId:int}/world-lore/locations/{locationKey}/links", (
+        world.MapPost("/locations/{locationKey}/links", (
             int campaignId,
             string locationKey,
             string? role,
@@ -173,7 +177,7 @@ public static class WorldLoreEndpoints
             return Results.Ok(updated);
         });
 
-        api.MapPost("/campaigns/{campaignId:int}/world-lore/locations/{locationKey}/secrets/{secretId}/reveal", (
+        world.MapPost("/locations/{locationKey}/secrets/{secretId}/reveal", (
             int campaignId,
             string locationKey,
             string secretId,
@@ -205,7 +209,7 @@ public static class WorldLoreEndpoints
             return Results.Ok(updated);
         });
 
-        api.MapPost("/campaigns/{campaignId:int}/world-lore/maps/assign", (
+        world.MapPost("/maps/assign", (
             int campaignId,
             string? role,
             WorldMapSummaryDto req,
@@ -239,7 +243,7 @@ public static class WorldLoreEndpoints
             return Results.Ok(BuildWorkspace(campaignId, true, mapId));
         });
 
-        api.MapPost("/campaigns/{campaignId:int}/world-lore/regions", async (
+        world.MapPost("/regions", async (
             int campaignId,
             string? role,
             UpsertRegionOverlayRequest req,
@@ -256,13 +260,13 @@ public static class WorldLoreEndpoints
             return Results.Ok(updated);
         });
 
-        MapLoreAndHistoryEndpoints(api);
+        MapLoreAndHistoryEndpoints(world);
         return api;
     }
 
-    private static void MapLoreAndHistoryEndpoints(RouteGroupBuilder api)
+    private static void MapLoreAndHistoryEndpoints(RouteGroupBuilder world)
     {
-        api.MapPost("/campaigns/{campaignId:int}/world-lore/lore", (
+        world.MapPost("/lore", (
             int campaignId,
             string? role,
             UpsertLoreEntryRequest req,
@@ -324,7 +328,7 @@ public static class WorldLoreEndpoints
             return Results.Ok(entry);
         });
 
-        api.MapPost("/campaigns/{campaignId:int}/world-lore/history", (
+        world.MapPost("/history", (
             int campaignId,
             string? role,
             CreateWorldHistoryEventRequest req,
@@ -357,7 +361,7 @@ public static class WorldLoreEndpoints
             return Results.Ok(ev);
         });
 
-        api.MapGet("/campaigns/{campaignId:int}/world-lore/autocomplete", async (
+        world.MapGet("/autocomplete", async (
             int campaignId,
             string? role,
             string? q,
@@ -458,7 +462,9 @@ public static class WorldLoreEndpoints
     }
 
     private static bool IsGm(HttpContext httpContext, int campaignId, string? role) =>
-        CampaignAccessResolver.Resolve(httpContext, campaignId, role).IsEffectiveGm;
+        httpContext.Items.TryGetValue("world-lore-is-gm",out var permitted)
+            ? permitted is true && !string.Equals(role,"players",StringComparison.OrdinalIgnoreCase)
+            : false;
 
     private static string NormalizeVis(string? vis) =>
         string.Equals(vis, "gm", StringComparison.OrdinalIgnoreCase) ? "gm" : "players";

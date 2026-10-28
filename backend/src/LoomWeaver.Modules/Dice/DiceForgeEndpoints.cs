@@ -19,14 +19,18 @@ public static class DiceForgeEndpoints
         "skin-nordic-stone",
         "skin-gloss-resin",
         "skin-engraved-steel",
-        "skin-astral-glass"
+        "skin-astral-glass",
+        "skin-hollow-dragon",
+        "skin-dragon-eye"
     };
 
     private static readonly HashSet<string> UnlockedModels = new(StringComparer.OrdinalIgnoreCase)
     {
         "model-classic-chamfer",
         "model-sharp-gem",
-        "model-custom-glb"
+        "model-custom-glb",
+        "model-dragon-hollow",
+        "model-dragon-eye"
     };
 
     private static DiceForgeLoadoutContract ActiveLoadout = new(
@@ -82,6 +86,8 @@ public static class DiceForgeEndpoints
     public static IReadOnlyList<DiceSkinPresetContract> GetCuratedSkins() => new[]
     {
         new DiceSkinPresetContract("skin-obsidian-gold", "Runed Obsidian & Molten Gold", "Volcanic Glass + Gold Inlay", "#14131a", "#e5b85c", 0.35, 0.22, "Solar Supernova", "Basalt Fault Fracture", "Free"),
+        new DiceSkinPresetContract("skin-hollow-dragon", "Hollow Dragon Silver", "Sculpted Silver", "#707780", "#ecc56c", 1.0, 0.27, "Solar Supernova", "Artificer Overload Spark", "Free"),
+        new DiceSkinPresetContract("skin-dragon-eye", "Emerald Dragon Eye", "Dragon Scale Steel", "#434b50", "#38eb88", 0.95, 0.33, "Solar Supernova", "Artificer Overload Spark", "Free"),
         new DiceSkinPresetContract("skin-nordic-stone", "Kildrid Runestone", "Carved Mountain Basalt", "#2b2f36", "#63d2ff", 0.12, 0.78, "Astral Singularity", "Basalt Fault Fracture", "Free"),
         new DiceSkinPresetContract("skin-gloss-resin", "Loom Emerald Resin", "Polished Tournament Resin", "#0f3828", "#49e892", 0.06, 0.18, "Solar Supernova", "Ashen Smolder", "Free"),
         new DiceSkinPresetContract("skin-engraved-steel", "Vandia Damascus Steel", "Brushed Damascus Steel", "#303640", "#49e892", 0.92, 0.26, "Solar Supernova", "Artificer Overload Spark", "Free"),

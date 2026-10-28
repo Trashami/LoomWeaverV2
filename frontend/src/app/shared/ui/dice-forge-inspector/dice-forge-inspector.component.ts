@@ -88,7 +88,9 @@ export class LwDiceForgeInspectorComponent {
   patch<K extends keyof DiceCustomRuntimeConfig>(key: K, value: DiceCustomRuntimeConfig[K]): void {
     if (key === 'modelId') {
       const model = this.models().find(model => model.id === value);
-      if (model) this.configPatched.emit({ modelId: model.id, chamferBevelFactor: model.chamferFactor });
+      if (model) this.configPatched.emit({ modelId: model.id, chamferBevelFactor: model.chamferFactor,
+        ...(model.ornament ? { surfaceStyleOverride: 'metal' as const, reflectionMetallic: 0.95,
+          surfaceRoughness: 0.28, coreOpacity: 1 } : {}) });
       return;
     }
     if (key === 'surfaceStyleOverride') {

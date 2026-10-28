@@ -88,6 +88,8 @@
               type="button"
               class="lw-dice-inspector__card-btn"
               [class.is-active]="customConfig().modelId === model.id"
+              [attr.aria-pressed]="customConfig().modelId === model.id"
+              [title]="model.description"
               (click)="patch('modelId', model.id)"
             >
               <div class="lw-dice-inspector__card-top">
@@ -100,6 +102,9 @@
           }
         </div>
 
+        @if (customConfig().modelId === 'model-dragon-eye') {
+          <p class="lw-dice-inspector__label">The dragon eye marks 20 on the D20.</p>
+        }
         <label class="lw-dice-inspector__slider">
           <div class="lw-dice-inspector__slider-head">
             <span>Edge sharpness</span>

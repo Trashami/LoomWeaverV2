@@ -1,6 +1,7 @@
 import { DiceLightPlugin, updateDiceLight } from './dice-light.plugin';
 import { setNumberWorldSize } from './number-layout';
 import { addDiceModelFrame } from '../models/model-frame.builder';
+import { attachDragonSculpt } from '../models/dragon-dice.builder';
 import {
   Color3,
   CubeTexture,
@@ -118,7 +119,8 @@ export function buildDieFaceMaterials(
 
   for (let i = 0; i < faceVals.length; i++) {
     const val = faceVals[i];
-    const label = type === 'd100' ? (val === 10 ? '00' : `${val * 10}`) : type === 'd10' && val === 10 ? '0' : String(val);
+    const label = model.ornament === 'dragon-scales' && type === 'd20' && val === 20 ? ''
+      : type === 'd100' ? (val === 10 ? '00' : `${val * 10}`) : type === 'd10' && val === 10 ? '0' : String(val);
 
     const layout = layoutGeometry.faceLayouts.get(val)!;
     const canvases =
@@ -151,6 +153,17 @@ export function buildDieFaceMaterials(
     configure(faceMat);
 
     faceMat.alpha = surface === 'glass' ? Math.min(0.5, coreAlpha) : coreAlpha;
+    if (model.ornament) {
+      faceMat.albedoTexture.hasAlpha = true;
+      faceMat.useAlphaFromAlbedoTexture = true;
+      faceMat.transparencyMode = PBRMaterial.PBRMATERIAL_ALPHATEST;
+      faceMat.alphaCutOff = 0.45;
+      faceMat.alpha = 1;
+      faceMat.backFaceCulling = true;
+      faceMat.useParallax = false;
+      faceMat.useParallaxOcclusion = false;
+      faceMat.metallic = model.ornament === 'dragon-scales' ? 0.15 : 0.85;
+    }
 
     materials.push(faceMat);
   }
@@ -185,6 +198,7 @@ export function buildBabylonPolyhedralDie(
   mesh.material = multiMat;
 
   applySubMeshesToDieMesh(mesh, builtGeometry);
+  if (model.ornament) attachDragonSculpt(mesh, type, 1.15 * sizeMultiplier, chamfer, model, custom, builtGeometry, scene);
   if (model.id === 'model-caged-filigree') {
     faceMaterials[0].alpha = 0.08;
     addDiceModelFrame(mesh, type, 1.15 * sizeMultiplier, faceMaterials[0], scene);

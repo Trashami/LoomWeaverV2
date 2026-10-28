@@ -36,7 +36,7 @@ export function runDiceGeometryRegression(): string {
       if (type === 'd20') signatures.add(JSON.stringify(geometry.vertexData.positions));
     }
   }
-  check(signatures.size === 5, 'all five shape profiles produce different geometry');
+  check(signatures.size === DICE_MODEL_CATALOG.length, 'all shape profiles produce different geometry');
   const tetra = getPolyhedronRawTable('d4');
   const geometry = buildBabylonDieVertexData('d4');
   const values = new Map<number, number>();
@@ -64,7 +64,7 @@ export function runDiceGeometryRegression(): string {
     normal.rotateByQuaternionToRef(getRotationForTopValue(type, type === 'd100' ? 10 : 1, 0, direction), world);
     check(Vector3.Dot(world, direction) > 0.999, `${type}: yaw must preserve the requested result-facing direction`);
   }
-  return 'PASS: all faces fit, five distinct shapes, consistent d4 corners and all four upright outcomes.';
+  return 'PASS: all faces fit, distinct catalog shapes, consistent d4 corners and all four upright outcomes.';
 }
 
 

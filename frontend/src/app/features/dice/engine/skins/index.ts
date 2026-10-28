@@ -10,6 +10,8 @@ import { NORDIC_SKIN } from './nordic.skin';
 import { OBSIDIAN_SKIN } from './obsidian.skin';
 import { PLASTIC_SKIN } from './plastic.skin';
 import { VOID_SKIN } from './void.skin';
+import { HOLLOW_DRAGON_SKIN, DRAGON_EYE_SKIN } from './dragon-metal.skin';
+export * from './dragon-metal.skin';
 
 export * from './dice-skin.types';
 export * from './obsidian.skin';
@@ -26,6 +28,8 @@ export * from './clockwork-brass.skin';
 
 export const DICE_SKIN_CATALOG: DiceSkinConfig[] = [
   OBSIDIAN_SKIN,
+  HOLLOW_DRAGON_SKIN,
+  DRAGON_EYE_SKIN,
   NORDIC_SKIN,
   PLASTIC_SKIN,
   ENGRAVED_STEEL_SKIN,

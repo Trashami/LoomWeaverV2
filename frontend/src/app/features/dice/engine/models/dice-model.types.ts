@@ -19,6 +19,7 @@ export interface DiceModelDefinition {
   name: string;
   description: string;
   geometryMode: 'procedural-chamfer' | 'glb-mesh';
+  ornament?: 'dragon-openwork' | 'dragon-scales';
   chamferFactor: number;
   scaleMultiplier: number;
   edgeSharpnessLabel: string;

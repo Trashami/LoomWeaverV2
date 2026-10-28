@@ -64,6 +64,22 @@ export const DICE_MODEL_CATALOG: DiceModelDefinition[] = [
     unlockSource: 'free',
     priceLabel: 'Included',
     isDefaultUnlocked: true
+  },
+  {
+    id: 'model-dragon-hollow', name: 'Hollow Dragon',
+    description: 'Open metal frames with sculpted dragons, wing ribs and curled tails on every face.',
+    geometryMode: 'procedural-chamfer', ornament: 'dragon-openwork',
+    chamferFactor: 0.925, scaleMultiplier: 1.04,
+    edgeSharpnessLabel: 'Open dragon metalwork',
+    unlockSource: 'free', priceLabel: 'Included', isDefaultUnlocked: true
+  },
+  {
+    id: 'model-dragon-eye', name: 'Dragon Eye',
+    description: 'Overlapping metal scales and a sculpted emerald eye on the D20’s 20 face.',
+    geometryMode: 'procedural-chamfer', ornament: 'dragon-scales',
+    chamferFactor: 0.945, scaleMultiplier: 1.02,
+    edgeSharpnessLabel: 'Raised dragon scales',
+    unlockSource: 'free', priceLabel: 'Included', isDefaultUnlocked: true
   }
 ];
 

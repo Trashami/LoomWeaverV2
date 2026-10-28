@@ -1,4 +1,5 @@
 import { DieFaceLayout } from '../models/face-layout';
+import { resolveDiceModel } from '../models/dice-model.catalog';
 import { faceNumberPlacements, placementFits, numberFont } from './number-layout';
 import { drawEngravedLabel } from './number-engraving.drawer';
 import { DiceBlendMode } from '../dice-physics.types';
@@ -125,6 +126,11 @@ export function createFaceCanvas(
 
   eCtx.fillStyle = '#000000';
   eCtx.fillRect(0, 0, size, size);
+
+  if (resolveDiceModel(custom.modelId).ornament) {
+    ctx.clearRect(0, 0, size, size);
+    hCtx.fillStyle = 'rgb(128,128,128)'; hCtx.fillRect(0, 0, size, size);
+  }
 
   if (label && layout) paintFaceNumbers({ diffuseCanvas, heightCanvas, emissiveCanvas }, label, layout, worldFontSize, skin, custom);
   return { diffuseCanvas, heightCanvas, emissiveCanvas };

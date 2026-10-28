@@ -1,3 +1,4 @@
+import { WallBrushController } from '../walls/wall-brush-controller';
 import { Injectable, signal } from '@angular/core';
 import {
   ArcRotateCamera,
@@ -78,6 +79,7 @@ export interface GhostAssetConfig {
 
 @Injectable({ providedIn: 'root' })
 export class BabylonMapStageService {
+  readonly wallBrush = new WallBrushController();
   private engine: Engine | null = null;
   private scene: Scene | null = null;
   private camera: ArcRotateCamera | null = null;
@@ -229,6 +231,8 @@ export class BabylonMapStageService {
             return;
           }
 
+          if (this.wallBrush.handle(this.scene, pointerInfo.type, evt)) return;
+
           if (evt.button === 0) {
             this.isLeftPointerDown = true;
             this.holdTicks = 0;
@@ -242,6 +246,7 @@ export class BabylonMapStageService {
         }
 
         if (pointerInfo.type === PointerEventTypes.POINTERUP) {
+          if (!this.isCameraOrbiting && this.wallBrush.handle(this.scene, pointerInfo.type, evt)) return;
           const wasLeftDown = this.isLeftPointerDown;
           const wasCameraOrbiting = this.isCameraOrbiting;
           this.isLeftPointerDown = false;
@@ -277,6 +282,7 @@ export class BabylonMapStageService {
         }
 
         if (pointerInfo.type === PointerEventTypes.POINTERMOVE) {
+          if (!this.isCameraOrbiting && this.wallBrush.handle(this.scene, pointerInfo.type, evt)) return;
           if (this.isCameraOrbiting) {
             return;
           }

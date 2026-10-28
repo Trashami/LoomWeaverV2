@@ -1,3 +1,4 @@
+import { DEFAULT_WALL_BRUSH, WallBrushSettings, WallPaintDab } from './engine/walls/wall-surface.models';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -7,6 +8,7 @@ import {
   OnDestroy,
   ViewChild,
   computed,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -147,6 +149,34 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   readonly floorColorHex = signal<string>('#ffffff');
   readonly floorColorStrength = signal<number>(0);
   readonly floorColorBlendMode = signal<MapFloorBlendMode>('multiply');
+  readonly wallBrush = signal<WallBrushSettings>(DEFAULT_WALL_BRUSH);
+  readonly selectedWallSmoothing = computed(() =>
+    this.sceneGraph().walls?.find(w => w.id === this.selectedPlacedId())?.terrainSmoothing ?? 75);
+  private readonly wallBrushSync = effect(() => {
+    const id = this.selectedPlacedKind() === 'wall' && this.activeDockToolId() === 'select'
+      ? this.selectedPlacedId() : null;
+    this.stage.wallBrush.settings = this.wallBrush();
+    this.stage.wallBrush.wallId = id;
+    if (!id || !this.wallBrush().active) this.stage.wallBrush.clearCursor();
+    this.stage.wallBrush.onStroke = dabs => this.commitWallPaintStroke(id, dabs);
+    this.syncSurfaceLock();
+  });
+
+  onWallSmoothingChange(terrainSmoothing: number): void {
+    const id = this.selectedPlacedId();
+    if (!id) return;
+    this.recordHistoryBeforeEdit('Adjust wall terrain fit');
+    this.commitSceneUpdate(cur => ({ ...cur, revision: cur.revision + 1,
+      walls: cur.walls?.map(w => w.id === id ? { ...w, terrainSmoothing } : w) }));
+  }
+
+  private commitWallPaintStroke(id: string | null, dabs: readonly WallPaintDab[]): void {
+    if (!id || !dabs.length) return;
+    this.recordHistoryBeforeEdit('Paint selected wall surface');
+    this.commitSceneUpdate(cur => ({ ...cur, revision: cur.revision + 1,
+      walls: cur.walls?.map(w => w.id === id ? { ...w, paintDabs: [...(w.paintDabs ?? []), ...dabs] } : w) }));
+  }
+
   readonly floorBrushActive = signal<boolean>(false);
   readonly floorBrushColorHex = signal<string>('#3b7a47');
   readonly floorBrushBlendMode = signal<MapFloorBlendMode>('multiply');
@@ -363,7 +393,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       tool === 'water' ||
       tool === 'scatter' ||
       isFreehandWall ||
-      isFloorBrush;
+      isFloorBrush || (tool === 'select' && this.selectedPlacedKind() === 'wall' && this.wallBrush().active);
     this.stage.setSurfaceDrawingLock(shouldLockSurface);
   }
 

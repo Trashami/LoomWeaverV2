@@ -9,6 +9,9 @@ import {
 import { MapWallSegmentNode, WallDrawMode, WallOpeningNode } from '../map-scene-contract';
 import { GlbModelCache } from '../rendering/glb-model-cache';
 import { TerrainMeshBuilder } from '../terrain/terrain-mesh.builder';
+import { wallEndExtension } from './wall-join-profile';
+import { fitWallStamp, wallGroundAt } from './wall-terrain-fit';
+import { WallSurfacePaint } from './wall-surface-paint';
 import { CutawayWallEngine } from './cutaway-wall.engine';
 
 export interface WallDoorAttachmentHit {
@@ -582,6 +585,7 @@ export class WallMeshBuilder {
     onGlbLoaded?: () => void,
   ): number {
     this.ensureSceneCache(scene);
+    WallSurfacePaint.clear(scene);
     scene.transformNodes
       .filter((n) => n.name.startsWith('lw-wall-node-') || n.name.startsWith('lw-door-node-'))
       .forEach((n) => n.dispose(false, false));
@@ -680,12 +684,15 @@ export class WallMeshBuilder {
           const rawSpanLen = (s1 - s0) * totalLen;
           // Extend ends at wall corners so 90-degree connections interlock flush with zero outside notch
           const startCornerExt =
-            s0 <= 0.01 ? wall.thicknessMeters * (0.48 + overlapFrac * 0.65) : 0;
+            s0 <= 0.01 ? wallEndExtension(a, [ux, uz], wall, walls,
+              wall.thicknessMeters * (0.48 + overlapFrac * 0.65)) : 0;
           const endCornerExt =
-            s1 >= 0.99 ? wall.thicknessMeters * (0.48 + overlapFrac * 0.65) : 0;
+            s1 >= 0.99 ? wallEndExtension(b, [ux, uz], wall, walls,
+              wall.thicknessMeters * (0.48 + overlapFrac * 0.65)) : 0;
           const spanStartX = a[0] + dx * s0 - ux * startCornerExt;
           const spanStartZ = a[1] + dz * s0 - uz * startCornerExt;
           const extendedSpanLen = rawSpanLen + startCornerExt + endCornerExt;
+          if (extendedSpanLen < 0.03) continue;
 
           const wallMeta = {
             lwNodeName: `lw-wall-${wall.id}`,
@@ -722,7 +729,9 @@ export class WallMeshBuilder {
               const minGroundY = Math.min(py0, pyMid, py1);
               const maxGroundY = Math.max(py0, pyMid, py1);
               const terrainDrop = maxGroundY - minGroundY;
-              const pieceHeight = height * stampScale + terrainDrop;
+              const smoothing = wall.terrainSmoothing ?? 75;
+              const ground = smoothing > 0 ? wallGroundAt(scene, px, pz, smoothing) : minGroundY;
+              const pieceHeight = height * stampScale + (smoothing > 0 ? 0.18 : terrainDrop);
 
               const inst = GlbModelCache.instantiateClone(
                 scene,
@@ -736,8 +745,10 @@ export class WallMeshBuilder {
                 wallMeta,
                 wall.colorHex ? { colorHex: wall.colorHex } : undefined,
               );
-              inst.position.set(px, minGroundY + offsetY, pz);
+              inst.position.set(px, ground + offsetY - (smoothing > 0 ? 0.18 : 0), pz);
               inst.rotation.y = angleY + rotOffsetRad;
+              fitWallStamp(scene, inst, [spanStartX, spanStartZ], [ux, uz],
+                extendedSpanLen, ground, smoothing);
               meshCount++;
             }
           } else {
@@ -814,14 +825,14 @@ export class WallMeshBuilder {
               scene,
               doorTpl,
               `lw-door-node-${op.id}`,
-              op.widthMeters,
-              doorH,
-              wall.thicknessMeters * 1.35,
+              op.widthMeters + 0.06,
+              doorH + 0.03,
+              wall.thicknessMeters * stampScale * 1.08,
               false,
               false,
               doorMeta,
             );
-            doorInst.position.set(doorX, groundY, doorZ);
+            doorInst.position.set(doorX, groundY + offsetY - 0.015, doorZ);
             doorInst.rotation.y = angleY + (op.isOpen ? Math.PI * 0.42 : 0);
             meshCount++;
           } else {
@@ -830,11 +841,11 @@ export class WallMeshBuilder {
               {
                 width: op.widthMeters,
                 height: doorH,
-                depth: wall.thicknessMeters * 1.25,
+                depth: wall.thicknessMeters * stampScale * 1.08,
               },
               scene,
             );
-            doorMesh.position.set(doorX, groundY + doorH / 2, doorZ);
+            doorMesh.position.set(doorX, groundY + offsetY + doorH / 2, doorZ);
             doorMesh.rotation.y = angleY + (op.isOpen ? Math.PI * 0.42 : 0);
             doorMesh.material = mat;
             doorMesh.metadata = doorMeta;
@@ -844,6 +855,7 @@ export class WallMeshBuilder {
       }
     }
 
+    WallSurfacePaint.replay(scene, walls);
     return meshCount;
   }
 

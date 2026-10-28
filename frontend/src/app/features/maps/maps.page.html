@@ -188,6 +188,10 @@
       @if (!rightDockCollapsed()) {
         <aside class="lw-maps-studio__right-dock" aria-label="Tool Settings & Selected Asset">
           <lw-map-properties-inspector
+            [wallBrush]="wallBrush()"
+            [wallSmoothing]="selectedWallSmoothing()"
+            (wallBrushChange)="wallBrush.set($event)"
+            (wallSmoothingChange)="onWallSmoothingChange($event)"
             [activeToolId]="activeDockToolId()"
             [selectedPlacedKind]="selectedPlacedKind()"
             [selectedNode]="selectedNode()"

@@ -1,0 +1,11 @@
+:host { display: grid; gap: .7rem; min-width: 0; }
+section { display: grid; gap: .6rem; padding: .65rem; border: 1px solid #49e89230; border-radius: 8px; background: #091a1266; min-width: 0; }
+h4 { margin: 0; font-size: .74rem; color: #d9b77a; }
+p { margin: 0; font-size: .7rem; line-height: 1.5; color: #c4e0d0c7; }
+label { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .3rem; font-size: .72rem; }
+strong { color: #49e892; }
+input[type=range] { flex-basis: 100%; width: 100%; min-width: 0; margin-inline: 0; accent-color: #2ee66b; }
+input[type=color] { width: 2rem; height: 1.6rem; border: 1px solid #49e89255; background: transparent; }
+button { padding: .5rem; border-radius: 6px; border: 1px solid #49e89280; background: #123b28; color: #edf8f1; cursor: pointer; }
+button[aria-pressed=true] { background: #236b43; }
+button:focus-visible, input:focus-visible { outline: 2px solid #d9b77a; outline-offset: 2px; }

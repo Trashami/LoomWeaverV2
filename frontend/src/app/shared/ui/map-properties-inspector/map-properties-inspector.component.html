@@ -742,32 +742,11 @@
             </div>
           </div>
 
-          <!-- Wall Custom Paint / Tint -->
-          <div class="lw-map-inspector__group-box">
-            <div class="lw-map-inspector__slider-head">
-              <span>Wall Stone Tint / Paint Color</span>
-              <input
-                type="color"
-                class="lw-map-inspector__color-picker"
-                [value]="node.colorHex || '#ffffff'"
-                (input)="onStrInput($event, colorHexChange)"
-              />
-            </div>
-            <div class="lw-map-inspector__swatch-grid">
-              @for (sw of paintSwatches; track sw.hex) {
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__swatch-btn"
-                  [class.lw-map-inspector__swatch-btn--active]="(node.colorHex || '#ffffff').toLowerCase() === sw.hex"
-                  (click)="colorHexChange.emit(sw.hex)"
-                >
-                  <span class="lw-map-inspector__swatch-dot" [style.background]="sw.hex"></span>
-                  <span>{{ sw.label }}</span>
-                </button>
-              }
-            </div>
-          </div>
+          @if (hasPlacedSelection()) {
+            <lw-wall-surface-controls [brush]="wallBrush()" [smoothing]="wallSmoothing()"
+              (brushChange)="wallBrushChange.emit($event)"
+              (smoothingChange)="wallSmoothingChange.emit($event)" />
+          }
 
           @if (hasPlacedSelection()) {
             <button

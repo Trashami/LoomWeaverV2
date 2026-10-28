@@ -1,0 +1,28 @@
+<section aria-label="Wall terrain fit">
+  <h4>Terrain fit</h4>
+  <label>Continuous slope <strong>{{ smoothing() }}%</strong>
+    <input type="range" min="0" max="100" step="5" [value]="smoothing()"
+      (input)="smoothingChange.emit(value($event))" aria-label="Wall terrain smoothing" />
+  </label>
+  <p>Blend stamp heights along the terrain. Set to zero for stepped masonry.</p>
+</section>
+<section aria-label="Selected wall surface brush">
+  <h4>Paint selected surface</h4>
+  <button type="button" ngpButton [attr.aria-pressed]="brush().active"
+    (click)="patch({ active: !brush().active })">{{ brush().active ? 'Stop painting' : 'Enable wall brush' }}</button>
+  <p>Drag over this wall to paint only the facing surface. Other walls and the reverse side stay untouched. Hold Space to move the camera.</p>
+  <label>Brush color <input type="color" [value]="brush().colorHex" (input)="color($event)" aria-label="Wall brush color" /></label>
+  <label>Brush radius <strong>{{ brush().radius }} m</strong>
+    <input type="range" min="0.1" max="3" step="0.05" [value]="brush().radius"
+      (input)="patch({ radius: value($event) })" aria-label="Wall brush radius" />
+  </label>
+  <label>Opacity <strong>{{ brush().opacity }}%</strong>
+    <input type="range" min="1" max="100" step="1" [value]="brush().opacity"
+      (input)="patch({ opacity: value($event) })" aria-label="Wall brush opacity" />
+  </label>
+  <label>Hardness / feathering <strong>{{ brush().hardness }}%</strong>
+    <input type="range" min="0" max="100" step="1" [value]="brush().hardness"
+      (input)="patch({ hardness: value($event) })" aria-label="Wall brush hardness" />
+  </label>
+  <p>Lower hardness gives a softer, feathered edge. Each stroke can be undone.</p>
+</section>

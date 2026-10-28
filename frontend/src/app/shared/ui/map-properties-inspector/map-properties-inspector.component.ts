@@ -1,3 +1,5 @@
+import { LwWallSurfaceControlsComponent } from '../wall-surface-controls/wall-surface-controls.component';
+import { DEFAULT_WALL_BRUSH, WallBrushSettings } from '../../../features/maps/engine/walls/wall-surface.models';
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { NgpButton } from 'ng-primitives/button';
 import {
@@ -107,12 +109,16 @@ export interface LwSelectedSceneNode {
 @Component({
   selector: 'lw-map-properties-inspector',
   standalone: true,
-  imports: [NgpButton, LwIconComponent],
+  imports: [NgpButton, LwIconComponent, LwWallSurfaceControlsComponent],
   templateUrl: './map-properties-inspector.component.html',
   styleUrl: './map-properties-inspector.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LwMapPropertiesInspectorComponent {
+  readonly wallBrush = input<WallBrushSettings>(DEFAULT_WALL_BRUSH);
+  readonly wallSmoothing = input<number>(75);
+  readonly wallBrushChange = output<WallBrushSettings>();
+  readonly wallSmoothingChange = output<number>();
   readonly activeToolId = input<string>('select');
   readonly selectedPlacedKind = input<'wall' | 'door' | 'object' | 'light' | null>(null);
   readonly selectedNode = input<LwSelectedSceneNode | null>(null);

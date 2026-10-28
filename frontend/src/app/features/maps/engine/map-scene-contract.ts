@@ -1,3 +1,5 @@
+import type { WallPaintDab } from './walls/wall-surface.models';
+
 export type MapRenderMode = '2D Blueprint' | '3D Tabletop' | 'Linked 2D <-> 3D';
 
 export type WallDrawMode =
@@ -147,6 +149,8 @@ export interface WallOpeningNode {
 }
 
 export interface MapWallSegmentNode {
+  readonly terrainSmoothing?: number;
+  readonly paintDabs?: readonly WallPaintDab[];
   readonly id: string;
   readonly name: string;
   readonly drawMode: WallDrawMode;

@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import { LwButtonComponent } from '../button/button.component';
 import { NgpButton } from 'ng-primitives/button';
 import { LwBadgeComponent, LwBadgeTone } from '../badge/badge.component';
 import { LW_MONSTER_PLACEHOLDER_IMAGE, LwMonsterSummaryVm } from './monster-card.models';
@@ -7,7 +8,7 @@ import { LW_MONSTER_PLACEHOLDER_IMAGE, LwMonsterSummaryVm } from './monster-card
 @Component({
   selector: 'lw-monster-card',
   standalone: true,
-  imports: [NgpButton, LwBadgeComponent],
+  imports: [NgpButton, LwBadgeComponent, LwButtonComponent],
   templateUrl: './monster-card.component.html',
   styleUrl: './monster-card.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

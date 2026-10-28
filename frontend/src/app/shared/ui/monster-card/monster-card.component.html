@@ -1,46 +1,33 @@
-<button
-  ngpButton
-  type="button"
-  class="lw-monster-card"
-  [class.lw-monster-card--custom]="monster().isCustom"
-  [class.lw-monster-card--in-collection]="inCollection()"
-  [attr.aria-label]="'Open full details for ' + monster().name"
-  (click)="monsterSelected.emit(monster())"
->
-  <div class="lw-monster-card__thumb-wrap">
-    <img
-      class="lw-monster-card__thumb"
-      [src]="resolvedImageUrl()"
-      [alt]="monster().name"
-      loading="lazy"
-      (error)="onImageError()"
-    />
-  </div>
-
-  <div class="lw-monster-card__body">
-    <div class="lw-monster-card__head">
-      <h3 class="lw-monster-card__title">{{ monster().name }}</h3>
-      <span class="lw-monster-card__cr" [attr.data-tone]="crTone()">CR {{ monster().challengeRating }}</span>
+<article class="lw-monster-card" [class.lw-monster-card--custom]="monster().isCustom"
+  [class.lw-monster-card--in-collection]="inCollection()">
+  <button ngpButton type="button" class="lw-monster-card__body"
+    [attr.aria-label]="'Open full details for ' + monster().name" (click)="monsterSelected.emit(monster())">
+    <div class="lw-monster-card__top">
+      <div class="lw-monster-card__thumb-wrap">
+        <img class="lw-monster-card__thumb" [src]="resolvedImageUrl()" [alt]="monster().name"
+          loading="lazy" (error)="onImageError()" />
+      </div>
+      <div class="lw-monster-card__head-meta">
+        <div class="lw-monster-card__badges">
+          <lw-badge [label]="'CR ' + monster().challengeRating" [tone]="crTone()" />
+          <lw-badge [label]="monster().creatureType" tone="neutral" />
+        </div>
+        <h3 class="lw-monster-card__title">{{ monster().name }}</h3>
+        <div class="lw-monster-card__stats">
+          <span class="lw-monster-card__stat">AC {{ monster().armorClass }}</span>
+          @if (monster().hitPoints > 0) { <span>HP {{ monster().hitPoints }}</span> }
+          <span>{{ monster().source }}</span>
+        </div>
+      </div>
     </div>
-
     <p class="lw-monster-card__desc">{{ monster().shortDescription }}</p>
-
-    <div class="lw-monster-card__meta">
-      <span class="lw-monster-card__stat">AC {{ monster().armorClass }}</span>
-      @if (monster().hitPoints > 0) {
-        <span class="lw-monster-card__stat">HP {{ monster().hitPoints }}</span>
-      }
-      @if (monster().isCustom) {
-        <span class="lw-monster-card__credit">by {{ monster().creatorUsername }}</span>
-      } @else {
-        <span class="lw-monster-card__source">{{ monster().source }}</span>
-      }
-      @if (inCollection()) {
-        <lw-badge label="In collection" tone="gold" />
-      }
-      @if (timesMet() > 0) {
-        <lw-badge [label]="'Met ' + timesMet() + 'x'" tone="emerald" />
-      }
+    @if (monster().isCustom) { <span class="lw-monster-card__credit">by {{ monster().creatorUsername }} · Free</span> }
+  </button>
+  <footer class="lw-monster-card__footer">
+    <lw-button variant="secondary" size="xs" label="Details" (pressed)="monsterSelected.emit(monster())" />
+    <div class="lw-monster-card__badges">
+      @if (inCollection()) { <lw-badge label="In collection" tone="gold" /> }
+      @if (timesMet() > 0) { <lw-badge [label]="'Met ' + timesMet() + 'x'" tone="emerald" /> }
     </div>
-  </div>
-</button>
+  </footer>
+</article>

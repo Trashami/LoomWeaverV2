@@ -68,6 +68,9 @@ export class BestiaryPageComponent {
     { value: 'cr-desc', label: 'Challenge (high to low)' },
   ];
 
+  readonly showFilters = signal(false);
+  readonly advancedFilterCount = computed(() => Number(this.catalog.crBandId() !== 'all') + Number(this.catalog.sourceFilter() !== 'all'));
+
   readonly detailOpen = signal<boolean>(false);
   readonly collectionModalOpen = signal<boolean>(false);
   readonly editingCollection = signal<LwMonsterCollectionVm | null>(null);

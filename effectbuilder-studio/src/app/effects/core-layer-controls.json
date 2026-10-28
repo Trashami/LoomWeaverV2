@@ -1,0 +1,1296 @@
+{
+  "version": 1,
+  "controls": [
+    {
+      "key": "size",
+      "label": "Size",
+      "group": "Geometry",
+      "min": 1,
+      "max": 200,
+      "step": 1,
+      "source": "layer"
+    },
+    {
+      "key": "spread",
+      "label": "Spread",
+      "group": "Geometry",
+      "min": 0,
+      "max": 150,
+      "step": 1,
+      "source": "layer"
+    },
+    {
+      "key": "intensity",
+      "label": "Brightness",
+      "group": "Appearance",
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "source": "layer"
+    },
+    {
+      "key": "count",
+      "label": "Particle count",
+      "group": "Particles",
+      "min": 1,
+      "max": 100,
+      "step": 1,
+      "source": "layer"
+    },
+    {
+      "key": "direction",
+      "label": "Direction (degrees)",
+      "group": "Motion",
+      "min": -180,
+      "max": 180,
+      "step": 1,
+      "source": "motion"
+    },
+    {
+      "key": "cone",
+      "label": "Emission cone (degrees)",
+      "group": "Particle motion",
+      "min": 0,
+      "max": 360,
+      "step": 1,
+      "source": "motion"
+    },
+    {
+      "key": "speed",
+      "label": "Animation speed",
+      "group": "Motion",
+      "min": 0,
+      "max": 4,
+      "step": 0.05,
+      "source": "motion"
+    },
+    {
+      "key": "twirl",
+      "label": "Particle swirl",
+      "group": "Particle motion",
+      "min": -6,
+      "max": 6,
+      "step": 0.1,
+      "source": "motion"
+    },
+    {
+      "key": "turbulence",
+      "label": "Particle turbulence",
+      "group": "Particle motion",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "source": "motion"
+    },
+    {
+      "key": "gravity",
+      "label": "Particle gravity",
+      "group": "Particle motion",
+      "min": -200,
+      "max": 200,
+      "step": 1,
+      "source": "motion"
+    },
+    {
+      "key": "drag",
+      "label": "Air resistance",
+      "group": "Particle motion",
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "source": "motion"
+    },
+    {
+      "key": "lifetime",
+      "label": "Particle lifetime",
+      "group": "Particle motion",
+      "min": 0.1,
+      "max": 1,
+      "step": 0.05,
+      "source": "motion"
+    },
+    {
+      "key": "trail",
+      "label": "Trail length",
+      "group": "Particle motion",
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "source": "motion"
+    },
+    {
+      "key": "seed",
+      "label": "Random seed",
+      "group": "Particle motion",
+      "min": 1,
+      "max": 9999,
+      "step": 1,
+      "source": "motion"
+    },
+    {
+      "key": "strands",
+      "label": "Ribbon strands",
+      "group": "Aura ribbons",
+      "min": 1,
+      "max": 8,
+      "step": 1,
+      "source": "aura"
+    },
+    {
+      "key": "turns",
+      "label": "Spiral turns",
+      "group": "Aura ribbons",
+      "min": 0,
+      "max": 6,
+      "step": 0.1,
+      "source": "aura"
+    },
+    {
+      "key": "height",
+      "label": "Spiral height",
+      "group": "Aura ribbons",
+      "min": 0,
+      "max": 200,
+      "step": 1,
+      "source": "aura"
+    },
+    {
+      "key": "width",
+      "label": "Ribbon width",
+      "group": "Aura ribbons",
+      "min": 0.2,
+      "max": 10,
+      "step": 0.1,
+      "source": "aura"
+    },
+    {
+      "key": "rotation",
+      "label": "Rotation speed / direction",
+      "group": "Aura ribbons",
+      "min": -4,
+      "max": 4,
+      "step": 0.05,
+      "source": "aura"
+    },
+    {
+      "key": "motes",
+      "label": "Orbiting motes",
+      "group": "Aura ribbons",
+      "min": 0,
+      "max": 80,
+      "step": 1,
+      "source": "aura"
+    }
+  ],
+  "families": {
+    "beam": {
+      "renderer": "native",
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "count",
+        "speed",
+        "twirl",
+        "turbulence",
+        "gravity",
+        "lifetime",
+        "seed",
+        "direction"
+      ],
+      "particular": true
+    },
+    "lightning": {
+      "renderer": "native",
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "count",
+        "speed",
+        "twirl",
+        "turbulence",
+        "gravity",
+        "lifetime",
+        "seed",
+        "direction"
+      ],
+      "particular": true
+    },
+    "projectile": {
+      "renderer": "native",
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "count",
+        "speed",
+        "twirl",
+        "turbulence",
+        "gravity",
+        "lifetime",
+        "seed",
+        "direction",
+        "drag",
+        "trail"
+      ],
+      "particular": true
+    },
+    "burst": {
+      "renderer": "native",
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "count",
+        "speed",
+        "twirl",
+        "turbulence",
+        "gravity",
+        "lifetime",
+        "seed"
+      ],
+      "particular": true
+    },
+    "aura": {
+      "renderer": "native",
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "count",
+        "speed",
+        "twirl",
+        "turbulence",
+        "gravity",
+        "lifetime",
+        "seed"
+      ],
+      "particular": true
+    },
+    "sparks": {
+      "renderer": "native",
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "count",
+        "speed",
+        "twirl",
+        "turbulence",
+        "gravity",
+        "lifetime",
+        "seed",
+        "direction",
+        "cone",
+        "drag"
+      ],
+      "particular": true
+    },
+    "ring": {
+      "renderer": "native",
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "count",
+        "speed",
+        "twirl",
+        "turbulence",
+        "gravity",
+        "lifetime",
+        "seed"
+      ],
+      "particular": true
+    },
+    "cone": {
+      "renderer": "native",
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "count",
+        "speed",
+        "twirl",
+        "turbulence",
+        "gravity",
+        "lifetime",
+        "seed",
+        "direction"
+      ],
+      "particular": true
+    },
+    "wall": {
+      "renderer": "native",
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "count",
+        "speed",
+        "twirl",
+        "turbulence",
+        "gravity",
+        "lifetime",
+        "seed",
+        "direction"
+      ],
+      "particular": true
+    },
+    "cloud": {
+      "renderer": "native",
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "count",
+        "speed",
+        "twirl",
+        "turbulence",
+        "gravity",
+        "lifetime",
+        "seed"
+      ],
+      "particular": true
+    },
+    "sigil": {
+      "renderer": "native",
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "count",
+        "speed",
+        "twirl",
+        "turbulence",
+        "gravity",
+        "lifetime",
+        "seed"
+      ],
+      "particular": true
+    },
+    "tether": {
+      "renderer": "native",
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "count",
+        "speed",
+        "twirl",
+        "turbulence",
+        "gravity",
+        "lifetime",
+        "seed",
+        "direction"
+      ],
+      "particular": true
+    },
+    "whip": {
+      "renderer": "native",
+      "controls": [
+        "size",
+        "intensity",
+        "direction",
+        "seed"
+      ],
+      "particular": true
+    },
+    "sky_projectile": {
+      "renderer": "extended",
+      "controls": [
+        "size",
+        "intensity",
+        "count",
+        "speed",
+        "turbulence",
+        "drag",
+        "trail",
+        "seed"
+      ],
+      "particular": true
+    },
+    "sky_beam": {
+      "renderer": "extended",
+      "controls": [
+        "intensity",
+        "count",
+        "speed",
+        "turbulence",
+        "seed"
+      ],
+      "particular": true
+    },
+    "sky_lightning": {
+      "renderer": "extended",
+      "controls": [
+        "intensity",
+        "seed"
+      ],
+      "particular": true
+    },
+    "chain_lightning": {
+      "renderer": "extended",
+      "controls": [
+        "size",
+        "intensity",
+        "seed"
+      ],
+      "particular": true
+    },
+    "shield": {
+      "renderer": "extended",
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "direction"
+      ],
+      "particular": true
+    },
+    "ground": {
+      "renderer": "extended",
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "seed"
+      ],
+      "particular": true
+    },
+    "emitter": {
+      "renderer": "extended",
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "count",
+        "speed",
+        "seed"
+      ],
+      "particular": true
+    },
+    "vortex": {
+      "renderer": "extended",
+      "controls": [
+        "size",
+        "spread",
+        "intensity"
+      ],
+      "particular": true
+    },
+    "portal": {
+      "renderer": "extended",
+      "controls": [
+        "size",
+        "spread",
+        "intensity"
+      ],
+      "particular": true
+    },
+    "orbit": {
+      "renderer": "extended",
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "speed"
+      ],
+      "particular": true
+    },
+    "slash": {
+      "renderer": "extended",
+      "controls": [
+        "size",
+        "spread",
+        "intensity"
+      ],
+      "particular": true
+    },
+    "symbol": {
+      "renderer": "extended",
+      "controls": [
+        "size",
+        "spread",
+        "intensity"
+      ],
+      "particular": true
+    },
+    "eruption": {
+      "renderer": "extended",
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "seed"
+      ],
+      "particular": true
+    },
+    "distortion": {
+      "renderer": "extended",
+      "controls": [
+        "size",
+        "spread",
+        "intensity"
+      ],
+      "particular": true
+    },
+    "trail": {
+      "renderer": "extended",
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "seed"
+      ],
+      "particular": true
+    },
+    "sound": {
+      "renderer": "extended",
+      "controls": [
+        "size",
+        "spread",
+        "intensity"
+      ],
+      "particular": false
+    }
+  },
+  "overrides": {
+    "aura-ribbons": {
+      "controls": [
+        "size",
+        "spread",
+        "intensity",
+        "count",
+        "speed",
+        "twirl",
+        "turbulence",
+        "gravity",
+        "lifetime",
+        "seed",
+        "strands",
+        "turns",
+        "height",
+        "width",
+        "rotation",
+        "motes"
+      ]
+    }
+  },
+  "variantExclusions": {
+    "trail": {
+      "silk_ribbon": [
+        "seed"
+      ],
+      "ember_wake": [
+        "seed"
+      ],
+      "spinning_tooth": [
+        "seed"
+      ]
+    }
+  },
+  "rendererSettings": {
+    "projectileCore": {
+      "kinds": [
+        "projectile"
+      ],
+      "fields": {
+        "arc": {
+          "min": -180,
+          "max": 180
+        },
+        "coreScale": {
+          "min": 0.4,
+          "max": 2.5
+        },
+        "coronaSize": {
+          "min": 0,
+          "max": 2.5
+        },
+        "spinSpeed": {
+          "min": 0,
+          "max": 4
+        },
+        "orbitCount": {
+          "min": 0,
+          "max": 6
+        },
+        "wakeRibbons": {
+          "min": 1,
+          "max": 5
+        },
+        "wakeLength": {
+          "min": 0.1,
+          "max": 2
+        },
+        "element": {
+          "values": [
+            "fire",
+            "ice",
+            "snow",
+            "eldritch",
+            "lightning",
+            "acid",
+            "radiant",
+            "shadow"
+          ]
+        },
+        "shape": {
+          "values": [
+            "sphere",
+            "comet",
+            "lance",
+            "prism",
+            "star"
+          ]
+        }
+      }
+    },
+    "skyProjectile": {
+      "kinds": [
+        "sky_projectile"
+      ],
+      "fields": {
+        "arc": {
+          "min": -180,
+          "max": 180
+        },
+        "coreScale": {
+          "min": 0.4,
+          "max": 2.5
+        },
+        "coronaSize": {
+          "min": 0,
+          "max": 2.5
+        },
+        "spinSpeed": {
+          "min": 0,
+          "max": 4
+        },
+        "orbitCount": {
+          "min": 0,
+          "max": 6
+        },
+        "wakeRibbons": {
+          "min": 1,
+          "max": 5
+        },
+        "wakeLength": {
+          "min": 0.1,
+          "max": 2
+        },
+        "element": {
+          "values": [
+            "fire",
+            "ice",
+            "snow",
+            "eldritch",
+            "lightning",
+            "acid",
+            "radiant",
+            "shadow"
+          ]
+        },
+        "shape": {
+          "values": [
+            "sphere",
+            "comet",
+            "lance",
+            "prism",
+            "star"
+          ]
+        },
+        "skyHeight": {
+          "min": 20,
+          "max": 180
+        },
+        "skySlantX": {
+          "min": -140,
+          "max": 140
+        },
+        "skySlantZ": {
+          "min": -140,
+          "max": 140
+        },
+        "hitOffsetX": {
+          "min": -80,
+          "max": 80
+        },
+        "hitOffsetZ": {
+          "min": -80,
+          "max": 80
+        },
+        "hitHeight": {
+          "min": 0,
+          "max": 50
+        }
+      }
+    },
+    "skyBeam": {
+      "kinds": [
+        "sky_beam"
+      ],
+      "fields": {
+        "skyHeight": {
+          "min": 20,
+          "max": 180
+        },
+        "skySlantX": {
+          "min": -140,
+          "max": 140
+        },
+        "skySlantZ": {
+          "min": -140,
+          "max": 140
+        },
+        "hitOffsetX": {
+          "min": -80,
+          "max": 80
+        },
+        "hitOffsetZ": {
+          "min": -80,
+          "max": 80
+        },
+        "hitHeight": {
+          "min": 0,
+          "max": 50
+        },
+        "coreWidth": {
+          "min": 2,
+          "max": 60
+        },
+        "haloWidth": {
+          "min": 4,
+          "max": 120
+        },
+        "taper": {
+          "min": -1,
+          "max": 1
+        },
+        "waveAmp": {
+          "min": 0,
+          "max": 40
+        },
+        "waveFreq": {
+          "min": 1,
+          "max": 24
+        },
+        "skyAperture": {
+          "min": 0,
+          "max": 80
+        },
+        "impactFlare": {
+          "min": 0,
+          "max": 80
+        }
+      }
+    },
+    "skyLightning": {
+      "kinds": [
+        "sky_lightning"
+      ],
+      "fields": {
+        "skyHeight": {
+          "min": 20,
+          "max": 180
+        },
+        "skySlantX": {
+          "min": -140,
+          "max": 140
+        },
+        "skySlantZ": {
+          "min": -140,
+          "max": 140
+        },
+        "hitOffsetX": {
+          "min": -80,
+          "max": 80
+        },
+        "hitOffsetZ": {
+          "min": -80,
+          "max": 80
+        },
+        "hitHeight": {
+          "min": 0,
+          "max": 50
+        },
+        "arcCount": {
+          "min": 1,
+          "max": 8
+        },
+        "forkCount": {
+          "min": 0,
+          "max": 24
+        },
+        "forkSpread": {
+          "min": 5,
+          "max": 85
+        },
+        "forkLength": {
+          "min": 0.1,
+          "max": 1
+        },
+        "jaggedness": {
+          "min": 0,
+          "max": 100
+        },
+        "complexity": {
+          "min": 12,
+          "max": 80
+        },
+        "flickerRate": {
+          "min": 0,
+          "max": 30
+        },
+        "coreWidth": {
+          "min": 1,
+          "max": 25
+        },
+        "glowWidth": {
+          "min": 2,
+          "max": 60
+        },
+        "emitterCount": {
+          "min": 0,
+          "max": 60
+        },
+        "emitterSpread": {
+          "min": 2,
+          "max": 70
+        },
+        "coreColor": {
+          "color": true
+        },
+        "glowColor": {
+          "color": true
+        },
+        "emitterColor": {
+          "color": true
+        }
+      }
+    },
+    "particular": {
+      "kinds": [
+        "beam",
+        "lightning",
+        "projectile",
+        "burst",
+        "aura",
+        "sparks",
+        "ring",
+        "cone",
+        "wall",
+        "cloud",
+        "sigil",
+        "tether",
+        "whip",
+        "sky_projectile",
+        "sky_beam",
+        "sky_lightning",
+        "chain_lightning",
+        "shield",
+        "ground",
+        "emitter",
+        "vortex",
+        "portal",
+        "orbit",
+        "slash",
+        "symbol",
+        "eruption",
+        "distortion",
+        "trail",
+        "sound"
+      ],
+      "fields": {
+        "emitterSizeX": {
+          "min": 0,
+          "max": 140
+        },
+        "emitterSizeY": {
+          "min": 0,
+          "max": 140
+        },
+        "emitterSizeZ": {
+          "min": 0,
+          "max": 140
+        },
+        "velocity": {
+          "min": 0,
+          "max": 260
+        },
+        "velocityRandom": {
+          "min": 0,
+          "max": 100
+        },
+        "directionSpread": {
+          "min": 5,
+          "max": 180
+        },
+        "particleSize": {
+          "min": 1,
+          "max": 85
+        },
+        "sizeRandom": {
+          "min": 0,
+          "max": 100
+        },
+        "spriteRotationSpeed": {
+          "min": -8,
+          "max": 8
+        },
+        "motionStretch": {
+          "min": 1,
+          "max": 6
+        },
+        "gravity": {
+          "min": -160,
+          "max": 160
+        },
+        "airResistance": {
+          "min": 0,
+          "max": 4
+        },
+        "windY": {
+          "min": -120,
+          "max": 120
+        },
+        "turbulencePosition": {
+          "min": 0,
+          "max": 120
+        },
+        "turbulenceScale": {
+          "min": 0.2,
+          "max": 4
+        },
+        "turbulenceEvolution": {
+          "min": 0,
+          "max": 5
+        },
+        "spinAmplitude": {
+          "min": -6,
+          "max": 6
+        },
+        "floorBounce": {
+          "min": 0,
+          "max": 0.95
+        },
+        "auxEmitRate": {
+          "min": 0,
+          "max": 3
+        },
+        "auxSizeScale": {
+          "min": 0.1,
+          "max": 1.2
+        },
+        "enabled": {
+          "boolean": true
+        },
+        "orientToMotion": {
+          "boolean": true
+        },
+        "spriteType": {
+          "values": [
+            "flame_tongues",
+            "smoke_plume",
+            "ember_sparks",
+            "plasma_orb",
+            "star_flare",
+            "crystal_shard",
+            "shock_ring",
+            "arc_filament",
+            "molten_slag"
+          ]
+        },
+        "auxSpriteType": {
+          "values": [
+            "flame_tongues",
+            "smoke_plume",
+            "ember_sparks",
+            "plasma_orb",
+            "star_flare",
+            "crystal_shard",
+            "shock_ring",
+            "arc_filament",
+            "molten_slag"
+          ]
+        },
+        "emitterType": {
+          "values": [
+            "sphere",
+            "point",
+            "ring",
+            "disc",
+            "box",
+            "directional"
+          ]
+        },
+        "sizeOverLife": {
+          "values": [
+            "grow_fade",
+            "sharp_pop",
+            "expand",
+            "fade_out",
+            "pulse"
+          ]
+        },
+        "opacityOverLife": {
+          "values": [
+            "flash_decay",
+            "bell",
+            "fade_out",
+            "sustain",
+            "flicker"
+          ]
+        },
+        "colorOverLife": {
+          "values": [
+            "fire_gradient",
+            "core_to_main",
+            "smoke_cooling",
+            "cool_to_hot",
+            "main_only"
+          ]
+        }
+      }
+    },
+    "aura": {
+      "kinds": [
+        "aura"
+      ],
+      "fields": {
+        "strands": {
+          "min": 1,
+          "max": 8,
+          "integer": true
+        },
+        "turns": {
+          "min": 0,
+          "max": 6
+        },
+        "height": {
+          "min": 0,
+          "max": 200
+        },
+        "width": {
+          "min": 0.2,
+          "max": 10
+        },
+        "rotation": {
+          "min": -4,
+          "max": 4
+        },
+        "motes": {
+          "min": 0,
+          "max": 80,
+          "integer": true
+        }
+      }
+    }
+  },
+  "variants": {
+    "beam": [
+      "straight",
+      "wave",
+      "ribbon",
+      "pulse",
+      "helix"
+    ],
+    "lightning": [
+      "arc",
+      "branch",
+      "fork",
+      "chain",
+      "plasma"
+    ],
+    "projectile": [
+      "orb",
+      "comet",
+      "meteor",
+      "shard",
+      "swarm"
+    ],
+    "burst": [
+      "radial",
+      "fire",
+      "shatter",
+      "cone",
+      "implosion"
+    ],
+    "aura": [
+      "halo",
+      "vortex",
+      "flame",
+      "mist",
+      "orbit"
+    ],
+    "sparks": [
+      "twirl",
+      "fire",
+      "embers",
+      "pushback",
+      "fountain"
+    ],
+    "ring": [
+      "shockwave",
+      "ripple",
+      "runes",
+      "spiral",
+      "portal"
+    ],
+    "cone": [
+      "flame",
+      "frost",
+      "poison",
+      "force",
+      "shards"
+    ],
+    "wall": [
+      "force",
+      "fire",
+      "ice",
+      "thorns",
+      "stone"
+    ],
+    "cloud": [
+      "fog",
+      "poison",
+      "storm",
+      "darkness",
+      "blizzard"
+    ],
+    "sigil": [
+      "ward",
+      "runic",
+      "summoning",
+      "banishment",
+      "teleport"
+    ],
+    "tether": [
+      "chain",
+      "vine",
+      "arcane",
+      "soul",
+      "gravity"
+    ],
+    "whip": [
+      "vine",
+      "chain",
+      "flame",
+      "lightning",
+      "ribbon"
+    ],
+    "sky_projectile": [
+      "fireball",
+      "comet",
+      "glacier",
+      "starfall",
+      "void_orb"
+    ],
+    "sky_beam": [
+      "divine_smite",
+      "sacred_flame",
+      "moonbeam",
+      "orbital_lance",
+      "shadow_pillar"
+    ],
+    "sky_lightning": [
+      "thunderbolt",
+      "forked_tempest",
+      "chain_sky",
+      "divine_wrath",
+      "eldritch_storm"
+    ],
+    "chain_lightning": [
+      "arc_jump",
+      "storm_chain",
+      "forked_relay",
+      "overload",
+      "eldritch_arc"
+    ],
+    "shield": [
+      "hex_dome",
+      "aegis_wall",
+      "crystal_shell",
+      "runic_dome",
+      "force_bubble"
+    ],
+    "ground": [
+      "scorched_earth",
+      "ice_sheet",
+      "acid_pool",
+      "web_snare",
+      "corrupted_mire"
+    ],
+    "emitter": [
+      "rain_deluge",
+      "snow_flurry",
+      "falling_leaves",
+      "biolum_spores",
+      "rising_motes"
+    ],
+    "vortex": [
+      "arcane_funnel",
+      "flame_cyclone",
+      "maelstrom",
+      "gravity_well",
+      "astral_spiral"
+    ],
+    "portal": [
+      "arcane_gate",
+      "feywild_ring",
+      "shadow_rift",
+      "hellfire_maw",
+      "astral_tear"
+    ],
+    "orbit": [
+      "spirit_blades",
+      "earth_stones",
+      "star_crown",
+      "wisp_lanterns",
+      "runic_shards"
+    ],
+    "slash": [
+      "crescent_cleave",
+      "cross_slash",
+      "overhead_slam",
+      "whirlwind_arc",
+      "piercing_lunge"
+    ],
+    "symbol": [
+      "hunters_crest",
+      "hex_brand",
+      "divine_halo_glyph",
+      "blood_sigil",
+      "ancient_rune"
+    ],
+    "eruption": [
+      "stone_spikes",
+      "grasping_roots",
+      "magma_fissure",
+      "ice_spires",
+      "eldritch_tendrils"
+    ],
+    "distortion": [
+      "heat_shimmer",
+      "psychic_ripple",
+      "gravity_lens",
+      "chrono_warp",
+      "void_refraction"
+    ],
+    "trail": [
+      "silk_ribbon",
+      "ember_wake",
+      "spinning_tooth",
+      "stone_debris",
+      "ice_fragments"
+    ],
+    "sound": [
+      "arcane_chime",
+      "fire_roar",
+      "thunder_crack",
+      "frost_shatter",
+      "eldritch_hum"
+    ]
+  }
+}

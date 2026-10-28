@@ -1,3 +1,4 @@
+import { AuraSettings, parseAura } from './aura-settings';
 import { LightSettings, LIGHT_DEFAULTS, parseLight } from './spell-light-settings';
 import {
   ProjectileCoreSettings,
@@ -409,6 +410,7 @@ export function createFireballComposition(role?:FireMaterialSettings['role']):Ef
  return e;
 }
 export interface EffectLayer {
+ aura?: AuraSettings;
   lighting?: LightSettings; id: string; kind: EffectKind; variant: string; particular?:ParticularSettings; projectileCore?:ProjectileCoreSettings; skyProjectile?:SkyProjectileSettings; skyBeam?:SkyBeamSettings; skyLightning?:SkyLightningSettings; cinematic?:CinematicSettings; mageHand?:MageHandSettings; missile?: MagicMissileSettings; fireHit?:FireHitSettings; fireMaterial?:FireMaterialSettings; motion: EffectMotion; whip: WhipSettings; blendMode: EffectBlendMode; opacity: number; easing: Easing; opacityKeyframes: OpacityKeyframe[];
   color: string; secondaryColor: string; delay: number; duration: number; size: number;
   offsetX: number; offsetY: number; intensity: number; spread: number; count: number; enabled: boolean; anchor: 'caster' | 'target' | 'path';
@@ -501,7 +503,7 @@ export function parseEffect(value: unknown): EffectDefinition {
     const whip = { ...WHIP_DEFAULTS };
     for (const c of WHIP_CONTROLS) whip[c.key] = bounded(rawWhip[c.key], c.min, c.max, WHIP_DEFAULTS[c.key]);
     whip.thorns = Math.round(whip.thorns); whip.hold = 0;
-    return { lighting: parseLight(l['lighting']), id: typeof l['id'] === 'string' && l['id'] ? l['id'].slice(0, 80) : newId(), kind, variant, ...(particular ? {particular} : {}), ...(projectileCore ? {projectileCore} : {}), ...(skyProjectile ? {skyProjectile} : {}), ...(skyBeam ? {skyBeam} : {}), ...(skyLightning ? {skyLightning} : {}), ...(cinematic ? {cinematic} : {}), ...(mageHand ? {mageHand} : {}), ...(missile ? {missile} : {}), ...(fireHit ? {fireHit} : {}), ...(fireMaterial ? {fireMaterial} : {}), whip, easing: EASINGS.includes(l['easing'] as Easing) ? l['easing'] as Easing : 'linear', opacityKeyframes, blendMode: BLEND_MODES.includes(l['blendMode'] as EffectBlendMode) ? l['blendMode'] as EffectBlendMode : 'normal', opacity: bounded(l['opacity'], 0, 1, 1), offsetX: bounded(l['offsetX'], -200, 200, 0), offsetY: bounded(l['offsetY'], -200, 200, 0),
+    return { ...(kind==='aura'?{aura:parseAura(l['aura'],variant)}:{}), lighting: parseLight(l['lighting']), id: typeof l['id'] === 'string' && l['id'] ? l['id'].slice(0, 80) : newId(), kind, variant, ...(particular ? {particular} : {}), ...(projectileCore ? {projectileCore} : {}), ...(skyProjectile ? {skyProjectile} : {}), ...(skyBeam ? {skyBeam} : {}), ...(skyLightning ? {skyLightning} : {}), ...(cinematic ? {cinematic} : {}), ...(mageHand ? {mageHand} : {}), ...(missile ? {missile} : {}), ...(fireHit ? {fireHit} : {}), ...(fireMaterial ? {fireMaterial} : {}), whip, easing: EASINGS.includes(l['easing'] as Easing) ? l['easing'] as Easing : 'linear', opacityKeyframes, blendMode: BLEND_MODES.includes(l['blendMode'] as EffectBlendMode) ? l['blendMode'] as EffectBlendMode : 'normal', opacity: bounded(l['opacity'], 0, 1, 1), offsetX: bounded(l['offsetX'], -200, 200, 0), offsetY: bounded(l['offsetY'], -200, 200, 0),
       motion: { direction: bounded(m['direction'], -180, 180, defaults.direction), cone: bounded(m['cone'], 0, 360, defaults.cone), speed: bounded(m['speed'], 0, 4, defaults.speed),
         twirl: bounded(m['twirl'], -6, 6, defaults.twirl), turbulence: bounded(m['turbulence'], 0, 100, defaults.turbulence), gravity: bounded(m['gravity'], -200, 200, defaults.gravity),
         drag: bounded(m['drag'], 0, 1, defaults.drag), lifetime: bounded(m['lifetime'], 0.1, 1, defaults.lifetime), trail: bounded(m['trail'], 0, 1, defaults.trail), seed: Math.round(bounded(m['seed'], 1, 9999, 42)) },

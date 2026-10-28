@@ -1,0 +1,7 @@
+@for(group of groups();track group.name){
+<details open [attr.data-control-group]="group.name"><summary>{{group.name}}</summary>
+@for(control of group.controls;track control.key){
+<label><span>{{control.label}} <output>{{value(control)}}</output></span><input ngpInput type="range" [attr.aria-label]="control.label" [min]="control.min" [max]="control.max" [step]="control.step" [ngModel]="value(control)" (ngModelChange)="change(control,+$event)" /></label>
+}
+</details>
+}

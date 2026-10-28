@@ -1,3 +1,4 @@
+import { parseAura } from '../aura-settings';
 import {
   EffectDefinition,
   EffectLayer,
@@ -742,19 +743,19 @@ export function evaluateNativeLayer(
   }
 
   if (l.kind === 'aura' && ['vortex', 'orbit', 'halo'].includes(l.variant)) {
-    const turns = l.variant === 'vortex' ? 2.3 : 1.1;
-    for (let strand = 0; strand < 3; strand++) {
+    const aura = parseAura(l.aura, l.variant), turns = aura.turns;
+    for (let strand = 0; strand < aura.strands; strand++) {
       const pts = Array.from({ length: 65 }, (_, i) => {
         const u = i / 64,
-          a = u * TAU * turns + f.clock * l.motion.speed * (strand % 2 ? -1 : 1) + (strand * TAU) / 3,
+          a = u * TAU * turns + f.clock * l.motion.speed * aura.rotation * (strand % 2 ? -1 : 1) + (strand * TAU) / aura.strands,
           r = extent * (0.58 + 0.22 * Math.sin(u * Math.PI));
-        return point({ x: f.anchor.x + Math.cos(a) * r, y: f.anchor.y + Math.sin(a) * r }, (5 + u * extent * 0.9) * scale);
+        return point({ x: f.anchor.x + Math.cos(a) * r, y: f.anchor.y + Math.sin(a) * r }, (5 + u * extent * aura.height / 100) * scale);
       });
-      ribbon(pts, Math.max(0.7 * scale, size * 0.018), strand === 1 ? l.secondaryColor : l.color, true);
+      ribbon(pts, Math.max(0.7 * scale, size * 0.018) * aura.width, strand === 1 ? l.secondaryColor : l.color, true);
     }
-    for (let i = 0; i < 24; i++) {
-      const u = (i / 24 + f.clock * 0.12) % 1,
-        a = i * 2.399 + f.clock * 0.5,
+    for (let i = 0; i < aura.motes; i++) {
+      const u = (i / Math.max(1, aura.motes) + f.clock * l.motion.speed * 0.12) % 1,
+        a = i * 2.399 + f.clock * l.motion.speed * aura.rotation * 0.5,
         r = extent * (0.7 + 0.2 * Math.sin(i));
       particle({ x: f.anchor.x + Math.cos(a) * r, y: f.anchor.y + Math.sin(a) * r }, (1 + seeded(i, 71) * 1.4) * scale, Math.sin(u * Math.PI) * 0.8, 2, (6 + u * extent) * scale, a, 2, l.secondaryColor);
     }

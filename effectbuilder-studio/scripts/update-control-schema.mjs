@@ -1,0 +1,11 @@
+import {build} from 'esbuild';
+import fs from 'node:fs';
+await build({stdin:{contents:"export * from './src/app/effects/effect-definition';",resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',outfile:'dist/settings-metadata.mjs'});
+const m=await import('../dist/settings-metadata.mjs');
+const enumValues=items=>({values:items.map(x=>x.id)});
+const ranges=items=>Object.fromEntries(items.map(x=>[x.key,{min:x.min,max:x.max}]));
+const projectile={...ranges(m.PROJECTILE_CORE_CONTROLS),element:enumValues(m.PROJECTILE_ELEMENTS),shape:enumValues(m.PROJECTILE_SHAPES)};
+const skyOrigin=ranges(m.SKY_ORIGIN_CONTROLS);
+const schemas={projectileCore:{kinds:['projectile'],fields:projectile},skyProjectile:{kinds:['sky_projectile'],fields:{...projectile,...skyOrigin}},skyBeam:{kinds:['sky_beam'],fields:ranges(m.SKY_BEAM_CONTROLS)},skyLightning:{kinds:['sky_lightning'],fields:{...ranges(m.SKY_LIGHTNING_CONTROLS),coreColor:{color:true},glowColor:{color:true},emitterColor:{color:true}}},particular:{kinds:[...m.EFFECT_KINDS],fields:{...ranges([...m.PARTICULAR_EMITTER_CONTROLS,...m.PARTICULAR_PARTICLE_CONTROLS,...m.PARTICULAR_PHYSICS_CONTROLS,...m.PARTICULAR_AUX_CONTROLS]),enabled:{boolean:true},orientToMotion:{boolean:true},spriteType:enumValues(m.PARTICULAR_SPRITE_TYPES),auxSpriteType:enumValues(m.PARTICULAR_SPRITE_TYPES),emitterType:enumValues(m.PARTICULAR_EMITTER_TYPES),sizeOverLife:enumValues(m.PARTICULAR_SIZE_CURVES),opacityOverLife:enumValues(m.PARTICULAR_OPACITY_CURVES),colorOverLife:enumValues(m.PARTICULAR_COLOR_GRADIENTS)}}};
+const file='src/app/effects/core-layer-controls.json',catalog=JSON.parse(fs.readFileSync(file));schemas.aura={kinds:['aura'],fields:Object.fromEntries(catalog.controls.filter(c=>c.source==='aura').map(c=>[c.key,{min:c.min,max:c.max,...(['strands','motes'].includes(c.key)?{integer:true}:{})}]))};catalog.rendererSettings=schemas;catalog.variants=Object.fromEntries(m.EFFECT_KINDS.map(k=>[k,m.VARIANTS[k].map(v=>v.id)]));
+fs.writeFileSync(file,JSON.stringify(catalog,null,2)+'\n');

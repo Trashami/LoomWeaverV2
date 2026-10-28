@@ -5,7 +5,7 @@
   "scripts": {
     "start": "ng serve --host 127.0.0.1 --port 4310",
     "build": "ng build",
-    "test": "node scripts/check-effects.mjs && node scripts/check-native-runtime.mjs"
+    "test": "node scripts/check-effects.mjs && node scripts/check-native-runtime.mjs && node scripts/check-layer-controls.mjs"
   },
   "engines": {
     "node": ">=24.15 <25"
@@ -26,6 +26,7 @@
     "alertifyjs": "^1.14.0",
     "cannon-es": "^0.20.0",
     "leaflet": "^1.9.4",
+    "ng-primitives": "^0.131.3",
     "rxjs": "^7.8.0",
     "three": "^0.185.1",
     "tslib": "^2.8.0"

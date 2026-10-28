@@ -35,3 +35,16 @@
    - `EffectEmitterCatalog`: Authoritative catalog of 18 emitter presets (`Magic Bolt`, `Fire Burst`, `Ice Shards`, `Shadow Swirl`, `Holy Light`, `Poison Cloud`, `Rune Circle`, `Healing Aura`, `Lightning Arc`, `Smoke`, `Embers`, `Water Splash`, `Wind Gust`, `Leaf Swirl`, `Blood Mist`, `Arcane Sigil`, `Portal`, `Energy Beam`).
    - `EffectTimelineValidationEngine`: Validates emitter curves, clamps parameters, normalizes timeline track windows (`Light Beam`, `Rising Particles`, `Rune Circle`, `Dust`, `Sound`), evaluates in-game combat test telemetry, and computes SHA-256 export bundle checksums.
    - `EffectStudioEndpoints`: Exposes `/api/v2/effects/studio`, `/api/v2/effects/emitters`, `/api/v2/effects/save`, `/api/v2/effects/test-in-game`, and `/api/v2/effects/{effectId}/export`.
+
+## Layer inspector control catalog (2026-10-27)
+
+The active standalone client lives in `effectbuilder-studio/src/app/app.component.*` and its renderer is `effects/babylon/native-frame.ts`; the earlier engine/component paths above describe the original implementation.
+
+- `effects/core-layer-controls.json` declares all 29 families, 145 variants, shared numeric control groups, variant exclusions and bounded renderer settings. The backend embeds this same catalog for variant and settings validation.
+- `effects/layer-control-profile.ts` resolves controls for the active family, variant and renderer. `shared/components/layer-controls/` renders independent signal-input instances with a patch output and ng-primitives inputs.
+- Composition name is the saved visual's title. Associated spell comes from the existing searchable, paginated database spell picker; a custom-name field remains available. Choosing a spell does not replace layers or change gameplay rules.
+- Global identity, preview choreography, optional particle emitters, surface lighting and gameplay riders have separate collapsible sections. Shared controls are grouped into geometry, appearance, particles, motion and aura ribbons. Disabled lighting hides its dependent settings.
+- Aura vortex/orbit/halo layers support strand count, spiral turns, height, ribbon width, signed rotation and orbiting mote count through `AuraSettings`. Missing settings retain legacy geometry defaults. Settings survive import/export and server persistence; changing family clears incompatible aura settings.
+- `scripts/update-control-schema.mjs` refreshes renderer-setting bounds and variants from the existing typed settings definitions. Commit the regenerated JSON with changes to those definitions.
+
+Validation: `npm test` checks native frame generation and lifecycle, all 145 styles' exposed numeric controls against actual rendered output, aura JSON round trips and unsupported-control filtering. Afterward run `dotnet run --project backend/tests/EffectControls.Checks -- effectbuilder-studio/dist/control-fixtures.json` from the repository root to verify all core styles and spell/ambient presets pass server validation and malformed aura settings fail. Build the frontend with `npm run build` and backend with `dotnet build` before release.

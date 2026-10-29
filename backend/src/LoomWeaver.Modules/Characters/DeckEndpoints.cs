@@ -63,7 +63,9 @@ public static class DeckEndpoints
             }
         });
 
-        api.MapGet("/decks/{id:int}/draw", async (int id, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
+        // exclude is a comma-separated list of card keys ("refIndex-copy") already drawn from this deck.
+        // Replacement cards are always eligible; non-replacement copies are removed once drawn.
+        api.MapGet("/decks/{id:int}/draw", async (int id, string? exclude, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
         {
             try
             {
@@ -78,8 +80,18 @@ public static class DeckEndpoints
                 {
                     return Results.Problem("This deck has no resolvable cards.");
                 }
-                var card = cards[Random.Shared.Next(cards.Count)];
-                return Results.Ok(new { deckId = id, deckName = deck["name"], card });
+                var excluded = (exclude ?? string.Empty)
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var eligible = cards
+                    .Where(c => (bool)c["replacement"]! || !excluded.Contains((string)c["key"]!))
+                    .ToList();
+                if (eligible.Count == 0)
+                {
+                    return Results.Ok(new { deckId = id, deckName = deck["name"], exhausted = true, card = (object?)null });
+                }
+                var card = eligible[Random.Shared.Next(eligible.Count)];
+                return Results.Ok(new { deckId = id, deckName = deck["name"], exhausted = false, card });
             }
             catch (Exception ex)
             {
@@ -132,15 +144,21 @@ public static class DeckEndpoints
 
         var cards = new List<Dictionary<string, object?>>();
         var unique = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (key, count) in refs)
+        for (var refIndex = 0; refIndex < refs.Count; refIndex++)
         {
-            if (!bySetKey.TryGetValue(key, out var card))
+            var (key, count, replacement) = refs[refIndex];
+            if (!bySetKey.TryGetValue(key, out var source))
             {
                 continue;
             }
             unique.Add(key);
-            for (var i = 0; i < count; i++)
+            for (var copy = 0; copy < count; copy++)
             {
+                var card = new Dictionary<string, object?>(source, StringComparer.OrdinalIgnoreCase)
+                {
+                    ["key"] = $"{refIndex}-{copy}",
+                    ["replacement"] = replacement,
+                };
                 cards.Add(card);
             }
         }
@@ -150,9 +168,10 @@ public static class DeckEndpoints
     }
 
     // uid is "name|set|source"; the key is "name|set" because the source is the deck's own source_book.
-    private static List<(string Key, int Count)> ParseCardRefs(string? json)
+    // replacement:true means the card returns to the pool after it is drawn. Absent or false means it is removed.
+    private static List<(string Key, int Count, bool Replacement)> ParseCardRefs(string? json)
     {
-        var result = new List<(string Key, int Count)>();
+        var result = new List<(string Key, int Count, bool Replacement)>();
         if (string.IsNullOrWhiteSpace(json))
         {
             return result;
@@ -170,7 +189,8 @@ public static class DeckEndpoints
                 continue;
             }
             var count = entry.TryGetProperty("count", out var countEl) && countEl.TryGetInt32(out var c) && c > 0 ? c : 1;
-            result.Add(($"{parts[0]}|{parts[1]}", count));
+            var replacement = entry.TryGetProperty("replacement", out var replEl) && replEl.ValueKind == JsonValueKind.True;
+            result.Add(($"{parts[0]}|{parts[1]}", count, replacement));
         }
         return result;
     }

@@ -11,6 +11,8 @@ export interface LwDeckSummaryVm {
 }
 
 export interface LwDeckCardVm {
+  readonly key?: string;
+  readonly replacement?: boolean;
   readonly name: string;
   readonly set_name: string;
   readonly source_book: string;
@@ -27,7 +29,8 @@ export interface LwDeckDetailVm extends LwDeckSummaryVm {
 export interface LwDeckDrawVm {
   readonly deckId: number;
   readonly deckName: string;
-  readonly card: LwDeckCardVm;
+  readonly exhausted: boolean;
+  readonly card: LwDeckCardVm | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -46,7 +49,9 @@ export class DeckApiService {
     return this.http.get<LwDeckDetailVm>(`${this.base}/${id}`);
   }
 
-  drawCard(id: number): Observable<LwDeckDrawVm> {
-    return this.http.get<LwDeckDrawVm>(`${this.base}/${id}/draw`);
+  drawCard(id: number, excludeKeys: readonly string[]): Observable<LwDeckDrawVm> {
+    let params = new HttpParams();
+    if (excludeKeys.length) params = params.set('exclude', excludeKeys.join(','));
+    return this.http.get<LwDeckDrawVm>(`${this.base}/${id}/draw`, { params });
   }
 }

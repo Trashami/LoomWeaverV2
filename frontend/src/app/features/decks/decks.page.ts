@@ -28,6 +28,8 @@ export class DecksPageComponent {
   readonly decks = signal<readonly LwDeckSummaryVm[]>([]);
   readonly deck = signal<LwDeckDetailVm | null>(null);
   readonly drawn = signal<LwDeckCardVm | null>(null);
+  readonly exhausted = signal(false);
+  readonly drawnKeys = signal<readonly string[]>([]);
   readonly loading = signal(false);
   readonly errorMessage = signal('');
 
@@ -80,9 +82,28 @@ export class DecksPageComponent {
   draw(): void {
     const id = this.deck()?.id;
     if (!id) return;
-    this.api.drawCard(id).subscribe({
-      next: (res) => this.drawn.set(res.card),
+    this.api.drawCard(id, this.drawnKeys()).subscribe({
+      next: (res) => {
+        const card = res.card;
+        if (res.exhausted || !card) {
+          this.drawn.set(null);
+          this.exhausted.set(true);
+          return;
+        }
+        this.exhausted.set(false);
+        this.drawn.set(card);
+        const key = card.key;
+        if (key && !card.replacement) {
+          this.drawnKeys.update((keys) => [...keys, key]);
+        }
+      },
       error: () => this.errorMessage.set('Could not draw a card from this deck.'),
     });
+  }
+
+  resetDraw(): void {
+    this.drawnKeys.set([]);
+    this.drawn.set(null);
+    this.exhausted.set(false);
   }
 }

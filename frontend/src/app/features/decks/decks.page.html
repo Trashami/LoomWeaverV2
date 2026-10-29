@@ -38,6 +38,12 @@
     <div class="deck-detail">
       <div class="draw-panel">
         <button type="button" ngpButton class="draw-button" (click)="draw()">Draw a card</button>
+        @if (drawnKeys().length) {
+          <button type="button" ngpButton class="draw-button" (click)="resetDraw()">Reset deck</button>
+        }
+        @if (exhausted()) {
+          <p class="meta">All non-replacement cards have been drawn. Reset the deck to draw again.</p>
+        }
         @if (drawn(); as card) {
           <figure class="drawn-card">
             @if (card.face_image_url) {

@@ -19,16 +19,19 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from pathlib import Path
 from urllib.parse import unquote
 
 import pymysql
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from verify_5etools_image_refs import DEFAULT_IMG  # noqa: E402
+from sync_5etools_image_paths_from_json import load_declarations, sync  # noqa: E402
 
 DB_NAME = "loomweaver"
 PREFIX = "/5etools/"
 SAMPLE_LIMIT = 10
+DEFAULT_DATA = os.path.join(os.path.dirname(DEFAULT_IMG), "data")
 
 
 def resolve(img_root: str, ref: str) -> str | None:
@@ -79,11 +82,16 @@ def check_values(img_root: str, label: str, rows, misses_out: list) -> tuple[int
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--img", default=DEFAULT_IMG, help="5etools image root folder")
+    parser.add_argument("--data", default=DEFAULT_DATA, help="5etools data folder (JSON source of truth)")
     args = parser.parse_args()
 
     img_root = os.path.abspath(args.img)
     if not os.path.isdir(img_root):
         print(f"image root not found: {img_root}")
+        return 1
+    data_root = os.path.abspath(args.data)
+    if not os.path.isdir(data_root):
+        print(f"data folder not found: {data_root}")
         return 1
 
     password = os.environ.get("LW_DB_PASSWORD")
@@ -121,6 +129,16 @@ def main() -> int:
                     f"WHERE {column} IS NOT NULL AND {column} <> '' GROUP BY {column}"
                 )
                 check_values(img_root, f"dnd_deck_cards.{column}", cur.fetchall(), misses)
+
+            resolved, _ = load_declarations(Path(data_root), Path(img_root))
+            report, mismatches = sync(cur, resolved, Path(img_root), apply=False, clear_undeclared=False)
+            print("JSON-declared path match (DB image_path vs JSON path):")
+            for label, count in sorted(report.items()):
+                if "already correct" not in label:
+                    print(f"    {label}: {count}")
+            print(f"    rows whose image_path differs from JSON: {mismatches}")
+            if mismatches:
+                misses.append(("json-match", "image_path differs from JSON-declared path", mismatches))
     finally:
         conn.close()
 

@@ -139,7 +139,7 @@ Environment=DOTNET_ROOT=/usr/share/dotnet
 Environment=PATH=/usr/share/dotnet:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 EnvironmentFile=/etc/loomweaver/api.env
 Environment="Neo4j__Uri=bolt://127.0.0.1:7687"
-Environment="Neo4j__Username=neo4j"
+Environment="Neo4j__Username=loomweaver"
 Environment="Neo4j__Database=neo4j"
 
 [Install]
@@ -164,7 +164,7 @@ Environment=DOTNET_ROOT=/usr/share/dotnet
 Environment=PATH=/usr/share/dotnet:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 EnvironmentFile=/etc/loomweaver/api.env
 Environment="Neo4j__Uri=bolt://127.0.0.1:7687"
-Environment="Neo4j__Username=neo4j"
+Environment="Neo4j__Username=loomweaver"
 Environment="Neo4j__Database=neo4j"
 
 [Install]

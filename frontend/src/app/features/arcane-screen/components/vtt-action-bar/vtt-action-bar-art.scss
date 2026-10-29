@@ -1,0 +1,84 @@
+/* Artwork skin: controls are percent-positioned over the zones of the 3:1 frame image. */
+:host(.is-art) {
+  width: min(100%, 1240px);
+  margin: -7rem auto 0.2rem;
+  pointer-events: none;
+}
+
+.art {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 1;
+  container-type: inline-size;
+  isolation: isolate;
+
+  button, .art__grid { pointer-events: auto; }
+  &__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; user-select: none; z-index: 0; }
+
+  > :not(.art__img) { position: absolute; z-index: 2; }
+
+  &__portrait {
+    left: 3%; top: 51.2%; width: 8.9%; aspect-ratio: 1; border: 0; border-radius: 50%; cursor: default;
+    display: grid; place-items: center; font: 800 3.4cqw var(--lw-font-display); color: var(--ab-text);
+    background: radial-gradient(circle, #1d4a37 0%, #081814 78%);
+    &.is-active { box-shadow: 0 0 2cqw rgba(73, 232, 146, 0.65); }
+  }
+  &__level {
+    left: 10.15%; top: 74%; min-width: 2.6cqw; text-align: center; border-radius: 50%;
+    background: #0a2818; border: 1px solid var(--ab-frame); color: #d8f7c9; font: 700 1.05cqw var(--lw-font-display); padding: 0.2cqw 0.4cqw;
+  }
+  &__name { left: 2.4%; top: 80%; width: 11%; text-align: center; font: 700 1.12cqw var(--lw-font-display); color: #f6d994; text-shadow: 0 1px 3px #000; }
+  &__sub { left: 1.4%; top: 83.2%; width: 13%; text-align: center; font: 0.78cqw Georgia, serif; color: #8fedb7; }
+  &__hp {
+    left: 2.7%; top: 87%; width: 10.7%; height: 2.6%; min-height: 8px; border: 1px solid #9a7443; border-radius: 30px; background: #0a1a12; overflow: hidden;
+    span { position: absolute; inset: 0; text-align: center; color: #fff; font: 700 0.78cqw Arial, sans-serif; line-height: 2.6cqw; text-shadow: 0 1px 2px #000; }
+  }
+  &__hp-fill { height: 100%; background: linear-gradient(#49e892, #1b8a54); transition: width 200ms ease; }
+
+  &__quick {
+    left: 13.9%; top: 49.6%; width: 8.1%; height: 32.8%;
+    display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr); gap: 0.5cqw; place-items: center;
+  }
+  &__gem {
+    width: 55%; aspect-ratio: 1; border-radius: 50%; border: 2px solid var(--ab-frame); cursor: pointer; padding: 0;
+    background: var(--ab-gem-action); color: var(--ab-gem-action); box-shadow: 0 0 8px currentColor;
+    &--bonus { background: var(--ab-gem-bonus); color: var(--ab-gem-bonus); }
+    &--reaction { background: var(--ab-gem-reaction); color: var(--ab-gem-reaction); }
+    &.is-spent { background: transparent; box-shadow: none; opacity: 0.5; border-color: var(--ab-danger); }
+  }
+  &__bar-btn {
+    border: 0; background: transparent; color: var(--ab-frame); font: 700 1cqw var(--lw-font-display); cursor: pointer;
+    &:hover { color: var(--ab-accent); text-shadow: 0 0 8px var(--ab-accent); }
+  }
+
+  &__cats {
+    left: 38.3%; top: 31.5%; width: 24.1%; height: 9.1%;
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.3cqw;
+    button {
+      border: 0; border-radius: 4px; cursor: pointer; background: #0b1a13; color: #cbbf99; font: 700 0.9cqw var(--lw-font-display);
+      &:hover { color: var(--ab-text); box-shadow: inset 0 0 1cqw rgba(95, 255, 135, 0.5); }
+      &.is-active { color: var(--ab-accent); box-shadow: inset 0 0 1cqw rgba(95, 255, 135, 0.6); }
+    }
+  }
+
+  &__grid {
+    left: 23.85%; top: 45%; width: 54.18%; height: 35.95%;
+    display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 0.1cqw;
+  }
+
+  &__end {
+    left: 87%; top: 54%; width: 9.25%; aspect-ratio: 1; border: 0; border-radius: 50%; background: transparent; cursor: pointer;
+    &:hover:not(:disabled) { box-shadow: 0 0 2cqw rgba(90, 255, 157, 0.5), inset 0 0 1cqw rgba(90, 255, 122, 0.4); }
+    &:disabled { cursor: not-allowed; filter: grayscale(1); }
+  }
+  &__caption { left: 86.3%; top: 85%; width: 11%; text-align: center; font: 1cqw var(--lw-font-display); color: #7dfbad; text-shadow: 0 0 9px #1eae50; pointer-events: none; }
+
+  .slot {
+    width: 100%; height: 100%; border: 1px solid transparent; background: radial-gradient(circle at 50% 44%, #153323 0%, rgba(3, 10, 7, 0.72) 83%);
+    border-radius: 0;
+    &:hover, &:focus-visible { transform: none; border-color: #abde8c; box-shadow: inset 0 0 1cqw rgba(100, 236, 138, 0.6); }
+    .slot__glyph { font-size: 2cqw; }
+    .slot__key { font-size: 0.7cqw; }
+    .slot__cost { left: 12%; right: 12%; bottom: 6%; }
+  }
+}

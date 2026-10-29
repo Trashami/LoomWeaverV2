@@ -1,3 +1,70 @@
+<ng-template #slotTpl let-ab let-idx="idx">
+  <button ngpButton type="button" role="listitem" class="slot"
+          [class.slot--pending]="battle.pendingAbility()?.id === ab.id"
+          [class.slot--spent]="!battle.isAbilityAvailableOnTurn(ab)"
+          [attr.data-cost]="costKind(ab)"
+          [attr.data-category]="ab.turnCategory"
+          [attr.aria-label]="ab.name + ', ' + ab.rangeFeet + ' feet'"
+          (click)="abilitySelected.emit(ab)">
+    <span class="slot__glyph">{{ glyph(ab.name) }}</span>
+    @if (showKeys() && idx < 9) { <span class="slot__key">{{ idx + 1 }}</span> }
+    <span class="slot__cost"></span>
+    <span class="tip" role="tooltip">
+      <strong>{{ ab.name }}</strong>
+      <span>{{ ab.actionCost }}</span>
+      <span>{{ ab.rangeFeet }}ft &middot; {{ targetLabel(ab) }}</span>
+      <span class="tip__dmg">{{ ab.damageFormula }}</span>
+    </span>
+  </button>
+</ng-template>
+
+@if (isArt()) {
+  <section class="art" aria-label="Character Turn Action Bar">
+    <img class="art__img" [src]="skinImage" alt="" draggable="false" />
+
+    <button ngpButton type="button" class="art__portrait" [class.is-active]="isActiveTurn()" title="Active character">
+      {{ hero().name.slice(0, 2).toUpperCase() }}
+    </button>
+    <span class="art__level" title="Armor Class">{{ hero().armorClass }}</span>
+    <strong class="art__name">{{ hero().name }}</strong>
+    <span class="art__sub">
+      {{ isActiveTurn() ? 'Your turn' : 'Waiting' }} &middot; {{ battle.remainingMovementFeet() }}/{{ hero().movementFeet }} ft{{ store.viewerRole() === 'gm' ? ' (free move)' : '' }}
+    </span>
+    <div class="art__hp" role="progressbar" [attr.aria-valuenow]="hero().currentHp" aria-valuemin="0" [attr.aria-valuemax]="hero().maxHp">
+      <div class="art__hp-fill" [style.width.%]="hpPercent()"></div>
+      <span>{{ hero().currentHp }} / {{ hero().maxHp }}</span>
+    </div>
+
+    <div class="art__quick">
+      <button ngpButton type="button" class="art__gem art__gem--action" [class.is-spent]="hero().actionUsed" title="Action"
+              (click)="vtt.toggleEconomySlot(hero().key, 'actionUsed')"><span class="sr-only">Action</span></button>
+      <button ngpButton type="button" class="art__gem art__gem--bonus" [class.is-spent]="hero().bonusUsed" title="Bonus action"
+              (click)="vtt.toggleEconomySlot(hero().key, 'bonusUsed')"><span class="sr-only">Bonus action</span></button>
+      <button ngpButton type="button" class="art__gem art__gem--reaction" [class.is-spent]="hero().reactionUsed" title="Reaction"
+              (click)="vtt.toggleEconomySlot(hero().key, 'reactionUsed')"><span class="sr-only">Reaction</span></button>
+      <button ngpButton type="button" class="art__bar-btn" title="Action bar settings" (click)="settingsRequested.emit()">Bar</button>
+    </div>
+
+    <nav class="art__cats" aria-label="Ability categories">
+      @for (tab of tabs; track tab.id) {
+        <button ngpButton type="button" [class.is-active]="battle.activeTurnCategory() === tab.id" [title]="tab.label"
+                (click)="battle.activeTurnCategory.set(tab.id)">{{ categoryShort[tab.id] }}</button>
+      }
+    </nav>
+
+    <div class="art__grid" role="list">
+      @for (ab of artAbilities(); track ab.id; let idx = $index) {
+        <ng-container *ngTemplateOutlet="slotTpl; context: { $implicit: ab, idx: idx }" />
+      }
+    </div>
+
+    <button ngpButton type="button" class="art__end" [disabled]="!isActiveTurn() && store.viewerRole() !== 'gm'"
+            title="End turn" (click)="endTurn.emit()">
+      <span class="sr-only">End turn</span>
+    </button>
+    <span class="art__caption">Round {{ vtt.activeRound() }}</span>
+  </section>
+} @else {
 <section class="bar" aria-label="Character Turn Action Bar">
   <div class="hero">
     <div class="orb" [class.orb--active]="isActiveTurn()">
@@ -29,23 +96,7 @@
   <div class="deck">
     <div class="slots" role="list">
       @for (ab of battle.filteredTurnAbilities(); track ab.id; let idx = $index) {
-        <button ngpButton type="button" role="listitem" class="slot"
-                [class.slot--pending]="battle.pendingAbility()?.id === ab.id"
-                [class.slot--spent]="!battle.isAbilityAvailableOnTurn(ab)"
-                [attr.data-cost]="costKind(ab)"
-                [attr.data-category]="ab.turnCategory"
-                [attr.aria-label]="ab.name + ', ' + ab.rangeFeet + ' feet'"
-                (click)="abilitySelected.emit(ab)">
-          <span class="slot__glyph">{{ glyph(ab.name) }}</span>
-          @if (showKeys() && idx < 9) { <span class="slot__key">{{ idx + 1 }}</span> }
-          <span class="slot__cost"></span>
-          <span class="tip" role="tooltip">
-            <strong>{{ ab.name }}</strong>
-            <span>{{ ab.actionCost }}</span>
-            <span>{{ ab.rangeFeet }}ft &middot; {{ targetLabel(ab) }}</span>
-            <span class="tip__dmg">{{ ab.damageFormula }}</span>
-          </span>
-        </button>
+        <ng-container *ngTemplateOutlet="slotTpl; context: { $implicit: ab, idx: idx }" />
       } @empty {
         <span class="slots__empty">No abilities in this tab.</span>
       }
@@ -69,3 +120,4 @@
     <span class="end-turn__label">End Turn</span>
   </button>
 </section>
+}

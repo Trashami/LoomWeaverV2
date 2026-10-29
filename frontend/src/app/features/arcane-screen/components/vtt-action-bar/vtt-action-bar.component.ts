@@ -5,7 +5,13 @@ import { LoomWeaverStoreService } from '../../../../core/services/loomweaver-sto
 import { VttTacticalAbilityVm, VttTurnActionCategory } from '../../models/vtt-battle.models';
 import { VttBattleStateService } from '../../services/vtt-battle-state.service';
 import { VttCombatService } from '../../services/vtt-combat.service';
-import { ActionBarSkinId, DEFAULT_ACTION_BAR_SKIN } from './action-bar-skins';
+import { NgTemplateOutlet } from '@angular/common';
+import {
+  ART_ACTION_BAR_SKINS,
+  ActionBarSkinId,
+  DEFAULT_ACTION_BAR_SKIN,
+  LOOM_RAVEN_SKIN_IMAGE,
+} from './action-bar-skins';
 
 interface CategoryTab {
   readonly id: VttTurnActionCategory;
@@ -15,13 +21,14 @@ interface CategoryTab {
 @Component({
   selector: 'lw-vtt-action-bar',
   standalone: true,
-  imports: [NgpButton, LwIconComponent],
+  imports: [NgpButton, LwIconComponent, NgTemplateOutlet],
   templateUrl: './vtt-action-bar.component.html',
-  styleUrl: './vtt-action-bar.component.scss',
+  styleUrls: ['./vtt-action-bar.component.scss', './vtt-action-bar-art.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '[attr.data-skin]': 'skin()',
     '[class.is-compact]': 'compact()',
+    '[class.is-art]': 'isArt()',
     '[style.opacity]': 'opacity() / 100',
   },
 })
@@ -48,6 +55,14 @@ export class VttActionBarComponent {
     { id: 'reaction', label: 'Reaction' },
     { id: 'free', label: 'Free' },
   ];
+
+  protected readonly skinImage = LOOM_RAVEN_SKIN_IMAGE;
+  protected readonly isArt = computed(() => ART_ACTION_BAR_SKINS.includes(this.skin()));
+  /** The artwork frame has a fixed 14 x 3 slot grid. */
+  protected readonly artAbilities = computed(() => this.battle.filteredTurnAbilities().slice(0, 42));
+  protected readonly categoryShort: Readonly<Record<string, string>> = {
+    all: 'All', melee: 'Mel', ranged: 'Rng', spell: 'Spl', bonus: 'Bon', reaction: 'Rea', free: 'Free',
+  };
 
   protected readonly hero = this.battle.activeObserverToken;
   protected readonly isActiveTurn = computed(

@@ -53,6 +53,14 @@
         <span>Roll {{ selectedDiceFormula() }}</span>
       </button>
       <lw-button variant="gold" size="sm" (pressed)="nextTurn()">Next Turn</lw-button>
+      @if (serverSync.scenes().length > 0) {
+        <select class="lw-vtt-tool-btn" aria-label="Saved map scene" [ngModel]="serverSync.activeSceneKey()" (ngModelChange)="serverSync.loadScene($event)">
+          <option value="">Demo scene</option>
+          @for (scene of serverSync.scenes(); track scene.sceneKey) {
+            <option [value]="scene.sceneKey">{{ scene.name }}</option>
+          }
+        </select>
+      }
       <a class="lw-vtt-tool-btn" routerLink="/encounters">Build Encounters</a>
       <button ngpButton type="button" class="lw-vtt-tool-btn lw-vtt-tool-btn--panel" (click)="battle.rightPanelCollapsed.set(!battle.rightPanelCollapsed())">
         <span>{{ battle.rightPanelCollapsed() ? 'Open Panel' : 'Hide Panel' }}</span>

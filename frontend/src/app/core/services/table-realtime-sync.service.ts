@@ -37,6 +37,8 @@ export class TableRealtimeSyncService {
   readonly seats = signal<readonly TablePresenceSeatVm[]>([]);
   readonly recentEvents = signal<readonly TableRealtimeEventVm[]>([]);
   readonly syncProtocolLabel = signal<string>('Disconnected');
+  /** Increments whenever the server reports combat or token changes; consumers re-fetch from the API. */
+  readonly combatTick = signal(0);
 
   constructor() {
     effect(() => {
@@ -107,6 +109,7 @@ export class TableRealtimeSyncService {
     connection.on('TableEventReceived', (evt: TableRealtimeEventVm) => {
       if (evt.campaignId === this.store.activeCampaignId()) this.appendEventLocally(evt);
     });
+    connection.on('CombatStateChanged', () => this.combatTick.update((n) => n + 1));
     connection.onreconnecting(() => this.syncProtocolLabel.set('Reconnecting'));
     connection.onreconnected(async () => {
       try {

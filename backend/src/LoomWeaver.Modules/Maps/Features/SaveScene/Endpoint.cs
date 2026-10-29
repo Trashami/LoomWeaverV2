@@ -12,6 +12,7 @@ public static class SaveSceneEndpoint
     public static void MapLoomMapsStudioStage1Endpoints(this IEndpointRouteBuilder group)
     {
         group.MapMapSceneDocumentEndpoints();
+        group.MapVttSceneEndpoints();
         group.MapModelManifestEndpoints();
 
         group.MapGet("/maps/presets", () =>

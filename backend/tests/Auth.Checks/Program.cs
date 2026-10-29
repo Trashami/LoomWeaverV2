@@ -88,6 +88,18 @@ Check(Enumerable.Range(0, 500).All(_ => LoomWeaver.Modules.Encounters.CombatToke
 Check(LoomWeaver.Modules.Encounters.CombatTokenStore.CharacterKeyOf("42:Character:char-ava") == "char-ava"
     && LoomWeaver.Modules.Encounters.CombatTokenStore.CharacterKeyOf("42:Encounter:x") is null,
     "combat tokens map to character keys only for party members");
+{
+    var doc = JsonDocument.Parse("""{"name":"Crypt","secretNotes":"gm only","walls":[{"id":"w1","name":"Wall","points":[[0,0],[3,0],[3,3]]}]}""").RootElement;
+    var scene = LoomWeaver.Modules.Maps.Features.SaveScene.VttSceneEndpoints.Project("crypt", new LoomWeaver.Modules.Maps.Infrastructure.StoredMapSceneDocument(2, doc));
+    Check(scene.Walls.Count == 2 && Math.Abs(scene.Walls[0].X2 - 4) < 0.001 && !System.Text.Json.JsonSerializer.Serialize(scene).Contains("gm only"),
+        "map handoff gives players walls in VTT units and no GM notes");
+}
+{
+    var forged = new LoomWeaver.Domain.CombatResolutionRequest("a", "b", "Strike", "action", 5, 99, 0, 30, 100, 999, "x", "gm");
+    var limited = LoomWeaver.Modules.Encounters.CombatTokenStore.ApplySheetLimits(forged, avaRecord.Sheet);
+    Check(limited.AttackBonus < 20 && limited.DamageDiceCount <= 12 && limited.DamageDiceSides <= 12 && limited.DamageBonus < 20,
+        "client-supplied attack stats are replaced by sheet-derived limits");
+}
 
 string RewriteToken(string token, Action<JsonObject> mutatePayload)
 {

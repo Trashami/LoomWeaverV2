@@ -62,7 +62,7 @@ public static class CharacterStudioEndpoints
             }
 
             var systemCode = string.IsNullOrWhiteSpace(req.SystemCode) ? "dnd5e" : req.SystemCode.Trim();
-            var level = Math.Clamp(req.Level, 1, CharacterCalculationEngine.MaxLevel);
+            var level = access.IsAccountGm ? Math.Clamp(req.Level, 1, CharacterCalculationEngine.MaxLevel) : 1;
             var archetype = (req.ClassOrArchetype ?? string.Empty).Trim();
             var draft = new CharacterSheetDto(
                 CompositeKey: $"{campaignId}:Character:{key}",

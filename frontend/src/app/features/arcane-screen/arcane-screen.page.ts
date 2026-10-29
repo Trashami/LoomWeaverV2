@@ -7,8 +7,10 @@ import {
   OnDestroy,
   ViewChild,
   computed,
+  effect,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -31,6 +33,7 @@ import {
 import { VttTacticalAbilityVm } from './models/vtt-battle.models';
 import { VttBattleStateService } from './services/vtt-battle-state.service';
 import { VttCombatService } from './services/vtt-combat.service';
+import { VttServerSyncService } from './services/vtt-server-sync.service';
 
 @Component({
   selector: 'lw-arcane-screen-page',
@@ -57,6 +60,14 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   readonly audio = inject(WebAudioAmbienceService);
   readonly fullscreenDice = inject(FullscreenDiceOverlayService);
   private readonly router = inject(Router);
+  readonly serverSync = inject(VttServerSyncService);
+
+  constructor() {
+    effect(() => {
+      this.vtt.tokens();
+      untracked(() => this.sync3dStage());
+    });
+  }
 
   readonly gridEnabled = signal<boolean>(true);
   private dragMoved = false;
@@ -216,6 +227,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     if (!this.battle.draggingTokenKey()) return;
     const result = this.battle.endTokenDrag();
     if (result.movedToken && result.distanceFeet > 0) {
+      void this.serverSync.moveToken(result.movedToken.key, result.movedToken.x, result.movedToken.z);
       this.sync3dStage();
       this.dmToolReadout.set(
         `${this.store.viewerRole() === 'gm' ? 'DM Moved' : 'Moved'} ${result.movedToken.name} (${result.distanceFeet} ft).`,
@@ -280,9 +292,9 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
     this.sync3dStage();
-    this.dmToolReadout.set(
-      `Moved ${this.battle.activeObserverToken().name} ${res.distanceFeet} ft along the 5-ft grid.`,
-    );
+    const moved = this.battle.activeObserverToken();
+    void this.serverSync.moveToken(moved.key, moved.x, moved.z);
+    this.dmToolReadout.set(`Moved ${moved.name} ${res.distanceFeet} ft along the 5-ft grid.`);
   }
 
   selectTurnAbility(ability: VttTacticalAbilityVm): void {
@@ -330,18 +342,18 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   switchLiveEncounter(encounterId: string): void {
     this.vtt.launchEncounterIntoVtt(encounterId);
     this.sync3dStage();
+    if (this.store.viewerRole() === 'gm') void this.serverSync.publishLaunchedEncounter();
   }
 
   nextTurn(): void {
-    this.vtt.advanceTurn();
-    const active = this.vtt.selectedAttacker();
-    if (active) {
-      this.battle.resetTurnMovement(active.key);
-    }
-    this.sync3dStage();
-    this.dmToolReadout.set(
-      `Round ${this.vtt.activeRound()} · Active Initiative Turn: ${this.battle.activeInitiativeToken().name}`,
-    );
+    void this.serverSync.nextTurn().then(() => {
+      const active = this.vtt.selectedAttacker();
+      if (active) this.battle.resetTurnMovement(active.key);
+      this.sync3dStage();
+      this.dmToolReadout.set(
+        `Round ${this.vtt.activeRound()} · Active Initiative Turn: ${this.battle.activeInitiativeToken().name}`,
+      );
+    });
   }
 
   spawnSelectedBestiaryMonster(): void {

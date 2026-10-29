@@ -72,8 +72,19 @@ public static class CombatTokenStore
             req.DamageBonus is < -10 or > 50 || req.AttackBonus is < -5 or > 30 || req.RangeFeet is < 0 or > 600)
             return CombatOutcome.Reject(400, "The action values are out of range.");
 
-        if (!access.IsAccountGm && !await OwnsTokenAsync(repo, campaignId, access, req.AttackerKey, ct))
+        var charKey = CharacterKeyOf(req.AttackerKey);
+        if (charKey is not null)
+        {
+            var stored = (await CharacterStore.ListAsync(repo, campaignId, ct)).FirstOrDefault(c => c.Sheet.CharacterKey == charKey);
+            if (stored is null) return CombatOutcome.Reject(404, "That character does not exist in this campaign.");
+            if (!access.IsAccountGm && !CharacterStudioEndpoints.IsOwnerOrBound(stored, access))
+                return CombatOutcome.Reject(403, "You can only act with your own character.");
+            req = ApplySheetLimits(req, stored.Sheet);
+        }
+        else if (!access.IsAccountGm)
+        {
             return CombatOutcome.Reject(403, "You can only act with your own character.");
+        }
 
         await using var db = await repo.OpenConnectionAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
@@ -108,10 +119,10 @@ public static class CombatTokenStore
         {
             await ExecAsync(db, tx, "UPDATE lw_combat_tokens SET current_hp=@hp, revision=revision+1 WHERE campaign_id=@c AND token_key=@k",
                 campaignId, target.Key, ct, remaining);
-            var charKey = CharacterKeyOf(target.Key);
-            if (charKey is not null)
+            var targetChar = CharacterKeyOf(target.Key);
+            if (targetChar is not null)
                 await ExecAsync(db, tx, "UPDATE lw_characters SET current_hp=@hp, revision=revision+1 WHERE campaign_id=@c AND character_key=@k",
-                    campaignId, charKey, ct, remaining);
+                    campaignId, targetChar, ct, remaining);
         }
 
         var log = !inRange ? $"{attacker.Name} cannot reach {target.Name} ({distance} ft)."
@@ -137,12 +148,18 @@ public static class CombatTokenStore
         return parts.Length == 3 && parts[1] == "Character" ? parts[2] : null;
     }
 
-    private static async Task<bool> OwnsTokenAsync(
-        LoomWeaverMySqlRepository repo, int campaignId, ResolvedCampaignAccess access, string tokenKey, CancellationToken ct)
+    /// <summary>Character attacks use stats derived from the stored sheet; requested dice are capped to what the level allows.</summary>
+    public static CombatResolutionRequest ApplySheetLimits(CombatResolutionRequest req, CharacterSheetDto sheet)
     {
-        if (!access.IsMember || CharacterKeyOf(tokenKey) is not { } key) return false;
-        var mine = (await CharacterStore.ListAsync(repo, campaignId, ct)).FirstOrDefault(c => c.Sheet.CharacterKey == key);
-        return mine is not null && CharacterStudioEndpoints.IsOwnerOrBound(mine, access);
+        var mod = sheet.Abilities.Where(a => a.Code is "STR" or "DEX").Select(a => a.Modifier).DefaultIfEmpty(0).Max();
+        var maxDice = Math.Min(12, 2 + sheet.Level / 2);
+        return req with
+        {
+            AttackBonus = sheet.ProficiencyBonus + mod,
+            DamageDiceCount = Math.Clamp(req.DamageDiceCount, 0, maxDice),
+            DamageDiceSides = Math.Min(req.DamageDiceSides, 12),
+            DamageBonus = Math.Clamp(req.DamageBonus, 0, Math.Max(0, mod + sheet.ProficiencyBonus)),
+        };
     }
 
     private static async Task ExecAsync(MySqlConnection db, MySqlTransaction tx, string sql, int campaignId, string key,

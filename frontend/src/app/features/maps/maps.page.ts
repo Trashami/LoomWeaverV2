@@ -19,8 +19,10 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { AdventureGuideService } from '../../core/services/adventure-guide.service';
+import { LwAlertifyService } from '../../core/services/lw-alertify.service';
 import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
 import { LwIconComponent } from '../../shared/ui/icon/icon.component';
 import { LwMapAssetPickerModalComponent } from '../../shared/ui/map-asset-picker-modal/map-asset-picker-modal.component';
@@ -68,8 +70,6 @@ import {
 } from './engine/map-scene-contract';
 import { INITIAL_CINTH_SCENE_GRAPH, createBlankSceneGraph } from './engine/map-scene-seed';
 import {
-  DEFAULT_CAMPAIGN_ENCOUNTERS,
-  DEFAULT_CAMPAIGN_SESSIONS,
   DEFAULT_EXISTING_MAPS,
   DEFAULT_MAP_MATERIALS,
   DEFAULT_MARKETPLACE_MAPS,
@@ -106,6 +106,8 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   @ViewChild('real2dCanvas') private canvas2dRef?: ElementRef<HTMLCanvasElement>;
 
   private readonly pngApi = inject(MapPngAssetApiService);
+  private readonly http = inject(HttpClient);
+  private readonly alertify = inject(LwAlertifyService);
   readonly store = inject(LoomWeaverStoreService);
   readonly adventureGuide = inject(AdventureGuideService);
   readonly stage = inject(BabylonMapStageService);
@@ -135,11 +137,45 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   readonly campaigns = computed(() =>
     this.store.campaigns().map((c) => ({ id: c.id, name: c.name })),
   );
-  readonly sessions = signal(DEFAULT_CAMPAIGN_SESSIONS);
-  readonly encounters = signal(DEFAULT_CAMPAIGN_ENCOUNTERS);
-  readonly assignSessionId = signal<string>('session-15');
-  readonly assignEncounterId = signal<string>('enc-cinth-masquerade');
-  readonly assignLocationNodeId = signal<string>('node-loc-ruined-chapel');
+  readonly sessions = signal<readonly { id: string; label: string }[]>([]);
+  readonly encounters = signal<readonly { id: string; label: string }[]>([]);
+  readonly assignSessionId = signal<string>('');
+  readonly assignEncounterId = signal<string>('');
+  readonly assignLocationNodeId = signal<string>('');
+
+  private readonly campaignAssignments = effect((onCleanup) => {
+    const campaignId = this.store.activeCampaignId();
+    this.sessions.set([]);
+    this.encounters.set([]);
+    this.assignSessionId.set('');
+    this.assignEncounterId.set('');
+    if (campaignId <= 0) return;
+
+    const sessions = this.http
+      .get<readonly { sessionId: string; title: string }[]>(`/api/v2/campaigns/${campaignId}/sessions`)
+      .subscribe({
+        next: (items) => {
+          const options = (items ?? []).map((item) => ({ id: item.sessionId, label: item.title }));
+          this.sessions.set(options);
+          this.assignSessionId.set(options[0]?.id ?? '');
+        },
+        error: () => this.alertify.notifyStatus('Map assignment', 'Sessions unavailable', 'Campaign sessions could not be loaded.', 'crimson'),
+      });
+    onCleanup(() => sessions.unsubscribe());
+
+    if (!this.store.isGmForActiveCampaign()) return;
+    const encounters = this.http
+      .get<readonly { id: string; name: string }[]>(`/api/v2/campaigns/${campaignId}/encounters`)
+      .subscribe({
+        next: (items) => {
+          const options = (items ?? []).map((item) => ({ id: item.id, label: item.name }));
+          this.encounters.set(options);
+          this.assignEncounterId.set(options[0]?.id ?? '');
+        },
+        error: () => this.alertify.notifyStatus('Map assignment', 'Encounters unavailable', 'Campaign encounters could not be loaded.', 'crimson'),
+      });
+    onCleanup(() => encounters.unsubscribe());
+  });
 
   readonly pngPipelineBanner = this.pngApi.pngPipelineBanner;
   readonly selectedPngAssetId = signal<string>('obj-4f9776736fb571f1');
@@ -448,8 +484,8 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       dimensionMode: mkt.dimensionMode,
       campaignId: campaignObj.id,
       campaignName: campaignObj.name,
-      sessionLabel: sessionObj?.label ?? 'Session 15 — The Forgotten Crypt',
-      encounterLabel: encounterObj?.label ?? 'Lord of Cinth Vampire Gala',
+      sessionLabel: sessionObj?.label ?? 'Unassigned session',
+      encounterLabel: encounterObj?.label ?? 'Unassigned encounter',
       gridSummary: mkt.gridSummary,
       floorBumpName: mkt.floorBumpName,
       previewUrl: mkt.previewUrl,
@@ -508,6 +544,13 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.rightDockCollapsed.set(true);
     this.showLandingHub.set(false);
     this.mountStudioViewports();
+    this.studio.loadSceneDocument(summary.campaignId, summary.sceneKey, (document) => {
+      this.sceneGraph.set(document);
+      this.mapTitle.set(document.name);
+      this.studio.mapTitle.set(document.name);
+      this.stage.syncSceneGraph(document);
+      this.render2dViewport();
+    });
   }
 
   onDimensionModeSwitch(mode: LwMapDimensionMode): void {
@@ -1959,26 +2002,30 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
 
   saveSceneRevision(): void {
     this.studio.saveAuthoritativeRevision(
+      this.store.activeCampaignId(),
       this.selectedSceneKey(),
-      this.sceneGraph().revision,
-      this.store.viewerRole(),
-      (newRev) => this.sceneGraph.update((cur) => ({ ...cur, revision: newRev })),
+      this.sceneGraph(),
     );
-    this.pngPipelineBanner.set(`Saved '${this.mapTitle()}' (Rev ${this.sceneGraph().revision}).`);
   }
 
   publishMapToCoreCampaign(): void {
+    const sessionId = this.assignSessionId();
+    if (!sessionId) {
+      this.alertify.notifyStatus('Map assignment', 'No session selected', 'Create or select a saved campaign session before assigning this map.', 'crimson');
+      return;
+    }
+
     this.saveSceneRevision();
     const campName = this.store.activeCampaign().name;
     const sessLabel =
-      this.sessions().find((s) => s.id === this.assignSessionId())?.label ?? this.assignSessionId();
+      this.sessions().find((s) => s.id === sessionId)?.label ?? 'Selected session';
     const encLabel =
       this.encounters().find((e) => e.id === this.assignEncounterId())?.label ??
-      this.assignEncounterId();
+      'Unassigned encounter';
     this.adventureGuide.assignBattlemapToSessionAndPlace({
       sceneKey: this.selectedSceneKey(),
       sceneTitle: this.mapTitle(),
-      sessionId: this.assignSessionId(),
+      sessionId,
       locationNodeId: this.assignLocationNodeId(),
       artworkUrl: '/battlemap-showcase.jpg',
       biome: this.activeTheme(),

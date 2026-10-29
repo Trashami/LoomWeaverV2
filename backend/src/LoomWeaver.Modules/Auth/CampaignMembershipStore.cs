@@ -15,6 +15,7 @@ public sealed record CampaignMembership(
 }
 
 public sealed record CampaignMemberRow(
+    long Id,
     long UserId,
     string Email,
     string MemberRole,
@@ -24,8 +25,7 @@ public sealed record CampaignMemberRow(
 
 /// <summary>
 /// Single source of truth for campaign membership (loomweaver.lw_campaign_members).
-/// Members are matched by authenticated email, which is stable across the legacy
-/// jane_scrum.mw_users and loomweaver.lw_auth_users identity tables.
+/// Members are matched by authenticated email across the canonical auth and profile tables.
 /// Every lookup fails closed: database errors mean "not a member".
 /// </summary>
 public static class CampaignMembershipStore
@@ -91,7 +91,7 @@ public static class CampaignMembershipStore
         var list = new List<CampaignMemberRow>();
         await using var db = await repo.OpenConnectionAsync(ct);
         await using var cmd = new MySqlCommand("""
-            SELECT user_id, auth_email, member_role, assigned_character_key
+            SELECT id, user_id, auth_email, member_role, assigned_character_key
             FROM lw_campaign_members WHERE campaign_id = @c
             ORDER BY FIELD(member_role, 'gm', 'player', 'spectator'), auth_email
             """, db);
@@ -100,8 +100,8 @@ public static class CampaignMembershipStore
         while (await r.ReadAsync(ct))
         {
             list.Add(new CampaignMemberRow(
-                r.GetInt64(0), r.GetString(1), r.GetString(2),
-                r.IsDBNull(3) ? null : r.GetString(3),
+                r.GetInt64(0), r.GetInt64(1), r.GetString(2), r.GetString(3),
+                r.IsDBNull(4) ? null : r.GetString(4),
                 null,
                 null));
         }
@@ -115,6 +115,13 @@ public static class CampaignMembershipStore
     {
         var role = memberRole is "gm" or "spectator" ? memberRole : "player";
         await using var db = await repo.OpenConnectionAsync(ct);
+        await using var userLookup = new MySqlCommand(
+            "SELECT id FROM lw_users WHERE LOWER(email) = LOWER(@e) LIMIT 1", db);
+        userLookup.Parameters.AddWithValue("@e", user.Email.Trim());
+        var canonicalUserId = await userLookup.ExecuteScalarAsync(ct);
+        if (canonicalUserId is null or DBNull)
+            throw new InvalidOperationException("The authenticated account has no canonical lw_users row.");
+
         await using var cmd = new MySqlCommand("""
             INSERT INTO lw_campaign_members
                 (campaign_id, user_id, auth_email, member_role, assigned_character_key)
@@ -123,7 +130,7 @@ public static class CampaignMembershipStore
                 assigned_character_key = COALESCE(VALUES(assigned_character_key), assigned_character_key)
             """, db);
         cmd.Parameters.AddWithValue("@c", campaignId);
-        cmd.Parameters.AddWithValue("@u", user.Id);
+        cmd.Parameters.AddWithValue("@u", canonicalUserId);
         cmd.Parameters.AddWithValue("@e", user.Email.Trim());
         cmd.Parameters.AddWithValue("@r", role);
         cmd.Parameters.AddWithValue("@k", (object?)characterKey ?? DBNull.Value);

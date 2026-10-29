@@ -157,8 +157,9 @@ public static class EffectMarketplaceAndCatalogEndpoints
             await file.CopyToAsync(ms, ct);
             var id = $"{Guid.NewGuid():N}{ext.ToLowerInvariant()}";
             await using var db = await mysql.OpenConnectionAsync(ct);
+            await EffectLibraryAndAssignmentEndpoints.EnsureTablesAsync(db, ct);
             await using var cmd = new MySqlCommand(
-                "INSERT INTO jane_scrum.mw_summon_assets (id,user_id,kind,mime_type,file_name,bytes) VALUES (@id,@u,@k,@m,@f,@b)", db);
+                "INSERT INTO lw_summon_assets (id,user_id,kind,mime_type,file_name,bytes) VALUES (@id,@u,@k,@m,@f,@b)", db);
             cmd.Parameters.AddWithValue("@id", id);
             cmd.Parameters.AddWithValue("@u", u.Id);
             cmd.Parameters.AddWithValue("@k", meta.Kind);
@@ -173,7 +174,8 @@ public static class EffectMarketplaceAndCatalogEndpoints
         {
             if (string.IsNullOrWhiteSpace(id) || id.Length > 64) return Results.NotFound();
             await using var db = await mysql.OpenConnectionAsync(ct);
-            await using var cmd = new MySqlCommand("SELECT mime_type, bytes FROM jane_scrum.mw_summon_assets WHERE id=@id LIMIT 1", db);
+            await EffectLibraryAndAssignmentEndpoints.EnsureTablesAsync(db, ct);
+            await using var cmd = new MySqlCommand("SELECT mime_type, bytes FROM lw_summon_assets WHERE id=@id LIMIT 1", db);
             cmd.Parameters.AddWithValue("@id", id);
             await using var r = await cmd.ExecuteReaderAsync(ct);
             if (!await r.ReadAsync(ct)) return Results.NotFound();
@@ -184,9 +186,9 @@ public static class EffectMarketplaceAndCatalogEndpoints
         api.MapGet("/campaigns/{cid:long}/members", async (long cid, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
         {
             var rows = await CampaignMembershipStore.ListMembersAsync(mysql, (int)cid, ct);
-            var members = rows.Select((m, i) => (object)new
+            var members = rows.Select(m => (object)new
             {
-                id = i + 1L,
+                id = m.Id,
                 campaign_id = cid,
                 user_id = m.UserId,
                 role = m.MemberRole == "gm" ? "dm" : m.MemberRole,

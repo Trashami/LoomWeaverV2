@@ -19,28 +19,32 @@
       (closed)="studio.openSheetViewer()"
     />
   } @else {
-    <lw-character-sheet-view
-      [sheet]="studio.activeSheet()"
-      [partyRoster]="studio.authorizedSheetsForActiveCampaign()"
-      [equipmentDatabase]="studio.catalog.equipmentDatabase()"
-      [spellDatabase]="studio.catalog.spellDatabase()"
-      [mentionableEntities]="studio.catalog.mentionableEntities()"
-      [(activeTab)]="studio.activeSheetTab"
-      (characterSelected)="studio.selectCharacter($event, true)"
-      (createCharacterRequested)="studio.openCreatorWizard()"
-      (editCharacterRequested)="studio.openCreatorWizard($event)"
-      (levelUpRequested)="studio.executeLevelUp($event.featureName, $event.abilityCode)"
-      (portraitChangeRequested)="studio.cyclePortrait()"
-      (portraitSelected)="studio.setActiveCharacterPortrait($event)"
-      (abilityAdjusted)="studio.adjustAbility($event.code, $event.delta)"
-      (equipmentToggled)="studio.toggleEquipment($event)"
-      (equipmentAdded)="studio.addEquipmentFromDatabase($event.item, $event.equipNow)"
-      (equipmentRemoved)="studio.removeEquipmentItem($event)"
-      (spellPreparedToggled)="studio.toggleSpellPrepared($event)"
-      (spellAdded)="studio.addSpellToActiveCharacter($event.spell, $event.prepared)"
-      (connectionSelected)="onConnectionClicked($event)"
-      (noteAdded)="studio.addCharacterNote($event)"
-      (richNoteAdded)="studio.addRichCharacterNote($event)"
-    />
+    @if (studio.activeSheet(); as activeSheet) {
+      <lw-character-sheet-view
+        [sheet]="activeSheet"
+        [partyRoster]="studio.authorizedSheetsForActiveCampaign()"
+        [equipmentDatabase]="studio.catalog.equipmentDatabase()"
+        [spellDatabase]="studio.catalog.spellDatabase()"
+        [mentionableEntities]="studio.catalog.mentionableEntities()"
+        [(activeTab)]="studio.activeSheetTab"
+        (characterSelected)="studio.selectCharacter($event, true)"
+        (createCharacterRequested)="studio.openCreatorWizard()"
+        (editCharacterRequested)="studio.openCreatorWizard($event)"
+        (levelUpRequested)="studio.executeLevelUp($event.featureName, $event.abilityCode)"
+        (portraitChangeRequested)="studio.cyclePortrait()"
+        (portraitSelected)="studio.setActiveCharacterPortrait($event)"
+        (abilityAdjusted)="studio.adjustAbility($event.code, $event.delta)"
+        (equipmentToggled)="studio.toggleEquipment($event)"
+        (equipmentAdded)="studio.addEquipmentFromDatabase($event.item, $event.equipNow)"
+        (equipmentRemoved)="studio.removeEquipmentItem($event)"
+        (spellPreparedToggled)="studio.toggleSpellPrepared($event)"
+        (spellAdded)="studio.addSpellToActiveCharacter($event.spell, $event.prepared)"
+        (connectionSelected)="onConnectionClicked($event)"
+        (noteAdded)="studio.addCharacterNote($event)"
+        (richNoteAdded)="studio.addRichCharacterNote($event)"
+      />
+    } @else {
+      <p>No character is available for this campaign.</p>
+    }
   }
 </div>

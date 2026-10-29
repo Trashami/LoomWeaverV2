@@ -79,22 +79,22 @@ export class CharacterStudioService {
    */
   readonly authorizedSheetsForActiveCampaign = computed<readonly CharacterSheetVm[]>(() => {
     const campaignId = this.store.activeCampaignId();
+    if (campaignId <= 0) return [];
+
     const isEffectiveCampaignGm = this.store.isGmForActiveCampaign() && this.store.viewerRole() === 'gm';
-    const all = this.sheets();
     if (isEffectiveCampaignGm) {
-      const inCamp = all.filter((s) => s.campaignId === campaignId || s.campaignId === 1);
-      return inCamp.length > 0 ? inCamp : all;
+      return this.sheets().filter((s) => s.campaignId === campaignId);
     }
     const owned = this.userOwnedSheets();
     const campaignSpecificOwned = owned.find((s) => s.campaignId === campaignId);
-    const chosen = campaignSpecificOwned ?? owned[0] ?? all[0];
+    const chosen = campaignSpecificOwned;
     return chosen ? [chosen] : [];
   });
 
-  readonly activeSheet = computed<CharacterSheetVm>(() => {
+  readonly activeSheet = computed<CharacterSheetVm | null>(() => {
     const authorized = this.authorizedSheetsForActiveCampaign();
-    const found = authorized.find((s) => s.characterKey === this.selectedCharacterKey()) ?? authorized[0] ?? this.sheets()[0];
-    return this.recalculate(found, this.activeSystem());
+    const found = authorized.find((s) => s.characterKey === this.selectedCharacterKey()) ?? authorized[0];
+    return found ? this.recalculate(found, this.activeSystem()) : null;
   });
 
   private lastInitializedAccountId = '';

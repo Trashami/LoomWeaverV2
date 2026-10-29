@@ -44,25 +44,27 @@ public static partial class CampaignInviteEndpoints
         await using var tx = await db.BeginTransactionAsync(ct);
         await using var insert = new MySqlCommand("""
             INSERT INTO lw_campaigns (slug, name, subtitle, system_code, gm_user_id, world_name, current_act, current_location_name)
-            VALUES (@slug, @name, @sub, @sys, @gm, @world, 'ACT I', 'Unwritten')
+            SELECT @slug, @name, @sub, @sys, u.id, @world, 'ACT I', 'Unwritten'
+            FROM lw_users u WHERE LOWER(u.email) = LOWER(@email) LIMIT 1
             """, db, tx);
         insert.Parameters.AddWithValue("@slug", slug);
         insert.Parameters.AddWithValue("@name", name);
         insert.Parameters.AddWithValue("@sub", (body.Subtitle ?? string.Empty).Trim());
         insert.Parameters.AddWithValue("@sys", system);
-        insert.Parameters.AddWithValue("@gm", user.Id);
+        insert.Parameters.AddWithValue("@email", user.Email.Trim());
         insert.Parameters.AddWithValue("@world", string.IsNullOrWhiteSpace(body.WorldName) ? name : body.WorldName.Trim());
-        await insert.ExecuteNonQueryAsync(ct);
+        if (await insert.ExecuteNonQueryAsync(ct) != 1)
+            return Results.Conflict(new { error = "Your account is not linked to the campaign identity store yet." });
         var campaignId = (int)insert.LastInsertedId;
 
         await using var member = new MySqlCommand("""
             INSERT INTO lw_campaign_members (campaign_id, user_id, auth_email, member_role)
-            VALUES (@c, @u, @e, 'gm')
+            SELECT @c, u.id, @e, 'gm' FROM lw_users u WHERE LOWER(u.email) = LOWER(@e) LIMIT 1
             """, db, tx);
         member.Parameters.AddWithValue("@c", campaignId);
-        member.Parameters.AddWithValue("@u", user.Id);
         member.Parameters.AddWithValue("@e", user.Email.Trim());
-        await member.ExecuteNonQueryAsync(ct);
+        if (await member.ExecuteNonQueryAsync(ct) != 1)
+            throw new InvalidOperationException("Campaign creator membership could not be written.");
         await tx.CommitAsync(ct);
 
         return Results.Created($"/api/campaigns/{campaignId}", new { id = campaignId, slug, name, my_role = "dm" });
@@ -182,13 +184,13 @@ public static partial class CampaignInviteEndpoints
         {
             await using var add = new MySqlCommand("""
                 INSERT INTO lw_campaign_members (campaign_id, user_id, auth_email, member_role)
-                VALUES (@c, @u, @e, @r)
+                SELECT @c, u.id, @e, @r FROM lw_users u WHERE LOWER(u.email) = LOWER(@e) LIMIT 1
                 """, db, tx);
             add.Parameters.AddWithValue("@c", campaignId);
-            add.Parameters.AddWithValue("@u", user.Id);
             add.Parameters.AddWithValue("@e", user.Email.Trim());
             add.Parameters.AddWithValue("@r", role);
-            await add.ExecuteNonQueryAsync(ct);
+            if (await add.ExecuteNonQueryAsync(ct) != 1)
+                return Results.Conflict(new { error = "Your account is not linked to the campaign identity store yet." });
 
             await using var bump = new MySqlCommand(
                 "UPDATE lw_campaign_invites SET use_count = use_count + 1 WHERE token_hash = @h", db, tx);

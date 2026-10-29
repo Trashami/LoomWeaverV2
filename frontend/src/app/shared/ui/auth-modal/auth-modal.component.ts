@@ -36,7 +36,6 @@ export class LwAuthModalComponent {
   readonly registerUsername = signal<string>('');
   readonly registerDisplayName = signal<string>('');
   readonly registerPassword = signal<string>('');
-  readonly registerRole = signal<'gm' | 'players'>('gm');
 
   readonly reqEmail = signal<string>('');
   readonly reqUsername = signal<string>('');
@@ -69,7 +68,6 @@ export class LwAuthModalComponent {
       this.registerUsername(),
       this.registerDisplayName(),
       this.registerPassword(),
-      this.registerRole(),
     );
   }
 

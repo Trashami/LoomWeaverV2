@@ -32,8 +32,7 @@ public static class MySqlUserAuthStore
 
     private static List<StoredUserRecord> BuildSeedUsers()
     {
-        // Seed profiles carry display metadata only. Their password hashes are random and
-        // unknowable: real credentials live in jane_scrum.mw_users / lw_auth_users.
+        // Seed profiles are used only to decode legacy session claims; they are never login credentials.
         var (adminHash, adminSalt) = PasswordHasher.HashPassword(Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)));
         var (testerHash, testerSalt) = PasswordHasher.HashPassword(Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)));
 
@@ -78,9 +77,7 @@ public static class MySqlUserAuthStore
 
     public static object ToLegacyUserDto(StoredUserRecord u, string? freshToken = null)
     {
-        var isAdmin = u.Email.Equals("jtromborg1@gmail.com", StringComparison.OrdinalIgnoreCase) ||
-                      u.Username.Equals("GeoJason", StringComparison.OrdinalIgnoreCase) ||
-                      u.Username.Equals("GregMeinert", StringComparison.OrdinalIgnoreCase);
+        var isAdmin = string.Equals(u.Role, "admin", StringComparison.OrdinalIgnoreCase);
         return new
         {
             id = u.Id,
@@ -143,30 +140,6 @@ public static class MySqlUserAuthStore
                 await cmd.ExecuteNonQueryAsync(ct);
             }
 
-            foreach (var seed in MemoryUsers)
-            {
-                const string upsert = """
-                    INSERT INTO lw_auth_users (id, account_id, email, username, display_name, password_hash, password_salt, role, tier, bound_character)
-                    VALUES (@id, @aid, @email, @uname, @dname, @hash, @salt, @role, @tier, @bound)
-                    ON DUPLICATE KEY UPDATE
-                        password_hash = COALESCE(NULLIF(password_hash, ''), @hash),
-                        password_salt = COALESCE(NULLIF(password_salt, ''), @salt),
-                        display_name = @dname;
-                    """;
-                await using var uCmd = new MySqlCommand(upsert, conn);
-                uCmd.Parameters.AddWithValue("@id", seed.Id);
-                uCmd.Parameters.AddWithValue("@aid", seed.AccountId);
-                uCmd.Parameters.AddWithValue("@email", seed.Email);
-                uCmd.Parameters.AddWithValue("@uname", seed.Username);
-                uCmd.Parameters.AddWithValue("@dname", seed.DisplayName);
-                uCmd.Parameters.AddWithValue("@hash", seed.PasswordHash);
-                uCmd.Parameters.AddWithValue("@salt", seed.PasswordSalt);
-                uCmd.Parameters.AddWithValue("@role", seed.Role);
-                uCmd.Parameters.AddWithValue("@tier", seed.TierCode);
-                uCmd.Parameters.AddWithValue("@bound", seed.BoundCharacter);
-                await uCmd.ExecuteNonQueryAsync(ct);
-            }
-
             _schemaInitialized = true;
         }
         catch
@@ -189,109 +162,37 @@ public static class MySqlUserAuthStore
 
         await EnsureDatabaseReadyAsync(repo, ct);
 
-        var memMatch = MemoryUsers.FirstOrDefault(u =>
-            string.Equals(u.Email, cleanId, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(u.Username, cleanId, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(u.AccountId, cleanId, StringComparison.OrdinalIgnoreCase));
+        await using var conn = await repo.OpenConnectionAsync(ct);
+        const string sql = """
+            SELECT id, COALESCE(account_id, CONCAT('acc-', id)), email, username, display_name,
+                   password_hash, password_salt, role, tier, COALESCE(bound_character, 'GM')
+            FROM lw_auth_users
+            WHERE LOWER(email) = LOWER(@id) OR LOWER(username) = LOWER(@id) OR LOWER(account_id) = LOWER(@id)
+            LIMIT 1;
+            """;
+        await using var cmd = new MySqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@id", cleanId);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct)) return null;
 
-        // 1. Check jane_scrum.mw_users (production canonical user table)
-        try
-        {
-            await using var conn = await repo.OpenConnectionAsync(ct);
-            const string mwSql = """
-                SELECT id, email, username, display_name, COALESCE(password_hash, ''), COALESCE(password_salt, ''),
-                       COALESCE(role, 'player'), COALESCE(tier, 'adventurer')
-                FROM jane_scrum.mw_users
-                WHERE LOWER(email) = LOWER(@id) OR LOWER(username) = LOWER(@id)
-                LIMIT 1;
-                """;
-            await using var mwCmd = new MySqlCommand(mwSql, conn);
-            mwCmd.Parameters.AddWithValue("@id", cleanId);
-            await using var mwReader = await mwCmd.ExecuteReaderAsync(ct);
-            if (await mwReader.ReadAsync(ct))
-            {
-                var dbId = mwReader.GetInt64(0);
-                var email = mwReader.GetString(1);
-                var uname = mwReader.GetString(2);
-                var dname = mwReader.GetString(3);
-                var hash = mwReader.GetString(4);
-                var salt = mwReader.GetString(5);
-                var rawRole = mwReader.GetString(6);
-                var tier = mwReader.GetString(7);
-
-                var validMwPassword = !string.IsNullOrEmpty(hash) && !string.IsNullOrEmpty(salt) &&
-                                      PasswordHasher.VerifyPassword(password, hash, salt);
-
-                if (validMwPassword)
-                {
-                    var normalizedRole = rawRole is "player" or "players" ? "players" : "gm";
-                    return new StoredUserRecord(
-                        dbId,
-                        memMatch?.AccountId ?? $"acc-{dbId}",
-                        email,
-                        uname,
-                        dname,
-                        hash,
-                        salt,
-                        normalizedRole,
-                        tier,
-                        memMatch?.BoundCharacter ?? (normalizedRole == "gm" ? "GM" : uname),
-                        memMatch?.OwnedAssetIds ?? new[] { "asset-map-cinth", "asset-dice-runed-obsidian" },
-                        memMatch?.CreatorBalanceUsd ?? 0.0
-                    );
-                }
-            }
-        }
-        catch
-        {
-            // Continue to lw_auth_users / MemoryUsers
-        }
-
-        // 2. Check loomweaver.lw_auth_users
-        try
-        {
-            await using var conn = await repo.OpenConnectionAsync(ct);
-            const string sql = """
-                SELECT id, COALESCE(account_id, CONCAT('acc-', id)), email, username, display_name,
-                       password_hash, password_salt, role, tier, COALESCE(bound_character, 'GM')
-                FROM lw_auth_users
-                WHERE LOWER(email) = LOWER(@id) OR LOWER(username) = LOWER(@id) OR LOWER(account_id) = LOWER(@id)
-                LIMIT 1;
-                """;
-            await using var cmd = new MySqlCommand(sql, conn);
-            cmd.Parameters.AddWithValue("@id", cleanId);
-            await using var reader = await cmd.ExecuteReaderAsync(ct);
-            if (await reader.ReadAsync(ct))
-            {
-                var hash = reader.IsDBNull(5) ? string.Empty : reader.GetString(5);
-                var salt = reader.IsDBNull(6) ? string.Empty : reader.GetString(6);
-                if (PasswordHasher.VerifyPassword(password, hash, salt))
-                {
-                    var rawRole = reader.GetString(7);
-                    var normalizedRole = rawRole is "player" or "players" ? "players" : "gm";
-                    return new StoredUserRecord(
-                        memMatch?.Id ?? reader.GetInt64(0),
-                        reader.GetString(1),
-                        reader.GetString(2),
-                        reader.GetString(3),
-                        reader.GetString(4),
-                        hash,
-                        salt,
-                        normalizedRole,
-                        reader.GetString(8),
-                        reader.GetString(9),
-                        new[] { "asset-map-cinth", "asset-dice-runed-obsidian" },
-                        0.0
-                    );
-                }
-            }
-        }
-        catch
-        {
-            // Database unavailable: no offline credential fallback exists.
-        }
-
-        return null;
+        var hash = reader.IsDBNull(5) ? string.Empty : reader.GetString(5);
+        var salt = reader.IsDBNull(6) ? string.Empty : reader.GetString(6);
+        if (!PasswordHasher.VerifyPassword(password, hash, salt)) return null;
+        var rawRole = reader.GetString(7);
+        var normalizedRole = rawRole is "player" or "players" ? "players" : "gm";
+        return new StoredUserRecord(
+            reader.GetInt64(0),
+            reader.GetString(1),
+            reader.GetString(2),
+            reader.GetString(3),
+            reader.GetString(4),
+            hash,
+            salt,
+            normalizedRole,
+            reader.GetString(8),
+            reader.GetString(9),
+            Array.Empty<string>(),
+            0.0);
     }
 
     public static async Task<StoredUserRecord> RegisterAsync(
@@ -300,65 +201,56 @@ public static class MySqlUserAuthStore
         string username,
         string displayName,
         string password,
-        string role,
         CancellationToken ct = default)
     {
         await EnsureDatabaseReadyAsync(repo, ct);
         var cleanEmail = email.Trim().ToLowerInvariant();
         var cleanUser = string.IsNullOrWhiteSpace(username) ? cleanEmail.Split('@')[0] : username.Trim();
         var cleanDisplay = string.IsNullOrWhiteSpace(displayName) ? cleanUser : displayName.Trim();
-        var normalizedRole = string.Equals(role, "players", StringComparison.OrdinalIgnoreCase) ||
-                             string.Equals(role, "player", StringComparison.OrdinalIgnoreCase)
-            ? "players"
-            : "gm";
-
-        if (MemoryUsers.Any(u =>
-            string.Equals(u.Email, cleanEmail, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(u.Username, cleanUser, StringComparison.OrdinalIgnoreCase)))
-        {
-            throw new InvalidOperationException("An account with that email or username already exists.");
-        }
-
         var (hash, salt) = PasswordHasher.HashPassword(password);
-        var accountId = $"acc-{normalizedRole}-{Guid.NewGuid():N}"[..18];
-        var newId = (long)(MemoryUsers.Count + 6000);
-        var record = new StoredUserRecord(
-            newId, accountId, cleanEmail, cleanUser, cleanDisplay, hash, salt,
-            normalizedRole, normalizedRole == "gm" ? "adventurer" : "player",
-            normalizedRole == "gm" ? "GM" : "Fivi",
-            new[] { "asset-dice-runed-obsidian" }, 0.0
-        );
+        var accountId = $"acc-player-{Guid.NewGuid():N}"[..18];
+        long newId;
 
         try
         {
             await using var conn = await repo.OpenConnectionAsync(ct);
-            const string insertSql = """
+            await using var tx = await conn.BeginTransactionAsync(ct);
+            await using (var insert = new MySqlCommand("""
                 INSERT INTO lw_auth_users (account_id, email, username, display_name, password_hash, password_salt, role, tier, bound_character)
-                VALUES (@aid, @email, @uname, @dname, @hash, @salt, @role, @tier, @bound);
-                SELECT LAST_INSERT_ID();
-                """;
-            await using var cmd = new MySqlCommand(insertSql, conn);
-            cmd.Parameters.AddWithValue("@aid", record.AccountId);
-            cmd.Parameters.AddWithValue("@email", record.Email);
-            cmd.Parameters.AddWithValue("@uname", record.Username);
-            cmd.Parameters.AddWithValue("@dname", record.DisplayName);
-            cmd.Parameters.AddWithValue("@hash", record.PasswordHash);
-            cmd.Parameters.AddWithValue("@salt", record.PasswordSalt);
-            cmd.Parameters.AddWithValue("@role", record.Role);
-            cmd.Parameters.AddWithValue("@tier", record.TierCode);
-            cmd.Parameters.AddWithValue("@bound", record.BoundCharacter);
-            var dbId = Convert.ToInt64(await cmd.ExecuteScalarAsync(ct));
-            record = record with { Id = dbId };
+                VALUES (@aid, @email, @uname, @dname, @hash, @salt, 'players', 'adventurer', 'none')
+                """, conn, tx))
+            {
+                insert.Parameters.AddWithValue("@aid", accountId);
+                insert.Parameters.AddWithValue("@email", cleanEmail);
+                insert.Parameters.AddWithValue("@uname", cleanUser);
+                insert.Parameters.AddWithValue("@dname", cleanDisplay);
+                insert.Parameters.AddWithValue("@hash", hash);
+                insert.Parameters.AddWithValue("@salt", salt);
+                await insert.ExecuteNonQueryAsync(ct);
+                newId = insert.LastInsertedId;
+            }
+
+            await using (var canonical = new MySqlCommand("""
+                INSERT INTO lw_users (email, username, display_name, role, tier_code)
+                VALUES (@email, @uname, @dname, 'player', 'adventurer')
+                ON DUPLICATE KEY UPDATE display_name = VALUES(display_name)
+                """, conn, tx))
+            {
+                canonical.Parameters.AddWithValue("@email", cleanEmail);
+                canonical.Parameters.AddWithValue("@uname", cleanUser);
+                canonical.Parameters.AddWithValue("@dname", cleanDisplay);
+                await canonical.ExecuteNonQueryAsync(ct);
+            }
+            await tx.CommitAsync(ct);
         }
         catch (MySqlException ex) when (ex.Number == 1062)
         {
             throw new InvalidOperationException("An account with that email or username already exists.");
         }
-        catch
-        {
-            // Keep in-memory record when MySQL is offline locally
-        }
 
+        var record = new StoredUserRecord(
+            newId, accountId, cleanEmail, cleanUser, cleanDisplay, hash, salt,
+            "players", "adventurer", "none", Array.Empty<string>(), 0.0);
         MemoryUsers.Insert(0, record);
         return record;
     }
@@ -386,41 +278,31 @@ public static class MySqlUserAuthStore
             if (string.IsNullOrWhiteSpace(email)) return null;
             var name = (root.TryGetProperty("name", out var nmProp) ? nmProp.GetString() : null) ?? email.Split('@')[0];
 
-            var existing = MemoryUsers.FirstOrDefault(u => string.Equals(u.Email, email, StringComparison.OrdinalIgnoreCase));
-            if (existing is not null) return existing;
+            var verified = root.TryGetProperty("email_verified", out var verifiedProp) &&
+                           verifiedProp.ValueKind == JsonValueKind.True;
+            if (!verified) return null;
 
-            try
+            await using var conn = await repo.OpenConnectionAsync(ct);
+            await using var cmd = new MySqlCommand("""
+                SELECT id, account_id, email, username, display_name, password_hash, password_salt,
+                       role, tier, COALESCE(bound_character, 'none')
+                FROM lw_auth_users WHERE LOWER(email) = LOWER(@email) LIMIT 1
+                """, conn);
+            cmd.Parameters.AddWithValue("@email", email);
+            await using var r = await cmd.ExecuteReaderAsync(ct);
+            if (await r.ReadAsync(ct))
             {
-                await using var conn = await repo.OpenConnectionAsync(ct);
-                await using var cmd = new MySqlCommand(
-                    "SELECT id, username, display_name, COALESCE(role, 'player'), COALESCE(tier, 'adventurer') FROM jane_scrum.mw_users WHERE LOWER(email) = LOWER(@email) LIMIT 1",
-                    conn);
-                cmd.Parameters.AddWithValue("@email", email);
-                await using var r = await cmd.ExecuteReaderAsync(ct);
-                if (await r.ReadAsync(ct))
-                {
-                    var dbId = r.GetInt64(0);
-                    var rawRole = r.GetString(3);
-                    return new StoredUserRecord(
-                        dbId, $"acc-{dbId}", email, r.GetString(1), r.GetString(2), "", "",
-                        rawRole is "player" or "players" ? "players" : "gm", r.GetString(4), "GM",
-                        new[] { "asset-map-cinth" }, 0.0);
-                }
+                var rawRole = r.GetString(7);
+                return new StoredUserRecord(
+                    r.GetInt64(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4),
+                    r.GetString(5), r.GetString(6),
+                    rawRole is "player" or "players" ? "players" : "gm",
+                    r.GetString(8), r.GetString(9), Array.Empty<string>(), 0.0);
             }
-            catch { }
+            await r.DisposeAsync();
 
-            var (hash, salt) = PasswordHasher.HashPassword(Guid.NewGuid().ToString("N"));
-            var created = new StoredUserRecord(
-                MemoryUsers.Count + 6200,
-                $"acc-google-{Guid.NewGuid():N}"[..18],
-                email, email.Split('@')[0], name, hash, salt,
-                email.Equals("jtromborg1@gmail.com", StringComparison.OrdinalIgnoreCase) ? "gm" : "players",
-                email.Equals("jtromborg1@gmail.com", StringComparison.OrdinalIgnoreCase) ? "legendary" : "adventurer",
-                email.Equals("jtromborg1@gmail.com", StringComparison.OrdinalIgnoreCase) ? "GM" : "Dal",
-                new[] { "asset-map-cinth", "asset-dice-runed-obsidian" }, 0.0
-            );
-            MemoryUsers.Insert(0, created);
-            return created;
+            return await RegisterAsync(repo, email, email.Split('@')[0], name,
+                Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)), ct);
         }
         catch
         {

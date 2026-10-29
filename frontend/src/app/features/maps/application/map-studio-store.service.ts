@@ -9,6 +9,19 @@ import {
   MapStudioLayer,
   StampOcclusionMode,
 } from './map-studio.models';
+import type { MapSceneGraphState } from '../engine/map-scene-contract';
+
+interface SavedMapSceneDocument extends MapSceneGraphState {
+  readonly studio?: {
+    readonly mapTitle: string;
+    readonly activeLevelIndex: number;
+    readonly ghostLowerFloors: boolean;
+    readonly testTokenSandbox: boolean;
+    readonly gridConfig: MapGridConfig;
+    readonly levels: readonly MapLevelFloor[];
+    readonly layers: readonly MapStudioLayer[];
+  };
+}
 
 @Injectable({ providedIn: 'root' })
 export class MapStudioStoreService {
@@ -22,9 +35,11 @@ export class MapStudioStoreService {
   readonly selectedStampId = signal<string>('st-emrys');
   readonly selectedOcclusionMode = signal<StampOcclusionMode>('fade');
   readonly savingRevision = signal<boolean>(false);
+  readonly serverSceneRevision = signal<number>(0);
   readonly saveStatusBanner = signal<string>(
-    'Stage 1 Studio Ready · Multi-Level Floors, 8-Layer Compositor, 40-Step Undo/Redo & Server Outbox Sync.',
+    'Scene edits stay local until saved to the campaign.',
   );
+  private sceneLoadVersion = 0;
 
   readonly gridConfig = signal<MapGridConfig>({
     gridType: 'square',
@@ -203,41 +218,80 @@ export class MapStudioStoreService {
     this.activeLayerId.set(id);
   }
 
-  saveAuthoritativeRevision(
+  loadSceneDocument(
+    campaignId: number,
     sceneKey: string,
-    expectedRevision: number,
-    viewerRole: string,
-    onCommitted: (newRevision: number) => void,
+    onLoaded: (scene: SavedMapSceneDocument) => void,
+  ): void {
+    const requestVersion = ++this.sceneLoadVersion;
+    this.serverSceneRevision.set(0);
+    this.http
+      .get<{ revision: number; document: SavedMapSceneDocument }>(
+        `/api/v2/campaigns/${campaignId}/maps/${encodeURIComponent(sceneKey)}/document`,
+      )
+      .subscribe({
+        next: (res) => {
+          if (requestVersion !== this.sceneLoadVersion) return;
+          this.serverSceneRevision.set(res.revision);
+          if (res.document.studio) {
+            this.mapTitle.set(res.document.studio.mapTitle);
+            this.activeLevelIndex.set(res.document.studio.activeLevelIndex);
+            this.ghostLowerFloors.set(res.document.studio.ghostLowerFloors);
+            this.testTokenSandbox.set(res.document.studio.testTokenSandbox);
+            this.gridConfig.set(res.document.studio.gridConfig);
+            this.levels.set(res.document.studio.levels);
+            this.layers.set(res.document.studio.layers);
+          }
+          onLoaded(res.document);
+          this.saveStatusBanner.set(`Loaded saved server scene at revision ${res.revision}.`);
+        },
+        error: (err) => {
+          if (requestVersion !== this.sceneLoadVersion) return;
+          this.saveStatusBanner.set(
+            err.status === 404
+              ? 'No saved server scene exists yet; the starter scene is ready to edit.'
+              : 'The saved scene could not be loaded. Check the connection and try again.',
+          );
+        },
+      });
+  }
+
+  saveAuthoritativeRevision(
+    campaignId: number,
+    sceneKey: string,
+    sceneGraph: MapSceneGraphState,
   ): void {
     this.savingRevision.set(true);
     const payload = {
-      viewerRole,
-      authorName: viewerRole === 'gm' ? 'Joshua (GM)' : 'Party Member',
-      title: this.mapTitle(),
-      expectedRevision,
-      activeLevelIndex: this.activeLevelIndex(),
-      ghostLowerFloors: this.ghostLowerFloors(),
-      testTokenSandbox: this.testTokenSandbox(),
-      grid: this.gridConfig(),
-      levels: this.levels(),
-      layers: this.layers(),
-      changeSummary: `Saved '${this.mapTitle()}' with ${this.layers().length} layers at Level L${this.activeLevelIndex()}`,
+      expectedRevision: this.serverSceneRevision(),
+      document: {
+        ...sceneGraph,
+        studio: {
+          mapTitle: this.mapTitle(),
+          activeLevelIndex: this.activeLevelIndex(),
+          ghostLowerFloors: this.ghostLowerFloors(),
+          testTokenSandbox: this.testTokenSandbox(),
+          gridConfig: this.gridConfig(),
+          levels: this.levels(),
+          layers: this.layers(),
+        },
+      },
     };
 
     this.http
-      .post<{ accepted: boolean; newRevision: number; outboxEventId: string; summary: string }>(
-        `/api/v2/campaigns/1/maps/${sceneKey}/save-revision`,
+      .put<{ revision: number }>(
+        `/api/v2/campaigns/${campaignId}/maps/${encodeURIComponent(sceneKey)}/document`,
         payload,
       )
       .subscribe({
         next: (res) => {
           this.savingRevision.set(false);
-          this.saveStatusBanner.set(`${res.summary} · Outbox: ${res.outboxEventId}`);
-          onCommitted(res.newRevision);
+          this.serverSceneRevision.set(res.revision);
+          this.saveStatusBanner.set(`Saved scene to the server at revision ${res.revision}.`);
         },
         error: (err) => {
           this.savingRevision.set(false);
-          const msg = err?.error?.error ?? 'Revision saved locally (offline fallback).';
+          const msg = err?.error?.error ?? 'Scene save failed; no server copy was written.';
           this.saveStatusBanner.set(msg);
         },
       });

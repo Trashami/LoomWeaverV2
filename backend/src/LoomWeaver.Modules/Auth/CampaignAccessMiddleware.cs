@@ -14,7 +14,7 @@ namespace LoomWeaver.Modules.Auth;
 /// Server-side access control for every /api and /hubs request:
 ///  1. Authentication is required except for an explicit allowlist of public endpoints.
 ///  2. Any route containing /campaigns/{id} requires a lw_campaign_members row (403 otherwise).
-///  3. Client-asserted identity fields (role, viewerRole, accountId, username, witness,
+///  3. Client-asserted identity fields (role, viewerRole, accountId, username, authorName, witness,
 ///     boundCharacter) in the query string and top-level JSON body are overwritten with
 ///     server-derived values, so no endpoint can be tricked into a GM view.
 /// </summary>
@@ -24,6 +24,7 @@ public static partial class CampaignAccessMiddleware
     private static readonly string[] RoleWords = ["gm", "dm", "player", "players", "creator", "admin"];
     private static readonly string[] ViewerRoleKeys = ["viewerRole", "role"];
     private static readonly string[] CharacterKeys = ["witness", "witnessCharacter", "boundCharacter"];
+    private static readonly string[] DisplayNameKeys = ["authorName", "actorName", "displayName"];
 
     [GeneratedRegex(@"/campaigns/(\d+)(?:/|$)", RegexOptions.IgnoreCase)]
     private static partial Regex CampaignPathRegex();
@@ -178,6 +179,7 @@ public static partial class CampaignAccessMiddleware
         query["viewerRole"] = role;
         query.Remove("accountId");
         if (query.ContainsKey("username")) query["username"] = user.Username;
+        if (query.ContainsKey("displayName")) query["displayName"] = user.DisplayName;
 
         var playerCharacter = PlayerCharacter(access);
         foreach (var key in CharacterKeys)
@@ -214,6 +216,10 @@ public static partial class CampaignAccessMiddleware
             else if (name.Equals("username", StringComparison.OrdinalIgnoreCase))
             {
                 obj[name] = user.Username; changed = true;
+            }
+            else if (DisplayNameKeys.Contains(name, StringComparer.OrdinalIgnoreCase))
+            {
+                obj[name] = user.DisplayName; changed = true;
             }
             else if (CharacterKeys.Contains(name, StringComparer.OrdinalIgnoreCase) && PlayerCharacter(access) is { } pc)
             {

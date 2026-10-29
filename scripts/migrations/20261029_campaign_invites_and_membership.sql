@@ -1,10 +1,6 @@
--- Unifies campaign membership on lw_campaign_members keyed to lw_auth_users ids
--- (the identity table login actually uses) and adds real invite tokens.
--- Run once: DROP FOREIGN KEY has no IF EXISTS in MySQL 8.4.
+-- Adds hashed, limited-use campaign invites. Membership and campaign ownership
+-- retain their canonical lw_users foreign keys; auth identities are matched by email.
 USE loomweaver;
-
-ALTER TABLE lw_campaign_members DROP FOREIGN KEY fk_lw_camp_members_user;
-ALTER TABLE lw_campaigns DROP FOREIGN KEY fk_lw_campaigns_gm;
 
 CREATE TABLE IF NOT EXISTS lw_campaign_invites (
   id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -23,10 +19,13 @@ CREATE TABLE IF NOT EXISTS lw_campaign_invites (
   CONSTRAINT fk_lw_invite_campaign FOREIGN KEY (campaign_id) REFERENCES lw_campaigns (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Existing campaigns without any members would be unreachable under enforced
--- membership; give each its recorded GM a gm row (matched by auth_email).
+-- Ensure every recorded campaign owner has their own membership row.
 INSERT IGNORE INTO lw_campaign_members (campaign_id, user_id, auth_email, member_role)
-SELECT c.id, a.id, a.email, 'gm'
+SELECT c.id, u.id, COALESCE(a.email, u.email), 'gm'
 FROM lw_campaigns c
-JOIN lw_auth_users a ON a.email = 'jtromborg1@gmail.com'
-WHERE NOT EXISTS (SELECT 1 FROM lw_campaign_members m WHERE m.campaign_id = c.id);
+JOIN lw_users u ON u.id = c.gm_user_id
+LEFT JOIN lw_auth_users a ON LOWER(a.email) = LOWER(u.email)
+WHERE NOT EXISTS (
+  SELECT 1 FROM lw_campaign_members m
+  WHERE m.campaign_id = c.id AND m.user_id = c.gm_user_id
+);

@@ -14,7 +14,8 @@ namespace LoomWeaver.Modules.Realtime;
 /// </summary>
 public sealed class TableRealtimeHub(LoomWeaverMySqlRepository repo) : Hub
 {
-    private static readonly ConcurrentDictionary<string, ConcurrentDictionary<int, CampaignMembership>> Seats = new();
+    private sealed record LiveConnection(int CampaignId, StoredUserRecord User, CampaignMembership Membership);
+    private static readonly ConcurrentDictionary<string, LiveConnection> Seats = new();
 
     public static string GroupName(int campaignId) => $"campaign-{campaignId}";
     public static string GmGroupName(int campaignId) => $"campaign-{campaignId}-gm";
@@ -25,7 +26,7 @@ public sealed class TableRealtimeHub(LoomWeaverMySqlRepository repo) : Hub
         var membership = await CampaignMembershipStore.FindAsync(repo, campaignId, user, Context.ConnectionAborted)
             ?? throw new HubException("You are not a member of this campaign.");
 
-        Seats.GetOrAdd(Context.ConnectionId, _ => new())[campaignId] = membership;
+        Seats[Context.ConnectionId] = new LiveConnection(campaignId, user, membership);
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(campaignId));
         if (membership.IsGm)
         {
@@ -33,37 +34,39 @@ public sealed class TableRealtimeHub(LoomWeaverMySqlRepository repo) : Hub
         }
 
         var seatRole = membership.IsGm ? "GM" : "PLAYER";
-        var evt = TableRealtimeEndpoints.RecordEvent(
+        var evt = await CampaignPlayEventStore.AppendAsync(
+            repo,
             campaignId,
             "seat_joined",
             user.DisplayName,
             $"{user.DisplayName} ({seatRole}) connected to the live table.",
-            "{}"
-        );
+            "{}",
+            Context.ConnectionAborted);
         await Clients.Group(GroupName(campaignId)).SendAsync("TableEventReceived", evt);
     }
 
     public async Task BroadcastTableAction(int campaignId, PublishRealtimeEventRequest request)
     {
         var user = CurrentUser();
-        if (!Seats.TryGetValue(Context.ConnectionId, out var seats) || !seats.TryGetValue(campaignId, out var membership))
+        if (!Seats.TryGetValue(Context.ConnectionId, out var seat) || seat.CampaignId != campaignId)
         {
             throw new HubException("Join the campaign table before broadcasting.");
         }
 
         var gmOnly = TableRealtimeEndpoints.IsGmOnly(request.EventType, request.PayloadJson);
-        if (gmOnly && !membership.IsGm)
+        if (gmOnly && !seat.Membership.IsGm)
         {
             throw new HubException("Only the GM can send GM-only table events.");
         }
 
-        var evt = TableRealtimeEndpoints.RecordEvent(
+        var evt = await CampaignPlayEventStore.AppendAsync(
+            repo,
             campaignId,
             request.EventType,
             user.DisplayName,
             request.Summary,
-            request.PayloadJson ?? "{}"
-        );
+            request.PayloadJson ?? "{}",
+            Context.ConnectionAborted);
         await Clients.Group(gmOnly ? GmGroupName(campaignId) : GroupName(campaignId)).SendAsync("TableEventReceived", evt);
     }
 
@@ -72,6 +75,18 @@ public sealed class TableRealtimeHub(LoomWeaverMySqlRepository repo) : Hub
         Seats.TryRemove(Context.ConnectionId, out _);
         return base.OnDisconnectedAsync(exception);
     }
+
+    public static IReadOnlyList<TablePresenceSeatContract> ConnectedSeats(int campaignId) =>
+        Seats.Where(pair => pair.Value.CampaignId == campaignId)
+            .Select(pair => new TablePresenceSeatContract(
+                pair.Key,
+                pair.Value.User.DisplayName,
+                pair.Value.Membership.IsGm ? "gm" : "players",
+                pair.Value.Membership.IsGm ? "GM" : pair.Value.Membership.CharacterKey ?? "Unassigned",
+                "Connected",
+                string.Empty,
+                0))
+            .ToArray();
 
     private StoredUserRecord CurrentUser()
     {

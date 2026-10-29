@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
+using LoomWeaver.Infrastructure.MySql;
 using LoomWeaver.Domain;
 using LoomWeaver.Modules.Auth;
 using Microsoft.AspNetCore.Builder;
@@ -41,16 +43,6 @@ public static class TableRealtimeEndpoints
         )
     });
 
-    private static readonly List<TablePresenceSeatContract> ConnectedSeats = new()
-    {
-        new("seat-gm", "Trashami (Game Master)", "gm", "GM", "Broadcasting Live", "/arcane-screen", 14),
-        new("seat-dal", "Dal (Heir in Exile)", "players", "Dal", "Connected · Free Seat", "/campaigns", 22),
-        new("seat-fivi", "Fivi (Arcane Trickster)", "players", "Fivi", "Connected · Free Seat", "/dice", 19),
-        new("seat-kildrid", "Kildrid (Stone-Scholar)", "players", "Kildrid", "Connected · Free Seat", "/maps", 27),
-        new("seat-kycius", "Kycius (Spellblade)", "players", "Kycius", "Connected · Free Seat", "/effects", 24),
-        new("seat-munk", "Munk (Vanguard)", "players", "Munk", "Connected · Free Seat", "/arcane-screen", 18)
-    };
-
     public static TableRealtimeEventContract RecordEvent(
         int campaignId,
         string eventType,
@@ -78,27 +70,37 @@ public static class TableRealtimeEndpoints
     }
 
     /// <summary>GM-only events: type prefixed "gm_" or payload marked "visibility":"gm".</summary>
-    public static bool IsGmOnly(string? eventType, string? payloadJson) =>
-        (eventType ?? string.Empty).StartsWith("gm_", StringComparison.OrdinalIgnoreCase) ||
-        (payloadJson ?? string.Empty).Replace(" ", string.Empty)
-            .Contains("\"visibility\":\"gm\"", StringComparison.OrdinalIgnoreCase);
+    public static bool IsGmOnly(string? eventType, string? payloadJson)
+    {
+        if ((eventType ?? string.Empty).StartsWith("gm_", StringComparison.OrdinalIgnoreCase)) return true;
+        if (string.IsNullOrWhiteSpace(payloadJson)) return false;
+        try
+        {
+            using var payload = JsonDocument.Parse(payloadJson);
+            return payload.RootElement.ValueKind == JsonValueKind.Object &&
+                   payload.RootElement.TryGetProperty("visibility", out var visibility) &&
+                   visibility.ValueKind == JsonValueKind.String &&
+                   string.Equals(visibility.GetString(), "gm", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
 
     public static RouteGroupBuilder MapTableRealtimeEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/campaigns/{campaignId:int}/realtime/presence", (int campaignId, HttpContext ctx) =>
+        api.MapGet("/campaigns/{campaignId:int}/realtime/presence", async (
+            int campaignId, HttpContext ctx, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
         {
             var access = CampaignAccessResolver.Resolve(ctx, campaignId);
             return Results.Ok(new
             {
                 campaignId,
                 hubEndpoint = "/hubs/table",
-                protocol = "SignalR WebSocket + BroadcastChannel Dual Sync",
-                seats = ConnectedSeats,
-                recentEvents = EventStream.Reverse()
-                    .Where(e => e.CampaignId == campaignId)
-                    .Where(e => access.IsEffectiveGm || !IsGmOnly(e.EventType, e.PayloadJson))
-                    .Take(12)
-                    .ToList()
+                protocol = "SignalR WebSocket",
+                seats = TableRealtimeHub.ConnectedSeats(campaignId),
+                recentEvents = await CampaignPlayEventStore.ListRecentAsync(mysql, campaignId, access.IsEffectiveGm, 12, ct)
             });
         });
 
@@ -106,7 +108,9 @@ public static class TableRealtimeEndpoints
             int campaignId,
             PublishRealtimeEventRequest req,
             HttpContext ctx,
-            IHubContext<TableRealtimeHub> hubContext) =>
+            IHubContext<TableRealtimeHub> hubContext,
+            LoomWeaverMySqlRepository mysql,
+            CancellationToken ct) =>
         {
             var access = CampaignAccessResolver.Resolve(ctx, campaignId);
             var gmOnly = IsGmOnly(req.EventType, req.PayloadJson);
@@ -116,13 +120,15 @@ public static class TableRealtimeEndpoints
             }
 
             var user = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
-            var evt = RecordEvent(
+            if (user is null) return Results.Unauthorized();
+            var evt = await CampaignPlayEventStore.AppendAsync(
+                mysql,
                 campaignId,
                 req.EventType,
-                user?.DisplayName ?? access.Username,
+                user.DisplayName,
                 req.Summary,
-                req.PayloadJson ?? "{}"
-            );
+                req.PayloadJson ?? "{}",
+                ct);
 
             await hubContext.Clients
                 .Group(gmOnly ? TableRealtimeHub.GmGroupName(campaignId) : TableRealtimeHub.GroupName(campaignId))

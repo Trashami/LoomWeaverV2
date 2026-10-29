@@ -196,31 +196,9 @@
             />
           </label>
 
-          <div class="lw-auth-role-picker">
-            <span class="lw-auth-role-label">Account Role</span>
-            <div class="lw-auth-role-grid">
-              <button
-                ngpButton
-                type="button"
-                class="lw-auth-role-card"
-                [class.lw-auth-role-card--active]="registerRole() === 'gm'"
-                (click)="registerRole.set('gm')"
-              >
-                <strong>Game Master &amp; Creator</strong>
-                <span>Campaign Studio, LoomMaps, World Atlas &amp; 85/15 Marketplace</span>
-              </button>
-              <button
-                ngpButton
-                type="button"
-                class="lw-auth-role-card"
-                [class.lw-auth-role-card--active]="registerRole() === 'players'"
-                (click)="registerRole.set('players')"
-              >
-                <strong>Free Player Seat</strong>
-                <span>100% free forever — character sheets, 2.5D VTT &amp; witness-scoped Loom</span>
-              </button>
-            </div>
-          </div>
+          <p class="lw-auth-role-label">
+            Accounts start as players. Creating a campaign grants GM access for that campaign.
+          </p>
 
           <div class="lw-auth-actions">
             <lw-button

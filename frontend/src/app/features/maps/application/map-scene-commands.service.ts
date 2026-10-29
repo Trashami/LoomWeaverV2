@@ -1,5 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { LoomWeaverStoreService } from '../../../core/services/loomweaver-store.service';
+import { LwAlertifyService } from '../../../core/services/lw-alertify.service';
 import {
   ChamberBuildIntent,
   PathRibbonBuildIntent,
@@ -16,6 +18,8 @@ import { MapCatalogAssetItem } from './map-studio.models';
 @Injectable({ providedIn: 'root' })
 export class MapSceneCommandsService {
   private readonly http = inject(HttpClient);
+  private readonly store = inject(LoomWeaverStoreService);
+  private readonly alertify = inject(LwAlertifyService);
 
   applyToolStroke(
     cur: MapSceneGraphState,
@@ -92,8 +96,13 @@ export class MapSceneCommandsService {
     centerX: number,
     centerZ: number,
     levelIndex: number,
-    viewerRole: string,
   ): MapSceneGraphState {
+    const campaignId = this.store.activeCampaignId();
+    if (campaignId <= 0) {
+      this.alertify.notifyStatus('Map update', 'No campaign selected', 'Select a campaign before adding a wall.', 'crimson');
+      return cur;
+    }
+
     const nextRev = cur.revision + 1;
     const points = WallPolygonBuilder.generatePolygonVertices(
       intent.drawMode,
@@ -129,14 +138,15 @@ export class MapSceneCommandsService {
     };
 
     this.http
-      .post(`/api/v2/campaigns/1/maps/${cur.sceneKey}/walls`, {
-        viewerRole,
+      .post(`/api/v2/campaigns/${campaignId}/maps/${cur.sceneKey}/walls`, {
         ...intent,
         centerX,
         centerZ,
         levelIndex,
       })
-      .subscribe({ error: () => {} });
+      .subscribe({
+        error: () => this.alertify.notifyStatus('Map update', 'Wall was not saved', 'The wall could not be saved to the selected campaign.', 'crimson'),
+      });
 
     return {
       ...cur,
@@ -149,6 +159,12 @@ export class MapSceneCommandsService {
     cur: MapSceneGraphState,
     intent: WallOpeningInsertIntent,
   ): MapSceneGraphState {
+    const campaignId = this.store.activeCampaignId();
+    if (campaignId <= 0) {
+      this.alertify.notifyStatus('Map update', 'No campaign selected', 'Select a campaign before adding a path.', 'crimson');
+      return cur;
+    }
+
     const nextRev = cur.revision + 1;
     const walls = (cur.walls ?? []).map((w) =>
       w.id === intent.wallId
@@ -178,7 +194,6 @@ export class MapSceneCommandsService {
     centerX: number,
     centerZ: number,
     levelIndex: number,
-    viewerRole: string,
   ): MapSceneGraphState {
     const nextRev = cur.revision + 1;
     const waypoints: readonly (readonly [number, number])[] = [
@@ -200,13 +215,14 @@ export class MapSceneCommandsService {
     };
 
     this.http
-      .post(`/api/v2/campaigns/1/maps/${cur.sceneKey}/paths`, {
-        viewerRole,
+      .post(`/api/v2/campaigns/${campaignId}/maps/${cur.sceneKey}/paths`, {
         ...intent,
         levelIndex,
         waypoints: waypoints.map((pt) => ({ x: pt[0], z: pt[1] })),
       })
-      .subscribe({ error: () => {} });
+      .subscribe({
+        error: () => this.alertify.notifyStatus('Map update', 'Path was not saved', 'The path could not be saved to the selected campaign.', 'crimson'),
+      });
 
     return {
       ...cur,

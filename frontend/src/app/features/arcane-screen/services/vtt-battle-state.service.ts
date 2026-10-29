@@ -706,7 +706,7 @@ export class VttBattleStateService {
       title: title.trim() || 'Session NPC',
       scope,
       disposition,
-      locationName: this.vtt.activeLiveEncounter().sceneName,
+      locationName: this.vtt.activeLiveEncounter()?.sceneName ?? '',
       summary: `${disposition} ${scope.toLowerCase()} NPC added live during session.`,
       gmSecret: 'Added via Arcane Screen Quick-Add tool.',
       revealedToPlayers: true,

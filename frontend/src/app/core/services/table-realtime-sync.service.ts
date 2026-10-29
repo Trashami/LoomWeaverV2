@@ -1,5 +1,8 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { HubConnection, HubConnectionBuilder, HubConnectionState } from '@microsoft/signalr';
+import { Injectable, effect, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { LwAlertifyService } from './lw-alertify.service';
+import { LoomWeaverStoreService } from './loomweaver-store.service';
 
 export interface TablePresenceSeatVm {
   readonly seatId: string;
@@ -21,166 +24,136 @@ export interface TableRealtimeEventVm {
   readonly timestamp: string;
 }
 
-const DEFAULT_SEATS: readonly TablePresenceSeatVm[] = [
-  {
-    seatId: 'seat-gm',
-    displayName: 'Trashami (Game Master)',
-    role: 'gm',
-    boundCharacter: 'GM',
-    status: 'Broadcasting Live',
-    activeRoute: '/arcane-screen',
-    latencyMs: 14,
-  },
-  {
-    seatId: 'seat-dal',
-    displayName: 'Dal (Heir in Exile)',
-    role: 'players',
-    boundCharacter: 'Dal',
-    status: 'Connected · Free Seat',
-    activeRoute: '/campaigns',
-    latencyMs: 22,
-  },
-  {
-    seatId: 'seat-fivi',
-    displayName: 'Fivi (Arcane Trickster)',
-    role: 'players',
-    boundCharacter: 'Fivi',
-    status: 'Connected · Free Seat',
-    activeRoute: '/dice',
-    latencyMs: 19,
-  },
-  {
-    seatId: 'seat-kildrid',
-    displayName: 'Kildrid (Stone-Scholar)',
-    role: 'players',
-    boundCharacter: 'Kildrid',
-    status: 'Connected · Free Seat',
-    activeRoute: '/maps',
-    latencyMs: 27,
-  },
-  {
-    seatId: 'seat-kycius',
-    displayName: 'Kycius (Spellblade)',
-    role: 'players',
-    boundCharacter: 'Kycius',
-    status: 'Connected · Free Seat',
-    activeRoute: '/effects',
-    latencyMs: 24,
-  },
-  {
-    seatId: 'seat-munk',
-    displayName: 'Munk (Vanguard)',
-    role: 'players',
-    boundCharacter: 'Munk',
-    status: 'Connected · Free Seat',
-    activeRoute: '/arcane-screen',
-    latencyMs: 18,
-  },
-];
-
-const DEFAULT_EVENTS: readonly TableRealtimeEventVm[] = [
-  {
-    eventId: 'evt-seed-303',
-    campaignId: 1,
-    eventType: 'dice_rolled',
-    actorName: 'Fivi',
-    summary: 'Rolled 1d20+8 (ADV) = 28 · Natural 20 Solar Supernova Burst triggered on Bound Dragon.',
-    payloadJson: '{"sides":20,"total":28,"isNat20":true}',
-    timestamp: new Date().toISOString(),
-  },
-  {
-    eventId: 'evt-seed-302',
-    campaignId: 1,
-    eventType: 'token_moved',
-    actorName: 'Munk',
-    summary: 'Moved frontline token 30 ft to Cinth Ballroom Upper Balcony (Grid 14, 8).',
-    payloadJson: '{"gridX":14,"gridZ":8}',
-    timestamp: new Date().toISOString(),
-  },
-  {
-    eventId: 'evt-seed-301',
-    campaignId: 1,
-    eventType: 'audio_transition',
-    actorName: 'GM · Trashami',
-    summary: "Crossfaded table soundscape to 'Shadow Beneath the Mountain' (3.2s ramp).",
-    payloadJson: '{"presetId":"preset-shadow-mountain"}',
-    timestamp: new Date().toISOString(),
-  },
-];
-
 @Injectable({ providedIn: 'root' })
 export class TableRealtimeSyncService {
   private readonly http = inject(HttpClient);
-  private channel: BroadcastChannel | null = null;
+  private readonly store = inject(LoomWeaverStoreService);
+  private readonly alertify = inject(LwAlertifyService);
+  private readonly authenticated = signal(false);
+  private connection: HubConnection | null = null;
+  private connectedCampaignId = 0;
+  private connectionGeneration = 0;
 
-  readonly seats = signal<readonly TablePresenceSeatVm[]>(DEFAULT_SEATS);
-  readonly recentEvents = signal<readonly TableRealtimeEventVm[]>(DEFAULT_EVENTS);
-  readonly syncProtocolLabel = signal<string>('SignalR /hubs/table + BroadcastChannel Active');
+  readonly seats = signal<readonly TablePresenceSeatVm[]>([]);
+  readonly recentEvents = signal<readonly TableRealtimeEventVm[]>([]);
+  readonly syncProtocolLabel = signal<string>('Disconnected');
 
   constructor() {
-    this.initBroadcastChannel();
+    effect(() => {
+      const campaignId = this.store.activeCampaignId();
+      if (this.authenticated() && campaignId > 0) void this.connectToCampaign(campaignId);
+      else void this.disconnect();
+    });
   }
 
   refreshPresence(): void {
     const hasToken =
       typeof localStorage !== 'undefined' && !!localStorage.getItem('mw_auth_token');
-    if (!hasToken) return;
+    this.authenticated.set(hasToken);
+    if (!hasToken) {
+      this.seats.set([]);
+      this.recentEvents.set([]);
+      return;
+    }
 
+    const campaignId = this.store.activeCampaignId();
+    if (campaignId <= 0) return;
     this.http
       .get<{
         seats: readonly TablePresenceSeatVm[];
         recentEvents: readonly TableRealtimeEventVm[];
-      }>('/api/v2/campaigns/1/realtime/presence')
+      }>(`/api/v2/campaigns/${campaignId}/realtime/presence`)
       .subscribe({
         next: (res) => {
-          if (res?.seats?.length) this.seats.set(res.seats);
-          if (res?.recentEvents?.length) this.recentEvents.set(res.recentEvents);
+          this.seats.set(res.seats ?? []);
+          this.recentEvents.set(res.recentEvents ?? []);
         },
-        error: () => {},
+        error: () => this.alertify.notifyStatus(
+          'Live table', 'Presence unavailable', 'Campaign presence could not be loaded.', 'crimson',
+        ),
       });
   }
 
   publishTableEvent(eventType: string, actorName: string, summary: string, payload: unknown = {}): void {
-    const payloadJson = JSON.stringify(payload);
-    this.http
-      .post<TableRealtimeEventVm>('/api/v2/campaigns/1/realtime/events', {
-        eventType,
-        actorName,
-        summary,
-        payloadJson,
-      })
-      .subscribe({
-        next: (evt) => {
-          this.appendEventLocally(evt);
-          this.channel?.postMessage(evt);
-        },
-        error: () => {
-          const fallback: TableRealtimeEventVm = {
-            eventId: `evt-${Date.now()}`,
-            campaignId: 1,
-            eventType,
-            actorName,
-            summary,
-            payloadJson,
-            timestamp: new Date().toISOString(),
-          };
-          this.appendEventLocally(fallback);
-          this.channel?.postMessage(fallback);
-        },
-      });
+    const campaignId = this.store.activeCampaignId();
+    const connection = this.connection;
+    if (!connection || this.connectedCampaignId !== campaignId) {
+      this.alertify.notifyStatus('Live table', 'Not connected', 'Reconnect to the campaign table before sending events.', 'crimson');
+      return;
+    }
+
+    void connection.invoke('BroadcastTableAction', campaignId, {
+      eventType,
+      actorName,
+      summary,
+      payloadJson: JSON.stringify(payload),
+    }).catch(() => {
+      this.alertify.notifyStatus('Live table', 'Send failed', 'The event was not sent to the server.', 'crimson');
+    });
+  }
+
+  private async connectToCampaign(campaignId: number): Promise<void> {
+    if (this.connectedCampaignId === campaignId && this.connection?.state === HubConnectionState.Connected) return;
+    const generation = ++this.connectionGeneration;
+    await this.stopConnection();
+    if (generation !== this.connectionGeneration) return;
+
+    const connection = new HubConnectionBuilder()
+      .withUrl('/hubs/table')
+      .withAutomaticReconnect()
+      .build();
+    this.connection = connection;
+    this.connectedCampaignId = campaignId;
+    connection.on('TableEventReceived', (evt: TableRealtimeEventVm) => {
+      if (evt.campaignId === this.store.activeCampaignId()) this.appendEventLocally(evt);
+    });
+    connection.onreconnecting(() => this.syncProtocolLabel.set('Reconnecting'));
+    connection.onreconnected(async () => {
+      try {
+        await connection.invoke('JoinCampaignTable', campaignId, '', '');
+        this.syncProtocolLabel.set('Connected with SignalR');
+        this.refreshPresence();
+      } catch {
+        this.syncProtocolLabel.set('Reconnect failed');
+      }
+    });
+    connection.onclose(() => this.syncProtocolLabel.set('Disconnected'));
+
+    try {
+      await connection.start();
+      if (generation !== this.connectionGeneration) {
+        await connection.stop();
+        return;
+      }
+      await connection.invoke('JoinCampaignTable', campaignId, '', '');
+      this.syncProtocolLabel.set('Connected with SignalR');
+      this.refreshPresence();
+    } catch {
+      if (generation === this.connectionGeneration) {
+        this.connectedCampaignId = 0;
+        this.syncProtocolLabel.set('SignalR connection failed');
+        this.alertify.notifyStatus('Live table', 'Connection failed', 'The live campaign connection could not be established.', 'crimson');
+      }
+    }
+  }
+
+  private async disconnect(): Promise<void> {
+    this.connectionGeneration++;
+    this.connectedCampaignId = 0;
+    this.seats.set([]);
+    await this.stopConnection();
+    this.syncProtocolLabel.set('Disconnected');
+  }
+
+  private async stopConnection(): Promise<void> {
+    const connection = this.connection;
+    this.connection = null;
+    if (connection) await connection.stop();
   }
 
   private appendEventLocally(evt: TableRealtimeEventVm): void {
-    this.recentEvents.update((prev) => [evt, ...prev.filter((e) => e.eventId !== evt.eventId).slice(0, 11)]);
-  }
-
-  private initBroadcastChannel(): void {
-    if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return;
-    this.channel = new BroadcastChannel('loomweaver-v2-table-sync');
-    this.channel.onmessage = (msg: MessageEvent<TableRealtimeEventVm>) => {
-      if (msg?.data?.eventId) {
-        this.appendEventLocally(msg.data);
-      }
-    };
+    this.recentEvents.update((prev) =>
+      [evt, ...prev.filter((e) => e.eventId !== evt.eventId)].slice(0, 30),
+    );
   }
 }

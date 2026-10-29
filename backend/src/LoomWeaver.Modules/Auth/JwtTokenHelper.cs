@@ -11,9 +11,7 @@ public static class JwtTokenHelper
 
     public static string IssueHmacJwt(StoredUserRecord user, DateTimeOffset expiresAt)
     {
-        var isAdmin = user.Email.Equals("jtromborg1@gmail.com", StringComparison.OrdinalIgnoreCase) ||
-                      user.Username.Equals("GeoJason", StringComparison.OrdinalIgnoreCase) ||
-                      user.Username.Equals("GregMeinert", StringComparison.OrdinalIgnoreCase);
+        var isAdmin = string.Equals(user.Role, "admin", StringComparison.OrdinalIgnoreCase);
 
         var headerJson = JsonSerializer.Serialize(new { alg = "HS256", typ = "JWT" });
         var payloadJson = JsonSerializer.Serialize(new

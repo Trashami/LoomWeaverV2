@@ -63,7 +63,7 @@
   <div class="lw-vtt-body">
     <section class="lw-vtt-map-stage" [class.lw-vtt-map-stage--3d]="battle.mapMode3D()" aria-label="Interactive Encounter Battle Map">
       <canvas #vttCanvas class="lw-vtt-babylon-canvas" [class.lw-vtt-babylon-canvas--active]="battle.mapMode3D()"></canvas>
-      <div class="lw-vtt-map-backdrop" [class.lw-vtt-map-backdrop--dimmed]="battle.mapMode3D()" [style.backgroundImage]="'url(' + vtt.activeLiveEncounter().thumbnailUrl + ')'"></div>
+      <div class="lw-vtt-map-backdrop" [class.lw-vtt-map-backdrop--dimmed]="battle.mapMode3D()" [style.backgroundImage]="'url(' + (vtt.activeLiveEncounter()?.thumbnailUrl ?? '') + ')'"></div>
 
       <svg #battleSvg class="lw-vtt-svg" [class.lw-vtt-svg--3d-overlay]="battle.mapMode3D()" viewBox="0 0 1200 800" preserveAspectRatio="none" (mousemove)="onBattleMapPointerMove($event)" (mouseup)="onBattleMapMouseUp()" (click)="onBattleMapClick($event)">
         <defs>
@@ -327,7 +327,7 @@
             <button ngpButton type="button" (click)="battle.openDmDrawer.set('none')">Close</button>
           </div>
           <div class="lw-vtt-roster-strip">
-            @for (trap of vtt.activeLiveEncounter().traps; track trap.id) {
+            @for (trap of vtt.activeLiveEncounter()?.traps ?? []; track trap.id) {
               <div class="lw-vtt-trap-chip">
                 <strong>Trap: {{ trap.name }}</strong>
                 <span>{{ trap.saveOrAttack }} · {{ trap.damageFormula }} · Spot DC {{ trap.perceptionDc }}</span>

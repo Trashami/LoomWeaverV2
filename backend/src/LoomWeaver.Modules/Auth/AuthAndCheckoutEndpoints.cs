@@ -139,7 +139,6 @@ public static class AuthAndCheckoutEndpoints
                     req.Username ?? req.Email.Split('@')[0],
                     req.DisplayName,
                     req.Password,
-                    req.Role ?? "gm",
                     ct);
 
                 var expiresAt = DateTimeOffset.UtcNow.AddDays(30);

@@ -157,7 +157,7 @@ public static class LoomAndWeaveEndpoints
                 scope,
                 string.IsNullOrWhiteSpace(req.AuthorName) ? "Adventurer" : req.AuthorName.Trim(),
                 string.IsNullOrWhiteSpace(req.WitnessCharacter) ? "Party" : req.WitnessCharacter.Trim(),
-                req.SessionNumber <= 0 ? 18 : req.SessionNumber,
+                Math.Max(0, req.SessionNumber),
                 string.IsNullOrWhiteSpace(req.DeepLinkRoute) ? "/campaigns" : req.DeepLinkRoute.Trim(),
                 req.LinkedEntityKeys ?? Array.Empty<string>(),
                 DateTimeOffset.UtcNow

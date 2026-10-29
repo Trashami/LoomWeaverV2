@@ -1,4 +1,6 @@
 import { LwButtonComponent } from '../button/button.component';
+import { LwLightControlsComponent } from '../light-controls/light-controls.component';
+import { DEFAULT_LIGHT_SETTINGS, LightSettings } from '../../../features/maps/engine/lighting/light-settings';
 import { LwWaterControlsComponent } from '../water-controls/water-controls.component';
 import { DEFAULT_WATER, WaterSettings } from '../../../features/maps/engine/water/water-settings';
 import type { WaterSplineNode } from '../../../features/maps/engine/map-scene-contract';
@@ -114,7 +116,7 @@ export interface LwSelectedSceneNode {
 @Component({
   selector: 'lw-map-properties-inspector',
   standalone: true,
-  imports: [LwButtonComponent, NgpButton, LwIconComponent, LwWallSurfaceControlsComponent, LwWaterControlsComponent],
+  imports: [LwButtonComponent, NgpButton, LwIconComponent, LwWallSurfaceControlsComponent, LwWaterControlsComponent, LwLightControlsComponent],
   templateUrl: './map-properties-inspector.component.html',
   styleUrl: './map-properties-inspector.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -166,13 +168,8 @@ export class LwMapPropertiesInspectorComponent {
   readonly celestialAltitudeDeg = input<number>(42);
   readonly shadowDarkness = input<number>(72);
 
-  readonly customLightKind = input<LwCustomLightKind>('torch');
-  readonly customLightColor = input<string>('#ffae52');
-  readonly customLightRange = input<number>(25);
-  readonly lightPlacementWidth = input<number>(2.0);
-  readonly lightHeightMeters = input<number>(2.4);
-  readonly torchIntensity = input<number>(125);
-  readonly lightShowFixture = input<boolean>(true);
+  readonly lightSettings = input<LightSettings>(DEFAULT_LIGHT_SETTINGS);
+  readonly snapToGrid = input<boolean>(true);
 
   readonly scatterDensity = input<number>(65);
 
@@ -232,14 +229,7 @@ export class LwMapPropertiesInspectorComponent {
   readonly celestialAltitudeChange = output<number>();
   readonly shadowDarknessChange = output<number>();
 
-  readonly customLightKindChange = output<LwCustomLightKind>();
-  readonly customLightColorChange = output<string>();
-  readonly customLightRangeChange = output<number>();
-  readonly lightPlacementWidthChange = output<number>();
-  readonly lightHeightChange = output<number>();
-  readonly torchIntensityChange = output<number>();
-  readonly lightShowFixtureToggle = output<void>();
-  readonly spawnCustomLight = output<void>();
+  readonly lightSettingsChange = output<Partial<LightSettings>>();
 
   readonly secretToggle = output<void>();
   readonly blocksVisionToggle = output<void>();

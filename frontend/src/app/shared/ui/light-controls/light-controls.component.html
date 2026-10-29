@@ -1,0 +1,141 @@
+<section>
+  <h4>Light type</h4>
+  <div class="modes" aria-label="Light type">
+    @for (kind of kinds; track kind.id) {
+      <button type="button" ngpButton [attr.aria-pressed]="settings().kind === kind.id"
+        (click)="patch({ kind: kind.id })">{{ kind.label }}</button>
+    }
+  </div>
+  <div class="presets">
+    @for (preset of presets(); track preset.label) {
+      <button type="button" ngpButton (click)="patch(preset.patch)">{{ preset.label }}</button>
+    }
+  </div>
+  <p>
+    @if (hasSelection()) { Changes update the selected light. Drag it in the scene to move it. }
+    @else { Click the map to place a light. These settings apply to the next one placed. }
+  </p>
+</section>
+
+<section>
+  <h4>Position</h4>
+  <label>
+    <span>Elevation above floor</span><strong>{{ display('y') }}m</strong>
+    <input type="range" aria-label="Light elevation above floor" min="0" max="12"
+      [step]="elevationStep()" [value]="settings().y" (input)="changeNumber('y', $event)" />
+  </label>
+  <p>{{ snapToGrid() ? 'Snapping on: elevation moves in half-meter steps.' : 'Snapping off: elevation moves freely.' }}</p>
+</section>
+
+@if (settings().kind === 'aoe') {
+  <section>
+    <h4>Ambient effect</h4>
+    <div class="presets">
+      @for (effect of effects; track effect.id) {
+        <button type="button" ngpButton [attr.aria-pressed]="settings().effect === effect.id"
+          (click)="patch({ effect: effect.id })">{{ effect.label }}</button>
+      }
+    </div>
+    <label>Effect color
+      <input type="color" aria-label="Effect color" [value]="settings().effectColorHex" (input)="changeText('effectColorHex', $event)" />
+    </label>
+    @for (field of effectFields; track field.key) {
+      <label>
+        <span>{{ field.label }}</span><strong>{{ display(field.key) }}{{ field.unit ?? '' }}</strong>
+        <input type="range" [attr.aria-label]="field.label" [min]="field.min" [max]="field.max"
+          [step]="field.step" [value]="numeric(field.key)" (input)="changeNumber(field.key, $event)" />
+      </label>
+    }
+  </section>
+}
+
+@for (section of lightFields; track section.title) {
+  @if (section.title === 'Primary light' || settings().kind !== 'aoe') {
+    <section>
+      <h4>{{ section.title }}</h4>
+      @if (section.title === 'Primary light') {
+        <label>Color
+          <input type="color" aria-label="Primary light color" [value]="settings().colorHex" (input)="changeText('colorHex', $event)" />
+        </label>
+        <label>Falloff
+          <select aria-label="Light falloff" [value]="settings().falloff" (change)="changeFalloff($event)">
+            <option value="linear" [selected]="settings().falloff === 'linear'">Linear</option>
+            <option value="natural" [selected]="settings().falloff === 'natural'">Natural</option>
+          </select>
+        </label>
+        <p>{{ falloffHelp }}</p>
+      } @else {
+        <label>Core color
+          <input type="color" aria-label="Core light color" [value]="settings().coreColorHex" (input)="changeText('coreColorHex', $event)" />
+        </label>
+      }
+      @for (field of section.fields; track field.key) {
+        <label>
+          <span>{{ field.label }}</span><strong>{{ display(field.key) }}{{ field.unit ?? '' }}</strong>
+          <input type="range" [attr.aria-label]="field.label" [min]="field.min" [max]="field.max"
+            [step]="field.step" [value]="numeric(field.key)" (input)="changeNumber(field.key, $event)" />
+        </label>
+      }
+    </section>
+  }
+}
+
+@if (settings().kind === 'spot') {
+  <section>
+    <h4>Beam shape</h4>
+    <button type="button" ngpButton [attr.aria-pressed]="settings().omnidirectional"
+      (click)="patch({ omnidirectional: !settings().omnidirectional })">360 degrees, no direction</button>
+    @if (!settings().omnidirectional) {
+      @for (field of coneFields; track field.key) {
+        <label>
+          <span>{{ field.label }}</span><strong>{{ display(field.key) }}{{ field.unit ?? '' }}</strong>
+          <input type="range" [attr.aria-label]="field.label" [min]="field.min" [max]="field.max"
+            [step]="field.step" [value]="numeric(field.key)" (input)="changeNumber(field.key, $event)" />
+        </label>
+      }
+      <p>Beam width 180 gives a half circle that lights only the front.</p>
+    }
+  </section>
+}
+
+@if (settings().kind !== 'aoe') {
+  <section>
+    <h4>Shadows</h4>
+    <label>Objects cast shadows
+      <select aria-label="Light shadow mode" [value]="settings().shadowMode" (change)="changeShadow($event)">
+        <option value="none" [selected]="settings().shadowMode === 'none'">Off</option>
+        <option value="soft" [selected]="settings().shadowMode === 'soft'">Soft</option>
+        <option value="hard" [selected]="settings().shadowMode === 'hard'">Hard</option>
+      </select>
+    </label>
+    @if (settings().shadowMode !== 'none') {
+      @for (field of shadowFields; track field.key) {
+        <label>
+          <span>{{ field.label }}</span><strong>{{ display(field.key) }}{{ field.unit ?? '' }}</strong>
+          <input type="range" [attr.aria-label]="field.label" [min]="field.min" [max]="field.max"
+            [step]="field.step" [value]="numeric(field.key)" (input)="changeNumber(field.key, $event)" />
+        </label>
+      }
+      <p>Only up to three shadowed lights cast shadows at once.</p>
+    }
+  </section>
+}
+
+<section>
+  <h4>Flicker</h4>
+  <button type="button" ngpButton [attr.aria-pressed]="settings().flicker"
+    (click)="patch({ flicker: !settings().flicker })">Flicker like a flame</button>
+  @if (settings().flicker) {
+    <label>
+      <span>Flicker amount</span><strong>{{ settings().flickerPct }}%</strong>
+      <input type="range" aria-label="Flicker amount" min="0" max="100" step="5"
+        [value]="settings().flickerPct" (input)="changeNumber('flickerPct', $event)" />
+    </label>
+  }
+</section>
+
+@if (hasSelection()) {
+  <section class="actions">
+    <button type="button" ngpButton (click)="remove.emit()">Delete selected light</button>
+  </section>
+}

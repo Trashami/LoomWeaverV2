@@ -1,4 +1,10 @@
 import { MapWaterEditor } from './application/map-water-editor';
+import {
+  DEFAULT_LIGHT_SETTINGS,
+  LightSettings,
+  resolveLightSettings,
+  snapLightElevation,
+} from './engine/lighting/light-settings';
 import { DEFAULT_WALL_BRUSH, WallBrushSettings, WallPaintDab } from './engine/walls/wall-surface.models';
 import {
   AfterViewInit,
@@ -24,7 +30,6 @@ import {
 } from '../../shared/ui/map-png-asset-browser/map-png-asset-browser.component';
 import {
   LwCelestialBodyMode,
-  LwCustomLightKind,
   LwMapPropertiesInspectorComponent,
   LwObjectPlacementMode,
   LwObjectSurfaceFinish,
@@ -211,13 +216,8 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   readonly celestialAltitudeDeg = signal<number>(42);
   readonly shadowDarkness = signal<number>(72);
 
-  readonly customLightKind = signal<LwCustomLightKind>('torch');
-  readonly customLightColor = signal<string>('#ffae52');
-  readonly customLightRange = signal<number>(25);
-  readonly lightPlacementWidth = signal<number>(2.0);
-  readonly lightHeightMeters = signal<number>(2.4);
-  readonly torchIntensity = signal<number>(125);
-  readonly lightShowFixture = signal<boolean>(true);
+  /** Defaults for the next placed light; mirrors the selected light while one is selected. */
+  readonly lightDraft = signal<LightSettings>(DEFAULT_LIGHT_SETTINGS);
 
   readonly scatterDensity = signal<number>(65);
   readonly waterEditor = new MapWaterEditor(
@@ -373,6 +373,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
           () => { if(this.activeDockToolId() === 'water') this.waterEditor.beginStroke(); },
         );
         this.stage.setCameraMode(this.cameraView());
+        this.wireLightDrag();
         this.syncSurfaceLock();
         this.syncGhostCursorToStage();
         this.pushCelestialLightToStage();
@@ -880,6 +881,8 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     const tool = this.activeDockToolId();
     const node = this.selectedNode();
     const isFloorPaint = tool === 'floor-bump' && this.floorBrushActive();
+    const lightEditing = tool === 'select' || tool === 'lighting';
+    this.stage.setLightEditing(lightEditing, lightEditing);
     const isDecalStamp = Boolean(node.albedoUrl && !node.modelUrl && !node.isFloor);
     const kind = isFloorPaint
       ? 'floor-paint'
@@ -904,9 +907,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         ? this.terrainBrushRadius()
         : tool === 'water'
           ? this.waterWidthMeters() * 0.5
-          : tool === 'lighting'
-            ? this.lightPlacementWidth()
-            : tool === 'door'
+          : tool === 'door'
               ? this.doorWidthMeters()
               : node.scale;
 
@@ -918,10 +919,10 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
           (tool !== 'floor-bump' || isFloorPaint),
         label: node.name,
         kind,
-        modelUrl: node.modelUrl,
-        albedoUrl: node.albedoUrl,
-        normalUrl: node.normalUrl,
-        thumbnailUrl: node.thumbnailUrl,
+        modelUrl: tool === 'lighting' ? undefined : node.modelUrl,
+        albedoUrl: tool === 'lighting' ? undefined : node.albedoUrl,
+        normalUrl: tool === 'lighting' ? undefined : node.normalUrl,
+        thumbnailUrl: tool === 'lighting' ? undefined : node.thumbnailUrl,
         scale,
         scaleX: node.scaleX ?? 1,
         scaleY: node.scaleY ?? 1,
@@ -1194,14 +1195,8 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     if (kind === 'light') {
       const lt = state.lights.find((l) => l.id === id);
       if (lt) {
-        this.customLightKind.set(lt.kind ?? 'torch');
-        this.customLightColor.set(lt.colorHex);
-        this.customLightRange.set(lt.range);
-        this.lightPlacementWidth.set(lt.widthMeters ?? 2.0);
-        this.lightHeightMeters.set(lt.y);
-        this.torchIntensity.set(Math.round(lt.intensity * 100));
-        this.lightShowFixture.set(lt.showFixture !== false);
-        this.stage.focusGizmoAt(lt.x, 0.1, lt.z);
+        this.lightDraft.set(resolveLightSettings(lt));
+        this.stage.focusGizmoAt(lt.x, lt.y, lt.z, 0.35);
         return true;
       }
     }
@@ -1473,65 +1468,63 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     const lx = x ?? coords.x;
     const lz = z ?? coords.z;
     const lightId = `light-${this.sceneGraph().revision + 1}`;
+    const draft = this.lightDraft();
+    const labels = { point: 'Point', spot: 'Spot', aoe: 'Ambient' } as const;
     this.recordHistoryBeforeEdit('Add Scene Light');
     this.commitSceneUpdate((cur) => ({
       ...cur,
       revision: cur.revision + 1,
       lights: [
         ...cur.lights,
-        {
-          id: lightId,
-          label: `${this.customLightKind().toUpperCase()} Light`,
-          kind: this.customLightKind(),
-          colorHex: this.customLightColor(),
-          intensity: this.torchIntensity() / 100,
-          range: this.customLightRange(),
-          widthMeters: this.lightPlacementWidth(),
-          x: lx,
-          y: this.lightHeightMeters(),
-          z: lz,
-          showFixture: this.lightShowFixture(),
-        },
+        { ...draft, id: lightId, label: `${labels[draft.kind]} Light`, x: lx, z: lz, showFixture: false },
       ],
     }));
     this.selectedPlacedId.set(lightId);
     this.selectedPlacedKind.set('light');
-    this.stage.focusGizmoAt(lx, 0.1, lz);
+    this.stage.focusGizmoAt(lx, draft.y, lz, 0.35);
   }
 
-  private syncActiveOrLastLight(): void {
-    const targetId =
-      this.selectedPlacedKind() === 'light' ? this.selectedPlacedId() : null;
-    this.commitSceneUpdate((cur) => {
-      if (cur.lights.length === 0) return cur;
-      const idxToUpdate = targetId
-        ? cur.lights.findIndex((l) => l.id === targetId)
-        : cur.lights.length - 1;
-      if (idxToUpdate < 0) return cur;
-      return {
+  /** Edits the selected light; with none selected they become the defaults for the next placement. */
+  onLightSettingsChanged(patch: Partial<LightSettings>): void {
+    let next: LightSettings = { ...this.lightDraft(), ...patch };
+    if ('y' in patch) {
+      next = { ...next, y: snapLightElevation(next.y, this.snapEnabled()) };
+    }
+    this.lightDraft.set(next);
+    const targetId = this.selectedPlacedKind() === 'light' ? this.selectedPlacedId() : null;
+    if (!targetId) return;
+    this.commitSceneUpdate((cur) => ({
+      ...cur,
+      revision: cur.revision + 1,
+      lights: cur.lights.map((lt) => (lt.id === targetId ? { ...lt, ...next } : lt)),
+    }));
+    const lt = this.sceneGraph().lights.find((l) => l.id === targetId);
+    if (lt) this.stage.focusGizmoAt(lt.x, next.y, lt.z, 0.35);
+  }
+
+  onLightPresetApplied(patch: Partial<LightSettings>): void {
+    this.onLightSettingsChanged(patch);
+  }
+
+  onDeleteSelectedLight(): void {
+    if (this.selectedPlacedKind() === 'light') this.onDeleteSelectedPlacedNode();
+  }
+
+  private wireLightDrag(): void {
+    this.stage.lightDrag.onStart = (id) => {
+      this.selectPlacedEntity({ lwKind: 'light', lwEntityId: id } as PickedSceneEntityMeta, 0, 0);
+      this.recordHistoryBeforeEdit('Move Scene Light');
+    };
+    this.stage.lightDrag.onEnd = (id, x, z, moved) => {
+      if (!moved) return;
+      this.commitSceneUpdate((cur) => ({
         ...cur,
         revision: cur.revision + 1,
-        lights: cur.lights.map((lt, idx) =>
-          idx === idxToUpdate
-            ? {
-                ...lt,
-                kind: this.customLightKind(),
-                colorHex: this.customLightColor(),
-                range: this.customLightRange(),
-                widthMeters: this.lightPlacementWidth(),
-                y: this.lightHeightMeters(),
-                intensity: this.torchIntensity() / 100,
-                showFixture: this.lightShowFixture(),
-              }
-            : lt,
-        ),
-      };
-    });
-  }
-
-  onLightPropertyChanged(): void {
-    this.syncGhostCursorToStage();
-    this.syncActiveOrLastLight();
+        lights: cur.lights.map((lt) => (lt.id === id ? { ...lt, x, z } : lt)),
+      }));
+      const lt = this.sceneGraph().lights.find((l) => l.id === id);
+      if (lt) this.stage.focusGizmoAt(x, lt.y, z, 0.35);
+    };
   }
 
   onDoorPropertyChanged(): void {

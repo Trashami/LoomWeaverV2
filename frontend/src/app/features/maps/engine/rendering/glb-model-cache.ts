@@ -10,6 +10,8 @@ import {
   TransformNode,
 } from '@babylonjs/core';
 
+import { GlbLodTier, resolveGlbLodUrl, toBaseGlbUrl } from './glb-lod';
+
 export interface CachedGlbTemplate {
   readonly url: string;
   readonly templatePivot: TransformNode;
@@ -40,6 +42,7 @@ export class GlbModelCache {
   private static sharedGhostMat: StandardMaterial | null = null;
   private static tintedMatCache = new Map<string, StandardMaterial>();
   private static decoderConfigured = false;
+  private static lodTier: GlbLodTier = 'mid';
 
   static ensureScene(scene: Scene): void {
     if (!this.decoderConfigured) {
@@ -118,28 +121,38 @@ export class GlbModelCache {
     if (!modelUrl || !modelUrl.toLowerCase().endsWith('.glb')) {
       return null;
     }
-    if (this.failedUrls.has(modelUrl)) {
+    const baseUrl = toBaseGlbUrl(modelUrl);
+    const lodUrl = resolveGlbLodUrl(baseUrl, this.lodTier);
+    // Until converted LOD files exist, fall back to the unsuffixed base file.
+    const url = this.failedUrls.has(lodUrl) ? baseUrl : lodUrl;
+    if (this.failedUrls.has(url)) {
       return null;
     }
-    const existing = this.cache.get(modelUrl);
+    const existing = this.cache.get(url);
     if (existing) {
       return existing;
     }
-    if (!this.pending.has(modelUrl)) {
-      const loadPromise = this.loadGlbTemplateAsync(scene, modelUrl).then((tpl) => {
-        this.pending.delete(modelUrl);
-        if (tpl) {
-          if (onLoaded) {
-            onLoaded();
-          }
-        } else {
-          this.failedUrls.add(modelUrl);
+    if (!this.pending.has(url)) {
+      const loadPromise = this.loadGlbTemplateAsync(scene, url).then((tpl) => {
+        this.pending.delete(url);
+        if (!tpl) {
+          this.failedUrls.add(url);
+        }
+        // A failed LOD variant also triggers a rebuild so the base fallback loads.
+        if ((tpl || url !== baseUrl) && onLoaded) {
+          onLoaded();
         }
         return tpl;
       });
-      this.pending.set(modelUrl, loadPromise);
+      this.pending.set(url, loadPromise);
     }
     return null;
+  }
+
+  static setLodTier(tier: GlbLodTier): boolean {
+    if (this.lodTier === tier) return false;
+    this.lodTier = tier;
+    return true;
   }
 
   private static async loadGlbTemplateAsync(

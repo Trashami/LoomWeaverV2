@@ -8,6 +8,7 @@ import {
   FALLBACK_BUMP_HEIGHT_ITEMS,
   FALLBACK_PNG_ASSET_ITEMS,
 } from '../engine/map-studio-presets';
+import { toBaseGlbUrl } from '../engine/rendering/glb-lod';
 
 interface RawManifestAsset {
   readonly id: string;
@@ -57,7 +58,7 @@ export class MapPngAssetApiService {
     const resolvedModelUrl =
       raw.id?.startsWith('obj-') && (!rawGlb || rawGlb.startsWith('/assets/models-3d/'))
         ? `/assets/object-library/models/${raw.id}.glb`
-        : rawGlb;
+        : toBaseGlbUrl(rawGlb);
     const override = this.catalogOverrides.get(raw.id);
     return {
       id: raw.id,

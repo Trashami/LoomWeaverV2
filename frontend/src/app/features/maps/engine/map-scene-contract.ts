@@ -1,5 +1,6 @@
 import type { WaterSettings } from './water/water-settings';
 import type { WallPaintDab } from './walls/wall-surface.models';
+import type { LegacyMapLightKind, LightSettings, MapLightKind } from './lighting/light-settings';
 
 export type MapRenderMode = '2D Blueprint' | '3D Tabletop' | 'Linked 2D <-> 3D';
 
@@ -38,13 +39,7 @@ export type PathRibbonStyle =
   | 'water_stream'
   | 'waterfall';
 
-export type MapLightFixtureKind =
-  | 'torch'
-  | 'candle'
-  | 'lantern'
-  | 'spotlight'
-  | 'area'
-  | 'glow';
+export type MapLightFixtureKind = MapLightKind | LegacyMapLightKind;
 
 export interface MapToolDefinition {
   readonly id: string;
@@ -121,11 +116,14 @@ export interface WaterSplineNode {
   readonly points: readonly (readonly [number, number, number])[];
 }
 
-export interface LightSourceNode {
+type LightExtras = Partial<Omit<LightSettings, 'kind' | 'y' | 'range' | 'intensity' | 'colorHex' | 'flicker'>>;
+
+export interface LightSourceNode extends LightExtras {
   readonly id: string;
   readonly label: string;
   readonly kind?: MapLightFixtureKind;
   readonly x: number;
+  /** Emitter elevation above the floor, in meters. */
   readonly y: number;
   readonly z: number;
   readonly range: number;

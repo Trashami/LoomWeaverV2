@@ -33,7 +33,10 @@ import { SeededScatterEngine } from '../scatter/seeded-scatter.engine';
 import { FloorBumpAndColorConfig, TerrainMeshBuilder } from '../terrain/terrain-mesh.builder';
 import { WallMeshBuilder } from '../walls/wall-mesh.builder';
 import { WaterSplineBuilder } from '../water/water-spline.builder';
+import { lodTierForQualityPreset } from './glb-lod';
 import { GlbCloneMetadata, GlbModelCache } from './glb-model-cache';
+import { LightDragController } from './light-drag.controller';
+import { LightFixtureBuilder } from '../lighting/light-fixture.builder';
 
 export interface PickedSceneEntityMeta {
   readonly lwNodeName?: string;
@@ -90,6 +93,8 @@ export class BabylonMapStageService {
   private resizeObserver: ResizeObserver | null = null;
   private wheelAbortController: AbortController | null = null;
   private selectedPosition: Vector3 | null = null;
+  private selectedGizmoRadius = 1.1;
+  readonly lightDrag = new LightDragController();
   private hideGmSecrets = false;
   private snapToGrid = true;
   private surfaceLockEnabled = false;
@@ -161,6 +166,15 @@ export class BabylonMapStageService {
       this.camera.attachControl(canvas, true);
       this.cameraViews = new MapCameraViews(this.scene, this.camera, canvas);
       this.applyCameraPointerButtons();
+      this.lightDrag.attach(this.scene, canvas, {
+        pickLightId: () => {
+          const meta = this.pickSceneEntityMeta();
+          return meta?.lwKind === 'light' ? (meta.lwEntityId ?? null) : null;
+        },
+        pickGround: () => this.pickGroundCoordinates('cell-center'),
+        getLight: (id) => this.lastState?.lights.find((l) => l.id === id),
+        isCameraOverride: () => this.isSpaceKeyHeld,
+      });
 
       // Intercept laptop trackpad pinch-to-zoom (ctrlKey + wheel) so the browser never zooms the page
       this.wheelAbortController = new AbortController();
@@ -394,9 +408,9 @@ export class BabylonMapStageService {
     return 'free';
   }
 
-  private pickGroundCoordinates(): { x: number; z: number } | null {
+  private pickGroundCoordinates(forceSnapKind?: 'wall' | 'cell-center' | 'free'): { x: number; z: number } | null {
     if (!this.scene) return null;
-    const snapKind = this.resolveActiveSnapKind();
+    const snapKind = forceSnapKind ?? this.resolveActiveSnapKind();
     let rawX: number | null = null;
     let rawZ: number | null = null;
 
@@ -616,6 +630,9 @@ export class BabylonMapStageService {
       return;
     }
 
+    // Lights place as pure emitters: no ghost preview and no radius outline.
+    if (this.ghostConfig.kind === 'light') return;
+
     // Door ghost: snap to closest wall segment if near a wall
     if (this.ghostConfig.kind === 'door') {
       const hit = WallMeshBuilder.findClosestWallAttachment(this.lastState?.walls, gx, gz, 4.5);
@@ -686,21 +703,6 @@ export class BabylonMapStageService {
       }
     }
 
-    // Light placement width ring ghost
-    if (this.ghostConfig.kind === 'light') {
-      const radius = Math.max(0.5, this.ghostConfig.scale);
-      const pts: Vector3[] = [];
-      for (let i = 0; i <= 32; i++) {
-        const a = (i / 32) * Math.PI * 2;
-        const px = gx + Math.cos(a) * radius;
-        const pz = gz + Math.sin(a) * radius;
-        const py = TerrainMeshBuilder.sampleElevationAt(this.scene, px, pz) + 0.08;
-        pts.push(new Vector3(px, py, pz));
-      }
-      const ring = MeshBuilder.CreateLines('lw-ghost-light-ring', { points: pts }, this.scene);
-      ring.color = Color3.FromHexString('#ffd269');
-      ring.isPickable = false;
-    }
   }
 
   applyFloorBumpMap(
@@ -798,6 +800,9 @@ export class BabylonMapStageService {
 
   setQualityPreset(preset: string): void {
     if (!this.engine) return;
+    if (GlbModelCache.setLodTier(lodTierForQualityPreset(preset)) && this.lastState) {
+      this.syncSceneGraph(this.lastState);
+    }
     if (preset === 'Cinematic 3D') {
       this.engine.setHardwareScalingLevel(0.85);
     } else if (preset === 'Performance 3D' || preset === 'Classic 2D') {
@@ -812,7 +817,8 @@ export class BabylonMapStageService {
     this.syncSceneGraph(state);
   }
 
-  focusGizmoAt(x: number | null, y = 0.1, z = 0): void {
+  focusGizmoAt(x: number | null, y = 0.1, z = 0, radius = 1.1): void {
+    this.selectedGizmoRadius = radius;
     if (x === null) {
       this.selectedPosition = null;
     } else {
@@ -975,7 +981,7 @@ export class BabylonMapStageService {
 
     const pos = this.selectedPosition;
     const pts: Vector3[] = [];
-    const r = 1.1;
+    const r = this.selectedGizmoRadius;
     for (let i = 0; i <= 36; i++) {
       const a = (i / 36) * Math.PI * 2;
       pts.push(new Vector3(pos.x + Math.cos(a) * r, pos.y + 0.06, pos.z + Math.sin(a) * r));
@@ -983,6 +989,23 @@ export class BabylonMapStageService {
     const selRing = MeshBuilder.CreateLines('lw-gizmo-ring', { points: pts }, this.scene);
     selRing.color = Color3.FromHexString('#49e892');
     selRing.isPickable = false;
+    if (r < 1) {
+      // Compact marker: a stem to the floor shows where an elevated emitter sits.
+      const floorY = TerrainMeshBuilder.sampleElevationAt(this.scene, pos.x, pos.z);
+      const stem = MeshBuilder.CreateLines(
+        'lw-gizmo-stem',
+        { points: [new Vector3(pos.x, floorY, pos.z), pos.clone()] },
+        this.scene,
+      );
+      stem.color = Color3.FromHexString('#49e892');
+      stem.isPickable = false;
+    }
+  }
+
+  /** Lights are draggable and show editing handles only while the select or lighting tool is active. */
+  setLightEditing(dragEnabled: boolean, handlesVisible: boolean): void {
+    this.lightDrag.enabled = dragEnabled;
+    if (this.scene) LightFixtureBuilder.setHandlesVisible(this.scene, handlesVisible);
   }
 
   resize(): void {

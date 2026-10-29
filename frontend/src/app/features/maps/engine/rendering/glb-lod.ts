@@ -26,9 +26,35 @@ const TIER_FALLBACK: Record<GlbLodTier, readonly GlbLodTier[]> = {
   low: ['low', 'mid', 'high'],
 };
 
+export type GlbLodManifest = ReadonlyMap<string, Partial<Record<GlbLodTier, string>>>;
+
+export interface ModelManifestResponse {
+  readonly models?: ReadonlyArray<{
+    readonly variants?: ReadonlyArray<{ readonly quality: string; readonly url: string }>;
+  }>;
+}
+
+/** Indexes manifest variants by their extensionless-tier base URL (`/x/name.glb`). */
+export function buildGlbLodManifest(res: ModelManifestResponse | null | undefined): GlbLodManifest {
+  const map = new Map<string, Partial<Record<GlbLodTier, string>>>();
+  for (const model of res?.models ?? []) {
+    for (const v of model.variants ?? []) {
+      if (v.quality !== 'low' && v.quality !== 'mid' && v.quality !== 'high') continue;
+      const key = toBaseGlbUrl(v.url);
+      map.set(key, { ...map.get(key), [v.quality]: v.url });
+    }
+  }
+  return map;
+}
+
 /** Ordered URLs to try for a base model: preferred tier, nearest tiers, then the unsuffixed file. */
-export function glbLodCandidates(url: string, tier: GlbLodTier): string[] {
+export function glbLodCandidates(url: string, tier: GlbLodTier, manifest?: GlbLodManifest): string[] {
   const base = toBaseGlbUrl(url);
+  const known = manifest?.get(base);
+  if (known) {
+    const listed = TIER_FALLBACK[tier].map((t) => known[t]).filter((u): u is string => !!u);
+    return [...listed, base];
+  }
   return [...TIER_FALLBACK[tier].map((t) => resolveGlbLodUrl(base, t)), base];
 }
 

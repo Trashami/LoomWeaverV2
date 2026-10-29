@@ -10,7 +10,7 @@ import {
   TransformNode,
 } from '@babylonjs/core';
 
-import { GlbLodTier, glbLodCandidates, toBaseGlbUrl } from './glb-lod';
+import { GlbLodManifest, GlbLodTier, glbLodCandidates, toBaseGlbUrl } from './glb-lod';
 
 export interface CachedGlbTemplate {
   readonly url: string;
@@ -43,6 +43,12 @@ export class GlbModelCache {
   private static tintedMatCache = new Map<string, StandardMaterial>();
   private static decoderConfigured = false;
   private static lodTier: GlbLodTier = 'mid';
+  private static lodManifest: GlbLodManifest | undefined;
+
+  /** Supplies the server's list of existing LOD files so missing variants are never requested. */
+  static setLodManifest(manifest: GlbLodManifest): void {
+    this.lodManifest = manifest;
+  }
 
   static ensureScene(scene: Scene): void {
     if (!this.decoderConfigured) {
@@ -123,7 +129,7 @@ export class GlbModelCache {
     }
     const baseUrl = toBaseGlbUrl(modelUrl);
     // Try the preferred tier, then nearby tiers, then the unsuffixed base file.
-    const candidates = glbLodCandidates(baseUrl, this.lodTier).filter(
+    const candidates = glbLodCandidates(baseUrl, this.lodTier, this.lodManifest).filter(
       (c) => !this.failedUrls.has(c),
     );
     const url = candidates.find((c) => this.cache.has(c)) ?? candidates[0];

@@ -10,6 +10,8 @@ import {
   StampOcclusionMode,
 } from './map-studio.models';
 import type { MapSceneGraphState } from '../engine/map-scene-contract';
+import { GlbModelCache } from '../engine/rendering/glb-model-cache';
+import { ModelManifestResponse, buildGlbLodManifest } from '../engine/rendering/glb-lod';
 
 interface SavedMapSceneDocument extends MapSceneGraphState {
   readonly studio?: {
@@ -152,6 +154,11 @@ export class MapStudioStoreService {
       next: (list) => {
         if (Array.isArray(list) && list.length > 0) this.catalogAssets.set(list);
       },
+      error: () => {},
+    });
+
+    this.http.get<ModelManifestResponse>('/api/v2/maps/assets/model-manifest').subscribe({
+      next: (res) => GlbModelCache.setLodManifest(buildGlbLodManifest(res)),
       error: () => {},
     });
   }

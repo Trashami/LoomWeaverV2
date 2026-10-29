@@ -1,4 +1,5 @@
 using LoomWeaver.Modules.Maps.Domain;
+using LoomWeaver.Modules.Maps.Features.ModelManifest;
 using LoomWeaver.Modules.Maps.Infrastructure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -11,6 +12,7 @@ public static class SaveSceneEndpoint
     public static void MapLoomMapsStudioStage1Endpoints(this IEndpointRouteBuilder group)
     {
         group.MapMapSceneDocumentEndpoints();
+        group.MapModelManifestEndpoints();
 
         group.MapGet("/maps/presets", () =>
             Results.Ok(SceneRepository.GetPresets()));

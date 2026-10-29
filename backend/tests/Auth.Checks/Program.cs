@@ -72,6 +72,23 @@ Check(TableRealtimeEndpoints.IsGmOnly("table_event", "{"), "malformed event payl
 Check(!TableRealtimeEndpoints.IsGmOnly("table_event", "{\"visibility\":\"players\"}"),
     "explicit player visibility can be broadcast");
 
+// Two separate players in one campaign: each controls only their own character.
+var userB = user with { Id = 22, Email = "second@example.test", Username = "second" };
+var accessA = CampaignAccessResolver.Build(user, new CampaignMembership(42, "player", "pc-ava", null, null), null);
+var accessB = CampaignAccessResolver.Build(userB, new CampaignMembership(42, "player", "pc-bo", null, null), null);
+var avaSheet = new CharacterSheetDto("42:Character:char-ava", "char-ava", 42, "Ava", "", "Fighter", "dnd5e", 1, 0, 300, false,
+    10, 10, 12, 0, 30, 2, "", [], [], []);
+var avaRecord = new LoomWeaver.Modules.Characters.StoredCharacter(1, user.Id, 1, avaSheet);
+Check(LoomWeaver.Modules.Characters.CharacterStudioEndpoints.IsOwnerOrBound(avaRecord, accessA),
+    "a player controls their own character");
+Check(!LoomWeaver.Modules.Characters.CharacterStudioEndpoints.IsOwnerOrBound(avaRecord, accessB),
+    "a second player cannot control another player's character");
+Check(Enumerable.Range(0, 500).All(_ => LoomWeaver.Modules.Encounters.CombatTokenStore.Roll(20) is >= 1 and <= 20),
+    "server dice rolls stay within the die size");
+Check(LoomWeaver.Modules.Encounters.CombatTokenStore.CharacterKeyOf("42:Character:char-ava") == "char-ava"
+    && LoomWeaver.Modules.Encounters.CombatTokenStore.CharacterKeyOf("42:Encounter:x") is null,
+    "combat tokens map to character keys only for party members");
+
 string RewriteToken(string token, Action<JsonObject> mutatePayload)
 {
     var parts = token.Split('.');

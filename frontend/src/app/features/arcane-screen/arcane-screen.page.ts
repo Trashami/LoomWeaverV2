@@ -306,16 +306,16 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     );
   }
 
-  executePendingAbilityCast(): void {
+  async executePendingAbilityCast(): Promise<void> {
     const confirmed = this.battle.confirmPendingAbilityCast();
     if (!confirmed) return;
     const { ability, targets } = confirmed;
     const targetList = targets.length > 0 ? targets : [this.vtt.selectedTarget()];
 
-    let lastFx: ReturnType<typeof this.vtt.executeActionOnTarget> | null = null;
+    let lastFx: Awaited<ReturnType<typeof this.vtt.executeActionOnTarget>> = null;
     for (const target of targetList) {
       this.vtt.selectedTargetKey.set(target.key);
-      lastFx = this.vtt.executeActionOnTarget(ability);
+      lastFx = (await this.vtt.executeActionOnTarget(ability)) ?? lastFx;
     }
 
     this.sync3dStage();

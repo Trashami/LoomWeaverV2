@@ -145,7 +145,7 @@ public static class CharacterStudioEndpoints
     private static bool CanEdit(StoredCharacter c, ResolvedCampaignAccess access) =>
         access.IsAccountGm || IsOwnerOrBound(c, access);
 
-    private static bool IsOwnerOrBound(StoredCharacter c, ResolvedCampaignAccess access)
+    public static bool IsOwnerOrBound(StoredCharacter c, ResolvedCampaignAccess access)
     {
         if (c.OwnerUserId is long owner && owner == access.UserId) return true;
         var bound = access.BoundCharacterKey.Replace("pc-", "char-", StringComparison.OrdinalIgnoreCase);

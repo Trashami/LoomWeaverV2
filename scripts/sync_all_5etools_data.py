@@ -9,11 +9,12 @@ import json
 import os
 import re
 import shutil
+import sys
 import pymysql
 
 MYSQL_HOST = "127.0.0.1"
 MYSQL_USER = "loomweaver_app"
-MYSQL_PASS = "Sp34kFri3nd4nd3nt3r!"
+MYSQL_PASS = os.environ.get("LW_DB_PASSWORD") or sys.exit("LW_DB_PASSWORD must be set in the environment")
 
 DATA_DIR_PRIMARY = "/var/www/jane-assets/5etools/data"
 DATA_DIR_REPO = "/var/www/jane-assets/5etools-repo/data"

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using LoomWeaver.Domain;
+using LoomWeaver.Modules.Auth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -76,33 +77,55 @@ public static class TableRealtimeEndpoints
         return evt;
     }
 
+    /// <summary>GM-only events: type prefixed "gm_" or payload marked "visibility":"gm".</summary>
+    public static bool IsGmOnly(string? eventType, string? payloadJson) =>
+        (eventType ?? string.Empty).StartsWith("gm_", StringComparison.OrdinalIgnoreCase) ||
+        (payloadJson ?? string.Empty).Replace(" ", string.Empty)
+            .Contains("\"visibility\":\"gm\"", StringComparison.OrdinalIgnoreCase);
+
     public static RouteGroupBuilder MapTableRealtimeEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/campaigns/{campaignId:int}/realtime/presence", (int campaignId) =>
-            Results.Ok(new
+        api.MapGet("/campaigns/{campaignId:int}/realtime/presence", (int campaignId, HttpContext ctx) =>
+        {
+            var access = CampaignAccessResolver.Resolve(ctx, campaignId);
+            return Results.Ok(new
             {
                 campaignId,
                 hubEndpoint = "/hubs/table",
                 protocol = "SignalR WebSocket + BroadcastChannel Dual Sync",
                 seats = ConnectedSeats,
-                recentEvents = EventStream.Reverse().Take(12).ToList()
-            }));
+                recentEvents = EventStream.Reverse()
+                    .Where(e => e.CampaignId == campaignId)
+                    .Where(e => access.IsEffectiveGm || !IsGmOnly(e.EventType, e.PayloadJson))
+                    .Take(12)
+                    .ToList()
+            });
+        });
 
         api.MapPost("/campaigns/{campaignId:int}/realtime/events", async (
             int campaignId,
             PublishRealtimeEventRequest req,
+            HttpContext ctx,
             IHubContext<TableRealtimeHub> hubContext) =>
         {
+            var access = CampaignAccessResolver.Resolve(ctx, campaignId);
+            var gmOnly = IsGmOnly(req.EventType, req.PayloadJson);
+            if (gmOnly && !access.IsAccountGm)
+            {
+                return Results.Json(new { message = "Only the GM can send GM-only table events." }, statusCode: StatusCodes.Status403Forbidden);
+            }
+
+            var user = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
             var evt = RecordEvent(
                 campaignId,
                 req.EventType,
-                req.ActorName,
+                user?.DisplayName ?? access.Username,
                 req.Summary,
                 req.PayloadJson ?? "{}"
             );
 
             await hubContext.Clients
-                .Group($"campaign-{campaignId}")
+                .Group(gmOnly ? TableRealtimeHub.GmGroupName(campaignId) : TableRealtimeHub.GroupName(campaignId))
                 .SendAsync("TableEventReceived", evt);
 
             return Results.Ok(evt);

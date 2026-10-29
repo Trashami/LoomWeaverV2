@@ -1,7 +1,7 @@
 """
 Deploys EffectBuilder Studio (with 130 styles across 26 core effect kinds, 17 extracted
 core layers, 3D Forest Road Map, and 3D Sorceress + 3 Goblin GLB tokens), the unified
-.NET 10 backend, and syncs the 3D Map Asset Library on disk + MySQL on 209.46.127.226.
+.NET 10 backend, and syncs the 3D Map Asset Library on disk + MySQL on the production server.
 """
 import json
 import os
@@ -10,7 +10,7 @@ import subprocess
 import tarfile
 import urllib.error
 import urllib.request
-import paramiko
+import lw_deploy_env as env
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EB_ROOT = os.path.join(ROOT, "effectbuilder-studio")
@@ -86,9 +86,7 @@ def deploy_to_server() -> None:
         tf.add(EB_DIST, arcname="client")
         tf.add(BACKEND_PUB, arcname="backend")
 
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect("209.46.127.226", username="iamtrash", password="tZ-2jETuYpgVRzFBF=09")
+    ssh = env.connect()
 
     sftp = ssh.open_sftp()
     sftp.put(DEPLOY_TAR, "/tmp/effectbuilder_unified.tar.gz")
@@ -196,7 +194,7 @@ sql_lines.extend([
 
 sql_path = pathlib.Path('/tmp/sync_map_assets.sql')
 sql_path.write_text('\n'.join(sql_lines) + '\n', encoding='utf-8')
-subprocess.run(['mysql', '-u', 'root', '-pSp34kFri3nd4nd3nt3r!', 'jane_scrum', '-e', 'SOURCE /tmp/sync_map_assets.sql; SELECT COUNT(*) AS total_sql_map_assets FROM jane_scrum.mw_map_asset_library;'], check=True)
+subprocess.run(['mysql', '--defaults-extra-file=/tmp/.lw_mysql_root.cnf', 'jane_scrum', '-e', 'SOURCE /tmp/sync_map_assets.sql; SELECT COUNT(*) AS total_sql_map_assets FROM jane_scrum.mw_map_asset_library;'], check=True)
 sql_path.unlink(missing_ok=True)
 PY
 
@@ -206,13 +204,13 @@ cp -a "$RELEASE_DIR/backend/." /var/www/loomweaver/server/
 if [ -f "$RELEASE_DIR/client/google-sso.html" ] && [ -d /var/www/loomweaver/client ]; then
     cp -f "$RELEASE_DIR/client/google-sso.html" /var/www/loomweaver/client/google-sso.html
 fi
-chown -R iamtrash:www-data /var/www/loomweaver/server
+chown -R ${SUDO_USER}:www-data /var/www/loomweaver/server
 chmod -R 755 /var/www/loomweaver/server
 
 echo "4. Activating EffectBuilder Studio frontend at /var/www/effectbuilder/current..."
 rm -rf /var/www/effectbuilder/current
 ln -sfn "$RELEASE_DIR" /var/www/effectbuilder/current
-chown -R iamtrash:www-data /var/www/effectbuilder /var/www/loomweaver/assets/models-3d /var/www/loomweaver/assets/object-library
+chown -R ${SUDO_USER}:www-data /var/www/effectbuilder /var/www/loomweaver/assets/models-3d /var/www/loomweaver/assets/object-library
 chmod -R 755 /var/www/effectbuilder /var/www/loomweaver/assets/models-3d
 
 echo "5. Updating nginx for effectbuilder.loom-weaver.com..."
@@ -276,13 +274,14 @@ curl -k -s -I -H "Host: effectbuilder.loom-weaver.com" https://127.0.0.1/models-
         f.write(remote_script)
     sftp.close()
 
-    _, out, err = ssh.exec_command(
-        'echo "tZ-2jETuYpgVRzFBF=09" | sudo -S bash /tmp/deploy_effectbuilder_unified.sh'
-    )
-    print(out.read().decode())
-    err_txt = err.read().decode()
-    if err_txt:
-        print("Remote stderr:", err_txt)
+    mysql_cnf = "/tmp/.lw_mysql_root.cnf"
+    env.require("LW_DB_ROOT_PASSWORD")
+    env.put_mysql_cnf(ssh, mysql_cnf, "root", env.DB_ROOT_PASSWORD)
+    try:
+        out = env.run(ssh, "bash /tmp/deploy_effectbuilder_unified.sh", sudo=True, check=False)
+    finally:
+        env.run(ssh, f"rm -f {mysql_cnf}", check=False)
+    print(out)
 
     ssh.close()
     if os.path.exists(DEPLOY_TAR):

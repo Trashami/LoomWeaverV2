@@ -4,6 +4,7 @@ import { ItemMarketComponent } from '../items/market/item-market.component';
 import { HttpClient } from '@angular/common/http';
 import { AuthSessionService } from '../../core/services/auth-session.service';
 import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
+import { CampaignMembershipService } from '../../core/services/campaign-membership.service';
 import {
   LwAssetCardComponent,
   LwBadgeComponent,
@@ -96,6 +97,7 @@ const DEFAULT_CREATOR_MODULES: readonly LwCreatorModuleItem[] = [
 export class MarketplacePageComponent {
   private readonly http = inject(HttpClient);
   readonly store = inject(LoomWeaverStoreService);
+  private readonly membership = inject(CampaignMembershipService);
   readonly auth = inject(AuthSessionService);
   readonly generativeAiEnabled = input<boolean>(false);
   readonly isWeaveEnabled = computed(
@@ -113,9 +115,7 @@ export class MarketplacePageComponent {
   readonly platformFee = computed(() => (this.calculatorPrice() * 0.15).toFixed(2));
 
   readonly exportedManifestPreview = signal<string | null>(null);
-  readonly generatedInviteUrl = signal<string>(
-    'https://loom-weaver.com/campaigns?join=SOTM-CINTH-FREE',
-  );
+  readonly generatedInviteUrl = signal<string>('');
 
   constructor() {
     this.http.get<readonly LwCreatorModuleItem[]>('/api/v2/marketplace/modules').subscribe({
@@ -163,45 +163,30 @@ export class MarketplacePageComponent {
                 : m,
             ),
           );
-          this.statusBanner.set(`One-click imported module "${moduleId}" into Campaign #1.`);
+          this.statusBanner.set(`One-click imported module "${moduleId}" into the active campaign.`);
         },
       });
   }
 
   exportCampaignPackage(): void {
-    this.http.get('/api/v2/campaigns/1/export-package').subscribe({
+    this.http.get(`/api/v2/campaigns/${this.store.activeCampaignId()}/export-package`).subscribe({
       next: (pkg) => {
         this.exportedManifestPreview.set(JSON.stringify(pkg, null, 2));
         this.statusBanner.set('Exported portable JSON Campaign Package v2.0 for external backup or Marketplace publishing.');
       },
       error: () => {
-        this.exportedManifestPreview.set(
-          JSON.stringify(
-            {
-              schemaVersion: 'loomweaver-package-v2.0',
-              campaignId: 1,
-              campaignTitle: 'Shadow of the Mountain — Book I & II Chronicle',
-              royaltyStandard: '85/15 Creator Split',
-            },
-            null,
-            2,
-          ),
-        );
+        this.statusBanner.set('The campaign package could not be exported.');
       },
     });
   }
 
   generateFreePlayerInvite(): void {
-    this.http
-      .post<{ inviteUrl: string; playerCost: string }>('/api/v2/campaigns/1/invite-link', {})
-      .subscribe({
-        next: (res) => {
-          if (res?.inviteUrl) this.generatedInviteUrl.set(res.inviteUrl);
-          this.statusBanner.set(
-            `Generated frictionless player invite link (${res?.playerCost ?? '100% Free'}).`,
-          );
-        },
-        error: () => {},
-      });
+    this.membership.createInvite(this.store.activeCampaignId()).subscribe({
+      next: (res) => {
+        this.generatedInviteUrl.set(res.inviteUrl);
+        this.statusBanner.set(`Generated a player invite link. It expires in ${res.expiresInDays} days and allows ${res.maxUses} joins.`);
+      },
+      error: () => this.statusBanner.set('Only the campaign GM can create invite links.'),
+    });
   }
 }

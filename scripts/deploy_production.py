@@ -1,6 +1,25 @@
 import os
 import tarfile
-import paramiko
+import lw_deploy_env as env
+
+if len(env.JWT_SECRET) < 32:
+    raise SystemExit("LOOMWEAVER_JWT_SECRET must be set to at least 32 characters in the deploy env file")
+env.require("LW_DB_PASSWORD")
+env.require("LW_NEO4J_PASSWORD")
+
+
+def _env_value(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+API_ENV_CONTENT = "\n".join([
+    "ConnectionStrings__LoomWeaverMySql=" + _env_value(
+        f"Server=127.0.0.1;Port=3306;Database=loomweaver;User ID=loomweaver_app;"
+        f"Password={env.DB_PASSWORD};SslMode=Preferred;"
+    ),
+    "Neo4j__Password=" + _env_value(env.NEO4J_PASSWORD),
+    "LOOMWEAVER_JWT_SECRET=" + _env_value(env.JWT_SECRET),
+]) + "\n"
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIST = os.path.join(ROOT, "frontend", "dist", "loomweaver-v2", "browser")
@@ -17,15 +36,14 @@ with tarfile.open(SERVER_TAR, "w:gz") as tf:
     for item in os.listdir(SERVER_PUB):
         tf.add(os.path.join(SERVER_PUB, item), arcname=item)
 
-ssh = paramiko.SSHClient()
-ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-ssh.connect("209.46.127.226", username="iamtrash", password="tZ-2jETuYpgVRzFBF=09")
+ssh = env.connect()
 
-print("Uploading archives to 209.46.127.226...")
+print("Uploading archives to the production server...")
 sftp = ssh.open_sftp()
 sftp.put(CLIENT_TAR, "/tmp/loomweaver_client.tar.gz")
 sftp.put(SERVER_TAR, "/tmp/loomweaver_server.tar.gz")
 sftp.close()
+env.put_secret_file(ssh, "/tmp/.lw_api.env", API_ENV_CONTENT)
 
 remote_script = r"""#!/usr/bin/env bash
 set -e
@@ -95,7 +113,11 @@ ln -sfn /var/www/loomweaver/client /var/www/vtt3d/current/client
 ln -sfn /var/www/loomweaver/client/client
 ln -sfn /var/www/loomweaver/client /var/www/generator/current/client
 
-chown -R iamtrash:www-data /var/www/loomweaver
+install -d -m 700 -o root -g root /etc/loomweaver
+install -m 600 -o root -g root /tmp/.lw_api.env /etc/loomweaver/api.env
+rm -f /tmp/.lw_api.env
+
+chown -R __SERVICE_USER__:www-data /var/www/loomweaver
 chmod -R 755 /var/www/loomweaver
 
 echo "6. Updating systemd services to run LoomWeaver.Api.dll on database 'loomweaver'..."
@@ -106,7 +128,7 @@ After=network.target mysql.service docker.service
 
 [Service]
 Type=simple
-User=iamtrash
+User=__SERVICE_USER__
 WorkingDirectory=/var/www/loomweaver/server
 ExecStart=/usr/share/dotnet/dotnet /var/www/loomweaver/server/LoomWeaver.Api.dll
 Restart=always
@@ -115,10 +137,9 @@ Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=ASPNETCORE_URLS=http://127.0.0.1:5000
 Environment=DOTNET_ROOT=/usr/share/dotnet
 Environment=PATH=/usr/share/dotnet:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-Environment="ConnectionStrings__LoomWeaverMySql=Server=127.0.0.1;Port=3306;Database=loomweaver;User ID=loomweaver_app;Password=Sp34kFri3nd4nd3nt3r!;SslMode=Preferred;"
+EnvironmentFile=/etc/loomweaver/api.env
 Environment="Neo4j__Uri=bolt://127.0.0.1:7687"
 Environment="Neo4j__Username=neo4j"
-Environment="Neo4j__Password=Sp34kFri3nd4nd3nt3r!"
 Environment="Neo4j__Database=neo4j"
 
 [Install]
@@ -132,7 +153,7 @@ After=network.target mysql.service docker.service
 
 [Service]
 Type=simple
-User=iamtrash
+User=__SERVICE_USER__
 WorkingDirectory=/var/www/loomweaver/server
 ExecStart=/usr/share/dotnet/dotnet /var/www/loomweaver/server/LoomWeaver.Api.dll
 Restart=always
@@ -141,10 +162,9 @@ Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=ASPNETCORE_URLS=http://127.0.0.1:5001
 Environment=DOTNET_ROOT=/usr/share/dotnet
 Environment=PATH=/usr/share/dotnet:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-Environment="ConnectionStrings__LoomWeaverMySql=Server=127.0.0.1;Port=3306;Database=loomweaver;User ID=loomweaver_app;Password=Sp34kFri3nd4nd3nt3r!;SslMode=Preferred;"
+EnvironmentFile=/etc/loomweaver/api.env
 Environment="Neo4j__Uri=bolt://127.0.0.1:7687"
 Environment="Neo4j__Username=neo4j"
-Environment="Neo4j__Password=Sp34kFri3nd4nd3nt3r!"
 Environment="Neo4j__Database=neo4j"
 
 [Install]
@@ -404,18 +424,15 @@ ls -la /var/www/loomweaver/assets
 
 sftp = ssh.open_sftp()
 with sftp.open("/tmp/deploy_loomweaver_v2.sh", "w") as f:
-    f.write(remote_script)
+    f.write(remote_script.replace("__SERVICE_USER__", env.USER))
 sftp.close()
 
 print("Executing remote production deployment...")
-_, out, err = ssh.exec_command(
-    'echo "tZ-2jETuYpgVRzFBF=09" | sudo -S bash /tmp/deploy_loomweaver_v2.sh'
-)
-print(out.read().decode())
-err_out = err.read().decode()
-if err_out:
-    print("Remote stderr:", err_out)
-
+try:
+    out = env.run(ssh, "bash /tmp/deploy_loomweaver_v2.sh", sudo=True, check=False)
+finally:
+    env.run(ssh, "rm -f /tmp/.lw_api.env", check=False)
+print(out)
 ssh.close()
 for f in (CLIENT_TAR, SERVER_TAR):
     if os.path.exists(f):

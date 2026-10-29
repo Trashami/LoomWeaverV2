@@ -24,13 +24,6 @@ public sealed record StoredUserRecord(
 
 public static class MySqlUserAuthStore
 {
-    private static readonly byte[] JwtSigningKey = Encoding.UTF8.GetBytes(
-        Environment.GetEnvironmentVariable("LOOMWEAVER_JWT_SECRET")
-        ?? "LoomWeaverV2-Polyglot-HMAC-SHA256-SigningKey-2026!");
-
-    private static readonly byte[] LegacyJwtSigningKey = Encoding.UTF8.GetBytes(
-        "MythWeaver_Super_Secure_Secret_Key_For_Jwt_Token_Generation_2026_Tromborg_DND_12345!");
-
     private const string GoogleClientId =
         "280529007750-q5jrb7qbln2hpcaf8a62j4125oied8qs.apps.googleusercontent.com";
 
@@ -39,8 +32,10 @@ public static class MySqlUserAuthStore
 
     private static List<StoredUserRecord> BuildSeedUsers()
     {
-        var (adminHash, adminSalt) = PasswordHasher.HashPassword("Sp34kFri3nd4nd3nt3r!");
-        var (testerHash, testerSalt) = PasswordHasher.HashPassword("LoomWeaverTester");
+        // Seed profiles carry display metadata only. Their password hashes are random and
+        // unknowable: real credentials live in jane_scrum.mw_users / lw_auth_users.
+        var (adminHash, adminSalt) = PasswordHasher.HashPassword(Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)));
+        var (testerHash, testerSalt) = PasswordHasher.HashPassword(Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)));
 
         return new List<StoredUserRecord>
         {
@@ -226,10 +221,8 @@ public static class MySqlUserAuthStore
 
                 var validMwPassword = !string.IsNullOrEmpty(hash) && !string.IsNullOrEmpty(salt) &&
                                       PasswordHasher.VerifyPassword(password, hash, salt);
-                var validSeedPassword = memMatch is not null &&
-                                        PasswordHasher.VerifyPassword(password, memMatch.PasswordHash, memMatch.PasswordSalt);
 
-                if (validMwPassword || validSeedPassword)
+                if (validMwPassword)
                 {
                     var normalizedRole = rawRole is "player" or "players" ? "players" : "gm";
                     return new StoredUserRecord(
@@ -272,8 +265,7 @@ public static class MySqlUserAuthStore
             {
                 var hash = reader.IsDBNull(5) ? string.Empty : reader.GetString(5);
                 var salt = reader.IsDBNull(6) ? string.Empty : reader.GetString(6);
-                if (PasswordHasher.VerifyPassword(password, hash, salt) ||
-                    (memMatch is not null && PasswordHasher.VerifyPassword(password, memMatch.PasswordHash, memMatch.PasswordSalt)))
+                if (PasswordHasher.VerifyPassword(password, hash, salt))
                 {
                     var rawRole = reader.GetString(7);
                     var normalizedRole = rawRole is "player" or "players" ? "players" : "gm";
@@ -296,15 +288,10 @@ public static class MySqlUserAuthStore
         }
         catch
         {
-            // Fall through to MemoryUsers verification
+            // Database unavailable: no offline credential fallback exists.
         }
 
-        if (memMatch is null || !PasswordHasher.VerifyPassword(password, memMatch.PasswordHash, memMatch.PasswordSalt))
-        {
-            return null;
-        }
-
-        return memMatch;
+        return null;
     }
 
     public static async Task<StoredUserRecord> RegisterAsync(

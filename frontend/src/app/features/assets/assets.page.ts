@@ -64,7 +64,7 @@ export class AssetsPageComponent implements OnDestroy {
   );
 
   constructor() {
-    this.http.get<ServerAudioStateResponse>('/api/v2/campaigns/1/audio-state').subscribe({
+    this.http.get<ServerAudioStateResponse>(`/api/v2/campaigns/${this.store.activeCampaignId()}/audio-state`).subscribe({
       next: (res) => {
         if (res) {
           this.audio.hydrateFromServer(
@@ -88,7 +88,7 @@ export class AssetsPageComponent implements OnDestroy {
     if (!preset) return;
 
     this.http
-      .post('/api/v2/campaigns/1/audio-state/transition', {
+      .post(`/api/v2/campaigns/${this.store.activeCampaignId()}/audio-state/transition`, {
         presetId: preset.id,
         crossfadeSeconds: preset.crossfadeSeconds,
         role: this.store.viewerRole(),

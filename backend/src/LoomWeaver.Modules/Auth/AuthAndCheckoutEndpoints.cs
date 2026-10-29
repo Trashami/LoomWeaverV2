@@ -282,6 +282,14 @@ public static class AuthAndCheckoutEndpoints
             if (fromCookie is not null) return fromCookie;
         }
 
+        // Browsers cannot set headers on WebSocket upgrades; SignalR sends access_token instead.
+        if (ctx.Request.Path.StartsWithSegments("/hubs") &&
+            ctx.Request.Query.TryGetValue("access_token", out var hubToken) &&
+            !string.IsNullOrWhiteSpace(hubToken))
+        {
+            return MySqlUserAuthStore.VerifyHmacJwt(hubToken.ToString());
+        }
+
         return null;
     }
 

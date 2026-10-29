@@ -11,7 +11,7 @@ public sealed class LoomWeaverMySqlOptions
     public int Port { get; set; } = 3306;
     public string Database { get; set; } = "loomweaver";
     public string UserId { get; set; } = "loomweaver_app";
-    public string Password { get; set; } = "Sp34kFri3nd4nd3nt3r!";
+    public string Password { get; set; } = string.Empty;
 }
 
 public sealed class LoomWeaverMySqlRepository(LoomWeaverMySqlOptions options)

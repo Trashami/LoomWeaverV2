@@ -6,12 +6,8 @@ namespace LoomWeaver.Modules.Auth;
 
 public static class JwtTokenHelper
 {
-    private static readonly byte[] JwtSigningKey = Encoding.UTF8.GetBytes(
-        Environment.GetEnvironmentVariable("LOOMWEAVER_JWT_SECRET")
-        ?? "LoomWeaverV2-Polyglot-HMAC-SHA256-SigningKey-2026!");
-
-    private static readonly byte[] LegacyJwtSigningKey = Encoding.UTF8.GetBytes(
-        "MythWeaver_Super_Secure_Secret_Key_For_Jwt_Token_Generation_2026_Tromborg_DND_12345!");
+    private static byte[] JwtSigningKey => AuthSecrets.JwtSigningKey;
+    private static byte[]? LegacyJwtSigningKey => AuthSecrets.LegacyJwtSigningKey;
 
     public static string IssueHmacJwt(StoredUserRecord user, DateTimeOffset expiresAt)
     {
@@ -62,10 +58,12 @@ public static class JwtTokenHelper
             var sigBytes = Encoding.UTF8.GetBytes(parts[2]);
 
             var expectedPrimary = Encoding.UTF8.GetBytes(Base64UrlEncode(HMACSHA256.HashData(JwtSigningKey, unsignedBytes)));
-            var expectedLegacy = Encoding.UTF8.GetBytes(Base64UrlEncode(HMACSHA256.HashData(LegacyJwtSigningKey, unsignedBytes)));
-
-            var validSig = CryptographicOperations.FixedTimeEquals(sigBytes, expectedPrimary) ||
-                           CryptographicOperations.FixedTimeEquals(sigBytes, expectedLegacy);
+            var validSig = CryptographicOperations.FixedTimeEquals(sigBytes, expectedPrimary);
+            if (!validSig && LegacyJwtSigningKey is not null)
+            {
+                var expectedLegacy = Encoding.UTF8.GetBytes(Base64UrlEncode(HMACSHA256.HashData(LegacyJwtSigningKey, unsignedBytes)));
+                validSig = CryptographicOperations.FixedTimeEquals(sigBytes, expectedLegacy);
+            }
             if (!validSig) return null;
 
             using var doc = JsonDocument.Parse(Base64UrlDecode(parts[1]));
@@ -100,8 +98,9 @@ public static class JwtTokenHelper
             var fallbackId = long.TryParse(subStr, out var idVal) && idVal > 0 ? idVal : 1L;
             var fallbackUser = username ?? email?.Split('@')[0] ?? $"user-{fallbackId}";
             var fallbackName = GetClaim(root, "name", "display_name") ?? fallbackUser;
-            var rawRole = GetClaim(root, "role", "http://schemas.microsoft.com/ws/2008/06/identity/claims/role") ?? "gm";
-            var normRole = rawRole is "player" or "players" ? "players" : "gm";
+            // Account role is informational only; campaign GM rights come from lw_campaign_members.
+            var rawRole = GetClaim(root, "role", "http://schemas.microsoft.com/ws/2008/06/identity/claims/role") ?? "players";
+            var normRole = rawRole is "gm" or "dm" ? "gm" : "players";
 
             return new StoredUserRecord(
                 fallbackId,
@@ -111,7 +110,7 @@ public static class JwtTokenHelper
                 fallbackName,
                 "", "", normRole,
                 GetClaim(root, "tier") ?? "adventurer",
-                GetClaim(root, "witness") ?? "GM",
+                GetClaim(root, "witness") ?? "None",
                 Array.Empty<string>(), 0.0);
         }
         catch

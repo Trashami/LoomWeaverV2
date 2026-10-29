@@ -1,15 +1,11 @@
 """
-Scans /var/www/loomweaver/assets on 209.46.127.226 for all 2D bump/height/normal
+Scans /var/www/loomweaver/assets on the production server for all 2D bump/height/normal
 assets (albedo + _normal.png + _height.png) and saves bump-height-manifest.json
 locally and on the production server.
 """
 import json
 import os
-import paramiko
-
-HOST = "209.46.127.226"
-USER = "iamtrash"
-PASS = os.environ.get("LW_SSH_PASS", "tZ-2jETuYpgVRzFBF=09")
+import lw_deploy_env as env
 OUT_LOCAL = r"c:\repos\Jane\Jane\LoomWeaverV2\frontend\public\assets\previews-png\bump-height-manifest.json"
 OUT_MAP_ASSETS = r"C:\map assets\previews-png\bump-height-manifest.json"
 
@@ -100,9 +96,7 @@ print(json.dumps({"total": len(combined), "items": combined}, indent=2))
 
 
 def main() -> None:
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(HOST, username=USER, password=PASS, timeout=30)
+    ssh = env.connect()
     sftp = ssh.open_sftp()
     with sftp.open("/tmp/scan_bump.py", "w") as f:
         f.write(REMOTE_PY)

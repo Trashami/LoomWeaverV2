@@ -19,6 +19,7 @@ export interface CampaignVm {
   readonly dmAccountIds?: readonly string[];
   readonly dmUsernames?: readonly string[];
   readonly dmDisplayName?: string;
+  readonly myRole?: 'dm' | 'player';
 }
 
 export interface EntityCardVm {

@@ -1,52 +1,26 @@
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import {
-  AfterViewInit,
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  ElementRef,
-  inject,
-  OnDestroy,
-  OnInit,
-  signal,
-  ViewChild,
+  AfterViewInit, ChangeDetectionStrategy, Component, computed,
+  ElementRef, inject, OnDestroy, OnInit, signal, ViewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AuthSessionService } from '../../core/services/auth-session.service';
 import { LwAlertifyService } from '../../core/services/lw-alertify.service';
+import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
 import {
-  DicePoolRollRequest,
-  LwButtonComponent,
-  LwDiceForgeInspectorComponent,
-  LwDiceForgeSubbarComponent,
-  LwDiceRollerMenuComponent,
-  LwDiceToolDockComponent,
-  LwIconComponent,
+  DicePoolRollRequest, LwButtonComponent, LwDiceForgeInspectorComponent,
+  LwDiceForgeSubbarComponent, LwDiceRollerMenuComponent, LwDiceToolDockComponent, LwIconComponent,
 } from '../../shared/ui';
 import { buildDefaultMarketplaceDicePresets } from './dice-marketplace-defaults';
 import { DICE_SOUND_PROFILES, DiceSoundService } from './engine/audio';
 import { BabylonDiceStageService } from './engine/babylon-dice-stage.service';
-import {
-  DEFAULT_DICE_PHYSICS_CONFIG,
-  DiceForgeToolId,
-  DicePhysicsConfig,
-} from './engine/dice-physics.types';
+import { DEFAULT_DICE_PHYSICS_CONFIG, DiceForgeToolId, DicePhysicsConfig } from './engine/dice-physics.types';
 import { DICE_CRITFAIL_EFFECTS, DICE_NAT20_EFFECTS } from './engine/effects';
+import { DICE_MODEL_CATALOG, DiceModelDefinition, DicePolyhedronType, resolveDiceModel } from './engine/models';
 import {
-  DICE_MODEL_CATALOG,
-  DiceModelDefinition,
-  DicePolyhedronType,
-  resolveDiceModel,
-} from './engine/models';
-import {
-  createDefaultRuntimeConfigFromSkin,
-  DICE_SKIN_CATALOG,
-  DiceCustomRuntimeConfig,
-  DiceSkinConfig,
-  MarketplaceDicePreset,
-  resolveDiceSkin,
-  SavedUserDicePreset,
+  createDefaultRuntimeConfigFromSkin, DICE_SKIN_CATALOG, DiceCustomRuntimeConfig,
+  DiceSkinConfig, MarketplaceDicePreset, resolveDiceSkin, SavedUserDicePreset,
 } from './engine/skins';
 
 const USER_PRESETS_STORAGE_KEY = 'lw_user_dice_presets_v2';
@@ -56,14 +30,8 @@ const ACTIVE_CONFIG_STORAGE_KEY = 'lw_active_dice_config_v2';
   selector: 'app-dice-page',
   standalone: true,
   imports: [
-    CommonModule,
-    FormsModule,
-    LwButtonComponent,
-    LwIconComponent,
-    LwDiceForgeSubbarComponent,
-    LwDiceToolDockComponent,
-    LwDiceRollerMenuComponent,
-    LwDiceForgeInspectorComponent,
+    CommonModule, FormsModule, LwButtonComponent, LwIconComponent,
+    LwDiceForgeSubbarComponent, LwDiceToolDockComponent, LwDiceRollerMenuComponent, LwDiceForgeInspectorComponent,
   ],
   templateUrl: './dice.page.html',
   styleUrl: './dice.page.scss',
@@ -71,6 +39,7 @@ const ACTIVE_CONFIG_STORAGE_KEY = 'lw_active_dice_config_v2';
 })
 export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly http = inject(HttpClient);
+  private readonly store = inject(LoomWeaverStoreService);
   private readonly auth = inject(AuthSessionService);
   private readonly alertify = inject(LwAlertifyService);
   readonly stageService = inject(BabylonDiceStageService);
@@ -98,21 +67,16 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   readonly savedUserPresets = signal<readonly SavedUserDicePreset[]>(this.loadStoredUserPresets());
   readonly activePresetId = signal<string>('');
-  readonly marketplacePresets = signal<readonly MarketplaceDicePreset[]>(
-    buildDefaultMarketplaceDicePresets(),
-  );
+  readonly marketplacePresets = signal<readonly MarketplaceDicePreset[]>(buildDefaultMarketplaceDicePresets());
 
   ngOnInit(): void {
     const presets = this.savedUserPresets();
-    if (presets.length > 0 && !this.activePresetId()) {
-      this.activePresetId.set(presets[0].id);
-    }
+    if (presets.length > 0 && !this.activePresetId()) this.activePresetId.set(presets[0].id);
 
     this.http
-      .get<{
-        savedPresets?: SavedUserDicePreset[];
-        marketplacePresets?: MarketplaceDicePreset[];
-      }>('/api/v2/campaigns/1/dice-forge/state')
+      .get<{ savedPresets?: SavedUserDicePreset[]; marketplacePresets?: MarketplaceDicePreset[] }>(
+        `/api/v2/campaigns/${this.store.activeCampaignId()}/dice-forge/state`,
+      )
       .subscribe({
         next: (state) => {
           if (Array.isArray(state.savedPresets) && state.savedPresets.length > 0) {
@@ -149,9 +113,7 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
     const merged = this.stageService.applyCustomOverrides({
       ...nextCfg,
       customName:
-        currentName && !DICE_SKIN_CATALOG.some((s) => s.name === currentName)
-          ? currentName
-          : skin.name,
+        currentName && !DICE_SKIN_CATALOG.some((s) => s.name === currentName) ? currentName : skin.name,
     });
     this.customConfig.set(merged);
     this.persistActiveConfig(merged);
@@ -184,10 +146,7 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   applyPhysicsChange(physicsPatch: Partial<DicePhysicsConfig>): void {
-    const mergedPhysics: DicePhysicsConfig = {
-      ...this.customConfig().physics,
-      ...physicsPatch,
-    };
+    const mergedPhysics: DicePhysicsConfig = { ...this.customConfig().physics, ...physicsPatch };
     const updated = this.stageService.applyCustomOverrides({ physics: mergedPhysics });
     this.customConfig.set(updated);
     this.persistActiveConfig(updated);
@@ -224,9 +183,7 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   zoomStageCamera(deltaRadius: number): void {
     this.stageService.zoomCamera(deltaRadius);
-    this.cameraZoomPercent.update((pct) =>
-      Math.max(45, Math.min(220, Math.round(pct - deltaRadius * 8))),
-    );
+    this.cameraZoomPercent.update((pct) => Math.max(45, Math.min(220, Math.round(pct - deltaRadius * 8))));
   }
 
   resetStageCamera(): void {
@@ -264,13 +221,7 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   testRollSound(profileId: string): void {
     this.soundService.playRollStartClatter(profileId, 2);
-    this.alertify.notifyStatus(
-      '3D Dice Forge',
-      'Acoustic Profile Test',
-      `Played sample clatter for ${profileId}.`,
-      'emerald',
-      3000,
-    );
+    this.alertify.notifyStatus('3D Dice Forge', 'Acoustic Profile Test', `Played sample clatter for ${profileId}.`, 'emerald', 3000);
   }
 
   saveCurrentPreset(asNew: boolean): void {
@@ -278,8 +229,7 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
     const name = (baseCfg.customName || this.activeSkin().name).trim();
     const existingList = [...this.savedUserPresets()];
     const existingIdx = existingList.findIndex((p) => p.name.toLowerCase() === name.toLowerCase());
-    const presetId =
-      !asNew && existingIdx >= 0 ? existingList[existingIdx].id : `user-dice-${Date.now()}`;
+    const presetId = !asNew && existingIdx >= 0 ? existingList[existingIdx].id : `user-dice-${Date.now()}`;
     const finalName = asNew && existingIdx >= 0 ? `${name} (${existingList.length + 1})` : name;
     const cfg: DiceCustomRuntimeConfig = { ...baseCfg, customName: finalName };
 
@@ -302,7 +252,7 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.customConfig.set(cfg);
     this.persistUserPresetsToStorage(nextList);
     this.persistActiveConfig(cfg);
-    this.http.post('/api/v2/campaigns/1/dice-forge/presets', savedPreset).subscribe({ error: () => {} });
+    this.http.post(`/api/v2/campaigns/${this.store.activeCampaignId()}/dice-forge/presets`, savedPreset).subscribe({ error: () => {} });
 
     this.alertify.notifyStatus(
       '3D Dice Forge',
@@ -319,12 +269,7 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
     const applied = this.stageService.applyCustomOverrides(cfg);
     this.customConfig.set(applied);
     this.persistActiveConfig(applied);
-    this.alertify.notifyStatus(
-      '3D Dice Forge',
-      'Loaded Custom Dice',
-      `Equipped "${preset.name}" onto the 3D forge stage.`,
-      'emerald',
-    );
+    this.alertify.notifyStatus('3D Dice Forge', 'Loaded Custom Dice', `Equipped "${preset.name}" onto the 3D forge stage.`, 'emerald');
   }
 
   deleteSavedPreset(presetId: string): void {
@@ -332,17 +277,9 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
     const nextList = this.savedUserPresets().filter((p) => p.id !== presetId);
     this.savedUserPresets.set(nextList);
     this.persistUserPresetsToStorage(nextList);
-    if (this.activePresetId() === presetId) {
-      this.activePresetId.set(nextList[0]?.id ?? '');
-    }
-    this.http.delete(`/api/v2/campaigns/1/dice-forge/presets/${presetId}`).subscribe({ error: () => {} });
-    this.alertify.notifyStatus(
-      '3D Dice Forge',
-      'Preset Removed',
-      `Deleted "${target?.name ?? 'Custom Dice'}" from saved presets.`,
-      'crimson',
-      4000,
-    );
+    if (this.activePresetId() === presetId) this.activePresetId.set(nextList[0]?.id ?? '');
+    this.http.delete(`/api/v2/campaigns/${this.store.activeCampaignId()}/dice-forge/presets/${presetId}`).subscribe({ error: () => {} });
+    this.alertify.notifyStatus('3D Dice Forge', 'Preset Removed', `Deleted "${target?.name ?? 'Custom Dice'}" from saved presets.`, 'crimson', 4000);
   }
 
   publishCurrentToMarketplace(taglineInput?: string): void {
@@ -372,10 +309,7 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   importFromMarketplace(marketPreset: MarketplaceDicePreset): void {
-    const importedCfg: DiceCustomRuntimeConfig = {
-      ...structuredClone(marketPreset.config),
-      customName: marketPreset.name,
-    };
+    const importedCfg: DiceCustomRuntimeConfig = { ...structuredClone(marketPreset.config), customName: marketPreset.name };
     const savedPreset: SavedUserDicePreset = {
       id: `user-imported-${Date.now()}`,
       name: marketPreset.name,
@@ -404,13 +338,9 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
   executePoolRoll(req: DicePoolRollRequest): void {
     const entries: { dieType: DicePolyhedronType; value: number }[] = [];
     for (const grp of req.pool) {
-      const count =
-        grp.dieType === 'd20' && grp.count === 1 && req.rollMode !== 'normal' ? 2 : grp.count;
+      const count = grp.dieType === 'd20' && grp.count === 1 && req.rollMode !== 'normal' ? 2 : grp.count;
       for (let i = 0; i < count && entries.length < 20; i++) {
-        entries.push({
-          dieType: grp.dieType,
-          value: Math.floor(Math.random() * grp.sides) + 1,
-        });
+        entries.push({ dieType: grp.dieType, value: Math.floor(Math.random() * grp.sides) + 1 });
       }
     }
     if (entries.length === 0) return;
@@ -430,7 +360,7 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
 
     const cfg = this.customConfig();
     this.http
-      .post('/api/v2/campaigns/1/dice/roll', {
+      .post(`/api/v2/campaigns/${this.store.activeCampaignId()}/dice/roll`, {
         sides: req.pool[0]?.sides ?? 20,
         count: entries.length,
         modifier: 0,
@@ -468,13 +398,8 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   triggerQuickRandomRollUpTo5(): void {
     const options: { dieType: DicePolyhedronType; sides: number }[] = [
-      { dieType: 'd4', sides: 4 },
-      { dieType: 'd6', sides: 6 },
-      { dieType: 'd8', sides: 8 },
-      { dieType: 'd10', sides: 10 },
-      { dieType: 'd12', sides: 12 },
-      { dieType: 'd20', sides: 20 },
-      { dieType: 'd100', sides: 100 },
+      { dieType: 'd4', sides: 4 }, { dieType: 'd6', sides: 6 }, { dieType: 'd8', sides: 8 },
+      { dieType: 'd10', sides: 10 }, { dieType: 'd12', sides: 12 }, { dieType: 'd20', sides: 20 }, { dieType: 'd100', sides: 100 },
     ];
     const totalDice = Math.floor(Math.random() * 5) + 1; // 1..5 random dice, never exceeds 5
     const bucket = new Map<DicePolyhedronType, { dieType: DicePolyhedronType; sides: number; count: number }>();
@@ -484,11 +409,7 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
       if (cur) cur.count += 1;
       else bucket.set(pick.dieType, { ...pick, count: 1 });
     }
-    this.executePoolRoll({
-      pool: Array.from(bucket.values()),
-      rollMode: 'normal',
-      isRandomQuickRoll: true,
-    });
+    this.executePoolRoll({ pool: Array.from(bucket.values()), rollMode: 'normal', isRandomQuickRoll: true });
   }
 
   private loadStoredUserPresets(): SavedUserDicePreset[] {
@@ -514,9 +435,7 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
       const raw = window.localStorage.getItem(ACTIVE_CONFIG_STORAGE_KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw) as Partial<DiceCustomRuntimeConfig>;
-      const base = createDefaultRuntimeConfigFromSkin(
-        resolveDiceSkin(parsed.skinId || DICE_SKIN_CATALOG[0].id),
-      );
+      const base = createDefaultRuntimeConfigFromSkin(resolveDiceSkin(parsed.skinId || DICE_SKIN_CATALOG[0].id));
       return { ...base, ...parsed, physics: { ...DEFAULT_DICE_PHYSICS_CONFIG, ...(parsed.physics ?? {}) } };
     } catch {
       return null;

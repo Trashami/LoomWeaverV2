@@ -322,11 +322,20 @@ export class CharacterStudioService {
   }
 
   addEquipmentFromDatabase(item: EquipmentLoadoutItemVm, equipNow: boolean): void {
-    const key = this.selectedCharacterKey();
+    this.addEquipmentToCharacter(this.selectedCharacterKey(), item, equipNow);
+  }
+
+  addEquipmentToCharacter(characterKey: string, item: EquipmentLoadoutItemVm, equipNow: boolean): CharacterSheetVm | null {
     const newItem: EquipmentLoadoutItemVm = { ...item, id: `${item.id}-${Date.now().toString(36).slice(-4)}`, equipped: equipNow };
+    let updatedSheet: CharacterSheetVm | null = null;
     this.sheets.update((list) =>
-      list.map((sheet) => (sheet.characterKey === key ? this.recalculate({ ...sheet, equipment: [newItem, ...sheet.equipment] }, this.activeSystem()) : sheet)),
+      list.map((sheet) => {
+        if (sheet.characterKey !== characterKey) return sheet;
+        updatedSheet = this.recalculate({ ...sheet, equipment: [newItem, ...sheet.equipment] }, this.activeSystem());
+        return updatedSheet;
+      }),
     );
+    return updatedSheet;
   }
 
   removeEquipmentItem(equipmentId: string): void {

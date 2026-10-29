@@ -195,18 +195,6 @@ public static class MarketplaceAndQuestEndpoints
             });
         });
 
-        api.MapPost("/campaigns/{campaignId:int}/invite-link", (int campaignId) =>
-        {
-            return Results.Ok(new
-            {
-                campaignId,
-                inviteCode = "SOTM-CINTH-FREE",
-                inviteUrl = "https://loom-weaver.com/campaigns?join=SOTM-CINTH-FREE",
-                playerCost = "$0.00 (100% Free Player Seat Promise)",
-                loomAccess = "Included Free (Zero-Generation Recall + Private Player Notes)"
-            });
-        });
-
         return api;
     }
 }

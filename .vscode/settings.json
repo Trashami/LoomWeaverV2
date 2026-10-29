@@ -1,5 +1,10 @@
 {
   "remote.SSH.path": "C:\\Program Files\\Git\\usr\\bin\\ssh.exe",
   "remote.SSH.configFile": "C:\\Users\\JTromborg1\\.ssh\\config",
-  "dotnet.defaultSolution": "backend/LoomWeaver.slnx"
+  "dotnet.defaultSolution": "backend/LoomWeaver.slnx",
+  "chat.tools.terminal.autoApprove": {
+    "cd": true,
+    "npx tsc": true,
+    "Select-Object": true
+  }
 }

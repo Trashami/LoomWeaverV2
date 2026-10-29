@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
+import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
 import {
   LwAchievementCardComponent,
   LwAchievementCardData,
@@ -297,6 +298,7 @@ const DEFAULT_ANALYTICS: CampaignAnalyticsPayload = {
 })
 export class StatisticsPageComponent {
   private readonly http = inject(HttpClient);
+  private readonly store = inject(LoomWeaverStoreService);
 
   readonly analytics = signal<CampaignAnalyticsPayload>(DEFAULT_ANALYTICS);
   readonly selectedCharacterId = signal<string>('char-fivi');
@@ -318,7 +320,7 @@ export class StatisticsPageComponent {
   }
 
   refreshAnalytics(): void {
-    this.http.get<CampaignAnalyticsPayload>('/api/v2/campaigns/1/analytics').subscribe({
+    this.http.get<CampaignAnalyticsPayload>(`/api/v2/campaigns/${this.store.activeCampaignId()}/analytics`).subscribe({
       next: (res) => {
         if (res?.partyRadar?.length) {
           this.analytics.set(res);

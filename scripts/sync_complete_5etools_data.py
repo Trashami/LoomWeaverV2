@@ -8,12 +8,13 @@ and visual spell effects across `jane_scrum` and `loomweaver`.
 import json
 import os
 import re
+import sys
 import pymysql
 
 DATA_DIR = "/var/www/jane-assets/5etools/data"
 DB_HOST = "localhost"
 DB_USER = "loomweaver_app"
-DB_PASS = "Sp34kFri3nd4nd3nt3r!"
+DB_PASS = os.environ.get("LW_DB_PASSWORD") or sys.exit("LW_DB_PASSWORD must be set in the environment")
 
 SCHOOL_MAP = {
     "A": ("Abjuration", "abjuration", "#4aa8ff", "#a8d8ff", "rune-circle.webp"),

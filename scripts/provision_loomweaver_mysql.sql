@@ -11,8 +11,8 @@ CREATE DATABASE IF NOT EXISTS `loomweaver_test`
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
-CREATE USER IF NOT EXISTS 'loomweaver_app'@'%' IDENTIFIED BY 'Sp34kFri3nd4nd3nt3r!';
-CREATE USER IF NOT EXISTS 'loomweaver_app'@'localhost' IDENTIFIED BY 'Sp34kFri3nd4nd3nt3r!';
+CREATE USER IF NOT EXISTS 'loomweaver_app'@'%' IDENTIFIED BY '__LW_DB_PASSWORD__';
+CREATE USER IF NOT EXISTS 'loomweaver_app'@'localhost' IDENTIFIED BY '__LW_DB_PASSWORD__';
 GRANT ALL PRIVILEGES ON `loomweaver`.* TO 'loomweaver_app'@'%';
 GRANT ALL PRIVILEGES ON `loomweaver`.* TO 'loomweaver_app'@'localhost';
 GRANT ALL PRIVILEGES ON `loomweaver_test`.* TO 'loomweaver_app'@'%';

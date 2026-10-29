@@ -1,4 +1,6 @@
+using LoomWeaver.Infrastructure.MySql;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LoomWeaver.Modules.Auth;
 
@@ -11,116 +13,118 @@ public sealed record ResolvedCampaignAccess(
     bool IsAccountGm,
     bool IsEffectiveGm,
     string BoundCharacterKey
-);
+)
+{
+    /// <summary>True when the caller holds a row in lw_campaign_members for this campaign.</summary>
+    public bool IsMember { get; init; }
+}
 
+/// <summary>Per-request cache of the membership the access middleware already loaded.</summary>
+public sealed record CampaignAccessContext(int CampaignId, StoredUserRecord User, CampaignMembership? Membership);
+
+/// <summary>
+/// The only place campaign roles are decided. GM rights come exclusively from
+/// lw_campaign_members (member_role = 'gm'). Client-supplied role, viewerRole, accountId,
+/// and witness values are never trusted; a GM may only down-scope to a player preview.
+/// Unauthenticated callers and non-members resolve to a no-access player view.
+/// </summary>
 public static class CampaignAccessResolver
 {
+    public const string ItemKey = "lw.campaign-access";
+    public const string NoCharacter = "none";
+
     public static ResolvedCampaignAccess Resolve(HttpContext? context, int campaignId, string? requestedPreviewRole = null)
     {
-        var user = context is not null ? AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(context) : null;
-        if (user is null)
-        {
-            var previewAsPlayer = string.Equals(requestedPreviewRole, "players", StringComparison.OrdinalIgnoreCase) ||
-                                  string.Equals(requestedPreviewRole, "player", StringComparison.OrdinalIgnoreCase);
-            var effectiveRole = previewAsPlayer ? "players" : "gm";
+        if (context is null) return NoAccess(null);
 
-            return new ResolvedCampaignAccess(
-                0,
-                "gm@loom-weaver.com",
-                "GameMaster",
-                effectiveRole,
-                effectiveRole,
-                effectiveRole == "gm",
-                effectiveRole == "gm",
-                effectiveRole == "gm" ? "all-party" : "pc-dal"
-            );
+        if (context.Items[ItemKey] is CampaignAccessContext cached && cached.CampaignId == campaignId)
+        {
+            return Build(cached.User, cached.Membership, requestedPreviewRole);
         }
 
-        // Per-Campaign GM vs. Player resolution:
-        // A user can be DM/GM in their own campaign and a Player in another DM's campaign.
-        var isCampaignGm = IsUserGmForCampaign(user, campaignId);
+        var user = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(context);
+        if (user is null) return NoAccess(null);
 
-        // A player in a campaign can NEVER escalate to GM via query parameters or request body.
-        // The campaign's DM/GM can down-scope to "players" when using the "Player View" preview toggle.
-        var wantsPlayerPreview = string.Equals(requestedPreviewRole, "players", StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(requestedPreviewRole, "player", StringComparison.OrdinalIgnoreCase);
+        // Rare path (middleware did not pre-load this campaign); block on the async lookup.
+        var membership = LoadAsync(context, campaignId, user, context.RequestAborted).GetAwaiter().GetResult();
+        return Build(user, membership, requestedPreviewRole);
+    }
 
-        var isEffectiveGm = isCampaignGm && !wantsPlayerPreview;
-        var effectiveViewerRole = isEffectiveGm ? "gm" : "players";
+    public static async Task<ResolvedCampaignAccess> ResolveAsync(
+        HttpContext context, int campaignId, string? requestedPreviewRole = null, CancellationToken ct = default)
+    {
+        if (context.Items[ItemKey] is CampaignAccessContext cached && cached.CampaignId == campaignId)
+        {
+            return Build(cached.User, cached.Membership, requestedPreviewRole);
+        }
 
-        var boundChar = isEffectiveGm
+        var user = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(context);
+        if (user is null) return NoAccess(null);
+        var membership = await LoadAsync(context, campaignId, user, ct);
+        return Build(user, membership, requestedPreviewRole);
+    }
+
+    public static ResolvedCampaignAccess Build(StoredUserRecord? user, CampaignMembership? membership, string? requestedPreviewRole)
+    {
+        if (user is null || membership is null) return NoAccess(user);
+
+        var wantsPlayerPreview = IsPlayerRole(requestedPreviewRole);
+        var isEffectiveGm = membership.IsGm && !wantsPlayerPreview;
+        var boundCharacter = isEffectiveGm
             ? "all-party"
-            : ResolvePlayerCharacterForUser(user);
+            : NormalizeCharacterKey(membership.CharacterKey)
+              ?? NormalizeCharacterKey(membership.CharacterName)
+              ?? NoCharacter;
 
         return new ResolvedCampaignAccess(
             user.Id,
             user.Email,
             user.Username,
-            isCampaignGm ? "gm" : "players",
-            effectiveViewerRole,
-            isCampaignGm,
+            membership.IsGm ? "gm" : "players",
+            isEffectiveGm ? "gm" : "players",
+            membership.IsGm,
             isEffectiveGm,
-            boundChar
-        );
+            boundCharacter)
+        { IsMember = true };
     }
 
-    public static bool IsUserGmForCampaign(StoredUserRecord user, int campaignId)
-    {
-        var uname = (user.Username ?? string.Empty).Trim();
-        var accId = (user.AccountId ?? string.Empty).Trim();
+    public static bool IsPlayerRole(string? role) =>
+        string.Equals(role, "players", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(role, "player", StringComparison.OrdinalIgnoreCase);
 
-        return campaignId switch
-        {
-            1 => user.Id is 1 or 2 ||
-                 uname.Equals("GeoJason", StringComparison.OrdinalIgnoreCase) ||
-                 uname.Equals("trashami", StringComparison.OrdinalIgnoreCase) ||
-                 accId.Equals("acc-gm-geojason", StringComparison.OrdinalIgnoreCase) ||
-                 accId.Equals("acc-gm-trashami", StringComparison.OrdinalIgnoreCase),
-            2 => user.Id is 4522 or 3 ||
-                 uname.Equals("GregMeinert", StringComparison.OrdinalIgnoreCase) ||
-                 uname.Equals("ScottBrogan", StringComparison.OrdinalIgnoreCase) ||
-                 accId.Equals("acc-gm-greg", StringComparison.OrdinalIgnoreCase) ||
-                 accId.Equals("acc-player-dal", StringComparison.OrdinalIgnoreCase),
-            3 => user.Id is 5363 or 4 ||
-                 uname.Equals("KennethAlexander", StringComparison.OrdinalIgnoreCase) ||
-                 uname.Equals("StickHazen", StringComparison.OrdinalIgnoreCase) ||
-                 accId.Equals("acc-gm-kenneth", StringComparison.OrdinalIgnoreCase) ||
-                 accId.Equals("acc-player-kycius", StringComparison.OrdinalIgnoreCase),
-            103 => user.Id == 3 || uname.Equals("ScottBrogan", StringComparison.OrdinalIgnoreCase),
-            104 => user.Id == 4 || uname.Equals("StickHazen", StringComparison.OrdinalIgnoreCase),
-            105 => user.Id == 4522 || uname.Equals("GregMeinert", StringComparison.OrdinalIgnoreCase),
-            _ => string.Equals(user.Role, "gm", StringComparison.OrdinalIgnoreCase)
-        };
+    private static ResolvedCampaignAccess NoAccess(StoredUserRecord? user) => new(
+        user?.Id ?? 0,
+        user?.Email ?? string.Empty,
+        user?.Username ?? string.Empty,
+        "players",
+        "players",
+        false,
+        false,
+        NoCharacter)
+    { IsMember = false };
+
+    private static async Task<CampaignMembership?> LoadAsync(
+        HttpContext context, int campaignId, StoredUserRecord user, CancellationToken ct)
+    {
+        var repo = context.RequestServices.GetRequiredService<LoomWeaverMySqlRepository>();
+        var membership = await CampaignMembershipStore.FindAsync(repo, campaignId, user, ct);
+        context.Items[ItemKey] = new CampaignAccessContext(campaignId, user, membership);
+        return membership;
     }
 
-    public static string ResolvePlayerCharacterForUser(StoredUserRecord user)
+    private static string? NormalizeCharacterKey(string? raw)
     {
-        if (!string.IsNullOrWhiteSpace(user.BoundCharacter) &&
-            !user.BoundCharacter.Equals("GM", StringComparison.OrdinalIgnoreCase) &&
-            !user.BoundCharacter.Equals("None", StringComparison.OrdinalIgnoreCase))
-        {
-            return NormalizeCharacterKey(user.BoundCharacter);
-        }
-
-        if (user.Username.Equals("GeoJason", StringComparison.OrdinalIgnoreCase) ||
-            user.AccountId.Equals("acc-gm-geojason", StringComparison.OrdinalIgnoreCase))
-        {
-            return "pc-ciaran";
-        }
-
-        return "pc-dal";
-    }
-
-    private static string NormalizeCharacterKey(string raw)
-    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
         var clean = raw.Trim();
+        if (clean.Equals("GM", StringComparison.OrdinalIgnoreCase) ||
+            clean.Equals("None", StringComparison.OrdinalIgnoreCase) ||
+            clean.Equals("Dungeon Master", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
         if (clean.StartsWith("pc-", StringComparison.OrdinalIgnoreCase)) return clean.ToLowerInvariant();
-        if (clean.StartsWith("Dal", StringComparison.OrdinalIgnoreCase)) return "pc-dal";
-        if (clean.StartsWith("Ciar", StringComparison.OrdinalIgnoreCase)) return "pc-ciaran";
-        if (clean.StartsWith("Fivi", StringComparison.OrdinalIgnoreCase)) return "pc-fivi";
-        if (clean.StartsWith("Kildrid", StringComparison.OrdinalIgnoreCase)) return "pc-kildrid";
-        if (clean.StartsWith("Kycius", StringComparison.OrdinalIgnoreCase)) return "pc-kycius";
-        if (clean.StartsWith("Munk", StringComparison.OrdinalIgnoreCase)) return "pc-munk";
-        return clean;
+        var first = new string(clean.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0]
+            .Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+        return first.Length == 0 ? null : $"pc-{first}";
     }
 }

@@ -1,0 +1,103 @@
+<section class="sourcebook-page">
+  @if (source(); as s) {
+    <header class="book-header">
+      <a class="back-link" routerLink="/sources">All sourcebooks</a>
+      <div class="book-title-row">
+        @if (s.cover_path) {
+          <img class="cover" [src]="s.cover_path" [alt]="s.name + ' cover'" />
+        }
+        <div>
+          <h1>{{ s.name }}</h1>
+          <p class="meta">
+            {{ s.id }} · {{ s.source_group ?? 'Source' }}
+            @if (s.author) { · {{ s.author }} }
+            @if (s.published) { · {{ s.published }} }
+          </p>
+        </div>
+      </div>
+    </header>
+
+    @if (s.decks.length > 0) {
+      <section class="panel">
+        <h2>Decks</h2>
+        <ul class="deck-grid">
+          @for (deck of s.decks; track deck.id) {
+            <li>
+              <a [routerLink]="['/decks', deck.id]">
+                @if (deck.image_path) {
+                  <img [src]="deck.image_path" [alt]="deck.name" loading="lazy" />
+                }
+                <span class="deck-name">{{ deck.name }}</span>
+                @if (deck.cards_count) {
+                  <span class="meta">{{ deck.cards_count }} cards</span>
+                }
+              </a>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    <section class="panel">
+      <h2>Contents</h2>
+      <ol class="section-list">
+        @for (section of s.sections; track section.id) {
+          <li>
+            <span>{{ section.name }}</span>
+            @if (section.page) {
+              <span class="meta">p. {{ section.page }}</span>
+            }
+          </li>
+        } @empty {
+          <li class="meta">No contents indexed for this book.</li>
+        }
+      </ol>
+    </section>
+  } @else {
+    <header>
+      <h1>Sourcebooks</h1>
+      <div class="search-row">
+        <input
+          type="search"
+          placeholder="Search sourcebooks"
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event)"
+          (keyup.enter)="loadList()"
+          aria-label="Search sourcebooks"
+        />
+        <button type="button" ngpButton (click)="loadList()">Search</button>
+      </div>
+    </header>
+
+    @if (loading()) {
+      <p class="meta">Loading...</p>
+    }
+    @if (errorMessage()) {
+      <p class="error" role="alert">{{ errorMessage() }}</p>
+    }
+
+    <ul class="book-grid">
+      @for (book of sources(); track book.id) {
+        <li>
+          <a [routerLink]="['/sources', book.id]">
+            @if (book.cover_path) {
+              <img [src]="book.cover_path" [alt]="book.name + ' cover'" loading="lazy" />
+            }
+            <span class="book-name">{{ book.name }}</span>
+            <span class="meta">
+              {{ book.id }}
+              @if (book.published) { · {{ book.published }} }
+            </span>
+            @if (book.deck_count > 0) {
+              <span class="meta">{{ book.deck_count }} deck(s)</span>
+            }
+          </a>
+        </li>
+      } @empty {
+        @if (!loading()) {
+          <li class="meta">No sourcebooks match this search.</li>
+        }
+      }
+    </ul>
+  }
+</section>

@@ -176,6 +176,18 @@ export const APP_ROUTES: Routes = [
       import('./features/decks/decks.page').then((m) => m.DecksPageComponent),
   },
   {
+    path: 'sources',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/sourcebooks/sourcebook.page').then((m) => m.SourceBookPageComponent),
+  },
+  {
+    path: 'sources/:code',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/sourcebooks/sourcebook.page').then((m) => m.SourceBookPageComponent),
+  },
+  {
     path: 'loom',
     canActivate: [authGuard],
     loadComponent: () =>

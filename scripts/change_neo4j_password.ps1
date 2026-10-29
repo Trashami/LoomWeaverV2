@@ -123,6 +123,8 @@ $script = $remoteTemplate.
     Replace('__NEW__', (Get-ShellQuoted $newPw)).
     Replace('__CYPHER__', (Get-ShellQuoted $cypherBody))
 
+# Windows line endings would make bash read "pipefail\r" and fail.
+$script = $script -replace "`r", ""
 $sudoCmd = if ($sudoPass) { "sudo -S -p '' bash -s" } else { "sudo -n bash -s" }
 $payload = if ($sudoPass) { $sudoPass + "`n" + $script } else { $script }
 

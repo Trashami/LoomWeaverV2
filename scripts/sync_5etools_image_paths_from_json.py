@@ -35,6 +35,7 @@ DB_NAME = "loomweaver"
 PREFIX = "/5etools/"
 SOURCE_COLUMNS = ("source_book", "source_id")
 DECK_FILE = "decks.json"
+JSON_OWNED_TABLES = {"dnd_deck_cards"}
 
 
 def iter_entities(node):
@@ -84,7 +85,11 @@ def load_declarations(data_root: Path, img_root: Path):
 
 
 def target_tables(cur) -> list[tuple[str, str]]:
-    """(table, source column) for every dnd_* table with name + image_path + source."""
+    """(table, source column) for every dnd_* table with name + image_path + source.
+
+    dnd_deck_cards is excluded: its image_path is the card's own face from decks.json
+    (set by load_5etools_decks.py). Name-keyed resolution would pick a fluff back image.
+    """
     cur.execute(
         "SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS "
         "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'dnd\\_%' "
@@ -96,6 +101,8 @@ def target_tables(cur) -> list[tuple[str, str]]:
         columns.setdefault(table, set()).add(column)
     tables = []
     for table, cols in sorted(columns.items()):
+        if table in JSON_OWNED_TABLES:
+            continue
         if {"name", "image_path"} <= cols:
             source = next((c for c in SOURCE_COLUMNS if c in cols), None)
             if source:

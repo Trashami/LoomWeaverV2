@@ -12,10 +12,12 @@ Also loads:
 
 Not loaded here, on purpose:
   - life.json: already in dnd_life_tables (lifeClass, lifeBackground, lifeTrinket).
-  - decks.json: dnd_decks and dnd_deck_cards are already populated and linked (every card has deck_id).
+  - decks.json: loaded by scripts/load_5etools_decks.py (dnd_decks, dnd_deck_cards, dnd_deck_card_refs).
   - items.json: dnd_items is already populated.
   - monsterfeatures.json: sample data with no source field.
   - books.json: source metadata (cover, author, published) is already in dnd_sources.
+
+Writes only official rows (is_canonical = 1, owner_id NULL). Custom rows owned by users are never touched.
 
 Apply scripts/migrations/20261103_dnd_5etools_extras.sql before the first run.
 
@@ -39,6 +41,7 @@ import pymysql
 DEFAULT_DATA_DIR = "/var/www/jane-assets/5etools/data"
 DB_NAME = "loomweaver"
 KEY_COLUMNS = {"id", "name", "source_book", "page"}
+SCOPE_CACHE = {}
 
 # 5etools top-level JSON key -> loomweaver table.
 ENTITY_TABLES = {
@@ -227,8 +230,19 @@ def unique_identity(cur, table, available):
     return best
 
 
+def official_scope(cur, table):
+    if table not in SCOPE_CACHE:
+        cur.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = %s",
+            (table,),
+        )
+        columns = {row[0] for row in cur.fetchall()}
+        SCOPE_CACHE[table] = " AND is_canonical = 1 AND owner_id IS NULL" if {"is_canonical", "owner_id"} <= columns else ""
+    return SCOPE_CACHE[table]
+
+
 def upsert_entity(cur, table, identity, columns, values):
-    where = " AND ".join(f"{qi(c)} <=> %s" for c in identity)
+    where = " AND ".join(f"{qi(c)} <=> %s" for c in identity) + official_scope(cur, table)
     cur.execute(f"SELECT id FROM {qi(table)} WHERE {where} LIMIT 1", [values[c] for c in identity])
     found = cur.fetchone()
     if found:
@@ -299,11 +313,15 @@ def load_fluff(cur, data_dir, tables, report):
                 name, source = entry.get("name"), entry.get("source")
                 if not isinstance(name, str) or not isinstance(source, str):
                     continue
-                cur.execute(
-                    f"UPDATE {qi(table)} SET fluff_json = %s WHERE name = %s AND source_book = %s",
-                    (json.dumps(entry, ensure_ascii=False), name, source),
-                )
-                (matched if cur.rowcount else unmatched)[table] += 1
+                where = " WHERE name = %s AND source_book = %s" + official_scope(cur, table)
+                cur.execute(f"SELECT COUNT(*) FROM {qi(table)}{where}", (name, source))
+                found = cur.fetchone()[0]
+                if found:
+                    cur.execute(
+                        f"UPDATE {qi(table)} SET fluff_json = %s{where}",
+                        (json.dumps(entry, ensure_ascii=False), name, source),
+                    )
+                (matched if found else unmatched)[table] += 1
     return matched, unmatched
 
 

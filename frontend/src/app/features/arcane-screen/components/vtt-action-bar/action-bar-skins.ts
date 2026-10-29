@@ -2,7 +2,7 @@ export type ActionBarSkinId = 'loom-emerald' | 'raven-gold' | 'ember-forge' | 'l
 
 /** Skins that render a full artwork frame and overlay controls on its zones. */
 export const ART_ACTION_BAR_SKINS: readonly ActionBarSkinId[] = ['loom-raven'];
-export const LOOM_RAVEN_SKIN_IMAGE = '/assets/ui/action-bar-loom-raven.png';
+export const LOOM_RAVEN_SKIN_IMAGE = '/ui-skins/action-bar-loom-raven.png';
 
 export interface ActionBarSkinOption {
   readonly id: ActionBarSkinId;

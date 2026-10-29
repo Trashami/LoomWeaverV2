@@ -40,7 +40,9 @@
       (searchSubmitted)="submitGlobalSearch($event)"
       (audioToggled)="audio.togglePlayback()"
       (quickRollRequested)="store.rollGlobalQuickD20()"
-      (viewerRoleToggled)="store.setViewerRole(store.viewerRole() === 'gm' ? 'players' : 'gm')"
+      (viewerRoleToggled)="
+        store.setViewerRole(store.viewerRole() === 'gm' ? 'players' : 'gm')
+      "
       (loomToggled)="store.toggleLoomDrawer()"
       (generativeAiToggled)="store.setGenerativeAiOptIn($event)"
       (hideAiContentToggled)="store.setHideAiContent($event)"
@@ -65,54 +67,142 @@
             padding="0.85rem 0.7rem"
           >
             <div class="lw-sidebar__inner">
-              <div class="lw-sidebar__nav-list">
-                @for (item of primarySidebarNav; track item.id) {
-                  <a
-                    ngpButton
-                    class="lw-nav-link"
-                    [routerLink]="item.route"
-                    routerLinkActive="lw-nav-link--active"
+              <!-- Campaign selection stays in your existing global header. -->
+              <section class="lw-sidebar__section" aria-label="Favorites">
+                <div class="lw-sidebar__section-head">
+                  <span class="lw-sidebar__heading">
+                    <lw-icon name="bookmark" [size]="15" /> Favorites
+                  </span>
+                  <button
+                    type="button"
+                    class="lw-sidebar__text-button"
+                    [attr.aria-pressed]="favoritesEditing()"
+                    (click)="favoritesEditing.update(value => !value)"
                   >
-                    <span class="lw-nav-link__label">{{ item.label }}</span>
-                  </a>
+                    {{ favoritesEditing() ? "Done" : "Edit" }}
+                  </button>
+                </div>
+                @if (favorites().length === 0 && !favoritesEditing()) {
+                  <p class="lw-sidebar__empty">
+                    No favorites yet. Select Edit to add some.
+                  </p>
                 }
-              </div>
-
-              <div class="lw-sidebar__divider"></div>
-
-              <div class="lw-sidebar__engines">
-                <button
-                  ngpButton
-                  type="button"
-                  class="lw-sidebar__heading-btn"
-                  (click)="showAllModules.set(!showAllModules())"
-                >
-                  <span>Tactical & Studio Tools</span>
-                  <lw-icon [name]="showAllModules() ? 'chevron-down' : 'chevron-right'" [size]="14" />
-                </button>
-
-                @if (showAllModules()) {
-                  <div class="lw-sidebar__nav-list">
-                    @for (item of engineSidebarNav(); track item.id) {
+                <div class="lw-sidebar__nav-list">
+                  @for (item of favorites(); track item.id) {
+                    <div class="lw-sidebar__favorite-row">
+                      @if (favoritesEditing()) {
+                        <button
+                          type="button"
+                          class="lw-sidebar__favorite-toggle"
+                          [attr.aria-label]="
+                            'Remove ' + item.label + ' from favorites'
+                          "
+                          (click)="toggleFavorite(item.id)"
+                        >
+                          <lw-icon name="minus-circle" [size]="15" />
+                        </button>
+                      }
                       <a
-                        ngpButton
-                        class="lw-nav-link lw-nav-link--compact"
+                        class="lw-nav-link lw-nav-link--favorite"
                         [routerLink]="item.route"
                         routerLinkActive="lw-nav-link--active"
+                        [routerLinkActiveOptions]="{
+                          exact: item.exact ?? false,
+                        }"
                       >
+                        <lw-icon [name]="item.icon" [size]="16" />
                         <span class="lw-nav-link__label">{{ item.label }}</span>
                       </a>
-                    }
-                  </div>
-                }
-              </div>
+                    </div>
+                  }
+                </div>
+              </section>
 
-              <div class="lw-sidebar__creed-card">
-                <p class="lw-sidebar__creed-title">The Loom remembers.</p>
-                <p class="lw-sidebar__creed-sub">
-                  People change. Places endure.<br />
-                  Every choice matters.
-                </p>
+              @for (group of visibleNavGroups(); track group.id) {
+                <section
+                  class="lw-sidebar__section lw-sidebar__section--group"
+                  [attr.aria-label]="group.label"
+                >
+                  <button
+                    type="button"
+                    class="lw-sidebar__group-heading"
+                    [attr.aria-expanded]="!isGroupCollapsed(group.id)"
+                    (click)="toggleGroup(group.id)"
+                  >
+                    <lw-icon [name]="group.icon" [size]="15" />
+                    <span>{{ group.label }}</span>
+                    <lw-icon
+                      class="lw-sidebar__heading-chevron"
+                      [name]="
+                        isGroupCollapsed(group.id)
+                          ? 'chevron-right'
+                          : 'chevron-down'
+                      "
+                      [size]="13"
+                    />
+                  </button>
+                  @if (!isGroupCollapsed(group.id)) {
+                    <div class="lw-sidebar__nav-list">
+                      @for (item of group.items; track item.id) {
+                        <div class="lw-sidebar__nav-row">
+                          <a
+                            ngpButton
+                            class="lw-nav-link"
+                            [routerLink]="item.route"
+                            routerLinkActive="lw-nav-link--active"
+                            [routerLinkActiveOptions]="{
+                              exact: item.exact ?? false,
+                            }"
+                          >
+                            <lw-icon [name]="item.icon" [size]="16" />
+                            <span class="lw-nav-link__label">{{
+                              item.label
+                            }}</span>
+                          </a>
+                          @if (favoritesEditing()) {
+                            <button
+                              type="button"
+                              class="lw-sidebar__favorite-toggle"
+                              [attr.aria-label]="
+                                (isFavorite(item.id) ? 'Remove ' : 'Add ') +
+                                item.label +
+                                (isFavorite(item.id) ? ' from' : ' to') +
+                                ' favorites'
+                              "
+                              [attr.aria-pressed]="isFavorite(item.id)"
+                              (click)="toggleFavorite(item.id)"
+                            >
+                              <lw-icon
+                                [name]="isFavorite(item.id) ? 'bookmark' : 'plus'"
+                                [size]="15"
+                              />
+                            </button>
+                          }
+                        </div>
+                      }
+                    </div>
+                  }
+                </section>
+              }
+
+              <div class="lw-sidebar__bottom">
+                <div class="lw-sidebar__utility">
+                  <button
+                    type="button"
+                    class="lw-sidebar__utility-link"
+                    (click)="submitGlobalSearch()"
+                  >
+                    <lw-icon name="search" [size]="16" /> Search
+                    <kbd>Ctrl K</kbd>
+                  </button>
+                  <!-- Wire alerts and account settings once those routes/actions are defined. -->
+                </div>
+                <div class="lw-sidebar__creed-card">
+                  <p class="lw-sidebar__creed-title">The Loom remembers.</p>
+                  <p class="lw-sidebar__creed-sub">
+                    People change. Places endure.<br />Every choice matters.
+                  </p>
+                </div>
               </div>
             </div>
           </lw-scroll-area>

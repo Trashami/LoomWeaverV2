@@ -1,5 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Meta } from '@angular/platform-browser';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal,
+} from "@angular/core";
+import { Meta } from "@angular/platform-browser";
 import {
   NavigationEnd,
   NavigationStart,
@@ -7,35 +13,160 @@ import {
   RouterLink,
   RouterLinkActive,
   RouterOutlet,
-} from '@angular/router';
-import { NgpButton } from 'ng-primitives/button';
-import { filter } from 'rxjs';
-import { AuthSessionService } from './core/services/auth-session.service';
-import { CampaignMembershipService } from './core/services/campaign-membership.service';
+} from "@angular/router";
+import { NgpButton } from "ng-primitives/button";
+import { filter } from "rxjs";
+import { AuthSessionService } from "./core/services/auth-session.service";
+import { CampaignMembershipService } from "./core/services/campaign-membership.service";
 import {
   isSubdomainHost,
   resolveDefaultStudioRouteForHost,
-} from './core/services/cookie-sso.helper';
-import { LoomWeaverStoreService } from './core/services/loomweaver-store.service';
-import { WebAudioAmbienceService } from './features/assets/engine/web-audio-ambience.service';
-import { LwAppHeaderBarComponent } from './shared/ui/app-header-bar/app-header-bar.component';
-import { LwAlertifyToastStackComponent } from './shared/ui/alertify-toast-stack/alertify-toast-stack.component';
-import { LwAuthModalComponent } from './shared/ui/auth-modal/auth-modal.component';
-import { LwFullscreenDiceOverlayComponent } from './shared/ui/fullscreen-dice-overlay/fullscreen-dice-overlay.component';
-import { LwIconComponent } from './shared/ui/icon/icon.component';
-import { LwInspectorDrawerComponent } from './shared/ui/inspector-drawer/inspector-drawer.component';
-import { LwLoomLauncherComponent } from './shared/ui/loom-launcher/loom-launcher.component';
-import { LwScrollAreaComponent } from './shared/ui/scroll-area/scroll-area.component';
+} from "./core/services/cookie-sso.helper";
+import { LoomWeaverStoreService } from "./core/services/loomweaver-store.service";
+import { WebAudioAmbienceService } from "./features/assets/engine/web-audio-ambience.service";
+import { LwAppHeaderBarComponent } from "./shared/ui/app-header-bar/app-header-bar.component";
+import { LwAlertifyToastStackComponent } from "./shared/ui/alertify-toast-stack/alertify-toast-stack.component";
+import { LwAuthModalComponent } from "./shared/ui/auth-modal/auth-modal.component";
+import { LwFullscreenDiceOverlayComponent } from "./shared/ui/fullscreen-dice-overlay/fullscreen-dice-overlay.component";
+import { LwIconComponent } from "./shared/ui/icon/icon.component";
+import { LwInspectorDrawerComponent } from "./shared/ui/inspector-drawer/inspector-drawer.component";
+import { LwLoomLauncherComponent } from "./shared/ui/loom-launcher/loom-launcher.component";
+import { LwScrollAreaComponent } from "./shared/ui/scroll-area/scroll-area.component";
 
-interface StudioPrimaryNavItem {
+interface StudioNavItem {
   readonly id: string;
   readonly label: string;
   readonly route: string;
-  readonly icon?: string;
+  readonly icon: string;
+  readonly exact?: boolean;
 }
 
+interface StudioNavGroup {
+  readonly id: string;
+  readonly label: string;
+  readonly icon: string;
+  readonly items: readonly StudioNavItem[];
+}
+
+const FAVORITES_STORAGE_KEY = "lw-sidebar-favorites-v1";
+const DEFAULT_FAVORITES = ["session-log", "characters", "maps-scenes"] as const;
+
+const NAV_GROUPS: readonly StudioNavGroup[] = [
+  {
+    id: "overview",
+    label: "Overview",
+    icon: "house",
+    items: [
+      {
+        id: "dashboard",
+        label: "Dashboard",
+        route: "/home",
+        icon: "house",
+        exact: true,
+      },
+    ],
+  },
+  {
+    id: "campaign",
+    label: "Campaign Management",
+    icon: "layers",
+    items: [
+      {
+        id: "world-lore",
+        label: "World & Lore",
+        route: "/world-lore",
+        icon: "book-open",
+      },
+      {
+        id: "quests-story",
+        label: "Quests & Story",
+        route: "/campaigns",
+        icon: "scroll-text",
+      },
+      {
+        id: "characters",
+        label: "Characters",
+        route: "/characters",
+        icon: "users",
+      },
+      { id: "items", label: "Items", route: "/items", icon: "backpack" },
+      { id: "bestiary", label: "Bestiary", route: "/bestiary", icon: "skull" },
+      {
+        id: "maps-scenes",
+        label: "Maps & Scenes",
+        route: "/maps",
+        icon: "map",
+      },
+      {
+        id: "encounters",
+        label: "Encounters",
+        route: "/encounters",
+        icon: "swords",
+      },
+      // Reuses existing /loom route until a dedicated sessions/chronicles route exists.
+      {
+        id: "session-log",
+        label: "Sessions & Chronicles",
+        route: "/loom",
+        icon: "calendar-days",
+      },
+      {
+        id: "handouts-clues",
+        label: "Handouts & Clues",
+        route: "/assets",
+        icon: "file-text",
+      },
+      // Reuses existing /statistics route until a dedicated timelines route exists.
+      {
+        id: "timelines",
+        label: "Timelines",
+        route: "/statistics",
+        icon: "clock-3",
+      },
+    ],
+  },
+  {
+    id: "play",
+    label: "Play & Creation Tools",
+    icon: "gamepad-2",
+    items: [
+      {
+        id: "arcane-vtt",
+        label: "Arcane Screen (Live VTT)",
+        route: "/arcane-screen",
+        icon: "monitor-play",
+      },
+      {
+        id: "dice-forge",
+        label: "3D Dice Forge",
+        route: "/dice",
+        icon: "dices",
+      },
+      {
+        id: "effects-rules",
+        label: "Actions & FX Studio",
+        route: "/effects",
+        icon: "wand",
+      },
+    ],
+  },
+  {
+    id: "commerce",
+    label: "Marketplace",
+    icon: "store",
+    items: [
+      {
+        id: "marketplace",
+        label: "Creator Marketplace",
+        route: "/marketplace",
+        icon: "shopping-bag",
+      },
+    ],
+  },
+];
+
 @Component({
-  selector: 'lw-root',
+  selector: "lw-root",
   standalone: true,
   imports: [
     RouterOutlet,
@@ -51,8 +182,8 @@ interface StudioPrimaryNavItem {
     LwLoomLauncherComponent,
     LwScrollAreaComponent,
   ],
-  templateUrl: './app.component.html',
-  styleUrl: './app.component.scss',
+  templateUrl: "./app.component.html",
+  styleUrl: "./app.component.scss",
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppComponent {
@@ -64,87 +195,80 @@ export class AppComponent {
   private readonly membership = inject(CampaignMembershipService);
 
   readonly currentUrl = signal<string>(this.resolveInitialBrowserPath());
-  readonly globalSearchText = signal<string>('');
-  readonly showAllModules = signal<boolean>(true);
-  readonly leftNavCollapsed = signal<boolean>(
-    this.resolveInitialBrowserPath().startsWith('/arcane-screen') ||
-      this.resolveInitialBrowserPath().startsWith('/maps') ||
-      this.resolveInitialBrowserPath().startsWith('/dice'),
+  readonly globalSearchText = signal("");
+  readonly leftNavCollapsed = signal(
+    this.isFullBleedPath(this.resolveInitialBrowserPath()),
   );
-  readonly rightGuideCollapsed = signal<boolean>(true);
+  readonly rightGuideCollapsed = signal(true);
 
-  readonly isFullBleedVttRoute = computed(() => {
-    const clean = this.currentUrl().split('?')[0].split('#')[0];
-    return (
-      clean.startsWith('/arcane-screen') ||
-      clean.startsWith('/maps') ||
-      clean.startsWith('/dice')
-    );
+  readonly navGroups = NAV_GROUPS;
+  readonly favoritesEditing = signal(false);
+  readonly favoriteIds = signal<readonly string[]>(this.loadFavorites());
+  readonly collapsedGroups = signal<readonly string[]>([]);
+
+  readonly visibleNavGroups = computed(() =>
+    this.navGroups.map((group) => ({
+      ...group,
+      items:
+        group.id === "play" && this.store.weaveEnabled()
+          ? [
+              ...group.items,
+              {
+                id: "the-weave",
+                label: "The Weave (AI Drafts)",
+                route: "/weave",
+                icon: "network",
+              },
+            ]
+          : group.items,
+    })),
+  );
+
+  readonly allNavItems = computed(() =>
+    this.visibleNavGroups().flatMap((group) => group.items),
+  );
+  readonly favorites = computed(() => {
+    const items = this.allNavItems();
+    return this.favoriteIds()
+      .map((id) => items.find((item) => item.id === id))
+      .filter((item): item is StudioNavItem => item !== undefined);
   });
+
+  readonly isFullBleedVttRoute = computed(() =>
+    this.isFullBleedPath(this.currentUrl()),
+  );
 
   readonly isLandingSurface = computed(() => {
-    const clean = this.currentUrl().split('?')[0].split('#')[0].replace(/\/+$/, '') || '/';
-    if (isSubdomainHost() && this.auth.isAuthenticated() && (clean === '' || clean === '/')) {
+    const clean =
+      this.currentUrl().split("?")[0].split("#")[0].replace(/\/+$/, "") || "/";
+    if (isSubdomainHost() && this.auth.isAuthenticated() && clean === "/")
       return false;
-    }
     return (
-      clean === '' ||
-      clean === '/' ||
-      clean === '/welcome' ||
-      clean === '/marketing' ||
-      clean === '/vtt' ||
-      clean === '/campaign-manager' ||
-      clean === '/battlemap-builder' ||
-      clean === '/ai-campaign-assistant' ||
-      clean === '/features' ||
-      clean === '/about' ||
-      clean === '/effect-builder' ||
-      clean === '/encounter-builder' ||
-      clean === '/3d-assets' ||
-      clean === '/login' ||
-      clean === '/register' ||
-      clean.startsWith('/features/')
+      clean === "/" ||
+      clean === "/welcome" ||
+      clean === "/marketing" ||
+      clean === "/vtt" ||
+      clean === "/campaign-manager" ||
+      clean === "/battlemap-builder" ||
+      clean === "/ai-campaign-assistant" ||
+      clean === "/features" ||
+      clean === "/about" ||
+      clean === "/effect-builder" ||
+      clean === "/encounter-builder" ||
+      clean === "/3d-assets" ||
+      clean === "/login" ||
+      clean === "/register" ||
+      clean.startsWith("/features/")
     );
-  });
-
-  readonly primarySidebarNav: readonly StudioPrimaryNavItem[] = [
-    { id: 'dashboard', label: 'Dashboard', route: '/home' },
-    { id: 'world-lore', label: 'World & Lore', route: '/world-lore' },
-    { id: 'quests-story', label: 'Quests & Story', route: '/campaigns' },
-    { id: 'characters', label: 'Characters', route: '/characters' },
-    { id: 'items', label: 'Items', route: '/items' },
-    { id: 'bestiary', label: 'Bestiary', route: '/bestiary' },
-    { id: 'maps-scenes', label: 'Maps & Scenes', route: '/maps' },
-    { id: 'session-log', label: 'Session Log', route: '/loom' },
-    { id: 'handouts-clues', label: 'Handouts & Clues', route: '/assets' },
-    { id: 'timelines', label: 'Timelines', route: '/statistics' },
-  ];
-
-  private readonly baseEngineSidebarNav: readonly StudioPrimaryNavItem[] = [
-    { id: 'encounters', label: 'Encounters (Build & Prep)', route: '/encounters' },
-    { id: 'arcane-vtt', label: 'Arcane Screen (Live VTT)', route: '/arcane-screen' },
-    { id: 'dice-forge', label: '3D Dice Forge', route: '/dice' },
-    { id: 'effects-rules', label: 'Actions & FX Studio', route: '/effects' },
-    { id: 'marketplace', label: 'Creator Marketplace', route: '/marketplace' },
-  ];
-
-  readonly engineSidebarNav = computed<readonly StudioPrimaryNavItem[]>(() => {
-    if (!this.store.weaveEnabled()) {
-      return this.baseEngineSidebarNav;
-    }
-    return [
-      ...this.baseEngineSidebarNav,
-      { id: 'the-weave', label: 'The Weave (AI Drafts)', route: '/weave' },
-    ];
   });
 
   constructor() {
     void this.membership;
     if (
-      typeof window !== 'undefined' &&
+      typeof window !== "undefined" &&
       isSubdomainHost() &&
       this.auth.isAuthenticated() &&
-      (window.location.pathname === '/' || window.location.pathname === '')
+      (window.location.pathname === "/" || window.location.pathname === "")
     ) {
       const target = resolveDefaultStudioRouteForHost();
       this.currentUrl.set(target);
@@ -154,50 +278,100 @@ export class AppComponent {
     this.router.events
       .pipe(
         filter(
-          (e): e is NavigationStart | NavigationEnd =>
-            e instanceof NavigationStart || e instanceof NavigationEnd,
+          (event): event is NavigationStart | NavigationEnd =>
+            event instanceof NavigationStart || event instanceof NavigationEnd,
         ),
       )
-      .subscribe((e) => {
-        if (e instanceof NavigationEnd) {
-          const nextUrl = e.urlAfterRedirects || e.url;
+      .subscribe((event) => {
+        if (event instanceof NavigationEnd) {
+          const nextUrl = event.urlAfterRedirects || event.url;
           this.currentUrl.set(nextUrl);
-          if (nextUrl.startsWith('/characters')) {
+          if (
+            nextUrl.startsWith("/characters") ||
+            this.isFullBleedPath(nextUrl)
+          ) {
             this.rightGuideCollapsed.set(true);
           }
-          if (nextUrl.startsWith('/dice')) {
-            this.leftNavCollapsed.set(true);
-            this.rightGuideCollapsed.set(true);
-          }
-          if (nextUrl.startsWith('/arcane-screen') || nextUrl.startsWith('/maps')) {
-            this.leftNavCollapsed.set(true);
-            this.rightGuideCollapsed.set(true);
-          }
-        } else if (e.url && e.url !== '/') {
-          this.currentUrl.set(e.url);
+          if (this.isFullBleedPath(nextUrl)) this.leftNavCollapsed.set(true);
+        } else if (event.url && event.url !== "/") {
+          this.currentUrl.set(event.url);
         }
-        if (!this.isLandingSurface()) {
-          this.meta.updateTag({ name: 'robots', content: 'noindex, nofollow' });
-        }
+        this.meta.updateTag({
+          name: "robots",
+          content: this.isLandingSurface()
+            ? "index, follow"
+            : "noindex, nofollow",
+        });
       });
   }
 
   private resolveInitialBrowserPath(): string {
-    if (typeof window !== 'undefined' && window.location?.pathname) {
-      return window.location.pathname + (window.location.search || '');
+    if (typeof window !== "undefined" && window.location?.pathname) {
+      return window.location.pathname + (window.location.search || "");
     }
-    return this.router.url || '/';
+    return this.router.url || "/";
+  }
+
+  private isFullBleedPath(url: string): boolean {
+    const clean = url.split("?")[0].split("#")[0];
+    return ["/arcane-screen", "/maps", "/dice"].some(
+      (prefix) => clean === prefix || clean.startsWith(`${prefix}/`),
+    );
+  }
+
+  private loadFavorites(): readonly string[] {
+    if (typeof window === "undefined") return DEFAULT_FAVORITES;
+    try {
+      const raw = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
+      if (!raw) return DEFAULT_FAVORITES;
+      const parsed: unknown = JSON.parse(raw);
+      return Array.isArray(parsed)
+        ? parsed.filter((id): id is string => typeof id === "string")
+        : DEFAULT_FAVORITES;
+    } catch {
+      return DEFAULT_FAVORITES;
+    }
+  }
+
+  isFavorite(id: string): boolean {
+    return this.favoriteIds().includes(id);
+  }
+  isGroupCollapsed(id: string): boolean {
+    return this.collapsedGroups().includes(id);
+  }
+
+  toggleGroup(id: string): void {
+    this.collapsedGroups.update((ids) =>
+      ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id],
+    );
+  }
+
+  toggleFavorite(id: string): void {
+    this.favoriteIds.update((ids) => {
+      const next = ids.includes(id)
+        ? ids.filter((value) => value !== id)
+        : [...ids, id];
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(
+            FAVORITES_STORAGE_KEY,
+            JSON.stringify(next),
+          );
+        } catch {
+          /* Storage may be disabled; current session still works. */
+        }
+      }
+      return next;
+    });
   }
 
   toggleLeftNav(): void {
-    this.leftNavCollapsed.update((c) => !c);
+    this.leftNavCollapsed.update((collapsed) => !collapsed);
   }
 
   submitGlobalSearch(query?: string): void {
-    const q = (query ?? this.globalSearchText()).trim();
-    if (q) {
-      this.store.setLoomSearchQuery(q);
-    }
+    const text = (query ?? this.globalSearchText()).trim();
+    if (text) this.store.setLoomSearchQuery(text);
     this.store.toggleLoomDrawer(true);
   }
 }

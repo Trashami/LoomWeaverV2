@@ -13,6 +13,7 @@ import tempfile
 import sys
 
 import deploy_loommaps as connection
+import lw_deploy_env as env
 
 
 def command(ssh, script, sudo=False):
@@ -20,7 +21,7 @@ def command(ssh, script, sudo=False):
         script = "sudo -S -p '' bash -c " + shlex.quote(script)
     stdin, stdout, stderr = ssh.exec_command(script)
     if sudo:
-        stdin.write(connection.PASS + "\n")
+        stdin.write(env.PASS + "\n")
         stdin.flush()
     output = stdout.read().decode()
     error = stderr.read().decode()
@@ -37,10 +38,7 @@ def main():
         raise RuntimeError('Build is not the standalone map editor')
     release = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     target = f'/var/www/loommaps/releases/{release}/client'
-    ssh = connection.paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(connection.paramiko.AutoAddPolicy())
-    ssh.connect(connection.HOST, username=connection.USER,
-                password=connection.PASS, timeout=30)
+    ssh = env.connect()
     try:
         with tempfile.TemporaryDirectory() as tmp:
             archive = Path(tmp) / 'maps.tar.gz'

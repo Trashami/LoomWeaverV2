@@ -14,6 +14,13 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "types": [],
+    "paths": {
+      "@effectbuilder/*": ["../effectbuilder-studio/src/app/effects/*"],
+      "@effectbuilder-controls": ["../effectbuilder-studio/src/app/shared/components/layer-controls/layer-controls.component.ts"],
+      "@angular/*": ["./node_modules/@angular/*"],
+      "@babylonjs/*": ["./node_modules/@babylonjs/*"],
+      "ng-primitives/*": ["./node_modules/ng-primitives/*"]
+    },
     "outDir": "out-tsc"
   },
   "angularCompilerOptions": {

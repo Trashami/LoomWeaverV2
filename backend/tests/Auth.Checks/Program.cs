@@ -1,3 +1,5 @@
+using LoomWeaver.Domain;
+using LoomWeaver.GameSystems;
 using LoomWeaver.Modules.Auth;
 using LoomWeaver.Modules.Realtime;
 using System.Security.Cryptography;
@@ -19,6 +21,19 @@ void Check(bool valid, string name)
 
 var noMembership = CampaignAccessResolver.Build(user, null, "gm");
 Check(!noMembership.IsMember && !noMembership.IsAccountGm, "membership required for campaign access");
+
+Check(CharacterCalculationEngine.XpForLevel("dnd5e", 7) == 23000 && CharacterCalculationEngine.XpForLevel("dnd5e", 20) == 355000,
+    "5e XP thresholds follow the SRD table");
+var engine = new CharacterCalculationEngine();
+var hero = engine.RecalculateSheet(new CharacterSheetDto(
+    "1:Character:char-t", "char-t", 1, "T", "", "Fighter", "dnd5e", 1, 300, 300, false, 1, 0, 10, 0, 30, 2, "",
+    [new AbilityScoreDto("CON", "Constitution", 14, 0), new AbilityScoreDto("DEX", "Dexterity", 14, 0)], [], []));
+Check(hero.LevelUpEligible, "character with enough XP is level-up eligible");
+var leveled = engine.ApplyLevelUp(hero, "Second Wind", "CON");
+Check(leveled.Level == 2 && leveled.NextLevelXp == 900 && !leveled.LevelUpEligible && leveled.Abilities[0].Score == 15,
+    "level-up advances to the next SRD XP threshold");
+var capped = engine.RecalculateSheet(hero with { Level = 20, CurrentXp = 400000, NextLevelXp = 355000 });
+Check(!capped.LevelUpEligible, "level 20 characters cannot level up");
 
 var playerMembership = new CampaignMembership(42, "player", "pc-player", null, null);
 var forgedGm = CampaignAccessResolver.Build(user, playerMembership, "gm");

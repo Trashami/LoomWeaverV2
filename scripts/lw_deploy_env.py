@@ -60,15 +60,15 @@ paramiko = paramiko
 
 
 def connect(timeout: int = 30) -> paramiko.SSHClient:
-    """Open an SSH session using the private key (password fallback only if no key)."""
+    """Open a key-authenticated SSH session after validating the host key."""
+    if not KEY or not Path(KEY).is_file():
+        raise SystemExit(f"SSH private key does not exist: {KEY}")
+
     ssh = paramiko.SSHClient()
     ssh.load_system_host_keys()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    if KEY and Path(KEY).is_file():
-        ssh.connect(HOST, username=USER, key_filename=KEY, timeout=timeout,
-                    look_for_keys=False, allow_agent=False)
-    else:
-        ssh.connect(HOST, username=USER, password=require("LW_SSH_PASS"), timeout=timeout)
+    ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
+    ssh.connect(HOST, username=USER, key_filename=KEY, timeout=timeout,
+                look_for_keys=False, allow_agent=False)
     return ssh
 
 

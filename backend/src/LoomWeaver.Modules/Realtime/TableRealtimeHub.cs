@@ -23,8 +23,21 @@ public sealed class TableRealtimeHub(LoomWeaverMySqlRepository repo) : Hub
     public async Task JoinCampaignTable(int campaignId, string? actorName = null, string? role = null)
     {
         var user = CurrentUser();
-        var membership = await CampaignMembershipStore.FindAsync(repo, campaignId, user, Context.ConnectionAborted)
-            ?? throw new HubException("You are not a member of this campaign.");
+        await RemoveCurrentSeatGroupsAsync();
+        Seats.TryRemove(Context.ConnectionId, out _);
+
+        var membership = await CampaignMembershipStore.FindAsync(repo, campaignId, user, Context.ConnectionAborted);
+        if (membership is null)
+        {
+            throw new HubException("You are not a member of this campaign.");
+        }
+
+        await ReconcileCampaignConnectionsAsync(repo, Groups, campaignId, Context.ConnectionAborted);
+        membership = await CampaignMembershipStore.FindAsync(repo, campaignId, user, Context.ConnectionAborted);
+        if (membership is null)
+        {
+            throw new HubException("Campaign membership is no longer active.");
+        }
 
         Seats[Context.ConnectionId] = new LiveConnection(campaignId, user, membership);
         await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(campaignId));
@@ -53,6 +66,15 @@ public sealed class TableRealtimeHub(LoomWeaverMySqlRepository repo) : Hub
             throw new HubException("Join the campaign table before broadcasting.");
         }
 
+        await ReconcileCampaignConnectionsAsync(repo, Groups, campaignId, Context.ConnectionAborted);
+        if (!Seats.TryGetValue(Context.ConnectionId, out seat) || seat.CampaignId != campaignId)
+        {
+            throw new HubException("Campaign membership is no longer active.");
+        }
+
+        seat = seat with { User = user };
+        Seats[Context.ConnectionId] = seat;
+
         var gmOnly = TableRealtimeEndpoints.IsGmOnly(request.EventType, request.PayloadJson);
         if (gmOnly && !seat.Membership.IsGm)
         {
@@ -74,6 +96,41 @@ public sealed class TableRealtimeHub(LoomWeaverMySqlRepository repo) : Hub
     {
         Seats.TryRemove(Context.ConnectionId, out _);
         return base.OnDisconnectedAsync(exception);
+    }
+
+    private async Task RemoveCurrentSeatGroupsAsync()
+    {
+        if (!Seats.TryGetValue(Context.ConnectionId, out var seat)) return;
+        await RemoveCampaignGroupsAsync(seat.CampaignId);
+    }
+
+    private async Task RemoveCampaignGroupsAsync(int campaignId)
+    {
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(campaignId));
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, GmGroupName(campaignId));
+    }
+
+    public static async Task ReconcileCampaignConnectionsAsync(
+        LoomWeaverMySqlRepository repo, IGroupManager groups, int campaignId, CancellationToken ct = default)
+    {
+        foreach (var pair in Seats.Where(pair => pair.Value.CampaignId == campaignId).ToArray())
+        {
+            var membership = await CampaignMembershipStore.FindAsync(repo, campaignId, pair.Value.User, ct);
+            if (membership is null)
+            {
+                await groups.RemoveFromGroupAsync(pair.Key, GroupName(campaignId), ct);
+                await groups.RemoveFromGroupAsync(pair.Key, GmGroupName(campaignId), ct);
+                Seats.TryRemove(pair.Key, out _);
+                continue;
+            }
+
+            await groups.RemoveFromGroupAsync(pair.Key, GmGroupName(campaignId), ct);
+            if (membership.IsGm)
+            {
+                await groups.AddToGroupAsync(pair.Key, GmGroupName(campaignId), ct);
+            }
+            Seats[pair.Key] = pair.Value with { Membership = membership };
+        }
     }
 
     public static IReadOnlyList<TablePresenceSeatContract> ConnectedSeats(int campaignId) =>

@@ -47,7 +47,7 @@ public static class AuthAndCheckoutEndpoints
             {
                 return Results.Json(new { message = "Authentication required." }, statusCode: StatusCodes.Status401Unauthorized);
             }
-            return Results.Ok(MySqlUserAuthStore.GetPublicAccounts());
+            return Results.Ok(new[] { MySqlUserAuthStore.ToContract(caller) });
         });
 
         api.MapPost("/auth/login", async (

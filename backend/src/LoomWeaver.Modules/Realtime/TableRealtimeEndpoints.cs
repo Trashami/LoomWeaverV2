@@ -69,7 +69,7 @@ public static class TableRealtimeEndpoints
         return evt;
     }
 
-    /// <summary>GM-only events: type prefixed "gm_" or payload marked "visibility":"gm".</summary>
+    /// <summary>GM-only events have a "gm_" type or a restricted/malformed payload visibility.</summary>
     public static bool IsGmOnly(string? eventType, string? payloadJson)
     {
         if ((eventType ?? string.Empty).StartsWith("gm_", StringComparison.OrdinalIgnoreCase)) return true;
@@ -77,23 +77,54 @@ public static class TableRealtimeEndpoints
         try
         {
             using var payload = JsonDocument.Parse(payloadJson);
-            return payload.RootElement.ValueKind == JsonValueKind.Object &&
-                   payload.RootElement.TryGetProperty("visibility", out var visibility) &&
-                   visibility.ValueKind == JsonValueKind.String &&
-                   string.Equals(visibility.GetString(), "gm", StringComparison.OrdinalIgnoreCase);
+            return HasRestrictedVisibility(payload.RootElement);
         }
         catch (JsonException)
         {
-            return false;
+            return true;
         }
+    }
+
+    private static bool HasRestrictedVisibility(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                if (property.Name.Equals("visibility", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (property.Value.ValueKind != JsonValueKind.String) return true;
+                    var value = property.Value.GetString();
+                    if (!string.Equals(value, "players", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(value, "public", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+
+                if (HasRestrictedVisibility(property.Value)) return true;
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                if (HasRestrictedVisibility(item)) return true;
+            }
+        }
+
+        return false;
     }
 
     public static RouteGroupBuilder MapTableRealtimeEndpoints(this RouteGroupBuilder api)
     {
         api.MapGet("/campaigns/{campaignId:int}/realtime/presence", async (
-            int campaignId, HttpContext ctx, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
+            int campaignId, HttpContext ctx, LoomWeaverMySqlRepository mysql,
+            IHubContext<TableRealtimeHub> hubContext, CancellationToken ct) =>
         {
             var access = CampaignAccessResolver.Resolve(ctx, campaignId);
+            await TableRealtimeHub.ReconcileCampaignConnectionsAsync(
+                mysql, hubContext.Groups, campaignId, ct);
             return Results.Ok(new
             {
                 campaignId,
@@ -121,6 +152,8 @@ public static class TableRealtimeEndpoints
 
             var user = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
             if (user is null) return Results.Unauthorized();
+            await TableRealtimeHub.ReconcileCampaignConnectionsAsync(
+                mysql, hubContext.Groups, campaignId, ct);
             var evt = await CampaignPlayEventStore.AppendAsync(
                 mysql,
                 campaignId,

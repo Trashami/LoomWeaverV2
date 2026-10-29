@@ -69,9 +69,6 @@ public static class MySqlUserAuthStore
         };
     }
 
-    public static IReadOnlyList<UserAccountProfileContract> GetPublicAccounts() =>
-        MemoryUsers.Select(ToContract).ToList();
-
     public static UserAccountProfileContract ToContract(StoredUserRecord u) =>
         new(u.AccountId, u.Username, u.DisplayName, u.Email, u.Role, u.TierCode, u.BoundCharacter, u.OwnedAssetIds, u.CreatorBalanceUsd);
 

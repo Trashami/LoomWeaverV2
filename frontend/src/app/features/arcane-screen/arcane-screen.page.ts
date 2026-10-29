@@ -31,6 +31,8 @@ import {
   worldToSvgY,
 } from './engine/vtt-los-and-grid.engine';
 import { VttTacticalAbilityVm } from './models/vtt-battle.models';
+import { VttActionBarComponent } from './components/vtt-action-bar/vtt-action-bar.component';
+import { ACTION_BAR_SKINS } from './components/vtt-action-bar/action-bar-skins';
 import { VttBattleStateService } from './services/vtt-battle-state.service';
 import { VttCombatService } from './services/vtt-combat.service';
 import { VttServerSyncService } from './services/vtt-server-sync.service';
@@ -44,6 +46,7 @@ import { VttServerSyncService } from './services/vtt-server-sync.service';
     NgpButton,
     LwButtonComponent,
     LwIconComponent,
+    VttActionBarComponent,
   ],
   templateUrl: './arcane-screen.page.html',
   styleUrl: './arcane-screen.page.scss',
@@ -115,6 +118,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       (this.store.viewerRole() === 'players' || this.battle.gmPreviewPlayerVision()),
   );
 
+  readonly actionBarSkins = ACTION_BAR_SKINS;
   readonly isObserverActiveTurn = computed(
     () => this.battle.activeInitiativeToken()?.key === this.battle.activeObserverToken()?.key,
   );
@@ -436,6 +440,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
 
   resetActionBarSettings(): void {
     this.battle.actionBarSettings.set({
+      skin: 'loom-emerald',
       opacity: 95,
       compactMode: false,
       snapSensitivityFeet: 10,

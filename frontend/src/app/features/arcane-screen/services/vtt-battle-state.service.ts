@@ -37,6 +37,22 @@ import {
   SEED_VTT_WALL_SEGMENTS,
 } from './vtt-battle.seed';
 import { VttCombatService } from './vtt-combat.service';
+import {
+  ActionBarSkinId,
+  DEFAULT_ACTION_BAR_SKIN,
+  isActionBarSkin,
+} from '../components/vtt-action-bar/action-bar-skins';
+
+const ACTION_BAR_SKIN_KEY = 'lw.vtt.actionBarSkin';
+
+function readSavedActionBarSkin(): ActionBarSkinId {
+  try {
+    const saved = localStorage.getItem(ACTION_BAR_SKIN_KEY);
+    return isActionBarSkin(saved) ? saved : DEFAULT_ACTION_BAR_SKIN;
+  } catch {
+    return DEFAULT_ACTION_BAR_SKIN;
+  }
+}
 
 @Injectable({ providedIn: 'root' })
 export class VttBattleStateService {
@@ -53,6 +69,7 @@ export class VttBattleStateService {
   readonly mapMode3D = signal<boolean>(false);
 
   readonly actionBarSettings = signal<VttActionBarSettingsVm>({
+    skin: readSavedActionBarSkin(),
     opacity: 95,
     compactMode: false,
     snapSensitivityFeet: 10,
@@ -398,6 +415,9 @@ export class VttBattleStateService {
 
   updateActionBarSettings(patch: Partial<VttActionBarSettingsVm>): void {
     this.actionBarSettings.update((curr) => ({ ...curr, ...patch }));
+    if (patch.skin) {
+      try { localStorage.setItem(ACTION_BAR_SKIN_KEY, patch.skin); } catch { /* storage unavailable */ }
+    }
   }
 
   toggleMeasureTool(subMode?: VttMeasureSubMode): void {

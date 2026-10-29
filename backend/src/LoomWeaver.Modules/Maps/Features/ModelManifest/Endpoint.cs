@@ -12,7 +12,7 @@ public sealed record ModelManifestEntryDto(string BaseName, string DisplayName, 
 
 public static class ModelManifestEndpoint
 {
-    private const string PublicRoot = "/map-assets/";
+    private const string PublicRoot = "/assets/";
     private const int MissingTableError = 1146;
 
     public static void MapModelManifestEndpoints(this IEndpointRouteBuilder group)

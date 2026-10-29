@@ -135,7 +135,7 @@ cat_path.write_text(json.dumps(catalog, indent=2), encoding='utf-8')
 print(f"Updated object-library catalog.json with {len(catalog['assets'])} total 3D assets.")
 
 sql_lines = [
-    "CREATE TABLE IF NOT EXISTS jane_scrum.mw_map_asset_library (",
+    "CREATE TABLE IF NOT EXISTS loomweaver.mw_map_asset_library (",
     "  id VARCHAR(64) NOT NULL PRIMARY KEY,",
     "  name VARCHAR(255) NOT NULL,",
     "  category VARCHAR(64) NOT NULL,",
@@ -169,7 +169,7 @@ for a in catalog['assets']:
     obsize = int(a.get('originalBytes', 0) or 0)
     tris = int(a.get('sourceTriangles', 0) or 0)
     sql_lines.append(
-        f"INSERT INTO jane_scrum.mw_map_asset_library "
+        f"INSERT INTO loomweaver.mw_map_asset_library "
         f"(id, name, category, asset_group, source_file, file_url, model_3d_url, preview_url, default_width_ft, byte_size, original_byte_size, source_triangles) "
         f"VALUES ('{aid}', '{name}', '{cat}', '{grp}', '{src}', '{url}', '{m3d}', '{prev}', {wft}, {bsize}, {obsize}, {tris}) "
         f"ON DUPLICATE KEY UPDATE name=VALUES(name), category=VALUES(category), asset_group=VALUES(asset_group), "
@@ -194,7 +194,7 @@ sql_lines.extend([
 
 sql_path = pathlib.Path('/tmp/sync_map_assets.sql')
 sql_path.write_text('\n'.join(sql_lines) + '\n', encoding='utf-8')
-subprocess.run(['mysql', '--defaults-extra-file=/tmp/.lw_mysql_root.cnf', 'jane_scrum', '-e', 'SOURCE /tmp/sync_map_assets.sql; SELECT COUNT(*) AS total_sql_map_assets FROM jane_scrum.mw_map_asset_library;'], check=True)
+subprocess.run(['mysql', '--defaults-extra-file=/tmp/.lw_mysql_root.cnf', 'loomweaver', '-e', 'SOURCE /tmp/sync_map_assets.sql; SELECT COUNT(*) AS total_sql_map_assets FROM loomweaver.mw_map_asset_library;'], check=True)
 sql_path.unlink(missing_ok=True)
 PY
 

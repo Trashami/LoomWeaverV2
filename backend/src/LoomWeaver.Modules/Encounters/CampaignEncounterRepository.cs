@@ -8,19 +8,7 @@ public static class CampaignEncounterRepository
 {
     private static async Task<MySqlConnection> OpenAsync(LoomWeaverMySqlRepository repo, CancellationToken ct)
     {
-        var db = await repo.OpenConnectionAsync(ct);
-        try
-        {
-            await using var cmd = new MySqlCommand("""
-                CREATE TABLE IF NOT EXISTS lw_saved_encounters (
-                    campaign_id INT NOT NULL, encounter_id VARCHAR(64) NOT NULL, payload LONGTEXT NOT NULL,
-                    PRIMARY KEY (campaign_id, encounter_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-                """, db);
-            await cmd.ExecuteNonQueryAsync(ct);
-            return db;
-        }
-        catch { await db.DisposeAsync(); throw; }
+        return await repo.OpenConnectionAsync(ct);
     }
 
     public static async Task<IReadOnlyList<JsonElement>> ListAsync(LoomWeaverMySqlRepository repo, int campaignId, CancellationToken ct)

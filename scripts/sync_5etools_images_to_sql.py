@@ -87,7 +87,7 @@ def extract_image_nodes(obj, found=None):
 
 def main():
     conn = pymysql.connect(
-        host=DB_HOST, user=DB_USER, password=DB_PASS, database="jane_scrum",
+        host=DB_HOST, user=DB_USER, password=DB_PASS, database="loomweaver",
         charset="utf8mb4", cursorclass=pymysql.cursors.DictCursor
     )
     cur = conn.cursor()
@@ -325,31 +325,6 @@ def main():
 
     cur.execute("SELECT COUNT(*) as c FROM dnd_entity_images")
     print(f"   -> dnd_entity_images count: {cur.fetchone()['c']}")
-
-    # 7. Sync updated image tables into `loomweaver`
-    print("7. Synchronizing dnd_sources, dnd_assets, dnd_node_assets, dnd_monster_library, and dnd_entity_images into `loomweaver`...")
-    cur.execute("SET FOREIGN_KEY_CHECKS = 0")
-    for tbl in ["dnd_sources", "dnd_assets", "dnd_node_assets", "dnd_monster_library", "dnd_entity_images"]:
-        cur.execute(f"DROP TABLE IF EXISTS `loomweaver`.`{tbl}`")
-        cur.execute(f"CREATE TABLE `loomweaver`.`{tbl}` LIKE `jane_scrum`.`{tbl}`")
-        cur.execute(
-            """
-            SELECT column_name AS col_name
-            FROM information_schema.columns
-            WHERE table_schema = 'jane_scrum'
-              AND table_name = %s
-              AND extra NOT LIKE '%%GENERATED%%'
-            ORDER BY ordinal_position
-            """,
-            (tbl,),
-        )
-        cols = [f"`{list(c.values())[0]}`" for c in cur.fetchall()]
-        col_list = ", ".join(cols)
-        cur.execute(f"INSERT INTO `loomweaver`.`{tbl}` ({col_list}) SELECT {col_list} FROM `jane_scrum`.`{tbl}`")
-        conn.commit()
-        cur.execute(f"SELECT COUNT(*) as c FROM `loomweaver`.`{tbl}`")
-        print(f"   -> loomweaver.{tbl:28s}: {cur.fetchone()['c']} rows")
-    cur.execute("SET FOREIGN_KEY_CHECKS = 1")
     conn.commit()
     conn.close()
     print("=== ALL 5ETOOLS IMAGES LINKED BY BOOK SOURCE IN SQL ===")

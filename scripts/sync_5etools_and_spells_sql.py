@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Syncs all 5eTools spells, fluff-spells, foundry.json, sources.json, books.json, and actions.json
-into MySQL (both `loomweaver` and `jane_scrum`) and populates `lw_engine_core_rules` so all spells
+into MySQL (`loomweaver`) and populates `lw_engine_core_rules` so all spells
 and actions are available in ActionBuilder (`actionbuilder.loom-weaver.com`) and the Encounter Engine.
 """
 import glob
@@ -669,7 +669,7 @@ def main():
 
     print(f"Prepared {len(spell_rows)} canonical spell rows and {len(core_rule_rows)} ActionBuilder spell rules.")
 
-    # Generate SQL script to run on server for both `jane_scrum` and `loomweaver`
+    # Generate SQL script to run on server for `loomweaver`
     def sql_str(val):
         if val is None:
             return "NULL"
@@ -681,7 +681,7 @@ def main():
         "SET FOREIGN_KEY_CHECKS = 0;",
     ]
 
-    for db_name in ("jane_scrum", "loomweaver"):
+    for db_name in ("loomweaver",):
         sql_lines.append(f"USE `{db_name}`;")
         sql_lines.append(
             """
@@ -922,8 +922,6 @@ def main():
         print("MYSQL STDERR:", err)
 
     verify_q = """
-    SELECT 'jane_scrum.dnd_spells' AS tbl, COUNT(*) AS total, SUM(CASE WHEN source_book IS NULL THEN 1 ELSE 0 END) AS null_src, SUM(CASE WHEN fluff_json IS NULL THEN 1 ELSE 0 END) AS null_fluff FROM jane_scrum.dnd_spells
-    UNION ALL
     SELECT 'loomweaver.dnd_spells', COUNT(*), SUM(CASE WHEN source_book IS NULL THEN 1 ELSE 0 END), SUM(CASE WHEN fluff_json IS NULL THEN 1 ELSE 0 END) FROM loomweaver.dnd_spells
     UNION ALL
     SELECT 'loomweaver.dnd_sources', COUNT(*), 0, 0 FROM loomweaver.dnd_sources

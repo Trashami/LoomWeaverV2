@@ -164,6 +164,18 @@ export const APP_ROUTES: Routes = [
       import('./features/bestiary/bestiary.page').then((m) => m.BestiaryPageComponent),
   },
   {
+    path: 'decks',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/decks/decks.page').then((m) => m.DecksPageComponent),
+  },
+  {
+    path: 'decks/:id',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/decks/decks.page').then((m) => m.DecksPageComponent),
+  },
+  {
     path: 'loom',
     canActivate: [authGuard],
     loadComponent: () =>

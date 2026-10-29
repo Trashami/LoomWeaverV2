@@ -10,7 +10,7 @@
 
 ## User story
 
-As a GM, player, or creator, I want a clean, modular LoomWeaver V2 application with every navigation link, feature route, header control, Loom drawer citation, and role preview switch working end-to-end, backed by a dedicated `loomweaver` MySQL database and `loomweaver` Neo4j node graph (completely decoupled from legacy `jane_scrum`), using our official `/LoomWeaver.png` logo and reusable configured Angular components.
+As a GM, player, or creator, I want a clean, modular LoomWeaver V2 application with every navigation link, feature route, header control, Loom drawer citation, and role preview switch working end-to-end, backed by a dedicated `loomweaver` MySQL database and `loomweaver` Neo4j node graph (completely decoupled from the retired legacy schema), using our official `/LoomWeaver.png` logo and reusable configured Angular components.
 
 ## Boundaries and non-goals
 

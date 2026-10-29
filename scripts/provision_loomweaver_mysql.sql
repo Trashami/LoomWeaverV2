@@ -1,6 +1,6 @@
 -- =============================================================================
 -- LoomWeaver V2 Authoritative MySQL Schema & Seed ("loomweaver" database)
--- Strictly isolated from legacy "jane_scrum"
+-- All data lives in "loomweaver"; the legacy "jane_scrum" schema is retired.
 -- =============================================================================
 
 CREATE DATABASE IF NOT EXISTS `loomweaver`

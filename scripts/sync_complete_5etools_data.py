@@ -2,8 +2,8 @@
 """
 Complete 5eTools Data Ingester for LoomWeaver / Jane Scrum.
 Ingests every single record across all 596 JSON files in /var/www/jane-assets/5etools/data
-into `jane_scrum`, then runs `sync_all_5etools_data.py` to link all images, Foundry JSON,
-and visual spell effects across `jane_scrum` and `loomweaver`.
+into `loomweaver`, then runs `sync_all_5etools_data.py` to link all images, Foundry JSON,
+and visual spell effects within `loomweaver`.
 """
 import json
 import os
@@ -698,9 +698,8 @@ def sync_all(conn):
     conn.commit()
 
     # 12. Archive 100% of all 596 JSON files in /data into dnd_srd_raw so every single file is represented in MySQL
-    print("12. Ensuring every JSON file in /var/www/jane-assets/5etools/data is indexed in dnd_srd_raw...")
-    cur.execute("SELECT DISTINCT file_name FROM dnd_srd_raw")
-    existing_files = {r["file_name"] for r in cur.fetchall()}
+    # Each file is fully replaced on every run so updated mirror data is picked up.
+    print("12. Refreshing every JSON file in the 5etools data folder into dnd_srd_raw...")
 
     added_files = 0
     for root, _, files in os.walk(DATA_DIR):
@@ -709,20 +708,19 @@ def sync_all(conn):
             if not fn.endswith(".json"):
                 continue
             rel_path = fn if rel_dir == "." else f"{rel_dir}/{fn}"
-            if rel_path in existing_files or fn in existing_files:
-                continue
             try:
                 d = load_json(rel_path)
             except Exception:
                 continue
             if not isinstance(d, dict):
                 continue
+            cur.execute("DELETE FROM dnd_srd_raw WHERE file_name = %s", (rel_path[:250],))
             row_idx = 0
             for k, v in d.items():
                 if k == "_meta":
                     continue
                 if isinstance(v, list):
-                    for item in v[:250]:
+                    for item in v:
                         nm = item.get("name") if isinstance(item, dict) else str(item)[:120]
                         src = item.get("source") if isinstance(item, dict) else None
                         pg = item.get("page") if isinstance(item, dict) and isinstance(item.get("page"), int) else None
@@ -760,12 +758,12 @@ def sync_all(conn):
 
 def main():
     conn_js = pymysql.connect(
-        host=DB_HOST, user=DB_USER, password=DB_PASS, database="jane_scrum",
+        host=DB_HOST, user=DB_USER, password=DB_PASS, database="loomweaver",
         charset="utf8mb4", cursorclass=pymysql.cursors.DictCursor
     )
     sync_all(conn_js)
     conn_js.close()
-    print("COMPLETE: All missing records ingested into jane_scrum. Now running sync_all_5etools_data.py...")
+    print("COMPLETE: All records ingested into loomweaver. Now running sync_all_5etools_data.py...")
 
 
 if __name__ == "__main__":

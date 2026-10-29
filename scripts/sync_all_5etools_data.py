@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Master 5eTools Database Synchronization, Image Linking, Foundry VTT Linking, and Spell Effect Attachment Script.
-Runs directly on the production server against `jane_scrum` and `loomweaver`.
+Runs directly on the production server against the `loomweaver` database.
 """
 import glob
 import hashlib
@@ -593,7 +593,7 @@ def main():
         host=MYSQL_HOST,
         user=MYSQL_USER,
         password=MYSQL_PASS,
-        database="jane_scrum",
+        database="loomweaver",
         charset="utf8mb4",
         cursorclass=pymysql.cursors.DictCursor,
         autocommit=False,
@@ -632,11 +632,11 @@ def main():
         f"decks={len(decks_all)}, deities={len(deities_all)}, bestiary={len(bestiary_all)}, tokens={len(tokens_all)}"
     )
 
-    # 2. Ensure schema columns exist in `jane_scrum`
-    print("Ensuring image_path, cover_path, foundry_json, and spell effect columns in jane_scrum...")
-    ensure_column(cur, "jane_scrum", "dnd_sources", "cover_url", "VARCHAR(500) DEFAULT NULL")
-    ensure_column(cur, "jane_scrum", "dnd_adventures_books", "cover_path", "VARCHAR(500) DEFAULT NULL")
-    ensure_column(cur, "jane_scrum", "dnd_adventures_books", "image_path", "VARCHAR(500) DEFAULT NULL")
+    # 2. Ensure schema columns exist in `loomweaver`
+    print("Ensuring image_path, cover_path, foundry_json, and spell effect columns in loomweaver...")
+    ensure_column(cur, "loomweaver", "dnd_sources", "cover_url", "VARCHAR(500) DEFAULT NULL")
+    ensure_column(cur, "loomweaver", "dnd_adventures_books", "cover_path", "VARCHAR(500) DEFAULT NULL")
+    ensure_column(cur, "loomweaver", "dnd_adventures_books", "image_path", "VARCHAR(500) DEFAULT NULL")
 
     tables_needing_image_and_foundry = [
         "dnd_items",
@@ -678,24 +678,24 @@ def main():
         "dnd_monster_legendary_groups",
     ]
     for tbl in tables_needing_image_and_foundry:
-        ensure_column(cur, "jane_scrum", tbl, "image_path", "VARCHAR(500) DEFAULT NULL")
-        ensure_column(cur, "jane_scrum", tbl, "foundry_json", "LONGTEXT DEFAULT NULL")
+        ensure_column(cur, "loomweaver", tbl, "image_path", "VARCHAR(500) DEFAULT NULL")
+        ensure_column(cur, "loomweaver", tbl, "foundry_json", "LONGTEXT DEFAULT NULL")
 
-    ensure_column(cur, "jane_scrum", "dnd_monster_library", "token_url", "VARCHAR(500) DEFAULT NULL")
-    ensure_column(cur, "jane_scrum", "dnd_deck_cards", "set_name", "VARCHAR(120) DEFAULT NULL")
-    ensure_column(cur, "jane_scrum", "dnd_deck_cards", "face_image_url", "VARCHAR(500) DEFAULT NULL")
-    ensure_column(cur, "jane_scrum", "dnd_deck_cards", "back_image_url", "VARCHAR(500) DEFAULT NULL")
+    ensure_column(cur, "loomweaver", "dnd_monster_library", "token_url", "VARCHAR(500) DEFAULT NULL")
+    ensure_column(cur, "loomweaver", "dnd_deck_cards", "set_name", "VARCHAR(120) DEFAULT NULL")
+    ensure_column(cur, "loomweaver", "dnd_deck_cards", "face_image_url", "VARCHAR(500) DEFAULT NULL")
+    ensure_column(cur, "loomweaver", "dnd_deck_cards", "back_image_url", "VARCHAR(500) DEFAULT NULL")
 
     # Spell effect columns on `dnd_spells` + compatibility columns for `/api/spells`
-    ensure_column(cur, "jane_scrum", "dnd_spells", "default_effect_id", "VARCHAR(100) DEFAULT NULL")
-    ensure_column(cur, "jane_scrum", "dnd_spells", "effect_json", "LONGTEXT DEFAULT NULL")
-    ensure_column(cur, "jane_scrum", "dnd_spells", "spell_range", "VARCHAR(255) DEFAULT NULL")
-    ensure_column(cur, "jane_scrum", "dnd_spells", "duration", "VARCHAR(255) DEFAULT NULL")
+    ensure_column(cur, "loomweaver", "dnd_spells", "default_effect_id", "VARCHAR(100) DEFAULT NULL")
+    ensure_column(cur, "loomweaver", "dnd_spells", "effect_json", "LONGTEXT DEFAULT NULL")
+    ensure_column(cur, "loomweaver", "dnd_spells", "spell_range", "VARCHAR(255) DEFAULT NULL")
+    ensure_column(cur, "loomweaver", "dnd_spells", "duration", "VARCHAR(255) DEFAULT NULL")
 
-    # Create `dnd_spell_effects` table in `jane_scrum`
+    # Create `dnd_spell_effects` table in `loomweaver`
     cur.execute(
         """
-        CREATE TABLE IF NOT EXISTS `jane_scrum`.`dnd_spell_effects` (
+        CREATE TABLE IF NOT EXISTS `loomweaver`.`dnd_spell_effects` (
             `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             `effect_id` VARCHAR(100) NOT NULL,
             `spell_id` BIGINT UNSIGNED NOT NULL,
@@ -731,7 +731,7 @@ def main():
             book_cover_map[code.upper()] = norm_img_path(cov)
             book_cover_map[norm_slug(code)] = norm_img_path(cov)
 
-    cur.execute("SELECT id, name, cover_path FROM `jane_scrum`.`dnd_sources`")
+    cur.execute("SELECT id, name, cover_path FROM `loomweaver`.`dnd_sources`")
     for srow in cur.fetchall():
         sid = srow["id"]
         sname = srow["name"] or sid
@@ -749,11 +749,11 @@ def main():
         if not resolved or not os.path.isfile(os.path.join(IMG_DIR, resolved.replace("/5etools/", "").lstrip("/"))):
             resolved = "/5etools/covers/PHB.webp"
         cur.execute(
-            "UPDATE `jane_scrum`.`dnd_sources` SET `cover_path` = %s, `cover_url` = %s WHERE `id` = %s",
+            "UPDATE `loomweaver`.`dnd_sources` SET `cover_path` = %s, `cover_url` = %s WHERE `id` = %s",
             (resolved, resolved, sid),
         )
 
-    cur.execute("SELECT id, code, name, source_book FROM `jane_scrum`.`dnd_adventures_books`")
+    cur.execute("SELECT id, code, name, source_book FROM `loomweaver`.`dnd_adventures_books`")
     for ab in cur.fetchall():
         ab_id = ab["id"]
         code = (ab["code"] or ab["source_book"] or "").strip()
@@ -768,7 +768,7 @@ def main():
         if not os.path.isfile(os.path.join(IMG_DIR, resolved.replace("/5etools/", "").lstrip("/"))):
             resolved = "/5etools/covers/PHB.webp"
         cur.execute(
-            "UPDATE `jane_scrum`.`dnd_adventures_books` SET `cover_path` = %s, `image_path` = %s WHERE `id` = %s",
+            "UPDATE `loomweaver`.`dnd_adventures_books` SET `cover_path` = %s, `image_path` = %s WHERE `id` = %s",
             (resolved, resolved, ab_id),
         )
     conn.commit()
@@ -891,7 +891,7 @@ def main():
         if not os.path.isfile(os.path.join(IMG_DIR, cand.replace("/5etools/", "").lstrip("/"))):
             ITEM_TYPE_FALLBACK_IMG[k] = default_item_img
 
-    cur.execute("SELECT id, name, source_id, item_type, image_path, fluff_json, properties_json FROM `jane_scrum`.`dnd_items`")
+    cur.execute("SELECT id, name, source_id, item_type, image_path, fluff_json, properties_json FROM `loomweaver`.`dnd_items`")
     for row in cur.fetchall():
         iid = row["id"]
         nm = row["name"] or ""
@@ -925,20 +925,20 @@ def main():
                 ensure_ascii=False,
             )
         cur.execute(
-            "UPDATE `jane_scrum`.`dnd_items` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s",
+            "UPDATE `loomweaver`.`dnd_items` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s",
             (img, fjson, iid),
         )
 
-    cur.execute("SELECT id, name, source_book, fluff_json FROM `jane_scrum`.`dnd_magic_variants`") if False else None
-    cur.execute("SELECT id, name, source_book FROM `jane_scrum`.`dnd_magic_variants`")
+    cur.execute("SELECT id, name, source_book, fluff_json FROM `loomweaver`.`dnd_magic_variants`") if False else None
+    cur.execute("SELECT id, name, source_book FROM `loomweaver`.`dnd_magic_variants`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         src = (row["source_book"] or "DMG").upper()
         img = items_by_stem.get((ns, src)) or items_by_stem.get((ns, "*")) or default_item_img
         fjson = foundry_items_map.get((ns, src)) or foundry_items_map.get((ns, "*")) or json.dumps({"name": row["name"], "source": src, "img": img})
-        cur.execute("UPDATE `jane_scrum`.`dnd_magic_variants` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_magic_variants` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
 
-    cur.execute("UPDATE `jane_scrum`.`dnd_item_metadata` SET `image_path` = %s WHERE `image_path` IS NULL", (default_item_img,))
+    cur.execute("UPDATE `loomweaver`.`dnd_item_metadata` SET `image_path` = %s WHERE `image_path` IS NULL", (default_item_img,))
     conn.commit()
 
 
@@ -946,7 +946,7 @@ def main():
     print("Linking images & Foundry data for classes, subclasses, features, species, backgrounds, feats, decks, deities, bestiary...")
 
     default_class_img = classes_all[0] if classes_all else "/5etools/covers/PHB.webp"
-    cur.execute("SELECT id, name, source_book, fluff_json FROM `jane_scrum`.`dnd_custom_classes`")
+    cur.execute("SELECT id, name, source_book, fluff_json FROM `loomweaver`.`dnd_custom_classes`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         src = (row["source_book"] or "PHB").upper()
@@ -957,9 +957,9 @@ def main():
             or default_class_img
         )
         fjson = foundry_class_map.get((ns, src)) or foundry_class_map.get((ns, "*")) or json.dumps({"name": row["name"], "source": src, "img": img})
-        cur.execute("UPDATE `jane_scrum`.`dnd_custom_classes` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_custom_classes` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
 
-    cur.execute("SELECT id, name, short_name, class_name, source_book, fluff_json FROM `jane_scrum`.`dnd_subclasses`")
+    cur.execute("SELECT id, name, short_name, class_name, source_book, fluff_json FROM `loomweaver`.`dnd_subclasses`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         sns = norm_slug(row["short_name"] or "")
@@ -974,19 +974,19 @@ def main():
             or default_class_img
         )
         fjson = foundry_subclass_map.get((ns, src)) or foundry_subclass_map.get((ns, "*")) or json.dumps({"name": row["name"], "className": row["class_name"], "source": src, "img": img})
-        cur.execute("UPDATE `jane_scrum`.`dnd_subclasses` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_subclasses` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
 
-    cur.execute("SELECT id, name, class_name, source_book FROM `jane_scrum`.`dnd_class_features`")
+    cur.execute("SELECT id, name, class_name, source_book FROM `loomweaver`.`dnd_class_features`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         cns = norm_slug(row["class_name"] or "")
         src = (row["source_book"] or "PHB").upper()
         img = classes_by_stem.get((cns, src)) or classes_by_stem.get((cns, "*")) or default_class_img
         fjson = foundry_classfeat_map.get((ns, cns)) or foundry_classfeat_map.get((ns, "*")) or json.dumps({"name": row["name"], "className": row["class_name"], "source": src, "img": img})
-        cur.execute("UPDATE `jane_scrum`.`dnd_class_features` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_class_features` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
 
     default_race_img = races_all[0] if races_all else "/5etools/covers/PHB.webp"
-    cur.execute("SELECT id, name, source_book, fluff_json FROM `jane_scrum`.`dnd_custom_species`")
+    cur.execute("SELECT id, name, source_book, fluff_json FROM `loomweaver`.`dnd_custom_species`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         src = (row["source_book"] or "PHB").upper()
@@ -997,9 +997,9 @@ def main():
             or default_race_img
         )
         fjson = foundry_races_map.get((ns, src)) or foundry_races_map.get((ns, "*")) or json.dumps({"name": row["name"], "source": src, "img": img})
-        cur.execute("UPDATE `jane_scrum`.`dnd_custom_species` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_custom_species` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
 
-    cur.execute("SELECT id, name, race_name, source_book, fluff_json FROM `jane_scrum`.`dnd_subraces`")
+    cur.execute("SELECT id, name, race_name, source_book, fluff_json FROM `loomweaver`.`dnd_subraces`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         rns = norm_slug(row["race_name"] or "")
@@ -1012,10 +1012,10 @@ def main():
             or default_race_img
         )
         fjson = foundry_races_map.get((ns, src)) or foundry_races_map.get((rns, "*")) or json.dumps({"name": row["name"], "raceName": row["race_name"], "source": src, "img": img})
-        cur.execute("UPDATE `jane_scrum`.`dnd_subraces` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_subraces` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
 
     default_bg_img = backgrounds_all[0] if backgrounds_all else "/5etools/covers/PHB.webp"
-    cur.execute("SELECT id, name, source_book, fluff_json FROM `jane_scrum`.`dnd_custom_backgrounds`")
+    cur.execute("SELECT id, name, source_book, fluff_json FROM `loomweaver`.`dnd_custom_backgrounds`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         src = (row["source_book"] or "PHB").upper()
@@ -1026,10 +1026,10 @@ def main():
             or default_bg_img
         )
         fjson = json.dumps({"name": row["name"], "source": src, "type": "background", "img": img})
-        cur.execute("UPDATE `jane_scrum`.`dnd_custom_backgrounds` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_custom_backgrounds` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
 
     default_feat_img = feats_all[0] if feats_all else "/5etools/covers/PHB.webp"
-    cur.execute("SELECT id, name, source_book, fluff_json FROM `jane_scrum`.`dnd_custom_feats`")
+    cur.execute("SELECT id, name, source_book, fluff_json FROM `loomweaver`.`dnd_custom_feats`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         src = (row["source_book"] or "PHB").upper()
@@ -1040,48 +1040,48 @@ def main():
             or default_feat_img
         )
         fjson = foundry_feats_map.get((ns, src)) or foundry_feats_map.get((ns, "*")) or json.dumps({"name": row["name"], "source": src, "type": "feat", "img": img})
-        cur.execute("UPDATE `jane_scrum`.`dnd_custom_feats` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_custom_feats` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
 
     default_rule_img = rules_all[0] if rules_all else "/5etools/covers/PHB.webp"
-    cur.execute("SELECT id, name, source_book, foundry_json FROM `jane_scrum`.`dnd_actions`")
+    cur.execute("SELECT id, name, source_book, foundry_json FROM `loomweaver`.`dnd_actions`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         src = (row["source_book"] or "PHB").upper()
         img = rules_by_stem.get((ns, "*")) or default_rule_img
         fjson = row["foundry_json"] or foundry_actions_map.get((ns, src)) or foundry_actions_map.get((ns, "*")) or json.dumps({"name": row["name"], "source": src, "img": img})
-        cur.execute("UPDATE `jane_scrum`.`dnd_actions` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_actions` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
 
     default_cond_img = cond_all[0] if cond_all else default_rule_img
-    cur.execute("SELECT id, name, source_book, fluff_json FROM `jane_scrum`.`dnd_conditions_diseases`")
+    cur.execute("SELECT id, name, source_book, fluff_json FROM `loomweaver`.`dnd_conditions_diseases`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         src = (row["source_book"] or "PHB").upper()
         img = extract_first_image_from_fluff(row["fluff_json"]) or cond_by_stem.get((ns, src)) or cond_by_stem.get((ns, "*")) or default_cond_img
         fjson = json.dumps({"name": row["name"], "source": src, "img": img})
-        cur.execute("UPDATE `jane_scrum`.`dnd_conditions_diseases` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_conditions_diseases` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
 
     default_charopt_img = charopt_all[0] if charopt_all else default_rule_img
-    cur.execute("SELECT id, name, source_book, fluff_json FROM `jane_scrum`.`dnd_char_creation_options`")
+    cur.execute("SELECT id, name, source_book, fluff_json FROM `loomweaver`.`dnd_char_creation_options`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         src = (row["source_book"] or "PHB").upper()
         img = extract_first_image_from_fluff(row["fluff_json"]) or charopt_by_stem.get((ns, src)) or charopt_by_stem.get((ns, "*")) or default_charopt_img
         fjson = json.dumps({"name": row["name"], "source": src, "img": img})
-        cur.execute("UPDATE `jane_scrum`.`dnd_char_creation_options` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_char_creation_options` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
 
     default_optfeat_img = optfeat_all[0] if optfeat_all else default_feat_img
-    cur.execute("SELECT id, name, source_book, fluff_json, foundry_json FROM `jane_scrum`.`dnd_optional_features`")
+    cur.execute("SELECT id, name, source_book, fluff_json, foundry_json FROM `loomweaver`.`dnd_optional_features`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         src = (row["source_book"] or "PHB").upper()
         img = extract_first_image_from_fluff(row["fluff_json"]) or optfeat_by_stem.get((ns, src)) or optfeat_by_stem.get((ns, "*")) or default_optfeat_img
         fjson = row["foundry_json"] or foundry_opt_map.get((ns, src)) or foundry_opt_map.get((ns, "*")) or json.dumps({"name": row["name"], "source": src, "img": img})
-        cur.execute("UPDATE `jane_scrum`.`dnd_optional_features` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_optional_features` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
 
     # Decks & Cards
     default_deck_img = decks_all[0] if decks_all else "/5etools/covers/BMT.webp"
     deck_back_lookup = {}
-    cur.execute("SELECT id, name, source_book, back_image_json FROM `jane_scrum`.`dnd_decks`")
+    cur.execute("SELECT id, name, source_book, back_image_json FROM `loomweaver`.`dnd_decks`")
     for row in cur.fetchall():
         did = row["id"]
         ns = norm_slug(row["name"] or "")
@@ -1099,9 +1099,9 @@ def main():
         if not img:
             img = decks_by_stem.get((ns, src)) or decks_by_stem.get((ns, "*")) or default_deck_img
         deck_back_lookup[did] = img
-        cur.execute("UPDATE `jane_scrum`.`dnd_decks` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, json.dumps({"name": row["name"], "source": src, "img": img}), did))
+        cur.execute("UPDATE `loomweaver`.`dnd_decks` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, json.dumps({"name": row["name"], "source": src, "img": img}), did))
 
-    cur.execute("SELECT id, deck_id, name, deck_name, source_book, face_image_json FROM `jane_scrum`.`dnd_deck_cards`")
+    cur.execute("SELECT id, deck_id, name, deck_name, source_book, face_image_json FROM `loomweaver`.`dnd_deck_cards`")
     for row in cur.fetchall():
         cid = row["id"]
         did = row["deck_id"]
@@ -1122,7 +1122,7 @@ def main():
         back_img = deck_back_lookup.get(did, default_deck_img)
         cur.execute(
             """
-            UPDATE `jane_scrum`.`dnd_deck_cards`
+            UPDATE `loomweaver`.`dnd_deck_cards`
             SET `image_path` = %s, `face_image_url` = %s, `back_image_url` = %s, `set_name` = COALESCE(`set_name`, `deck_name`)
             WHERE `id` = %s
             """,
@@ -1131,7 +1131,7 @@ def main():
 
     # Deities
     default_deity_img = deities_all[0] if deities_all else "/5etools/covers/PHB.webp"
-    cur.execute("SELECT id, name, source_book, symbol_img_json FROM `jane_scrum`.`dnd_deities`")
+    cur.execute("SELECT id, name, source_book, symbol_img_json FROM `loomweaver`.`dnd_deities`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         src = (row["source_book"] or "PHB").upper()
@@ -1147,79 +1147,79 @@ def main():
                 pass
         if not img:
             img = deities_by_stem.get((ns, src)) or deities_by_stem.get((ns, "*")) or default_deity_img
-        cur.execute("UPDATE `jane_scrum`.`dnd_deities` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, json.dumps({"name": row["name"], "source": src, "img": img}), row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_deities` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, json.dumps({"name": row["name"], "source": src, "img": img}), row["id"]))
 
     # Bastions, Objects, Recipes, Rewards, Traps/Hazards, Variant Rules, Vehicles, Languages, Cults, Psionics
     default_bastion_img = bastions_all[0] if bastions_all else "/5etools/covers/XDMG.webp"
-    cur.execute("SELECT id, name, source_book, fluff_json FROM `jane_scrum`.`dnd_bastions`")
+    cur.execute("SELECT id, name, source_book, fluff_json FROM `loomweaver`.`dnd_bastions`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         img = extract_first_image_from_fluff(row["fluff_json"]) or bastions_by_stem.get((ns, "*")) or default_bastion_img
-        cur.execute("UPDATE `jane_scrum`.`dnd_bastions` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, json.dumps({"name": row["name"], "img": img}), row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_bastions` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, json.dumps({"name": row["name"], "img": img}), row["id"]))
 
     default_obj_img = objects_all[0] if objects_all else "/5etools/covers/DMG.webp"
-    cur.execute("SELECT id, name, source_book, fluff_json FROM `jane_scrum`.`dnd_objects`")
+    cur.execute("SELECT id, name, source_book, fluff_json FROM `loomweaver`.`dnd_objects`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         img = extract_first_image_from_fluff(row["fluff_json"]) or objects_by_stem.get((ns, "*")) or default_obj_img
-        cur.execute("UPDATE `jane_scrum`.`dnd_objects` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, json.dumps({"name": row["name"], "img": img}), row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_objects` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, json.dumps({"name": row["name"], "img": img}), row["id"]))
 
     default_recipe_img = recipes_all[0] if recipes_all else "/5etools/covers/HF.webp"
-    cur.execute("SELECT id, name, source_book, fluff_json FROM `jane_scrum`.`dnd_recipes`")
+    cur.execute("SELECT id, name, source_book, fluff_json FROM `loomweaver`.`dnd_recipes`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         img = extract_first_image_from_fluff(row["fluff_json"]) or recipes_by_stem.get((ns, "*")) or default_recipe_img
-        cur.execute("UPDATE `jane_scrum`.`dnd_recipes` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, json.dumps({"name": row["name"], "img": img}), row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_recipes` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, json.dumps({"name": row["name"], "img": img}), row["id"]))
 
-    cur.execute("SELECT id, name, source_book, fluff_json, foundry_json FROM `jane_scrum`.`dnd_rewards`")
+    cur.execute("SELECT id, name, source_book, fluff_json, foundry_json FROM `loomweaver`.`dnd_rewards`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         src = (row["source_book"] or "DMG").upper()
         img = extract_first_image_from_fluff(row["fluff_json"]) or default_item_img
         fjson = row["foundry_json"] or foundry_rewards_map.get((ns, src)) or foundry_rewards_map.get((ns, "*")) or json.dumps({"name": row["name"], "source": src, "img": img})
-        cur.execute("UPDATE `jane_scrum`.`dnd_rewards` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_rewards` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
 
     default_trap_img = (traps_all + hazards_all + [default_rule_img])[0]
-    cur.execute("SELECT id, name, source_book, fluff_json FROM `jane_scrum`.`dnd_traps_hazards`")
+    cur.execute("SELECT id, name, source_book, fluff_json FROM `loomweaver`.`dnd_traps_hazards`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         img = extract_first_image_from_fluff(row["fluff_json"]) or traps_by_stem.get((ns, "*")) or hazards_by_stem.get((ns, "*")) or default_trap_img
-        cur.execute("UPDATE `jane_scrum`.`dnd_traps_hazards` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, json.dumps({"name": row["name"], "img": img}), row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_traps_hazards` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, json.dumps({"name": row["name"], "img": img}), row["id"]))
 
     default_varrule_img = varrules_all[0] if varrules_all else default_rule_img
-    cur.execute("SELECT id, name, source_book FROM `jane_scrum`.`dnd_variant_rules`")
+    cur.execute("SELECT id, name, source_book FROM `loomweaver`.`dnd_variant_rules`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         img = varrules_by_stem.get((ns, "*")) or rules_by_stem.get((ns, "*")) or default_varrule_img
-        cur.execute("UPDATE `jane_scrum`.`dnd_variant_rules` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, json.dumps({"name": row["name"], "img": img}), row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_variant_rules` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, json.dumps({"name": row["name"], "img": img}), row["id"]))
 
     default_veh_img = vehicles_all[0] if vehicles_all else "/5etools/covers/GoS.webp"
-    cur.execute("SELECT id, name, source_book, fluff_json, foundry_json FROM `jane_scrum`.`dnd_vehicles`")
+    cur.execute("SELECT id, name, source_book, fluff_json, foundry_json FROM `loomweaver`.`dnd_vehicles`")
     for row in cur.fetchall():
         ns = norm_slug(row["name"] or "")
         src = (row["source_book"] or "GoS").upper()
         img = extract_first_image_from_fluff(row["fluff_json"]) or vehicles_by_stem.get((ns, src)) or vehicles_by_stem.get((ns, "*")) or default_veh_img
         fjson = row["foundry_json"] or foundry_vehicles_map.get((ns, src)) or foundry_vehicles_map.get((ns, "*")) or json.dumps({"name": row["name"], "source": src, "img": img})
-        cur.execute("UPDATE `jane_scrum`.`dnd_vehicles` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
+        cur.execute("UPDATE `loomweaver`.`dnd_vehicles` SET `image_path` = %s, `foundry_json` = %s WHERE `id` = %s", (img, fjson, row["id"]))
 
     default_lang_img = languages_all[0] if languages_all else default_rule_img
-    cur.execute("UPDATE `jane_scrum`.`dnd_languages` SET `image_path` = COALESCE(`image_path`, %s)", (default_lang_img,))
-    cur.execute("UPDATE `jane_scrum`.`dnd_cults_boons` SET `image_path` = COALESCE(`image_path`, %s)", (default_deity_img,))
-    cur.execute("UPDATE `jane_scrum`.`dnd_psionics` SET `image_path` = COALESCE(`image_path`, %s)", ("/5etools/spell-art/arcane-sigil.webp",))
-    cur.execute("UPDATE `jane_scrum`.`dnd_senses` SET `image_path` = COALESCE(`image_path`, %s)", (default_rule_img,))
-    cur.execute("UPDATE `jane_scrum`.`dnd_skills` SET `image_path` = COALESCE(`image_path`, %s)", (default_rule_img,))
-    cur.execute("UPDATE `jane_scrum`.`dnd_abilities` SET `image_path` = COALESCE(`image_path`, %s)", (default_rule_img,))
-    cur.execute("UPDATE `jane_scrum`.`dnd_tables` SET `image_path` = COALESCE(`image_path`, %s)", (default_rule_img,))
-    cur.execute("UPDATE `jane_scrum`.`dnd_life_tables` SET `image_path` = COALESCE(`image_path`, %s)", (default_rule_img,))
-    cur.execute("UPDATE `jane_scrum`.`dnd_loot_tables` SET `image_path` = COALESCE(`image_path`, %s)", (default_item_img,))
+    cur.execute("UPDATE `loomweaver`.`dnd_languages` SET `image_path` = COALESCE(`image_path`, %s)", (default_lang_img,))
+    cur.execute("UPDATE `loomweaver`.`dnd_cults_boons` SET `image_path` = COALESCE(`image_path`, %s)", (default_deity_img,))
+    cur.execute("UPDATE `loomweaver`.`dnd_psionics` SET `image_path` = COALESCE(`image_path`, %s)", ("/5etools/spell-art/arcane-sigil.webp",))
+    cur.execute("UPDATE `loomweaver`.`dnd_senses` SET `image_path` = COALESCE(`image_path`, %s)", (default_rule_img,))
+    cur.execute("UPDATE `loomweaver`.`dnd_skills` SET `image_path` = COALESCE(`image_path`, %s)", (default_rule_img,))
+    cur.execute("UPDATE `loomweaver`.`dnd_abilities` SET `image_path` = COALESCE(`image_path`, %s)", (default_rule_img,))
+    cur.execute("UPDATE `loomweaver`.`dnd_tables` SET `image_path` = COALESCE(`image_path`, %s)", (default_rule_img,))
+    cur.execute("UPDATE `loomweaver`.`dnd_life_tables` SET `image_path` = COALESCE(`image_path`, %s)", (default_rule_img,))
+    cur.execute("UPDATE `loomweaver`.`dnd_loot_tables` SET `image_path` = COALESCE(`image_path`, %s)", (default_item_img,))
 
     # Bestiary / Monsters (`dnd_monster_library` and `dnd_monster_library_fluff_images`)
     print("Updating dnd_monster_library images, tokens, and Foundry VTT JSON...")
-    cur.execute("UPDATE `jane_scrum`.`dnd_monster_library_fluff_images` SET `url` = CONCAT('/5etools/', TRIM(LEADING '/' FROM `path`)) WHERE `path` IS NOT NULL AND (`url` IS NULL OR `url` NOT LIKE '/5etools/%')")
+    cur.execute("UPDATE `loomweaver`.`dnd_monster_library_fluff_images` SET `url` = CONCAT('/5etools/', TRIM(LEADING '/' FROM `path`)) WHERE `path` IS NOT NULL AND (`url` IS NULL OR `url` NOT LIKE '/5etools/%')")
     default_monster_img = bestiary_all[0] if bestiary_all else "/5etools/covers/MM.webp"
     default_token_img = tokens_all[0] if tokens_all else default_monster_img
 
-    cur.execute("SELECT id, name, source_id, fluff_json FROM `jane_scrum`.`dnd_monster_library`")
+    cur.execute("SELECT id, name, source_id, fluff_json FROM `loomweaver`.`dnd_monster_library`")
     for row in cur.fetchall():
         mid = row["id"]
         nm = row["name"] or ""
@@ -1234,7 +1234,7 @@ def main():
         )
         fjson = foundry_bestiary_map.get((ns, src)) or foundry_bestiary_map.get((ns, "*")) or json.dumps({"name": nm, "source": src, "img": img, "prototypeToken": {"texture": {"src": tok}}})
         cur.execute(
-            "UPDATE `jane_scrum`.`dnd_monster_library` SET `image_path` = %s, `token_url` = %s, `foundry_json` = %s WHERE `id` = %s",
+            "UPDATE `loomweaver`.`dnd_monster_library` SET `image_path` = %s, `token_url` = %s, `foundry_json` = %s WHERE `id` = %s",
             (img, tok, fjson, mid),
         )
     conn.commit()
@@ -1259,12 +1259,12 @@ def main():
                save_ability, dice_json, saving_throw_json, damage_inflict_json,
                area_tags_json, misc_tags_json, description, higher_levels,
                source_book, fluff_json, foundry_json
-        FROM `jane_scrum`.`dnd_spells`
+        FROM `loomweaver`.`dnd_spells`
         ORDER BY id ASC
         """
     )
     all_spells = cur.fetchall()
-    print(f"Processing {len(all_spells)} spells in jane_scrum.dnd_spells...")
+    print(f"Processing {len(all_spells)} spells in loomweaver.dnd_spells...")
 
     # Clear previous spell-auto effects in lw_campaign_effects to avoid duplicates before re-inserting
     cur.execute("DELETE FROM `loomweaver`.`lw_campaign_effects` WHERE `effect_id` LIKE 'fx-spell-%'")
@@ -1298,10 +1298,10 @@ def main():
                 ensure_ascii=False,
             )
 
-        # Update `jane_scrum.dnd_spells`
+        # Update `loomweaver.dnd_spells`
         cur.execute(
             """
-            UPDATE `jane_scrum`.`dnd_spells`
+            UPDATE `loomweaver`.`dnd_spells`
             SET `image_path` = %s,
                 `default_effect_id` = %s,
                 `effect_json` = %s,
@@ -1313,10 +1313,10 @@ def main():
             (resolved_img, effect_id, studio_json, fjson, sp_id),
         )
 
-        # Upsert `jane_scrum.dnd_spell_effects`
+        # Upsert `loomweaver.dnd_spell_effects`
         cur.execute(
             """
-            INSERT INTO `jane_scrum`.`dnd_spell_effects`
+            INSERT INTO `loomweaver`.`dnd_spell_effects`
                 (`effect_id`, `spell_id`, `spell_name`, `source_book`, `school`, `level`,
                  `energy_theme`, `delivery_mode`, `is_handcrafted`, `icon_url`,
                  `studio_document_json`, `vtt_definition_json`)
@@ -1350,10 +1350,10 @@ def main():
             ),
         )
 
-        # Upsert `jane_scrum.mw_effect_library` and `mw_effect_assignments`
+        # Upsert `loomweaver.mw_effect_library` and `mw_effect_assignments`
         cur.execute(
             """
-            INSERT INTO `jane_scrum`.`mw_effect_library` (`user_id`, `effect_id`, `definition_json`)
+            INSERT INTO `loomweaver`.`mw_effect_library` (`user_id`, `effect_id`, `definition_json`)
             VALUES (0, %s, %s)
             ON DUPLICATE KEY UPDATE `definition_json` = VALUES(`definition_json`)
             """,
@@ -1362,7 +1362,7 @@ def main():
         spell_key = ns if src.upper() == "PHB" else f"{ns}-{norm_slug(src)}"
         cur.execute(
             """
-            INSERT INTO `jane_scrum`.`mw_effect_assignments`
+            INSERT INTO `loomweaver`.`mw_effect_assignments`
                 (`campaign_id`, `character_id`, `spell_key`, `spell_name`, `definition_json`)
             VALUES (0, 0, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
@@ -1409,22 +1409,22 @@ def main():
     conn.commit()
     print("All spells updated and linked to visual spell effects!")
 
-    # 8. Populate `dnd_entity_images` and normalize `dnd_fluff` image paths in `jane_scrum`
+    # 8. Populate `dnd_entity_images` and normalize `dnd_fluff` image paths in `loomweaver`
     print("Populating dnd_entity_images and normalizing dnd_fluff image paths...")
-    cur.execute("SELECT id, images_json FROM `jane_scrum`.`dnd_fluff` WHERE `images_json` IS NOT NULL AND `images_json` != '[]'")
+    cur.execute("SELECT id, images_json FROM `loomweaver`.`dnd_fluff` WHERE `images_json` IS NOT NULL AND `images_json` != '[]'")
     for frow in cur.fetchall():
         fid = frow["id"]
         raw_imgs = frow["images_json"]
         if "/5etools/" not in raw_imgs and '"path":' in raw_imgs:
             updated_imgs = re.sub(r'"path"\s*:\s*"(?!/5etools/)([^"]+)"', r'"path": "/5etools/\1"', raw_imgs)
-            cur.execute("UPDATE `jane_scrum`.`dnd_fluff` SET `images_json` = %s WHERE `id` = %s", (updated_imgs, fid))
+            cur.execute("UPDATE `loomweaver`.`dnd_fluff` SET `images_json` = %s WHERE `id` = %s", (updated_imgs, fid))
     conn.commit()
 
-    # 9. Update `v_dnd_compendium_master_catalog` and all `v_dnd_*` views in `jane_scrum`
-    print("Updating v_dnd_* views in jane_scrum to include image_path, default_effect_id, and foundry_json...")
+    # 9. Update `v_dnd_compendium_master_catalog` and all `v_dnd_*` views in `loomweaver`
+    print("Updating v_dnd_* views in loomweaver to include image_path, default_effect_id, and foundry_json...")
     cur.execute(
         """
-        CREATE OR REPLACE VIEW `jane_scrum`.`v_dnd_spells_with_source` AS
+        CREATE OR REPLACE VIEW `loomweaver`.`v_dnd_spells_with_source` AS
         SELECT
             sp.*,
             s.`name` AS `source_name`,
@@ -1436,17 +1436,17 @@ def main():
             st.`school_name` AS `linked_school_name`,
             st.`spell_type_key` AS `linked_spell_type_key`,
             st.`description` AS `linked_school_description`
-        FROM `jane_scrum`.`dnd_spells` sp
-        LEFT JOIN `jane_scrum`.`dnd_sources` s
+        FROM `loomweaver`.`dnd_spells` sp
+        LEFT JOIN `loomweaver`.`dnd_sources` s
             ON (sp.`source_book` COLLATE utf8mb4_unicode_ci) = (s.`id` COLLATE utf8mb4_unicode_ci)
-        LEFT JOIN `jane_scrum`.`dnd_spell_types` st
+        LEFT JOIN `loomweaver`.`dnd_spell_types` st
             ON (sp.`school_code` COLLATE utf8mb4_unicode_ci) = (st.`school_code` COLLATE utf8mb4_unicode_ci);
         """
     )
 
     cur.execute(
         """
-        CREATE OR REPLACE VIEW `jane_scrum`.`v_dnd_items_with_source` AS
+        CREATE OR REPLACE VIEW `loomweaver`.`v_dnd_items_with_source` AS
         SELECT
             i.`id`, i.`name`, i.`source_id`, i.`page`, i.`item_type`, i.`rarity`,
             i.`weight`, i.`value_gp`, i.`requires_attunement`, i.`properties_json`,
@@ -1456,84 +1456,13 @@ def main():
             s.`name` AS `source_name`, s.`source_type` AS `source_type`,
             s.`source_group` AS `source_group`, s.`published` AS `source_published`,
             s.`author` AS `source_author`, s.`cover_path` AS `source_cover_path`
-        FROM `jane_scrum`.`dnd_items` i
-        LEFT JOIN `jane_scrum`.`dnd_sources` s
+        FROM `loomweaver`.`dnd_items` i
+        LEFT JOIN `loomweaver`.`dnd_sources` s
             ON (i.`source_id` COLLATE utf8mb4_unicode_ci) = (s.`id` COLLATE utf8mb4_unicode_ci);
         """
     )
     conn.commit()
 
-    # 10. Clone / Synchronize ALL `dnd_*`, `cm_*`, `mw_effect*` tables and `v_dnd_*` views into `loomweaver`
-    print("Synchronizing all dnd_*, cm_*, and mw_effect* tables into `loomweaver` schema...")
-    cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
-    cur.execute(
-        """
-        SELECT table_name AS tbl_name
-        FROM information_schema.tables
-        WHERE table_schema = 'jane_scrum'
-          AND table_type = 'BASE TABLE'
-          AND (table_name LIKE 'dnd_%' OR table_name LIKE 'cm_%' OR table_name LIKE 'mw_effect%')
-        ORDER BY table_name
-        """
-    )
-    base_tables = [list(r.values())[0] for r in cur.fetchall()]
-
-    for tbl in base_tables:
-        print(f"  Syncing table `loomweaver`.`{tbl}`...")
-        cur.execute(f"DROP TABLE IF EXISTS `loomweaver`.`{tbl}`;")
-        cur.execute(f"CREATE TABLE `loomweaver`.`{tbl}` LIKE `jane_scrum`.`{tbl}`;")
-        # Check if table has generated columns; if so, insert only non-generated columns
-        cur.execute(
-            """
-            SELECT column_name AS col_name
-            FROM information_schema.columns
-            WHERE table_schema = 'jane_scrum'
-              AND table_name = %s
-              AND extra NOT LIKE '%%GENERATED%%'
-            ORDER BY ordinal_position
-            """,
-            (tbl,),
-        )
-        cols = [f"`{list(c.values())[0]}`" for c in cur.fetchall()]
-        col_list = ", ".join(cols)
-        cur.execute(f"INSERT INTO `loomweaver`.`{tbl}` ({col_list}) SELECT {col_list} FROM `jane_scrum`.`{tbl}`;")
-
-    conn.commit()
-
-    # Recreate all views in `loomweaver`
-    print("Recreating all v_dnd_* and compendium views in `loomweaver`...")
-    cur.execute(
-        """
-        SELECT table_name AS v_name
-        FROM information_schema.views
-        WHERE table_schema = 'jane_scrum'
-          AND (table_name LIKE 'v_dnd_%' OR table_name LIKE 'v_%compendium%' OR table_name = 'cm_items')
-        ORDER BY table_name
-        """
-    )
-    view_names = [list(r.values())[0] for r in cur.fetchall()]
-    # Ensure v_dnd_monster_library_with_fluff is created before v_dnd_monster_library_with_fluff_spicy
-    if "v_dnd_monster_library_with_fluff" in view_names and "v_dnd_monster_library_with_fluff_spicy" in view_names:
-        view_names.remove("v_dnd_monster_library_with_fluff")
-        view_names.insert(0, "v_dnd_monster_library_with_fluff")
-
-    for vname in view_names:
-        cur.execute(f"SHOW CREATE VIEW `jane_scrum`.`{vname}`")
-        vrow = cur.fetchone()
-        create_sql = vrow.get("Create View") or list(vrow.values())[1]
-        # Strip DEFINER clause and replace `jane_scrum`. with `loomweaver`.
-        create_sql = re.sub(r"DEFINER=`[^`]+`@`[^`]+`\s+", "", create_sql)
-        create_sql = create_sql.replace("CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW", "CREATE OR REPLACE VIEW")
-        create_sql = create_sql.replace("CREATE VIEW", "CREATE OR REPLACE VIEW")
-        create_sql = create_sql.replace("`jane_scrum`.", "`loomweaver`.")
-        create_sql = create_sql.replace(f"VIEW `{vname}`", f"VIEW `loomweaver`.`{vname}`")
-        try:
-            cur.execute(create_sql)
-        except Exception as ex:
-            print(f"  Warning creating view {vname}: {ex}")
-
-    cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
-    conn.commit()
     cur.close()
     conn.close()
     print("=== MASTER 5ETOOLS SYNC COMPLETE ===")

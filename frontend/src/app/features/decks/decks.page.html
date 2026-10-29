@@ -1,0 +1,77 @@
+<section class="decks-page">
+  <header class="decks-header">
+    @if (deck(); as d) {
+      <a class="back-link" routerLink="/decks" [queryParams]="{ source: d.source_book }">All {{ d.source_book }} decks</a>
+      <h1>{{ d.name }}</h1>
+      <p class="meta">{{ d.source_book }} · {{ d.uniqueCardCount }} unique cards</p>
+      @if (d.description) {
+        <p class="description">{{ d.description }}</p>
+      }
+    } @else {
+      <h1>Decks</h1>
+      <p class="meta">
+        @if (sourceFilter) { Source {{ sourceFilter }} } @else { All sourcebooks }
+      </p>
+      <div class="search-row">
+        <input
+          type="search"
+          placeholder="Search decks"
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event)"
+          (keyup.enter)="loadList()"
+          aria-label="Search decks"
+        />
+        <button type="button" ngpButton (click)="loadList()">Search</button>
+      </div>
+    }
+  </header>
+
+  @if (errorMessage()) {
+    <p class="error" role="alert">{{ errorMessage() }}</p>
+  }
+
+  @if (loading()) {
+    <p class="meta">Loading...</p>
+  }
+
+  @if (deck(); as d) {
+    <div class="deck-detail">
+      <div class="draw-panel">
+        <button type="button" ngpButton class="draw-button" (click)="draw()">Draw a card</button>
+        @if (drawn(); as card) {
+          <figure class="drawn-card">
+            @if (card.face_image_url) {
+              <img [src]="card.face_image_url" [alt]="card.name" />
+            }
+            <figcaption>{{ card.name }}</figcaption>
+          </figure>
+        } @else if (d.image_path) {
+          <img class="deck-back" [src]="d.image_path" [alt]="d.name + ' deck'" />
+        }
+      </div>
+
+      <ul class="card-list">
+        @for (card of uniqueCards(); track card.name) {
+          <li>
+            <button type="button" class="card-chip" (click)="drawn.set(card)">{{ card.name }}</button>
+          </li>
+        } @empty {
+          <li class="meta">This deck has no card images.</li>
+        }
+      </ul>
+    </div>
+  } @else if (!loading()) {
+    <ul class="deck-list">
+      @for (item of decks(); track item.id) {
+        <li>
+          <a [routerLink]="['/decks', item.id]">
+            <span class="deck-name">{{ item.name }}</span>
+            <span class="meta">{{ item.source_book }}</span>
+          </a>
+        </li>
+      } @empty {
+        <li class="meta">No decks match this search.</li>
+      }
+    </ul>
+  }
+</section>

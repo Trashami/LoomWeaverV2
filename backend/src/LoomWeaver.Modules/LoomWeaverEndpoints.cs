@@ -53,6 +53,7 @@ public static class LoomWeaverEndpoints
             api.MapAuthAndCheckoutEndpoints();
             api.MapCampaignInviteEndpoints();
             api.MapCompendiumAndStudioEndpoints();
+            api.MapDeckEndpoints();
             api.MapBestiaryEndpoints();
             api.MapItemsEndpoints();
             MapCoreEndpoints(api);

@@ -1,0 +1,149 @@
+:host {
+  display: block;
+  color: #e8efe9;
+  background: #05100c;
+  min-height: 100%;
+}
+
+.decks-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem;
+}
+
+h1 {
+  color: #d9b77a;
+  margin: 0.25rem 0;
+  font-size: 2rem;
+}
+
+.meta {
+  color: #8fa89a;
+  margin: 0.25rem 0;
+}
+
+.description {
+  color: #c9d6cd;
+  max-width: 70ch;
+}
+
+.back-link {
+  color: #49e892;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.search-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+input[type='search'] {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  background: #0b1d16;
+  color: #e8efe9;
+  border: 1px solid #1f3d30;
+  border-radius: 6px;
+}
+
+button[ngpButton] {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid #2ee66b;
+  background: transparent;
+  color: #49e892;
+  cursor: pointer;
+}
+
+button[ngpButton]:hover {
+  background: #0b2a1e;
+}
+
+.error {
+  color: #f08a7a;
+}
+
+.deck-list {
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.deck-list a {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border: 1px solid #1f3d30;
+  border-radius: 8px;
+  color: #e8efe9;
+  text-decoration: none;
+  background: #0b1d16;
+}
+
+.deck-list a:hover {
+  border-color: #49e892;
+}
+
+.deck-name {
+  color: #d9b77a;
+}
+
+.deck-detail {
+  display: grid;
+  grid-template-columns: minmax(240px, 360px) 1fr;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.draw-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.drawn-card img,
+.deck-back {
+  max-width: 100%;
+  border-radius: 10px;
+  border: 1px solid #1f3d30;
+}
+
+.drawn-card figcaption {
+  color: #d9b77a;
+  margin-top: 0.5rem;
+}
+
+.card-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-content: flex-start;
+}
+
+.card-chip {
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid #1f3d30;
+  background: #0b1d16;
+  color: #c9d6cd;
+  cursor: pointer;
+}
+
+.card-chip:hover {
+  border-color: #d9b77a;
+  color: #d9b77a;
+}
+
+@media (max-width: 720px) {
+  .deck-detail {
+    grid-template-columns: 1fr;
+  }
+}

@@ -24,7 +24,7 @@ INSERT IGNORE INTO lw_campaign_members (campaign_id, user_id, auth_email, member
 SELECT c.id, u.id, COALESCE(a.email, u.email), 'gm'
 FROM lw_campaigns c
 JOIN lw_users u ON u.id = c.gm_user_id
-LEFT JOIN lw_auth_users a ON LOWER(a.email) = LOWER(u.email)
+LEFT JOIN lw_auth_users a ON LOWER(a.email) COLLATE utf8mb4_unicode_ci = LOWER(u.email) COLLATE utf8mb4_unicode_ci
 WHERE NOT EXISTS (
   SELECT 1 FROM lw_campaign_members m
   WHERE m.campaign_id = c.id AND m.user_id = c.gm_user_id

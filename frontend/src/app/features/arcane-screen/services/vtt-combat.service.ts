@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { LoomWeaverStoreService } from '../../../core/services/loomweaver-store.service';
 import { CreatureCardVm } from '../../../shared/ui/creature-card/creature-card.component';
 import { EncounterCardVm } from '../../../shared/ui/encounter-card/encounter-card.component';
@@ -29,7 +30,6 @@ import {
   FullscreenDiceOverlayService,
   type FullscreenDieEntry,
 } from '../../dice/engine/fullscreen-dice-overlay.service';
-import type { DicePolyhedronType } from '../../dice/engine/models';
 import {
   SEED_ACTION_RULES,
   SEED_CREATURES,
@@ -37,6 +37,7 @@ import {
   SEED_NPCS,
   SEED_VTT_TOKENS,
 } from './vtt-combat.seed';
+import type { CombatResolutionResult, EncounterCompletionResult } from '../models/vtt-server.models';
 
 @Injectable({ providedIn: 'root' })
 export class VttCombatService {
@@ -63,19 +64,20 @@ export class VttCombatService {
   ]);
 
   readonly encounters = computed<readonly EncounterCardVm[]>(() =>
-    this.encounterDetails().filter((e) => e.campaignId === this.store.activeCampaignId() || e.campaignId === 1),
+    this.encounterDetails().filter((e) => e.campaignId === this.store.activeCampaignId()),
   );
 
   readonly sessionsForActiveCampaign = computed<readonly CampaignSessionVm[]>(() => {
     const cid = this.store.activeCampaignId();
-    const list = this.sessions().filter((s) => s.campaignId === cid);
-    return list.length > 0 ? list : this.sessions().filter((s) => s.campaignId === 1);
+    return this.sessions().filter((s) => s.campaignId === cid);
   });
 
-  readonly activeLiveEncounter = computed<EncounterDetailVm>(
-    () =>
-      this.encounterDetails().find((e) => e.id === this.activeEncounterId()) ??
-      this.encounterDetails()[0],
+  readonly activeLiveEncounter = computed<EncounterDetailVm | null>(
+    () => {
+      const campaignId = this.store.activeCampaignId();
+      const campaignEncounters = this.encounterDetails().filter((e) => e.campaignId === campaignId);
+      return campaignEncounters.find((e) => e.id === this.activeEncounterId()) ?? campaignEncounters[0] ?? null;
+    },
   );
 
   readonly creatures = signal<readonly CreatureCardVm[]>(SEED_CREATURES);
@@ -293,35 +295,42 @@ export class VttCombatService {
     );
   }
 
-  executeActionOnTarget(rule: ActionRuleVm): {
+  /** The server rolls the dice and applies damage; the client only presents the result. */
+  async executeActionOnTarget(rule: ActionRuleVm): Promise<{
     preset: EffectTimelinePresetVm;
     startPos: { x: number; z: number };
     endPos: { x: number; z: number };
-  } {
+  } | null> {
     const attacker = this.selectedAttacker();
     const target = this.selectedTarget();
-    const dist = this.targetDistanceFeet();
-    const inRange = dist <= rule.rangeFeet;
-
-    const d20 = Math.floor(Math.random() * 20) + 1;
-    const isCrit = d20 === 20;
-    const totalRoll = d20 + rule.attackBonus;
-    const hit = inRange && (isCrit || (d20 !== 1 && totalRoll >= target.armorClass));
-
-    let dmg = 0;
-    const dmgEntries: FullscreenDieEntry[] = [];
-    if (hit) {
-      const dice = isCrit ? rule.damageDiceCount * 2 : rule.damageDiceCount;
-      const dmgDieType = (`d${rule.damageDiceSides}` as DicePolyhedronType) || 'd8';
-      for (let i = 0; i < dice; i++) {
-        const r = Math.floor(Math.random() * rule.damageDiceSides) + 1;
-        dmg += r;
-        dmgEntries.push({ dieType: dmgDieType, value: r });
-      }
-      dmg += rule.damageBonus;
+    const slot = rule.actionCost === '1 Bonus Action' ? 'bonus' : rule.actionCost === '1 Reaction' ? 'reaction' : 'action';
+    let result: CombatResolutionResult;
+    try {
+      result = await firstValueFrom(
+        this.http.post<CombatResolutionResult>(
+          `/api/v2/campaigns/${this.store.activeCampaignId()}/combat/resolve`,
+          {
+            attackerKey: attacker.key, targetKey: target.key, actionName: rule.name, actionSlot: slot,
+            rangeFeet: rule.rangeFeet, attackBonus: rule.attackBonus, saveDc: rule.saveDc,
+            damageDiceCount: rule.damageDiceCount, damageDiceSides: rule.damageDiceSides, damageBonus: rule.damageBonus,
+            particlePresetId: rule.linkedEffectPresetId, viewerRole: '',
+          },
+        ),
+      );
+    } catch (err) {
+      const message = (err as { error?: { error?: string } }).error?.error ?? 'The server rejected that action.';
+      this.xpAwardBanner.set(message);
+      return null;
     }
 
-    const allEntries: FullscreenDieEntry[] = [{ dieType: 'd20', value: d20 }, ...dmgEntries];
+    const dist = result.distanceFeet;
+    const inRange = result.inRange;
+    const d20 = result.rawD20;
+    const isCrit = result.isCritical;
+    const totalRoll = result.totalAttackOrSave;
+    const hit = result.hit;
+    const dmg = result.damageDealt;
+    const allEntries: FullscreenDieEntry[] = [{ dieType: 'd20', value: d20 }];
     const badgeText = !inRange
       ? 'OUT OF RANGE'
       : isCrit
@@ -345,7 +354,7 @@ export class VttCombatService {
       isCritFail: d20 === 1,
     });
 
-    const nextHp = Math.max(0, target.currentHp - dmg);
+    const nextHp = result.targetRemainingHp;
     const slotKey =
       rule.actionCost === '1 Bonus Action'
         ? 'bonusUsed'
@@ -427,13 +436,21 @@ export class VttCombatService {
     if (!enc || enc.completed || enc.campaignId !== this.store.activeCampaignId() ||
         !this.store.isGmForActiveCampaign() || this.store.viewerRole() !== 'gm') return;
     const partyCount = Math.max(1, enc.partyMembers.filter((p) => p.includedInEncounter).length);
-    const perHero = Math.floor(enc.totalXp / partyCount);
-    this.encounterDetails.update((list) =>
-      list.map((e) => (e.id === enc.id ? { ...e, completed: true, status: 'Completed' } : e)),
-    );
-    this.xpAwardBanner.set(
-      `Encounter Concluded: Awarded ${enc.totalXp.toLocaleString()} XP (${perHero.toLocaleString()} XP each to ${partyCount} party heroes). Level-Up Ready in Character Studio!`,
-    );
+    this.http
+      .post<EncounterCompletionResult>(
+        `/api/v2/campaigns/${enc.campaignId}/encounters/${encodeURIComponent(enc.id)}/complete`,
+        { encounterId: enc.id, totalXp: enc.totalXp, partySize: partyCount, viewerRole: '' },
+      )
+      .subscribe({
+        next: (result) => {
+          this.encounterDetails.update((list) =>
+            list.map((e) => (e.id === enc.id ? { ...e, completed: true, status: 'Completed' } : e)),
+          );
+          this.xpAwardBanner.set(`Encounter Concluded: ${result.summary}`);
+        },
+        error: (err: { error?: { error?: string } }) =>
+          this.xpAwardBanner.set(err.error?.error ?? 'XP could not be awarded.'),
+      });
     // The Loom: record that the party met (and defeated) each creature, where and when (server enforces DM-only).
     this.http
       .post(`/api/v2/campaigns/${enc.campaignId}/bestiary/encounters/concluded?role=${this.store.viewerRole()}`, {

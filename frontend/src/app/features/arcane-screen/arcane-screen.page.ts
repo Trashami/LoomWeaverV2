@@ -7,8 +7,10 @@ import {
   OnDestroy,
   ViewChild,
   computed,
+  effect,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -29,8 +31,11 @@ import {
   worldToSvgY,
 } from './engine/vtt-los-and-grid.engine';
 import { VttTacticalAbilityVm } from './models/vtt-battle.models';
+import { VttActionBarComponent } from './components/vtt-action-bar/vtt-action-bar.component';
+import { ACTION_BAR_SKINS } from './components/vtt-action-bar/action-bar-skins';
 import { VttBattleStateService } from './services/vtt-battle-state.service';
 import { VttCombatService } from './services/vtt-combat.service';
+import { VttServerSyncService } from './services/vtt-server-sync.service';
 
 @Component({
   selector: 'lw-arcane-screen-page',
@@ -41,6 +46,7 @@ import { VttCombatService } from './services/vtt-combat.service';
     NgpButton,
     LwButtonComponent,
     LwIconComponent,
+    VttActionBarComponent,
   ],
   templateUrl: './arcane-screen.page.html',
   styleUrl: './arcane-screen.page.scss',
@@ -57,6 +63,14 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   readonly audio = inject(WebAudioAmbienceService);
   readonly fullscreenDice = inject(FullscreenDiceOverlayService);
   private readonly router = inject(Router);
+  readonly serverSync = inject(VttServerSyncService);
+
+  constructor() {
+    effect(() => {
+      this.vtt.tokens();
+      untracked(() => this.sync3dStage());
+    });
+  }
 
   readonly gridEnabled = signal<boolean>(true);
   private dragMoved = false;
@@ -104,6 +118,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       (this.store.viewerRole() === 'players' || this.battle.gmPreviewPlayerVision()),
   );
 
+  readonly actionBarSkins = ACTION_BAR_SKINS;
   readonly isObserverActiveTurn = computed(
     () => this.battle.activeInitiativeToken()?.key === this.battle.activeObserverToken()?.key,
   );
@@ -216,6 +231,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     if (!this.battle.draggingTokenKey()) return;
     const result = this.battle.endTokenDrag();
     if (result.movedToken && result.distanceFeet > 0) {
+      void this.serverSync.moveToken(result.movedToken.key, result.movedToken.x, result.movedToken.z);
       this.sync3dStage();
       this.dmToolReadout.set(
         `${this.store.viewerRole() === 'gm' ? 'DM Moved' : 'Moved'} ${result.movedToken.name} (${result.distanceFeet} ft).`,
@@ -280,9 +296,9 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
     this.sync3dStage();
-    this.dmToolReadout.set(
-      `Moved ${this.battle.activeObserverToken().name} ${res.distanceFeet} ft along the 5-ft grid.`,
-    );
+    const moved = this.battle.activeObserverToken();
+    void this.serverSync.moveToken(moved.key, moved.x, moved.z);
+    this.dmToolReadout.set(`Moved ${moved.name} ${res.distanceFeet} ft along the 5-ft grid.`);
   }
 
   selectTurnAbility(ability: VttTacticalAbilityVm): void {
@@ -306,16 +322,16 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     );
   }
 
-  executePendingAbilityCast(): void {
+  async executePendingAbilityCast(): Promise<void> {
     const confirmed = this.battle.confirmPendingAbilityCast();
     if (!confirmed) return;
     const { ability, targets } = confirmed;
     const targetList = targets.length > 0 ? targets : [this.vtt.selectedTarget()];
 
-    let lastFx: ReturnType<typeof this.vtt.executeActionOnTarget> | null = null;
+    let lastFx: Awaited<ReturnType<typeof this.vtt.executeActionOnTarget>> = null;
     for (const target of targetList) {
       this.vtt.selectedTargetKey.set(target.key);
-      lastFx = this.vtt.executeActionOnTarget(ability);
+      lastFx = (await this.vtt.executeActionOnTarget(ability)) ?? lastFx;
     }
 
     this.sync3dStage();
@@ -330,18 +346,18 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   switchLiveEncounter(encounterId: string): void {
     this.vtt.launchEncounterIntoVtt(encounterId);
     this.sync3dStage();
+    if (this.store.viewerRole() === 'gm') void this.serverSync.publishLaunchedEncounter();
   }
 
   nextTurn(): void {
-    this.vtt.advanceTurn();
-    const active = this.vtt.selectedAttacker();
-    if (active) {
-      this.battle.resetTurnMovement(active.key);
-    }
-    this.sync3dStage();
-    this.dmToolReadout.set(
-      `Round ${this.vtt.activeRound()} · Active Initiative Turn: ${this.battle.activeInitiativeToken().name}`,
-    );
+    void this.serverSync.nextTurn().then(() => {
+      const active = this.vtt.selectedAttacker();
+      if (active) this.battle.resetTurnMovement(active.key);
+      this.sync3dStage();
+      this.dmToolReadout.set(
+        `Round ${this.vtt.activeRound()} · Active Initiative Turn: ${this.battle.activeInitiativeToken().name}`,
+      );
+    });
   }
 
   spawnSelectedBestiaryMonster(): void {
@@ -424,6 +440,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
 
   resetActionBarSettings(): void {
     this.battle.actionBarSettings.set({
+      skin: 'loom-emerald',
       opacity: 95,
       compactMode: false,
       snapSensitivityFeet: 10,

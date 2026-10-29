@@ -107,7 +107,7 @@ public static class SceneRepository
                     new("layer-notes", "GM Scene Notes & Secrets", "notes", "eye", true, false, 90, "normal", 70),
                     new("layer-overlays", "Cartography & Weather FX", "overlays", "compass", true, false, 85, "overlay", 80)
                 ],
-                UpdatedBy: "Joshua (GM)",
+                UpdatedBy: "System starter template",
                 UpdatedAtUtc: DateTimeOffset.UtcNow
             )
         };

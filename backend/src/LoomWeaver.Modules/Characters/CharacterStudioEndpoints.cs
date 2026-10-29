@@ -1,5 +1,6 @@
 using LoomWeaver.Domain;
 using LoomWeaver.GameSystems;
+using LoomWeaver.Infrastructure.MySql;
 using LoomWeaver.Modules.Adventures;
 using LoomWeaver.Modules.Auth;
 using Microsoft.AspNetCore.Builder;
@@ -11,215 +12,159 @@ namespace LoomWeaver.Modules.Characters;
 public static class CharacterStudioEndpoints
 {
     private static readonly CharacterCalculationEngine Engine = new();
-    private static readonly List<CharacterSheetDto> Sheets = SeedInitialSheets();
+    private static readonly string[] AbilityCodes = ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
+    private static readonly Dictionary<string, string> AbilityLabels = new()
+    {
+        ["STR"] = "Strength", ["DEX"] = "Dexterity", ["CON"] = "Constitution",
+        ["INT"] = "Intelligence", ["WIS"] = "Wisdom", ["CHA"] = "Charisma",
+    };
 
     public static void MapCharacterStudioEndpoints(this IEndpointRouteBuilder group)
     {
         group.MapCharacterSheetLiveTelemetryEndpoints();
 
-        group.MapGet("/campaigns/{campaignId:int}/character-studio", (
-            int campaignId,
-            string? role,
-            HttpContext httpContext) =>
+        group.MapGet("/campaigns/{campaignId:int}/character-studio", async (
+            int campaignId, string? role, HttpContext ctx, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
         {
-            var access = CampaignAccessResolver.Resolve(httpContext, campaignId, role);
-            var campaignSheets = Sheets
-                .Where(s => s.CampaignId == campaignId || s.CampaignId == 1)
-                .Select(s => Engine.RecalculateSheet(s))
-                .ToList();
+            var access = await CampaignAccessResolver.ResolveAsync(ctx, campaignId, role, ct);
+            if (!access.IsMember) return Denied();
 
-            if (access.IsEffectiveGm)
-            {
-                return Results.Ok(campaignSheets);
-            }
-
-            var targetSlug = access.BoundCharacterKey.Replace("pc-", "char-", StringComparison.OrdinalIgnoreCase);
-            var playerSheet = campaignSheets.FirstOrDefault(s =>
-                s.CharacterKey.Equals(targetSlug, StringComparison.OrdinalIgnoreCase) ||
-                s.Name.Contains(access.BoundCharacterKey.Replace("pc-", ""), StringComparison.OrdinalIgnoreCase))
-                ?? campaignSheets.FirstOrDefault();
-
-            return Results.Ok(playerSheet is not null ? new List<CharacterSheetDto> { playerSheet } : new List<CharacterSheetDto>());
+            var stored = await CharacterStore.ListAsync(repo, campaignId, ct);
+            var visible = access.IsEffectiveGm
+                ? stored
+                : stored.Where(c => IsOwnerOrBound(c, access)).ToList();
+            return Results.Ok(visible.Select(c => Engine.RecalculateSheet(c.Sheet)).ToList());
         });
 
-        group.MapPost("/campaigns/{campaignId:int}/character-studio/create", (
-            int campaignId,
-            CreateCharacterRequest req) =>
+        group.MapPost("/campaigns/{campaignId:int}/character-studio/create", async (
+            int campaignId, CreateCharacterRequest req, HttpContext ctx, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
         {
-            if (string.IsNullOrWhiteSpace(req.Name))
+            var access = await CampaignAccessResolver.ResolveAsync(ctx, campaignId, null, ct);
+            if (!access.IsMember) return Denied();
+
+            var name = req.Name?.Trim() ?? string.Empty;
+            var key = BuildKey(name);
+            if (key is null || name.Length > 128)
             {
-                return Results.BadRequest(new { error = "Character name is required." });
+                return Results.BadRequest(new { error = "A character name of 1-128 letters or digits is required." });
             }
 
-            var slug = req.Name.Trim().ToLowerInvariant().Replace(' ', '-');
-            var key = $"char-{slug}";
-            var compositeKey = $"{campaignId}:Character:{key}";
-
-            var abilities = new List<AbilityScoreDto>
+            var scores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var code in AbilityCodes)
             {
-                new("STR", "Strength", req.AbilityScores.GetValueOrDefault("STR", 12), 0),
-                new("DEX", "Dexterity", req.AbilityScores.GetValueOrDefault("DEX", 15), 0),
-                new("CON", "Constitution", req.AbilityScores.GetValueOrDefault("CON", 14), 0),
-                new("INT", "Intelligence", req.AbilityScores.GetValueOrDefault("INT", 13), 0),
-                new("WIS", "Wisdom", req.AbilityScores.GetValueOrDefault("WIS", 14), 0),
-                new("CHA", "Charisma", req.AbilityScores.GetValueOrDefault("CHA", 12), 0),
-            };
+                var score = req.AbilityScores?.GetValueOrDefault(code, 10) ?? 10;
+                if (score is < 1 or > 30)
+                {
+                    return Results.BadRequest(new { error = $"{code} must be between 1 and 30." });
+                }
 
+                scores[code] = score;
+            }
+
+            var systemCode = string.IsNullOrWhiteSpace(req.SystemCode) ? "dnd5e" : req.SystemCode.Trim();
+            var level = access.IsAccountGm ? Math.Clamp(req.Level, 1, CharacterCalculationEngine.MaxLevel) : 1;
+            var archetype = (req.ClassOrArchetype ?? string.Empty).Trim();
             var draft = new CharacterSheetDto(
-                CompositeKey: compositeKey,
+                CompositeKey: $"{campaignId}:Character:{key}",
                 CharacterKey: key,
                 CampaignId: campaignId,
-                Name: req.Name.Trim(),
-                AncestryOrClan: req.AncestryOrClan,
-                ClassOrArchetype: req.ClassOrArchetype,
-                SystemCode: string.IsNullOrWhiteSpace(req.SystemCode) ? "dnd5e" : req.SystemCode,
-                Level: Math.Clamp(req.Level, 1, 20),
-                CurrentXp: 23000,
-                NextLevelXp: 34000,
+                Name: name,
+                AncestryOrClan: (req.AncestryOrClan ?? string.Empty).Trim(),
+                ClassOrArchetype: archetype,
+                SystemCode: systemCode,
+                Level: level,
+                CurrentXp: CharacterCalculationEngine.XpForLevel(systemCode, level),
+                NextLevelXp: CharacterCalculationEngine.XpForLevel(systemCode, level + 1),
                 LevelUpEligible: false,
-                MaxHp: 60,
-                CurrentHp: 60,
-                ArmorClass: 16,
-                InitiativeBonus: 3,
-                SpeedFeet: 30,
-                ProficiencyBonus: 3,
-                ActionEconomySummary: "",
-                Abilities: abilities,
-                Equipment:
-                [
-                    new("eq-1", "Cinth Artificer Coat", "Armor", "+2 AC · Reinforced Weave", 2, 0, true),
-                    new("eq-2", "Runed Sideblade", "Main Hand", "+1 Attack · Finesse", 0, 1, true)
-                ],
-                Features:
-                [
-                    "Campaign Origin: Vandia to Cinth Road",
-                    $"Archetype Core: {req.ClassOrArchetype}"
-                ]
-            );
+                MaxHp: 1, CurrentHp: 0, ArmorClass: 10, InitiativeBonus: 0, SpeedFeet: 30, ProficiencyBonus: 2,
+                ActionEconomySummary: string.Empty,
+                Abilities: AbilityCodes.Select(c => new AbilityScoreDto(c, AbilityLabels[c], scores[c], 0)).ToList(),
+                Equipment: [],
+                Features: archetype.Length == 0 ? [] : [$"Archetype Core: {archetype}"]);
 
             var calculated = Engine.RecalculateSheet(draft);
-            Sheets.Add(calculated);
+            var created = await CharacterStore.CreateAsync(repo, calculated, access.UserId, ct);
+            if (created is null)
+            {
+                return Results.Conflict(new { error = $"A character named '{name}' already exists in this campaign." });
+            }
 
             AdventureGuideStateStore.RegisterCharacterOrNpc(
-                campaignId,
-                $"node-{key}",
-                compositeKey,
-                calculated.Name,
+                campaignId, $"node-{key}", calculated.CompositeKey, calculated.Name,
                 $"{calculated.AncestryOrClan} {calculated.ClassOrArchetype} · Lv.{calculated.Level}",
-                "Party Hero",
-                "gold",
-                "/characters-showcase.jpg",
-                $"Active party adventurer exploring the Ruined Chapel in Session 15.",
+                "Party Hero", "gold", "/characters-showcase.jpg",
+                "Active party adventurer.",
                 $"\"Ready at the table with {calculated.ClassOrArchetype} capabilities.\"",
                 "Party Roster · Populated from Character Studio",
-                $"/characters?focus={key}",
-                "players");
+                $"/characters?focus={key}", "players");
 
             return Results.Ok(calculated);
         });
 
-        group.MapPost("/campaigns/{campaignId:int}/character-studio/{characterKey}/level-up", (
-            int campaignId,
-            string characterKey,
-            LevelUpCharacterRequest req) =>
+        group.MapPost("/campaigns/{campaignId:int}/character-studio/{characterKey}/level-up", async (
+            int campaignId, string characterKey, LevelUpCharacterRequest req,
+            HttpContext ctx, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
         {
-            var idx = Sheets.FindIndex(s => s.CharacterKey == characterKey);
-            if (idx < 0)
-            {
-                return Results.NotFound(new { error = $"Character '{characterKey}' not found." });
-            }
+            var access = await CampaignAccessResolver.ResolveAsync(ctx, campaignId, null, ct);
+            if (!access.IsMember) return Denied();
 
-            var updated = Engine.ApplyLevelUp(
-                Sheets[idx],
-                req.SelectedFeature,
-                req.AbilityIncreaseCode);
-            Sheets[idx] = updated;
-            return Results.Ok(updated);
+            var result = await CharacterStore.MutateAsync(repo, campaignId, characterKey, current =>
+            {
+                if (!CanEdit(current, access)) return CharacterMutation.Reject(403, "You cannot change this character.");
+                var sheet = Engine.RecalculateSheet(current.Sheet);
+                if (!sheet.LevelUpEligible) return CharacterMutation.Reject(409, "Not enough XP to level up.");
+
+                var feature = (req.SelectedFeature ?? string.Empty).Trim();
+                var ability = (req.AbilityIncreaseCode ?? string.Empty).Trim().ToUpperInvariant();
+                if (feature.Length is 0 or > 200) return CharacterMutation.Reject(400, "A feature of up to 200 characters is required.");
+                if (ability.Length > 0 && !AbilityCodes.Contains(ability)) return CharacterMutation.Reject(400, "Unknown ability code.");
+                return CharacterMutation.Ok(Engine.ApplyLevelUp(sheet, feature, ability));
+            }, ct);
+            return ToResult(result);
         });
 
-        group.MapPost("/campaigns/{campaignId:int}/character-studio/{characterKey}/equipment", (
-            int campaignId,
-            string characterKey,
-            ToggleEquipmentRequest req) =>
+        group.MapPost("/campaigns/{campaignId:int}/character-studio/{characterKey}/equipment", async (
+            int campaignId, string characterKey, ToggleEquipmentRequest req,
+            HttpContext ctx, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
         {
-            var idx = Sheets.FindIndex(s => s.CharacterKey == characterKey);
-            if (idx < 0)
+            var access = await CampaignAccessResolver.ResolveAsync(ctx, campaignId, null, ct);
+            if (!access.IsMember) return Denied();
+
+            var result = await CharacterStore.MutateAsync(repo, campaignId, characterKey, current =>
             {
-                return Results.NotFound(new { error = $"Character '{characterKey}' not found." });
-            }
-
-            var current = Sheets[idx];
-            var updatedEq = current.Equipment
-                .Select(e => e.Id == req.EquipmentId ? e with { Equipped = req.Equipped } : e)
-                .ToList();
-
-            var recalculated = Engine.RecalculateSheet(current with { Equipment = updatedEq });
-            Sheets[idx] = recalculated;
-            return Results.Ok(recalculated);
+                if (!CanEdit(current, access)) return CharacterMutation.Reject(403, "You cannot change this character.");
+                if (!current.Sheet.Equipment.Any(e => e.Id == req.EquipmentId)) return CharacterMutation.Reject(404, "Equipment not found.");
+                var equipment = current.Sheet.Equipment
+                    .Select(e => e.Id == req.EquipmentId ? e with { Equipped = req.Equipped } : e).ToList();
+                return CharacterMutation.Ok(Engine.RecalculateSheet(current.Sheet with { Equipment = equipment }));
+            }, ct);
+            return ToResult(result);
         });
     }
 
-    private static List<CharacterSheetDto> SeedInitialSheets()
+    private static bool CanEdit(StoredCharacter c, ResolvedCampaignAccess access) =>
+        access.IsAccountGm || IsOwnerOrBound(c, access);
+
+    public static bool IsOwnerOrBound(StoredCharacter c, ResolvedCampaignAccess access)
     {
-        var list = new List<CharacterSheetDto>
-        {
-            new(
-                "1:Character:char-dal", "char-dal", 1, "Dallas (Dal)",
-                "Edhellain Royal Lineage", "Horizon Ranger / Pattern Scout", "dnd5e",
-                7, 34500, 34000, true, 68, 68, 17, 4, 35, 3, "",
-                [
-                    new("STR", "Strength", 12, 1),
-                    new("DEX", "Dexterity", 18, 4),
-                    new("CON", "Constitution", 14, 2),
-                    new("INT", "Intelligence", 14, 2),
-                    new("WIS", "Wisdom", 16, 3),
-                    new("CHA", "Charisma", 13, 1),
-                ],
-                [
-                    new("eq-dal-1", "Edhellain Wayfinder Cloak", "Armor", "+2 AC · Silent Step", 2, 0, true),
-                    new("eq-dal-2", "Twin Recurve Longbow", "Main Hand", "+2 Attack · 150/600ft", 0, 2, true),
-                    new("eq-dal-3", "Cinth Buckler", "Off Hand", "+1 AC when slung", 1, 0, false),
-                ],
-                ["Pattern Danger Sense", "True Kingship Lineage (Unclaimed)", "Extra Attack"]
-            ),
-            new(
-                "1:Character:char-fivi", "char-fivi", 1, "Fivi",
-                "Feywild Outcast", "Fey Trickster & Slingshot Savant", "dnd5e",
-                7, 34200, 34000, true, 54, 54, 16, 4, 30, 3, "",
-                [
-                    new("STR", "Strength", 9, -1),
-                    new("DEX", "Dexterity", 18, 4),
-                    new("CON", "Constitution", 14, 2),
-                    new("INT", "Intelligence", 13, 1),
-                    new("WIS", "Wisdom", 12, 1),
-                    new("CHA", "Charisma", 17, 3),
-                ],
-                [
-                    new("eq-fivi-1", "Tooth-Loaded Fey Slingshot", "Main Hand", "+3 Crit Precision", 0, 3, true),
-                    new("eq-fivi-2", "Dolly (Modified Pocket-Maw)", "Companion", "+2 AC Ward · Non-Lethal Gullet", 2, 1, true),
-                ],
-                ["Fey Logic Redirection", "Dolly Gullet Containment", "Skyship Claimant"]
-            ),
-            new(
-                "1:Character:char-kildrid", "char-kildrid", 1, "Kildrid",
-                "Mountain Dwarf", "Stone & Rune Scholar", "dnd5e",
-                7, 34100, 34000, true, 65, 65, 18, 1, 25, 3, "",
-                [
-                    new("STR", "Strength", 14, 2),
-                    new("DEX", "Dexterity", 12, 1),
-                    new("CON", "Constitution", 16, 3),
-                    new("INT", "Intelligence", 18, 4),
-                    new("WIS", "Wisdom", 15, 2),
-                    new("CHA", "Charisma", 10, 0),
-                ],
-                [
-                    new("eq-kil-1", "Runed Basalt Half-Plate", "Armor", "+4 AC · Rune Ward", 4, 0, true),
-                    new("eq-kil-2", "Anelith Resonance Chisel", "Focus", "+2 Spell Attack / DC", 0, 2, true),
-                ],
-                ["Deep Stone Tremorsense", "Pre-Moonlight Rune Deciphering", "Abjuration Ward"]
-            ),
-        };
-
-        return list.Select(s => Engine.RecalculateSheet(s)).ToList();
+        if (c.OwnerUserId is long owner && owner == access.UserId) return true;
+        var bound = access.BoundCharacterKey.Replace("pc-", "char-", StringComparison.OrdinalIgnoreCase);
+        return !string.Equals(access.BoundCharacterKey, CampaignAccessResolver.NoCharacter, StringComparison.OrdinalIgnoreCase)
+            && c.Sheet.CharacterKey.Equals(bound, StringComparison.OrdinalIgnoreCase);
     }
+
+    private static string? BuildKey(string name)
+    {
+        var slug = new string(name.ToLowerInvariant().Select(ch => char.IsLetterOrDigit(ch) ? ch : '-').ToArray()).Trim('-');
+        while (slug.Contains("--", StringComparison.Ordinal)) slug = slug.Replace("--", "-", StringComparison.Ordinal);
+        return slug.Length == 0 ? null : $"char-{slug}"[..Math.Min(slug.Length + 5, 64)];
+    }
+
+    private static IResult Denied() =>
+        Results.Json(new { error = "Campaign membership is required." }, statusCode: StatusCodes.Status403Forbidden);
+
+    private static IResult ToResult(CharacterMutation result) =>
+        result.Updated is not null
+            ? Results.Ok(result.Updated)
+            : Results.Json(new { error = result.Error }, statusCode: result.StatusCode);
 }

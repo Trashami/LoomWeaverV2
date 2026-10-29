@@ -6,24 +6,20 @@ namespace LoomWeaver.Modules.Auth;
 
 public static class JwtTokenHelper
 {
-    private static readonly byte[] JwtSigningKey = Encoding.UTF8.GetBytes(
-        Environment.GetEnvironmentVariable("LOOMWEAVER_JWT_SECRET")
-        ?? "LoomWeaverV2-Polyglot-HMAC-SHA256-SigningKey-2026!");
-
-    private static readonly byte[] LegacyJwtSigningKey = Encoding.UTF8.GetBytes(
-        "MythWeaver_Super_Secure_Secret_Key_For_Jwt_Token_Generation_2026_Tromborg_DND_12345!");
+    private const string Issuer = "MythWeaver.Server";
+    private const string Audience = "MythWeaver.Client";
+    private static byte[] JwtSigningKey => AuthSecrets.JwtSigningKey;
+    private static byte[]? LegacyJwtSigningKey => AuthSecrets.LegacyJwtSigningKey;
 
     public static string IssueHmacJwt(StoredUserRecord user, DateTimeOffset expiresAt)
     {
-        var isAdmin = user.Email.Equals("jtromborg1@gmail.com", StringComparison.OrdinalIgnoreCase) ||
-                      user.Username.Equals("GeoJason", StringComparison.OrdinalIgnoreCase) ||
-                      user.Username.Equals("GregMeinert", StringComparison.OrdinalIgnoreCase);
+        var isAdmin = string.Equals(user.Role, "admin", StringComparison.OrdinalIgnoreCase);
 
         var headerJson = JsonSerializer.Serialize(new { alg = "HS256", typ = "JWT" });
         var payloadJson = JsonSerializer.Serialize(new
         {
-            iss = "MythWeaver.Server",
-            aud = "MythWeaver.Client",
+            iss = Issuer,
+            aud = Audience,
             sub = user.Id.ToString(),
             nameid = user.Id.ToString(),
             accountId = user.AccountId,
@@ -57,23 +53,41 @@ public static class JwtTokenHelper
 
         try
         {
+            using var headerDoc = JsonDocument.Parse(Base64UrlDecode(parts[0]));
+            if (!headerDoc.RootElement.TryGetProperty("alg", out var algorithm) ||
+                algorithm.ValueKind != JsonValueKind.String ||
+                !string.Equals(algorithm.GetString(), "HS256", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
             var unsignedToken = $"{parts[0]}.{parts[1]}";
             var unsignedBytes = Encoding.UTF8.GetBytes(unsignedToken);
             var sigBytes = Encoding.UTF8.GetBytes(parts[2]);
 
             var expectedPrimary = Encoding.UTF8.GetBytes(Base64UrlEncode(HMACSHA256.HashData(JwtSigningKey, unsignedBytes)));
-            var expectedLegacy = Encoding.UTF8.GetBytes(Base64UrlEncode(HMACSHA256.HashData(LegacyJwtSigningKey, unsignedBytes)));
-
-            var validSig = CryptographicOperations.FixedTimeEquals(sigBytes, expectedPrimary) ||
-                           CryptographicOperations.FixedTimeEquals(sigBytes, expectedLegacy);
+            var validSig = CryptographicOperations.FixedTimeEquals(sigBytes, expectedPrimary);
+            if (!validSig && LegacyJwtSigningKey is not null)
+            {
+                var expectedLegacy = Encoding.UTF8.GetBytes(Base64UrlEncode(HMACSHA256.HashData(LegacyJwtSigningKey, unsignedBytes)));
+                validSig = CryptographicOperations.FixedTimeEquals(sigBytes, expectedLegacy);
+            }
             if (!validSig) return null;
 
             using var doc = JsonDocument.Parse(Base64UrlDecode(parts[1]));
             var root = doc.RootElement;
+            if (!string.Equals(GetClaim(root, "iss"), Issuer, StringComparison.Ordinal) ||
+                !string.Equals(GetClaim(root, "aud"), Audience, StringComparison.Ordinal) ||
+                !root.TryGetProperty("exp", out var expProp) ||
+                !expProp.TryGetInt64(out var expSec) ||
+                expSec <= DateTimeOffset.UtcNow.ToUnixTimeSeconds())
+            {
+                return null;
+            }
 
-            if (root.TryGetProperty("exp", out var expProp) &&
-                expProp.TryGetInt64(out var expSec) &&
-                DateTimeOffset.UtcNow.ToUnixTimeSeconds() > expSec)
+            if (root.TryGetProperty("nbf", out var nbfProp) &&
+                (!nbfProp.TryGetInt64(out var notBefore) ||
+                 DateTimeOffset.UtcNow.ToUnixTimeSeconds() < notBefore))
             {
                 return null;
             }
@@ -81,6 +95,7 @@ public static class JwtTokenHelper
             var email = GetClaim(root, "email", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
             var username = GetClaim(root, "username", "usr", "unique_name", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name");
             var subStr = GetClaim(root, "sub", "nameid", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
+            if (!long.TryParse(subStr, out var tokenUserId) || tokenUserId <= 0) return null;
             var accountId = GetClaim(root, "accountId") ?? subStr;
 
             var match = memoryUsers.FirstOrDefault(u =>
@@ -90,18 +105,16 @@ public static class JwtTokenHelper
 
             if (match is not null)
             {
-                if (long.TryParse(subStr, out var parsedId) && parsedId > 0 && parsedId != match.Id)
-                {
-                    return match with { Id = parsedId };
-                }
+                if (tokenUserId != match.Id) return null;
                 return match;
             }
 
-            var fallbackId = long.TryParse(subStr, out var idVal) && idVal > 0 ? idVal : 1L;
+            var fallbackId = tokenUserId;
             var fallbackUser = username ?? email?.Split('@')[0] ?? $"user-{fallbackId}";
             var fallbackName = GetClaim(root, "name", "display_name") ?? fallbackUser;
-            var rawRole = GetClaim(root, "role", "http://schemas.microsoft.com/ws/2008/06/identity/claims/role") ?? "gm";
-            var normRole = rawRole is "player" or "players" ? "players" : "gm";
+            // Account role is informational only; campaign GM rights come from lw_campaign_members.
+            var rawRole = GetClaim(root, "role", "http://schemas.microsoft.com/ws/2008/06/identity/claims/role") ?? "players";
+            var normRole = rawRole is "gm" or "dm" ? "gm" : "players";
 
             return new StoredUserRecord(
                 fallbackId,
@@ -111,7 +124,7 @@ public static class JwtTokenHelper
                 fallbackName,
                 "", "", normRole,
                 GetClaim(root, "tier") ?? "adventurer",
-                GetClaim(root, "witness") ?? "GM",
+                GetClaim(root, "witness") ?? "None",
                 Array.Empty<string>(), 0.0);
         }
         catch

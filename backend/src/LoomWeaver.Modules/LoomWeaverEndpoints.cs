@@ -51,6 +51,7 @@ public static class LoomWeaverEndpoints
             api.MapAdventureGuideEndpoints();
             api.MapTableRealtimeEndpoints();
             api.MapAuthAndCheckoutEndpoints();
+            api.MapCampaignInviteEndpoints();
             api.MapCompendiumAndStudioEndpoints();
             api.MapBestiaryEndpoints();
             api.MapItemsEndpoints();
@@ -75,84 +76,35 @@ public static class LoomWeaverEndpoints
         api.MapGet("/campaigns", async (HttpContext ctx, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
         {
             var caller = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
+            if (caller is null) return Results.Unauthorized();
+
+            // Only campaigns where the caller holds a lw_campaign_members row are listed.
+            var memberships = await CampaignMembershipStore.ListForUserAsync(repo, caller, ct);
             var baseCampaigns = await repo.GetCampaignsAsync(ct);
             var list = new List<object>();
 
-            try
+            foreach (var m in memberships)
             {
-                await using var db = await repo.OpenConnectionAsync(ct);
-                var uid = caller?.Id ?? 1L;
-                await using var cmd = new MySqlCommand("""
-                    SELECT c.id, c.name, COALESCE(c.description, ''), c.dm_user_id,
-                           COALESCE(m.role, CASE WHEN c.dm_user_id = @u THEN 'dm' ELSE 'player' END) AS my_role,
-                           m.character_id, m.character_name
-                    FROM jane_scrum.mw_campaigns c
-                    LEFT JOIN jane_scrum.mw_campaign_members m ON m.campaign_id = c.id AND m.user_id = @u
-                    WHERE c.dm_user_id = @u OR m.user_id = @u OR @isAdmin = 1
-                    ORDER BY c.id
-                    """, db);
-                var isAdmin = caller is null || caller.Id == 1 || caller.Role == "gm";
-                cmd.Parameters.AddWithValue("@u", uid);
-                cmd.Parameters.AddWithValue("@isAdmin", isAdmin ? 1 : 0);
-                await using var r = await cmd.ExecuteReaderAsync(ct);
-                while (await r.ReadAsync(ct))
-                {
-                    var cid = r.GetInt32(0);
-                    var name = r.GetString(1);
-                    var desc = r.GetString(2);
-                    var dmId = r.GetInt64(3);
-                    var rawRole = r.GetString(4);
-                    var myRole = rawRole is "gm" or "dm" ? "dm" : "player";
-                    var myCharId = r.IsDBNull(5) ? (long?)null : r.GetInt64(5);
-                    var myCharName = r.IsDBNull(6) ? null : r.GetString(6);
-                    var match = baseCampaigns.FirstOrDefault(b => b.Id == cid) ?? baseCampaigns.FirstOrDefault();
+                var match = baseCampaigns.FirstOrDefault(b => b.Id == m.CampaignId);
+                var name = match?.Name ?? $"Campaign {m.CampaignId}";
+                var desc = match?.Subtitle ?? "Living World Campaign";
 
-                    list.Add(new
-                    {
-                        id = cid,
-                        slug = match?.Slug ?? $"campaign-{cid}",
-                        name,
-                        subtitle = string.IsNullOrWhiteSpace(desc) ? (match?.Subtitle ?? "Living World Campaign") : desc,
-                        description = desc,
-                        systemCode = match?.SystemCode ?? "dnd5e",
-                        worldName = match?.WorldName ?? "Icrandor",
-                        currentAct = match?.CurrentAct ?? "ACT I",
-                        currentSessionNumber = match?.CurrentSessionNumber ?? 1,
-                        currentLocationName = match?.CurrentLocationName ?? "Cinth",
-                        weaveEnabled = match?.WeaveEnabled ?? true,
-                        dm_user_id = dmId,
-                        my_role = myRole,
-                        my_character_id = myCharId,
-                        my_character_name = myCharName ?? (myRole == "dm" ? "Dungeon Master" : caller?.BoundCharacter)
-                    });
-                }
-            }
-            catch { }
-
-            if (list.Count == 0)
-            {
-                var isGm = caller is null || caller.Role == "gm";
-                foreach (var c in baseCampaigns)
+                list.Add(new
                 {
-                    list.Add(new
-                    {
-                        id = c.Id,
-                        slug = c.Slug,
-                        name = c.Name,
-                        subtitle = c.Subtitle,
-                        description = c.Subtitle,
-                        systemCode = c.SystemCode,
-                        worldName = c.WorldName,
-                        currentAct = c.CurrentAct,
-                        currentSessionNumber = c.CurrentSessionNumber,
-                        currentLocationName = c.CurrentLocationName,
-                        weaveEnabled = c.WeaveEnabled,
-                        dm_user_id = 1L,
-                        my_role = isGm ? "dm" : "player",
-                        my_character_id = isGm ? (long?)null : 16L,
-                        my_character_name = isGm ? "Dungeon Master" : (caller?.BoundCharacter ?? "Dal Riata")
-                    });
-                }
+                    id = m.CampaignId,
+                    slug = match?.Slug ?? $"campaign-{m.CampaignId}",
+                    name,
+                    subtitle = desc,
+                    description = desc,
+                    systemCode = match?.SystemCode ?? "dnd5e",
+                    worldName = match?.WorldName ?? "Icrandor",
+                    currentAct = match?.CurrentAct ?? "ACT I",
+                    currentSessionNumber = match?.CurrentSessionNumber ?? 1,
+                    currentLocationName = match?.CurrentLocationName ?? "Cinth",
+                    weaveEnabled = match?.WeaveEnabled ?? true,
+                    my_role = m.IsGm ? "dm" : "player",
+                    my_character_key = m.CharacterKey
+                });
             }
 
             return Results.Ok(list);
@@ -160,27 +112,26 @@ public static class LoomWeaverEndpoints
 
         api.MapGet("/campaigns/{campaignId:int}", async (int campaignId, HttpContext ctx, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
         {
-            var caller = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
-            var isGm = caller is null || caller.Role == "gm";
+            var access = await CampaignAccessResolver.ResolveAsync(ctx, campaignId, null, ct);
+            var membership = (ctx.Items[CampaignAccessResolver.ItemKey] as CampaignAccessContext)?.Membership;
             var baseCampaigns = await repo.GetCampaignsAsync(ct);
-            var c = baseCampaigns.FirstOrDefault(x => x.Id == campaignId) ?? baseCampaigns[0];
+            var c = baseCampaigns.FirstOrDefault(x => x.Id == campaignId);
+            var isGm = access.IsAccountGm;
             return Results.Ok(new
             {
                 id = campaignId,
-                slug = c.Slug,
-                name = c.Name,
-                subtitle = c.Subtitle,
-                description = c.Subtitle,
-                systemCode = c.SystemCode,
-                worldName = c.WorldName,
-                currentAct = c.CurrentAct,
-                currentSessionNumber = c.CurrentSessionNumber,
-                currentLocationName = c.CurrentLocationName,
-                weaveEnabled = c.WeaveEnabled,
-                dm_user_id = 1L,
+                slug = c?.Slug ?? $"campaign-{campaignId}",
+                name = c?.Name ?? $"Campaign {campaignId}",
+                subtitle = c?.Subtitle ?? string.Empty,
+                description = c?.Subtitle ?? string.Empty,
+                systemCode = c?.SystemCode ?? "dnd5e",
+                worldName = c?.WorldName ?? "Icrandor",
+                currentAct = c?.CurrentAct ?? "ACT I",
+                currentSessionNumber = c?.CurrentSessionNumber ?? 1,
+                currentLocationName = c?.CurrentLocationName ?? "Cinth",
+                weaveEnabled = c?.WeaveEnabled ?? true,
                 my_role = isGm ? "dm" : "player",
-                my_character_id = isGm ? (long?)null : 16L,
-                my_character_name = isGm ? "Dungeon Master" : (caller?.BoundCharacter ?? "Dal Riata")
+                my_character_key = membership?.CharacterKey
             });
         });
 
@@ -188,10 +139,11 @@ public static class LoomWeaverEndpoints
             int campaignId,
             string? role,
             string? type,
+            HttpContext ctx,
             LoomWeaverMySqlRepository repo,
             CancellationToken ct) =>
         {
-            var viewerRole = NormalizeRole(role);
+            var viewerRole = CampaignAccessResolver.Resolve(ctx, campaignId, role).EffectiveViewerRole;
             var entities = await repo.GetAuthorizedEntitiesAsync(campaignId, viewerRole, type, ct);
             return Results.Ok(entities);
         });
@@ -199,10 +151,11 @@ public static class LoomWeaverEndpoints
         api.MapGet("/campaigns/{campaignId:int}/scenes", async (
             int campaignId,
             string? role,
+            HttpContext ctx,
             LoomWeaverMySqlRepository repo,
             CancellationToken ct) =>
         {
-            var viewerRole = NormalizeRole(role);
+            var viewerRole = CampaignAccessResolver.Resolve(ctx, campaignId, role).EffectiveViewerRole;
             var scenes = await repo.GetAuthorizedScenesAsync(campaignId, viewerRole, ct);
             return Results.Ok(scenes);
         });
@@ -210,10 +163,11 @@ public static class LoomWeaverEndpoints
         api.MapGet("/campaigns/{campaignId:int}/graph", async (
             int campaignId,
             string? role,
+            HttpContext ctx,
             LoomWeaverNeo4jService graph,
             CancellationToken ct) =>
         {
-            var viewerRole = NormalizeRole(role);
+            var viewerRole = CampaignAccessResolver.Resolve(ctx, campaignId, role).EffectiveViewerRole;
             var subgraph = await graph.GetAuthorizedSubgraphAsync(campaignId, viewerRole, ct);
             return Results.Ok(subgraph);
         });
@@ -222,10 +176,11 @@ public static class LoomWeaverEndpoints
             int campaignId,
             string? q,
             string? role,
+            HttpContext ctx,
             LoomWeaverMySqlRepository repo,
             CancellationToken ct) =>
         {
-            var viewerRole = NormalizeRole(role);
+            var viewerRole = CampaignAccessResolver.Resolve(ctx, campaignId, role).EffectiveViewerRole;
             var queryText = string.IsNullOrWhiteSpace(q) ? "What is happening in Cinth?" : q.Trim();
             var entities = await repo.GetAuthorizedEntitiesAsync(campaignId, viewerRole, null, ct);
             var matches = entities

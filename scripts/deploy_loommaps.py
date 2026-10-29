@@ -1,17 +1,18 @@
 """
 Deploys LoomMaps Studio (https://maps.loom-weaver.com), updated LoomWeaver V2 frontend (/maps),
 updated .NET 10 backend API, Python 3D-to-PNG thumbnail script, and the 526 pre-rendered PNG
-thumbnails to production (209.46.127.226).
+thumbnails to production.
 """
 import os
 import sys
 import tarfile
 import time
-import paramiko
+import lw_deploy_env as env
+from lw_deploy_env import paramiko
 
-HOST = "209.46.127.226"
-USER = "iamtrash"
-PASS = os.environ.get("LW_SSH_PASS", "tZ-2jETuYpgVRzFBF=09")
+HOST = env.HOST
+USER = env.USER
+PASS = env.PASS
 
 ROOT = r"C:\repos\Jane\Jane\LoomWeaverV2"
 MAPS_DIST = os.path.join(ROOT, "loommaps-studio", "dist", "loommaps-studio", "browser")
@@ -115,10 +116,8 @@ def main() -> int:
     if os.path.exists(FE_DIST):
         build_tar(FE_DIST, FE_TAR, exclude_subpath="assets")
 
-    print(f"2. Connecting to {HOST}...")
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(HOST, username=USER, password=PASS, timeout=30)
+    print("2. Connecting to the production server...")
+    ssh = env.connect()
 
     sftp = ssh.open_sftp()
     print("3. Uploading archives and Python thumbnail script to /tmp...")

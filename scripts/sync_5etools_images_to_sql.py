@@ -10,12 +10,13 @@ Populates all 29,271+ images from /var/www/jane-assets/5etools/img/ into MySQL:
 import json
 import os
 import re
+import sys
 import pymysql
 
 IMG_DIR = "/var/www/jane-assets/5etools/img"
 DB_HOST = "localhost"
 DB_USER = "loomweaver_app"
-DB_PASS = "Sp34kFri3nd4nd3nt3r!"
+DB_PASS = os.environ.get("LW_DB_PASSWORD") or sys.exit("LW_DB_PASSWORD must be set in the environment")
 
 CATEGORY_FOLDERS = {
     "adventure", "backgrounds", "bastions", "bestiary", "book", "characters",

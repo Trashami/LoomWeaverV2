@@ -201,7 +201,7 @@ export class EffectsPageComponent implements AfterViewInit, OnDestroy {
 
   constructor() {
     this.http
-      .get<readonly ParticleEmitterCurveVm[]>('/api/v2/campaigns/1/effects/emitter-presets')
+      .get<readonly ParticleEmitterCurveVm[]>(`/api/v2/campaigns/${this.store.activeCampaignId()}/effects/emitter-presets`)
       .subscribe({
         next: (res) => {
           if (res?.length) this.emitterPresets.set(res);
@@ -226,7 +226,7 @@ export class EffectsPageComponent implements AfterViewInit, OnDestroy {
     };
 
     this.http
-      .post<ParticleEmitterCurveVm>('/api/v2/campaigns/1/effects/emitter-presets', payload)
+      .post<ParticleEmitterCurveVm>(`/api/v2/campaigns/${this.store.activeCampaignId()}/effects/emitter-presets`, payload)
       .subscribe({
         next: (created) => {
           this.emitterPresets.update((prev) => [created, ...prev]);

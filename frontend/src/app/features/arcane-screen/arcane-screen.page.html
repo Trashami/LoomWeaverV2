@@ -53,6 +53,14 @@
         <span>Roll {{ selectedDiceFormula() }}</span>
       </button>
       <lw-button variant="gold" size="sm" (pressed)="nextTurn()">Next Turn</lw-button>
+      @if (serverSync.scenes().length > 0) {
+        <select class="lw-vtt-tool-btn" aria-label="Saved map scene" [ngModel]="serverSync.activeSceneKey()" (ngModelChange)="serverSync.loadScene($event)">
+          <option value="">Demo scene</option>
+          @for (scene of serverSync.scenes(); track scene.sceneKey) {
+            <option [value]="scene.sceneKey">{{ scene.name }}</option>
+          }
+        </select>
+      }
       <a class="lw-vtt-tool-btn" routerLink="/encounters">Build Encounters</a>
       <button ngpButton type="button" class="lw-vtt-tool-btn lw-vtt-tool-btn--panel" (click)="battle.rightPanelCollapsed.set(!battle.rightPanelCollapsed())">
         <span>{{ battle.rightPanelCollapsed() ? 'Open Panel' : 'Hide Panel' }}</span>
@@ -63,7 +71,7 @@
   <div class="lw-vtt-body">
     <section class="lw-vtt-map-stage" [class.lw-vtt-map-stage--3d]="battle.mapMode3D()" aria-label="Interactive Encounter Battle Map">
       <canvas #vttCanvas class="lw-vtt-babylon-canvas" [class.lw-vtt-babylon-canvas--active]="battle.mapMode3D()"></canvas>
-      <div class="lw-vtt-map-backdrop" [class.lw-vtt-map-backdrop--dimmed]="battle.mapMode3D()" [style.backgroundImage]="'url(' + vtt.activeLiveEncounter().thumbnailUrl + ')'"></div>
+      <div class="lw-vtt-map-backdrop" [class.lw-vtt-map-backdrop--dimmed]="battle.mapMode3D()" [style.backgroundImage]="'url(' + (vtt.activeLiveEncounter()?.thumbnailUrl ?? '') + ')'"></div>
 
       <svg #battleSvg class="lw-vtt-svg" [class.lw-vtt-svg--3d-overlay]="battle.mapMode3D()" viewBox="0 0 1200 800" preserveAspectRatio="none" (mousemove)="onBattleMapPointerMove($event)" (mouseup)="onBattleMapMouseUp()" (click)="onBattleMapClick($event)">
         <defs>
@@ -327,7 +335,7 @@
             <button ngpButton type="button" (click)="battle.openDmDrawer.set('none')">Close</button>
           </div>
           <div class="lw-vtt-roster-strip">
-            @for (trap of vtt.activeLiveEncounter().traps; track trap.id) {
+            @for (trap of vtt.activeLiveEncounter()?.traps ?? []; track trap.id) {
               <div class="lw-vtt-trap-chip">
                 <strong>Trap: {{ trap.name }}</strong>
                 <span>{{ trap.saveOrAttack }} · {{ trap.damageFormula }} · Spot DC {{ trap.perceptionDc }}</span>
@@ -355,6 +363,17 @@
             </div>
 
             <div class="lw-vtt-settings-modal__body">
+              <label class="lw-vtt-setting-row">
+                <div class="lw-vtt-setting-row__label">
+                  <strong>Action Bar Skin</strong>
+                  <span>Choose the look of your bottom action bar.</span>
+                </div>
+                <select [ngModel]="battle.actionBarSettings().skin" (ngModelChange)="battle.updateActionBarSettings({ skin: $event })">
+                  @for (s of actionBarSkins; track s.id) {
+                    <option [value]="s.id">{{ s.label }}</option>
+                  }
+                </select>
+              </label>
               <label class="lw-vtt-setting-row">
                 <div class="lw-vtt-setting-row__label">
                   <strong>Action Bar Opacity ({{ battle.actionBarSettings().opacity }}%)</strong>
@@ -400,98 +419,7 @@
         </div>
       }
 
-      <footer class="lw-vtt-action-bar"
-              [class.lw-vtt-action-bar--compact]="battle.actionBarSettings().compactMode"
-              [style.opacity]="battle.actionBarSettings().opacity / 100"
-              aria-label="Character Turn Action Bar">
-        <div class="lw-vtt-hotbar-shell">
-          <div class="lw-vtt-portrait-medallion">
-            <div class="lw-vtt-portrait-orb" [class.active-turn]="isObserverActiveTurn()">
-              <span class="lw-vtt-portrait-initials">{{ battle.activeObserverToken().name.slice(0, 2).toUpperCase() }}</span>
-              <span class="lw-vtt-portrait-ac" title="Armor Class">AC {{ battle.activeObserverToken().armorClass }}</span>
-            </div>
-            <div class="lw-vtt-portrait-vitals">
-              <div class="lw-vtt-portrait-name-row">
-                <strong>{{ battle.activeObserverToken().name }}</strong>
-                <span class="lw-vtt-turn-state" [class.ready]="isObserverActiveTurn()">
-                  {{ isObserverActiveTurn() ? 'ACTIVE TURN' : 'WAITING TURN' }}
-                </span>
-              </div>
-              <div class="lw-vtt-hp-track">
-                <div class="lw-vtt-hp-fill" [style.width.%]="(battle.activeObserverToken().currentHp / battle.activeObserverToken().maxHp) * 100"></div>
-                <span>HP {{ battle.activeObserverToken().currentHp }} / {{ battle.activeObserverToken().maxHp }}</span>
-              </div>
-              <span class="lw-vtt-move-readout">Move: {{ battle.remainingMovementFeet() }}/{{ battle.activeObserverToken().movementFeet }}ft {{ store.viewerRole() === 'gm' ? '(DM Free Move)' : '' }}</span>
-            </div>
-          </div>
-
-          <div class="lw-vtt-hotbar-main">
-            <div class="lw-vtt-hotbar-ribbon">
-              <div class="lw-vtt-economy-pips">
-                <button ngpButton type="button" class="lw-vtt-econ-pip" [class.spent]="battle.activeObserverToken().actionUsed" (click)="vtt.toggleEconomySlot(battle.activeObserverToken().key, 'actionUsed')">
-                  <span class="lw-vtt-gem"></span>
-                  <span>Action</span>
-                </button>
-                <button ngpButton type="button" class="lw-vtt-econ-pip" [class.spent]="battle.activeObserverToken().bonusUsed" (click)="vtt.toggleEconomySlot(battle.activeObserverToken().key, 'bonusUsed')">
-                  <span class="lw-vtt-gem lw-vtt-gem--gold"></span>
-                  <span>Bonus</span>
-                </button>
-                <button ngpButton type="button" class="lw-vtt-econ-pip" [class.spent]="battle.activeObserverToken().reactionUsed" (click)="vtt.toggleEconomySlot(battle.activeObserverToken().key, 'reactionUsed')">
-                  <span class="lw-vtt-gem lw-vtt-gem--teal"></span>
-                  <span>Reaction</span>
-                </button>
-                <span class="lw-vtt-econ-pip lw-vtt-econ-pip--free">
-                  <span class="lw-vtt-gem"></span>
-                  <span>Free</span>
-                </span>
-              </div>
-
-              <div class="lw-vtt-category-tabs">
-                <button ngpButton type="button" [class.active]="battle.activeTurnCategory() === 'all'" (click)="battle.activeTurnCategory.set('all')">All</button>
-                <button ngpButton type="button" [class.active]="battle.activeTurnCategory() === 'melee'" (click)="battle.activeTurnCategory.set('melee')">Melee</button>
-                <button ngpButton type="button" [class.active]="battle.activeTurnCategory() === 'ranged'" (click)="battle.activeTurnCategory.set('ranged')">Ranged</button>
-                <button ngpButton type="button" [class.active]="battle.activeTurnCategory() === 'spell'" (click)="battle.activeTurnCategory.set('spell')">Spells</button>
-                <button ngpButton type="button" [class.active]="battle.activeTurnCategory() === 'bonus'" (click)="battle.activeTurnCategory.set('bonus')">Bonus</button>
-                <button ngpButton type="button" [class.active]="battle.activeTurnCategory() === 'reaction'" (click)="battle.activeTurnCategory.set('reaction')">Reaction</button>
-                <button ngpButton type="button" [class.active]="battle.activeTurnCategory() === 'free'" (click)="battle.activeTurnCategory.set('free')">Free</button>
-              </div>
-
-              <div class="lw-vtt-hotbar-utils">
-                <button ngpButton type="button" class="lw-vtt-settings-btn" title="Action Bar & VTT Settings" (click)="battle.settingsModalOpen.set(true)">
-                  <lw-icon name="settings" [size]="15" />
-                  <span>Settings</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="lw-vtt-hotbar-slots">
-              @for (ab of battle.filteredTurnAbilities(); track ab.id; let idx = $index) {
-                <button ngpButton type="button"
-                        class="lw-vtt-slot-tile"
-                        [class.lw-vtt-slot-tile--pending]="battle.pendingAbility()?.id === ab.id"
-                        [class.lw-vtt-slot-tile--disabled]="!battle.isAbilityAvailableOnTurn(ab)"
-                        (click)="selectTurnAbility(ab)">
-                  <div class="lw-vtt-slot-tile__top">
-                    @if (battle.actionBarSettings().showHotbarKeybinds) {
-                      <span class="lw-vtt-slot-key">{{ idx + 1 }}</span>
-                    }
-                    <span class="lw-vtt-slot-cost">{{ ab.actionCost === '1 Bonus Action' ? 'Bonus' : ab.actionCost === '1 Reaction' ? 'React' : ab.actionCost === 'Free Action' ? 'Free' : 'Action' }}</span>
-                  </div>
-                  <strong class="lw-vtt-slot-name">{{ ab.name }}</strong>
-                  <div class="lw-vtt-slot-tile__foot">
-                    <span class="lw-vtt-slot-range">
-                      {{ ab.rangeFeet }}ft · {{ battle.isSingleOrMultiTargetAbility(ab) ? (ab.maxTargets > 1 ? ab.maxTargets + ' Targets' : '1 Target') : ab.aoeRadiusFeet + 'ft AoE' }}
-                    </span>
-                    @if (battle.actionBarSettings().showHotbarKeybinds) {
-                      <strong class="lw-vtt-slot-dmg">{{ ab.damageFormula }}</strong>
-                    }
-                  </div>
-                </button>
-              }
-            </div>
-          </div>
-        </div>
-      </footer>
+      <lw-vtt-action-bar [skin]="battle.actionBarSettings().skin" [compact]="battle.actionBarSettings().compactMode" [opacity]="battle.actionBarSettings().opacity" [showKeys]="battle.actionBarSettings().showHotbarKeybinds" (abilitySelected)="selectTurnAbility($event)" (endTurn)="nextTurn()" (settingsRequested)="battle.settingsModalOpen.set(true)" />
     </section>
 
     @if (!battle.rightPanelCollapsed()) {

@@ -17,37 +17,19 @@ public sealed record ImportCampaignEffectRequest(JsonElement FileContent, string
 
 public static class EffectLibraryAndAssignmentEndpoints
 {
-    private static bool _tablesChecked;
-    private static string _dbPrefix = "";
-
     private static string Key(string name) => Regex.Replace((name ?? "").ToLowerInvariant(), "[^a-z0-9]", "");
 
     public static async Task<string> EnsureTablesAsync(MySqlConnection conn, CancellationToken ct)
     {
-        if (_tablesChecked) return _dbPrefix;
-        try
-        {
-            await using var checkCmd = new MySqlCommand(
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='jane_scrum' AND table_name='mw_effect_library'",
-                conn);
-            var hasJaneScrum = Convert.ToInt32(await checkCmd.ExecuteScalarAsync(ct)) > 0;
-            _dbPrefix = hasJaneScrum ? "jane_scrum." : "";
-        }
-        catch
-        {
-            _dbPrefix = "";
-        }
-
-        var p = _dbPrefix;
-        var ddl = $"""
-            CREATE TABLE IF NOT EXISTS {p}mw_effect_library (
+        var ddl = """
+            CREATE TABLE IF NOT EXISTS lw_effect_library (
               user_id BIGINT NOT NULL,
               effect_id VARCHAR(80) NOT NULL,
               definition_json LONGTEXT NOT NULL,
               updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
               PRIMARY KEY (user_id, effect_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-            CREATE TABLE IF NOT EXISTS {p}mw_effect_assignments (
+            CREATE TABLE IF NOT EXISTS lw_effect_assignments (
               campaign_id BIGINT NOT NULL,
               character_id BIGINT NOT NULL DEFAULT 0,
               spell_key VARCHAR(120) NOT NULL,
@@ -56,7 +38,7 @@ public static class EffectLibraryAndAssignmentEndpoints
               updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
               PRIMARY KEY (campaign_id, character_id, spell_key)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-            CREATE TABLE IF NOT EXISTS {p}mw_summon_assets (
+            CREATE TABLE IF NOT EXISTS lw_summon_assets (
               id VARCHAR(64) NOT NULL PRIMARY KEY,
               user_id BIGINT NOT NULL,
               kind VARCHAR(16) NOT NULL,
@@ -69,8 +51,7 @@ public static class EffectLibraryAndAssignmentEndpoints
             """;
         await using var cmd = new MySqlCommand(ddl, conn);
         await cmd.ExecuteNonQueryAsync(ct);
-        _tablesChecked = true;
-        return _dbPrefix;
+        return "lw_";
     }
 
     public static RouteGroupBuilder MapEffectLibraryAndAssignmentEndpoints(this RouteGroupBuilder api)
@@ -84,7 +65,7 @@ public static class EffectLibraryAndAssignmentEndpoints
                 await using var db = await mysql.OpenConnectionAsync(ct);
                 var p = await EnsureTablesAsync(db, ct);
                 await using var cmd = new MySqlCommand(
-                    $"SELECT definition_json FROM {p}mw_effect_library WHERE user_id=@u ORDER BY updated_at DESC LIMIT 500", db);
+                    $"SELECT definition_json FROM {p}effect_library WHERE user_id=@u ORDER BY updated_at DESC LIMIT 500", db);
                 cmd.Parameters.AddWithValue("@u", u.Id);
                 var list = new List<JsonElement>();
                 await using var r = await cmd.ExecuteReaderAsync(ct);
@@ -111,7 +92,7 @@ public static class EffectLibraryAndAssignmentEndpoints
             await using var db = await mysql.OpenConnectionAsync(ct);
             var p = await EnsureTablesAsync(db, ct);
             await using var cmd = new MySqlCommand(
-                $"INSERT INTO {p}mw_effect_library (user_id,effect_id,definition_json) VALUES (@u,@id,@j) ON DUPLICATE KEY UPDATE definition_json=@j, updated_at=CURRENT_TIMESTAMP",
+                $"INSERT INTO {p}effect_library (user_id,effect_id,definition_json) VALUES (@u,@id,@j) ON DUPLICATE KEY UPDATE definition_json=@j, updated_at=CURRENT_TIMESTAMP",
                 db);
             cmd.Parameters.AddWithValue("@u", u.Id);
             cmd.Parameters.AddWithValue("@id", id);
@@ -126,7 +107,7 @@ public static class EffectLibraryAndAssignmentEndpoints
             if (u is null) return Results.Unauthorized();
             await using var db = await mysql.OpenConnectionAsync(ct);
             var p = await EnsureTablesAsync(db, ct);
-            await using var cmd = new MySqlCommand($"DELETE FROM {p}mw_effect_library WHERE user_id=@u AND effect_id=@id", db);
+            await using var cmd = new MySqlCommand($"DELETE FROM {p}effect_library WHERE user_id=@u AND effect_id=@id", db);
             cmd.Parameters.AddWithValue("@u", u.Id);
             cmd.Parameters.AddWithValue("@id", id);
             await cmd.ExecuteNonQueryAsync(ct);
@@ -139,7 +120,7 @@ public static class EffectLibraryAndAssignmentEndpoints
             await using var db = await mysql.OpenConnectionAsync(ct);
             var p = await EnsureTablesAsync(db, ct);
             await using var cmd = new MySqlCommand(
-                $"SELECT definition_json FROM {p}mw_effect_library WHERE effect_id=@id ORDER BY CASE WHEN user_id=@u THEN 0 ELSE 1 END LIMIT 1",
+                $"SELECT definition_json FROM {p}effect_library WHERE effect_id=@id ORDER BY CASE WHEN user_id=@u THEN 0 ELSE 1 END LIMIT 1",
                 db);
             cmd.Parameters.AddWithValue("@id", id);
             cmd.Parameters.AddWithValue("@u", u?.Id ?? 0);
@@ -201,7 +182,7 @@ public static class EffectLibraryAndAssignmentEndpoints
             {
                 var adaptedJson = EffectDefinitionValidator.NormalizeEffectJsonForCampaign(eff, cid, out var effId, out _);
                 await using var libCmd = new MySqlCommand(
-                    $"INSERT INTO {p}mw_effect_library (user_id,effect_id,definition_json) VALUES (@u,@id,@j) ON DUPLICATE KEY UPDATE definition_json=@j, updated_at=CURRENT_TIMESTAMP",
+                    $"INSERT INTO {p}effect_library (user_id,effect_id,definition_json) VALUES (@u,@id,@j) ON DUPLICATE KEY UPDATE definition_json=@j, updated_at=CURRENT_TIMESTAMP",
                     db);
                 libCmd.Parameters.AddWithValue("@u", u.Id);
                 libCmd.Parameters.AddWithValue("@id", effId);
@@ -212,7 +193,7 @@ public static class EffectLibraryAndAssignmentEndpoints
                 {
                     var chId = req.CharacterId ?? 0;
                     await using var assignCmd = new MySqlCommand(
-                        $"INSERT INTO {p}mw_effect_assignments (campaign_id,character_id,spell_key,spell_name,definition_json) VALUES (@c,@ch,@k,@n,@j) ON DUPLICATE KEY UPDATE spell_name=@n, definition_json=@j, updated_at=CURRENT_TIMESTAMP",
+                        $"INSERT INTO {p}effect_assignments (campaign_id,character_id,spell_key,spell_name,definition_json) VALUES (@c,@ch,@k,@n,@j) ON DUPLICATE KEY UPDATE spell_name=@n, definition_json=@j, updated_at=CURRENT_TIMESTAMP",
                         db);
                     assignCmd.Parameters.AddWithValue("@c", cid);
                     assignCmd.Parameters.AddWithValue("@ch", chId);
@@ -235,7 +216,7 @@ public static class EffectLibraryAndAssignmentEndpoints
             await using var db = await mysql.OpenConnectionAsync(ct);
             var p = await EnsureTablesAsync(db, ct);
             await using var cmd = new MySqlCommand(
-                $"SELECT spell_name, character_id, definition_json FROM {p}mw_effect_assignments WHERE campaign_id=@cid", db);
+                $"SELECT spell_name, character_id, definition_json FROM {p}effect_assignments WHERE campaign_id=@cid", db);
             cmd.Parameters.AddWithValue("@cid", cid);
             var list = new List<EffectAssignmentDto>();
             await using var r = await cmd.ExecuteReaderAsync(ct);
@@ -267,7 +248,7 @@ public static class EffectLibraryAndAssignmentEndpoints
             await using var db = await mysql.OpenConnectionAsync(ct);
             var p = await EnsureTablesAsync(db, ct);
             await using var cmd = new MySqlCommand(
-                $"INSERT INTO {p}mw_effect_assignments (campaign_id,character_id,spell_key,spell_name,definition_json) VALUES (@cid,@char,@key,@name,@json) ON DUPLICATE KEY UPDATE spell_name=@name, definition_json=@json, updated_at=CURRENT_TIMESTAMP",
+                $"INSERT INTO {p}effect_assignments (campaign_id,character_id,spell_key,spell_name,definition_json) VALUES (@cid,@char,@key,@name,@json) ON DUPLICATE KEY UPDATE spell_name=@name, definition_json=@json, updated_at=CURRENT_TIMESTAMP",
                 db);
             cmd.Parameters.AddWithValue("@cid", cid);
             cmd.Parameters.AddWithValue("@char", chId);
@@ -286,7 +267,7 @@ public static class EffectLibraryAndAssignmentEndpoints
             await using var db = await mysql.OpenConnectionAsync(ct);
             var p = await EnsureTablesAsync(db, ct);
             await using var cmd = new MySqlCommand(
-                $"DELETE FROM {p}mw_effect_assignments WHERE campaign_id=@cid AND character_id=@char AND spell_key=@key", db);
+                $"DELETE FROM {p}effect_assignments WHERE campaign_id=@cid AND character_id=@char AND spell_key=@key", db);
             cmd.Parameters.AddWithValue("@cid", cid);
             cmd.Parameters.AddWithValue("@char", chId);
             cmd.Parameters.AddWithValue("@key", Key(spellName));
@@ -298,29 +279,21 @@ public static class EffectLibraryAndAssignmentEndpoints
         {
             var u = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
             if (u is null) return Results.Unauthorized();
+            var access = await CampaignAccessResolver.ResolveAsync(ctx, (int)cid, null, ct);
             var list = new List<object>();
-            try
-            {
-                await using var db = await mysql.OpenConnectionAsync(ct);
-                var p = await EnsureTablesAsync(db, ct);
-                await using var cmd = new MySqlCommand(
-                    $"SELECT n.id, n.name, COALESCE(JSON_UNQUOTE(JSON_EXTRACT(n.details,'$.tokenUrl')), n.avatar_url, '') FROM {p}cm_characters n WHERE n.campaign_id=@c AND LOWER(COALESCE(n.character_type,'npc')) NOT IN ('pc','player') ORDER BY n.name LIMIT 200",
-                    db);
-                cmd.Parameters.AddWithValue("@c", cid);
-                await using var r = await cmd.ExecuteReaderAsync(ct);
-                while (await r.ReadAsync(ct))
-                {
-                    list.Add(new { id = r.GetInt64(0), name = r.GetString(1), tokenUrl = r.GetString(2) });
-                }
-            }
-            catch { }
-
-            if (list.Count == 0)
-            {
-                list.Add(new { id = 101L, name = "Laksis (Fire Drake Familiar)", tokenUrl = "/assets/tokens/dragon.png" });
-                list.Add(new { id = 102L, name = "Cinth Clockwork Warden", tokenUrl = "/assets/tokens/construct.png" });
-                list.Add(new { id = 103L, name = "Spectral Hound", tokenUrl = "/assets/tokens/wolf.png" });
-            }
+            await using var db = await mysql.OpenConnectionAsync(ct);
+            await using var cmd = new MySqlCommand("""
+                SELECT id, title, artwork_url, visibility
+                FROM lw_adventure_nodes
+                WHERE campaign_id = @c AND node_kind = 'npc'
+                  AND (@gm = 1 OR visibility <> 'gm')
+                ORDER BY title LIMIT 200
+                """, db);
+            cmd.Parameters.AddWithValue("@c", cid);
+            cmd.Parameters.AddWithValue("@gm", access.IsEffectiveGm ? 1 : 0);
+            await using var r = await cmd.ExecuteReaderAsync(ct);
+            while (await r.ReadAsync(ct))
+                list.Add(new { id = r.GetString(0), name = r.GetString(1), tokenUrl = r.GetString(2) });
             return Results.Ok(list);
         });
 

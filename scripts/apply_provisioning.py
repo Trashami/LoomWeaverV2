@@ -1,44 +1,50 @@
 import os
-import paramiko
+import lw_deploy_env as env
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SQL_FILE = os.path.join(ROOT, "scripts", "provision_loomweaver_mysql.sql")
 CYPHER_FILE = os.path.join(ROOT, "scripts", "provision_loomweaver_neo4j.cypher")
 
-ssh = paramiko.SSHClient()
-ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-ssh.connect("209.46.127.226", username="iamtrash", password="tZ-2jETuYpgVRzFBF=09")
+env.require("LW_DB_ROOT_PASSWORD")
+env.require("LW_DB_PASSWORD")
+env.require("LW_NEO4J_PASSWORD")
+ssh = env.connect()
 
 sftp = ssh.open_sftp()
-sftp.put(SQL_FILE, "/tmp/provision_loomweaver_mysql.sql")
+with open(SQL_FILE, encoding="utf-8") as sql_handle:
+    provision_sql = sql_handle.read().replace("__LW_DB_PASSWORD__", env.DB_PASSWORD.replace("\\", "\\\\").replace("'", "\\'"))
+with sftp.open("/tmp/provision_loomweaver_mysql.sql", "w") as remote_sql:
+    remote_sql.chmod(0o600)
+    remote_sql.write(provision_sql)
 sftp.put(CYPHER_FILE, "/tmp/provision_loomweaver_neo4j.cypher")
 sftp.close()
 
-print("Applying MySQL schema & seed to 'loomweaver' database...")
-_, out, err = ssh.exec_command('mysql -u root -p"Sp34kFri3nd4nd3nt3r!" < /tmp/provision_loomweaver_mysql.sql')
-print(out.read().decode())
-err_text = err.read().decode()
-if err_text:
-    print("MySQL stderr:", err_text)
+ROOT_CNF = "/tmp/.lw_mysql_root.cnf"
+APP_CNF = "/tmp/.lw_mysql_app.cnf"
+NEO_ENV = "/tmp/.lw_neo4j.env"
+env.put_mysql_cnf(ssh, ROOT_CNF, "root", env.DB_ROOT_PASSWORD)
+env.put_mysql_cnf(ssh, APP_CNF, "loomweaver_app", env.DB_PASSWORD)
+env.put_secret_file(ssh, NEO_ENV, f"NEO4J_USERNAME=neo4j\nNEO4J_PASSWORD={env.NEO4J_PASSWORD}\n")
 
-_, out, _ = ssh.exec_command('mysql -u loomweaver_app -p"Sp34kFri3nd4nd3nt3r!" loomweaver -e "SHOW TABLES; SELECT id, slug, name, system_code FROM lw_campaigns; SELECT COUNT(*) AS total_entities FROM lw_entities;"')
-print("=== Verified 'loomweaver' MySQL Database ===")
-print(out.read().decode())
+try:
+    print("Applying MySQL schema & seed to 'loomweaver' database...")
+    print(env.run(ssh, f'mysql --defaults-extra-file={ROOT_CNF} < /tmp/provision_loomweaver_mysql.sql', check=False))
 
-print("Applying Neo4j graph schema & seed to 'loomweaver' namespace...")
-cypher_cmd = (
-    'echo "tZ-2jETuYpgVRzFBF=09" | sudo -S docker cp /tmp/provision_loomweaver_neo4j.cypher mythweaver-neo4j:/tmp/provision_loomweaver_neo4j.cypher && '
-    'echo "tZ-2jETuYpgVRzFBF=09" | sudo -S docker exec mythweaver-neo4j cypher-shell -u neo4j -p "Sp34kFri3nd4nd3nt3r!" -f /tmp/provision_loomweaver_neo4j.cypher'
-)
-_, out, err = ssh.exec_command(cypher_cmd)
-print(out.read().decode())
-err_cypher = err.read().decode()
-if err_cypher:
-    print("Neo4j stderr:", err_cypher)
+    out = env.run(ssh, f'mysql --defaults-extra-file={APP_CNF} loomweaver -e "SHOW TABLES; SELECT id, slug, name, system_code FROM lw_campaigns; SELECT COUNT(*) AS total_entities FROM lw_entities;"', check=False)
+    print("=== Verified 'loomweaver' MySQL Database ===")
+    print(out)
 
-verify_cypher = 'echo "tZ-2jETuYpgVRzFBF=09" | sudo -S docker exec mythweaver-neo4j cypher-shell -u neo4j -p "Sp34kFri3nd4nd3nt3r!" "MATCH (n:Entity {namespace: \'loomweaver\'}) OPTIONAL MATCH (n)-[r]->() RETURN count(DISTINCT n) AS loomweaver_nodes, count(r) AS loomweaver_edges;"'
-_, out, _ = ssh.exec_command(verify_cypher)
-print("=== Verified 'loomweaver' Neo4j Graph ===")
-print(out.read().decode())
+    print("Applying Neo4j graph schema & seed to 'loomweaver' namespace...")
+    cypher_cmd = (
+        'docker cp /tmp/provision_loomweaver_neo4j.cypher mythweaver-neo4j:/tmp/provision_loomweaver_neo4j.cypher && '
+        f'docker exec --env-file {NEO_ENV} mythweaver-neo4j cypher-shell -f /tmp/provision_loomweaver_neo4j.cypher'
+    )
+    print(env.run(ssh, cypher_cmd, sudo=True, check=False))
 
-ssh.close()
+    verify_cypher = f'docker exec --env-file {NEO_ENV} mythweaver-neo4j cypher-shell "MATCH (n:Entity {{namespace: \'loomweaver\'}}) OPTIONAL MATCH (n)-[r]->() RETURN count(DISTINCT n) AS loomweaver_nodes, count(r) AS loomweaver_edges;"'
+    out = env.run(ssh, verify_cypher, sudo=True, check=False)
+    print("=== Verified 'loomweaver' Neo4j Graph ===")
+    print(out)
+finally:
+    env.run(ssh, f"rm -f {ROOT_CNF} {APP_CNF} {NEO_ENV} /tmp/provision_loomweaver_mysql.sql", check=False)
+    ssh.close()

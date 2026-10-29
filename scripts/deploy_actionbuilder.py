@@ -1,6 +1,6 @@
 """
 Deploys ActionBuilder Studio (actionbuilder-studio) and the unified .NET 10 backend
-(LoomWeaver.Modules.ActionStudio) to 209.46.127.226 for actionbuilder.loom-weaver.com,
+(LoomWeaver.Modules.ActionStudio) to the production server for actionbuilder.loom-weaver.com,
 and pushes both LoomWeaver-ActionBuilder and LoomWeaverV2 to GitHub.
 """
 import json
@@ -10,7 +10,7 @@ import subprocess
 import tarfile
 import urllib.error
 import urllib.request
-import paramiko
+import lw_deploy_env as env
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AB_ROOT = os.path.join(ROOT, "actionbuilder-studio")
@@ -86,9 +86,7 @@ def deploy_to_server() -> None:
         tf.add(AB_DIST, arcname="client")
         tf.add(BACKEND_PUB, arcname="backend")
 
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect("209.46.127.226", username="iamtrash", password="tZ-2jETuYpgVRzFBF=09")
+    ssh = env.connect()
 
     sftp = ssh.open_sftp()
     sftp.put(DEPLOY_TAR, "/tmp/actionbuilder_unified.tar.gz")
@@ -106,13 +104,13 @@ rm -f /tmp/actionbuilder_unified.tar.gz
 echo "2. Updating Unified .NET Backend at /var/www/loomweaver/server..."
 mkdir -p /var/www/loomweaver/server
 cp -a "$RELEASE_DIR/backend/." /var/www/loomweaver/server/
-chown -R iamtrash:www-data /var/www/loomweaver/server
+chown -R ${SUDO_USER}:www-data /var/www/loomweaver/server
 chmod -R 755 /var/www/loomweaver/server
 
 echo "3. Activating ActionBuilder Studio frontend at /var/www/actionbuilder/current..."
 rm -rf /var/www/actionbuilder/current
 ln -sfn "$RELEASE_DIR" /var/www/actionbuilder/current
-chown -R iamtrash:www-data /var/www/actionbuilder
+chown -R ${SUDO_USER}:www-data /var/www/actionbuilder
 chmod -R 755 /var/www/actionbuilder
 
 echo "4. Updating nginx for actionbuilder.loom-weaver.com..."
@@ -189,14 +187,8 @@ echo ""
         f.write(remote_script)
     sftp.close()
 
-    _, out, err = ssh.exec_command(
-        'echo "tZ-2jETuYpgVRzFBF=09" | sudo -S bash /tmp/deploy_actionbuilder_unified.sh'
-    )
-    print(out.read().decode())
-    err_txt = err.read().decode()
-    if err_txt:
-        print("Remote stderr:", err_txt)
-
+    out = env.run(ssh, "bash /tmp/deploy_actionbuilder_unified.sh", sudo=True, check=False)
+    print(out)
     ssh.close()
     if os.path.exists(DEPLOY_TAR):
         os.remove(DEPLOY_TAR)

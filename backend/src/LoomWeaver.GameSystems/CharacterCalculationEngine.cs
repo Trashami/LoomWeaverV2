@@ -4,6 +4,23 @@ namespace LoomWeaver.GameSystems;
 
 public sealed class CharacterCalculationEngine
 {
+    private static readonly int[] Dnd5eXpThresholds =
+        [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000];
+
+    public const int MaxLevel = 20;
+
+    /// <summary>Total XP required to reach <paramref name="level"/> (5e SRD table; 1000 XP per level for pf2e).</summary>
+    public static int XpForLevel(string systemCode, int level)
+    {
+        var clamped = Math.Clamp(level, 1, MaxLevel);
+        return systemCode switch
+        {
+            "pf2e" => (clamped - 1) * 1000,
+            "vampire_v5" => 0,
+            _ => Dnd5eXpThresholds[clamped - 1]
+        };
+    }
+
     public static int ComputeModifier(string systemCode, int score) =>
         systemCode == "vampire_v5"
             ? Math.Clamp(score, 1, 5)
@@ -58,7 +75,7 @@ public sealed class CharacterCalculationEngine
             CurrentHp = currentHp,
             InitiativeBonus = dexMod + (sheet.SystemCode == "pf2e" ? prof : 0),
             ActionEconomySummary = economy,
-            LevelUpEligible = sheet.CurrentXp >= sheet.NextLevelXp
+            LevelUpEligible = sheet.Level < MaxLevel && sheet.CurrentXp >= sheet.NextLevelXp
         };
     }
 
@@ -76,7 +93,7 @@ public sealed class CharacterCalculationEngine
             .ToList();
 
         var updatedFeatures = sheet.Features.Append($"Lv.{nextLevel}: {selectedFeature}").ToList();
-        var nextThreshold = sheet.NextLevelXp + (sheet.SystemCode == "pf2e" ? 1000 : 11000);
+        var nextThreshold = XpForLevel(sheet.SystemCode, nextLevel + 1);
 
         return RecalculateSheet(sheet with
         {

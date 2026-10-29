@@ -9,20 +9,6 @@ import {
   LwMarketplaceMapItem,
 } from '../../../shared/ui/map-studio-landing/map-studio-landing.component';
 
-export const DEFAULT_CAMPAIGN_SESSIONS: readonly { id: string; label: string }[] = [
-  { id: 'session-15', label: 'Session 15 — The Forgotten Crypt' },
-  { id: 'session-16', label: 'Session 16 — Cinth Masquerade Gala' },
-  { id: 'session-17', label: 'Session 17 — Shadow Under the Mountain' },
-  { id: 'session-18', label: 'Session 18 — Plains of Red Crossing' },
-];
-
-export const DEFAULT_CAMPAIGN_ENCOUNTERS: readonly { id: string; label: string }[] = [
-  { id: 'enc-cinth-masquerade', label: 'Lord of Cinth Vampire Gala' },
-  { id: 'enc-forgotten-crypt', label: 'Forgotten Crypt Runic Seal Ambush' },
-  { id: 'enc-trapped-dragon', label: 'Trapped Ancient Dragon Beneath the Mountain' },
-  { id: 'enc-artificers-guild', label: 'Cinth Artificers Guild Defense' },
-];
-
 export const DEFAULT_EXISTING_MAPS: readonly LwExistingMapSummary[] = [
   {
     sceneKey: 'scene-forgotten-crypt',

@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using LoomWeaver.Infrastructure.MySql;
+using LoomWeaver.Modules.Auth;
 using LoomWeaver.Modules.Realtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -96,8 +97,18 @@ public static class CharacterSheetLiveTelemetryEndpoints
         group.MapPost("/campaigns/{campaignId:int}/character-sheet/live-state", async (
             int campaignId,
             UpdateCharacterSheetLiveStateRequest req,
-            IHubContext<TableRealtimeHub> hubContext) =>
+            HttpContext httpContext,
+            LoomWeaverMySqlRepository mysql,
+            IHubContext<TableRealtimeHub> hubContext,
+            CancellationToken ct) =>
         {
+            if (!CampaignAccessResolver.Resolve(httpContext, campaignId).IsAccountGm)
+            {
+                return Results.Json(
+                    new { message = "Only the campaign GM can change live session state." },
+                    statusCode: StatusCodes.Status403Forbidden);
+            }
+
             CharacterSheetLiveStateDto updated;
             lock (SyncLock)
             {
@@ -123,6 +134,8 @@ public static class CharacterSheetLiveTelemetryEndpoints
                 $"Session Live: {(updated.IsSessionLive ? "ON" : "OFF")} ({updated.ActiveSessionTitle}) · Encounter Live: {(updated.IsEncounterLive ? $"ON (Round {updated.ActiveRound})" : "OFF")}";
             var evt = TableRealtimeEndpoints.RecordEvent(
                 campaignId, "live_session_state_changed", "Table Controller", statusSummary, JsonSerializer.Serialize(updated));
+            await TableRealtimeHub.ReconcileCampaignConnectionsAsync(
+                mysql, hubContext.Groups, campaignId, ct);
             await hubContext.Clients.Group($"campaign-{campaignId}").SendAsync("TableEventReceived", evt);
             return Results.Ok(updated);
         });
@@ -258,6 +271,8 @@ public static class CharacterSheetLiveTelemetryEndpoints
             var evt = TableRealtimeEndpoints.RecordEvent(
                 campaignId, trackedInEncounter ? "encounter_sheet_roll" : "session_sheet_roll",
                 charName, summaryMessage, JsonSerializer.Serialize(logEntry));
+            await TableRealtimeHub.ReconcileCampaignConnectionsAsync(
+                mysql, hubContext.Groups, campaignId, ct);
             await hubContext.Clients.Group($"campaign-{campaignId}").SendAsync("TableEventReceived", evt);
 
             return Results.Ok(new { roll = logEntry, telemetry = updatedTelemetry, liveState });

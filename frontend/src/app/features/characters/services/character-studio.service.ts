@@ -79,22 +79,22 @@ export class CharacterStudioService {
    */
   readonly authorizedSheetsForActiveCampaign = computed<readonly CharacterSheetVm[]>(() => {
     const campaignId = this.store.activeCampaignId();
+    if (campaignId <= 0) return [];
+
     const isEffectiveCampaignGm = this.store.isGmForActiveCampaign() && this.store.viewerRole() === 'gm';
-    const all = this.sheets();
     if (isEffectiveCampaignGm) {
-      const inCamp = all.filter((s) => s.campaignId === campaignId || s.campaignId === 1);
-      return inCamp.length > 0 ? inCamp : all;
+      return this.sheets().filter((s) => s.campaignId === campaignId);
     }
     const owned = this.userOwnedSheets();
     const campaignSpecificOwned = owned.find((s) => s.campaignId === campaignId);
-    const chosen = campaignSpecificOwned ?? owned[0] ?? all[0];
+    const chosen = campaignSpecificOwned;
     return chosen ? [chosen] : [];
   });
 
-  readonly activeSheet = computed<CharacterSheetVm>(() => {
+  readonly activeSheet = computed<CharacterSheetVm | null>(() => {
     const authorized = this.authorizedSheetsForActiveCampaign();
-    const found = authorized.find((s) => s.characterKey === this.selectedCharacterKey()) ?? authorized[0] ?? this.sheets()[0];
-    return this.recalculate(found, this.activeSystem());
+    const found = authorized.find((s) => s.characterKey === this.selectedCharacterKey()) ?? authorized[0];
+    return found ? this.recalculate(found, this.activeSystem()) : null;
   });
 
   private lastInitializedAccountId = '';
@@ -322,11 +322,20 @@ export class CharacterStudioService {
   }
 
   addEquipmentFromDatabase(item: EquipmentLoadoutItemVm, equipNow: boolean): void {
-    const key = this.selectedCharacterKey();
+    this.addEquipmentToCharacter(this.selectedCharacterKey(), item, equipNow);
+  }
+
+  addEquipmentToCharacter(characterKey: string, item: EquipmentLoadoutItemVm, equipNow: boolean): CharacterSheetVm | null {
     const newItem: EquipmentLoadoutItemVm = { ...item, id: `${item.id}-${Date.now().toString(36).slice(-4)}`, equipped: equipNow };
+    let updatedSheet: CharacterSheetVm | null = null;
     this.sheets.update((list) =>
-      list.map((sheet) => (sheet.characterKey === key ? this.recalculate({ ...sheet, equipment: [newItem, ...sheet.equipment] }, this.activeSystem()) : sheet)),
+      list.map((sheet) => {
+        if (sheet.characterKey !== characterKey) return sheet;
+        updatedSheet = this.recalculate({ ...sheet, equipment: [newItem, ...sheet.equipment] }, this.activeSystem());
+        return updatedSheet;
+      }),
     );
+    return updatedSheet;
   }
 
   removeEquipmentItem(equipmentId: string): void {

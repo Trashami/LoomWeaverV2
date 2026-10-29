@@ -1,0 +1,71 @@
+<section class="bar" aria-label="Character Turn Action Bar">
+  <div class="hero">
+    <div class="orb" [class.orb--active]="isActiveTurn()">
+      <span class="orb__initials">{{ hero().name.slice(0, 2).toUpperCase() }}</span>
+      <span class="orb__ac" title="Armor Class">{{ hero().armorClass }}</span>
+    </div>
+    <div class="hero__vitals">
+      <strong class="hero__name">{{ hero().name }}</strong>
+      <div class="hp" role="progressbar" [attr.aria-valuenow]="hero().currentHp" aria-valuemin="0" [attr.aria-valuemax]="hero().maxHp">
+        <div class="hp__fill" [style.width.%]="hpPercent()"></div>
+        <span class="hp__text">{{ hero().currentHp }} / {{ hero().maxHp }}</span>
+      </div>
+      <span class="hero__move">
+        {{ isActiveTurn() ? 'Your turn' : 'Waiting' }}
+        &middot; {{ battle.remainingMovementFeet() }}/{{ hero().movementFeet }} ft{{ store.viewerRole() === 'gm' ? ' (free move)' : '' }}
+      </span>
+    </div>
+  </div>
+
+  <div class="economy" aria-label="Turn resources">
+    <button ngpButton type="button" class="gem gem--action" [class.is-spent]="hero().actionUsed" title="Action"
+            (click)="vtt.toggleEconomySlot(hero().key, 'actionUsed')"><span class="sr-only">Action</span></button>
+    <button ngpButton type="button" class="gem gem--bonus" [class.is-spent]="hero().bonusUsed" title="Bonus action"
+            (click)="vtt.toggleEconomySlot(hero().key, 'bonusUsed')"><span class="sr-only">Bonus action</span></button>
+    <button ngpButton type="button" class="gem gem--reaction" [class.is-spent]="hero().reactionUsed" title="Reaction"
+            (click)="vtt.toggleEconomySlot(hero().key, 'reactionUsed')"><span class="sr-only">Reaction</span></button>
+  </div>
+
+  <div class="deck">
+    <div class="slots" role="list">
+      @for (ab of battle.filteredTurnAbilities(); track ab.id; let idx = $index) {
+        <button ngpButton type="button" role="listitem" class="slot"
+                [class.slot--pending]="battle.pendingAbility()?.id === ab.id"
+                [class.slot--spent]="!battle.isAbilityAvailableOnTurn(ab)"
+                [attr.data-cost]="costKind(ab)"
+                [attr.data-category]="ab.turnCategory"
+                [attr.aria-label]="ab.name + ', ' + ab.rangeFeet + ' feet'"
+                (click)="abilitySelected.emit(ab)">
+          <span class="slot__glyph">{{ glyph(ab.name) }}</span>
+          @if (showKeys() && idx < 9) { <span class="slot__key">{{ idx + 1 }}</span> }
+          <span class="slot__cost"></span>
+          <span class="tip" role="tooltip">
+            <strong>{{ ab.name }}</strong>
+            <span>{{ ab.actionCost }}</span>
+            <span>{{ ab.rangeFeet }}ft &middot; {{ targetLabel(ab) }}</span>
+            <span class="tip__dmg">{{ ab.damageFormula }}</span>
+          </span>
+        </button>
+      } @empty {
+        <span class="slots__empty">No abilities in this tab.</span>
+      }
+    </div>
+
+    <nav class="tabs" aria-label="Ability categories">
+      @for (tab of tabs; track tab.id) {
+        <button ngpButton type="button" class="tab" [class.is-active]="battle.activeTurnCategory() === tab.id"
+                (click)="battle.activeTurnCategory.set(tab.id)">{{ tab.label }}</button>
+      }
+      <button ngpButton type="button" class="tab tab--settings" title="Action bar settings" (click)="settingsRequested.emit()">
+        <lw-icon name="settings" [size]="13" />
+        <span>Bar</span>
+      </button>
+    </nav>
+  </div>
+
+  <button ngpButton type="button" class="end-turn" [disabled]="!isActiveTurn() && store.viewerRole() !== 'gm'"
+          title="End turn" (click)="endTurn.emit()">
+    <span class="end-turn__round">Round {{ vtt.activeRound() }}</span>
+    <span class="end-turn__label">End Turn</span>
+  </button>
+</section>

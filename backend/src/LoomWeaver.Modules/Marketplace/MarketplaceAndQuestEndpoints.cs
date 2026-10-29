@@ -117,11 +117,16 @@ public static class MarketplaceAndQuestEndpoints
         api.MapGet("/campaigns/{campaignId:int}/quests", (int campaignId) =>
             Results.Ok(CampaignQuests));
 
-        api.MapPost("/campaigns/{campaignId:int}/quests/{questId}/steps/{stepId}/toggle", (
+        api.MapPost("/campaigns/{campaignId:int}/quests/{questId}/steps/{stepId}/toggle", async (
             int campaignId,
             string questId,
-            string stepId) =>
+            string stepId,
+            HttpContext ctx,
+            LoomWeaver.Infrastructure.MySql.LoomWeaverMySqlRepository repo,
+            CancellationToken ct) =>
         {
+            var access = await LoomWeaver.Modules.Auth.CampaignAccessResolver.ResolveAsync(ctx, campaignId, null, ct);
+            if (!access.IsAccountGm) return Results.StatusCode(403);
             var idx = CampaignQuests.FindIndex(q => q.Id == questId);
             if (idx < 0)
             {
@@ -129,6 +134,7 @@ public static class MarketplaceAndQuestEndpoints
             }
 
             var quest = CampaignQuests[idx];
+            var wasCompleted = quest.Status == "completed";
             var updatedSteps = quest.Steps
                 .Select(s => s.StepId == stepId ? s with { Completed = !s.Completed } : s)
                 .ToList();
@@ -142,14 +148,18 @@ public static class MarketplaceAndQuestEndpoints
 
             CampaignQuests[idx] = updatedQuest;
 
-            return Results.Ok(new
+            var awardedXp = 0;
+            var message = $"Updated objective '{stepId}' for '{updatedQuest.Title}'.";
+            if (allDone && !wasCompleted && updatedQuest.XpReward > 0)
             {
-                quest = updatedQuest,
-                awardedXp = allDone ? updatedQuest.XpReward : 0,
-                message = allDone
-                    ? $"Quest '{updatedQuest.Title}' completed! +{updatedQuest.XpReward} XP automatically awarded to the party."
-                    : $"Updated objective '{stepId}' for '{updatedQuest.Title}'."
-            });
+                var award = await LoomWeaver.Modules.Encounters.EncounterRewardService.AwardPartyAsync(
+                    repo, campaignId, questId, $"quest:{campaignId}:{questId}:xp", updatedQuest.XpReward,
+                    $"Quest '{updatedQuest.Title}'", "quest_xp", access.Username, false, ct);
+                awardedXp = award.Result?.TotalXpAwarded ?? 0;
+                message = award.Result?.Summary ?? $"Quest '{updatedQuest.Title}' completed; {award.Error}";
+            }
+
+            return Results.Ok(new { quest = updatedQuest, awardedXp, message });
         });
 
         api.MapGet("/marketplace/modules", () =>
@@ -192,18 +202,6 @@ public static class MarketplaceAndQuestEndpoints
                 questsCount = CampaignQuests.Count,
                 quests = CampaignQuests,
                 installedModules = CreatorModules.Where(m => m.Installed).Select(m => m.Id).ToArray()
-            });
-        });
-
-        api.MapPost("/campaigns/{campaignId:int}/invite-link", (int campaignId) =>
-        {
-            return Results.Ok(new
-            {
-                campaignId,
-                inviteCode = "SOTM-CINTH-FREE",
-                inviteUrl = "https://loom-weaver.com/campaigns?join=SOTM-CINTH-FREE",
-                playerCost = "$0.00 (100% Free Player Seat Promise)",
-                loomAccess = "Included Free (Zero-Generation Recall + Private Player Notes)"
             });
         });
 

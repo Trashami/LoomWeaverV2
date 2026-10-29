@@ -10,13 +10,9 @@ import json
 import os
 import re
 import tarfile
-import paramiko
+import lw_deploy_env as env
 
-SERVER_HOST = "209.46.127.226"
-SERVER_USER = "iamtrash"
-SERVER_PASS = r"tZ-2jETuYpgVRzFBF=09"
 MYSQL_USER = "loomweaver_app"
-MYSQL_PASS = "Sp34kFri3nd4nd3nt3r!"
 
 LOCAL_5ETOOLS_DATA = r"c:\Users\JTromborg1\OneDrive\Documents\5e Tools\data"
 
@@ -905,17 +901,19 @@ def main():
     sql_lines.append("SET FOREIGN_KEY_CHECKS = 1;")
     full_sql = "\n".join(sql_lines)
 
-    print(f"Connecting to {SERVER_HOST} to execute SQL migration ({len(sql_lines)} statements)...")
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(SERVER_HOST, username=SERVER_USER, password=SERVER_PASS)
+    print("Connecting to the production server to execute SQL migration "
+          f"({len(sql_lines)} statements)...")
+    ssh = env.connect()
+    env.require("LW_DB_PASSWORD")
+    cnf = "/tmp/.lw_mysql_app.cnf"
+    env.put_mysql_cnf(ssh, cnf, MYSQL_USER, env.DB_PASSWORD)
 
     sftp = ssh.open_sftp()
     with sftp.file("/tmp/sync_5etools_spells.sql", "w") as rf:
         rf.write(full_sql)
     sftp.close()
 
-    cmd = f"mysql -f -u {MYSQL_USER} -p'{MYSQL_PASS}' < /tmp/sync_5etools_spells.sql && rm -f /tmp/sync_5etools_spells.sql"
+    cmd = f"mysql --defaults-extra-file={cnf} -f < /tmp/sync_5etools_spells.sql && rm -f /tmp/sync_5etools_spells.sql"
     stdin, stdout, stderr = ssh.exec_command(cmd)
     out = stdout.read().decode("utf-8", errors="replace")
     err = stderr.read().decode("utf-8", errors="replace")
@@ -934,9 +932,10 @@ def main():
     UNION ALL
     SELECT 'loomweaver.lw_engine_core_rules', COUNT(*), 0, 0 FROM loomweaver.lw_engine_core_rules;
     """
-    stdin, stdout, stderr = ssh.exec_command(f"mysql -u {MYSQL_USER} -p'{MYSQL_PASS}' -e \"{verify_q}\"")
+    stdin, stdout, stderr = ssh.exec_command(f"mysql --defaults-extra-file={cnf} -e \"{verify_q}\"")
     print("VERIFICATION:")
     print(stdout.read().decode("utf-8", errors="replace"))
+    env.run(ssh, f"rm -f {cnf}", check=False)
     ssh.close()
 
 

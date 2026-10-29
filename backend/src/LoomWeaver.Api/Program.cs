@@ -14,6 +14,7 @@ namespace LoomWeaver.Api
         public static void Run(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+            AuthSecrets.EnsureConfigured();
 
             var mysqlOptions = builder.Configuration.GetSection("LoomWeaverDatabase").Get<LoomWeaverMySqlOptions>()
                 ?? new LoomWeaverMySqlOptions();
@@ -58,50 +59,27 @@ namespace LoomWeaver.Api
                 await LoomWeaver.Modules.Bestiary.BestiaryPersistence.EnsureReadyAsync(repo);
             });
 
-            // Enforce OWASP security headers, auth rate-limiting, and unified JWT / HttpOnly cookie auth
+            // Enforce OWASP security headers and auth rate-limiting on every request.
             app.Use(async (context, next) =>
             {
                 SecurityHardeningMiddleware.ApplySecurityHeaders(context);
 
                 var path = context.Request.Path.Value ?? string.Empty;
-                if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase))
+                if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) &&
+                    SecurityHardeningMiddleware.IsRateLimitedAuthRequest(context, path))
                 {
-                    if (SecurityHardeningMiddleware.IsRateLimitedAuthRequest(context, path))
-                    {
-                        context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-                        context.Response.ContentType = "application/json";
-                        await context.Response.WriteAsync("{\"message\":\"Too many authentication attempts. Please wait 60 seconds and try again.\"}");
-                        return;
-                    }
-
-                    var isPublicAuthOrHealth =
-                        path.EndsWith("/health", StringComparison.OrdinalIgnoreCase) ||
-                        path.Contains("/effects/", StringComparison.OrdinalIgnoreCase) ||
-                        path.Contains("/actions/", StringComparison.OrdinalIgnoreCase) ||
-                        path.Contains("/maps/", StringComparison.OrdinalIgnoreCase) ||
-                        path.Contains("/summon-assets/", StringComparison.OrdinalIgnoreCase) ||
-                        path.Contains("/character-sheet/", StringComparison.OrdinalIgnoreCase) ||
-                        path.EndsWith("/auth/login", StringComparison.OrdinalIgnoreCase) ||
-                        path.EndsWith("/auth/register", StringComparison.OrdinalIgnoreCase) ||
-                        path.EndsWith("/auth/google", StringComparison.OrdinalIgnoreCase) ||
-                        path.EndsWith("/auth/logout", StringComparison.OrdinalIgnoreCase) ||
-                        path.EndsWith("/auth/request-account", StringComparison.OrdinalIgnoreCase);
-
-                    if (!isPublicAuthOrHealth)
-                    {
-                        var user = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(context);
-                        if (user is null)
-                        {
-                            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                            context.Response.ContentType = "application/json";
-                            await context.Response.WriteAsync("{\"message\":\"Authentication required. Please sign in to LoomWeaver.\"}");
-                            return;
-                        }
-                    }
+                    context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsync("{\"message\":\"Too many authentication attempts. Please wait 60 seconds and try again.\"}");
+                    return;
                 }
 
                 await next();
             });
+
+            // Authentication, campaign membership (lw_campaign_members), and server-derived roles
+            // for every /api and /hubs request. See CampaignAccessMiddleware.
+            app.UseLoomWeaverAccessControl();
 
             app.MapHub<TableRealtimeHub>("/hubs/table");
             app.MapLoomWeaverModules();

@@ -11,6 +11,7 @@ import {
 import { NgpButton } from 'ng-primitives/button';
 import { filter } from 'rxjs';
 import { AuthSessionService } from './core/services/auth-session.service';
+import { CampaignMembershipService } from './core/services/campaign-membership.service';
 import {
   isSubdomainHost,
   resolveDefaultStudioRouteForHost,
@@ -60,6 +61,7 @@ export class AppComponent {
   readonly audio = inject(WebAudioAmbienceService);
   private readonly router = inject(Router);
   private readonly meta = inject(Meta);
+  private readonly membership = inject(CampaignMembershipService);
 
   readonly currentUrl = signal<string>(this.resolveInitialBrowserPath());
   readonly globalSearchText = signal<string>('');
@@ -137,6 +139,7 @@ export class AppComponent {
   });
 
   constructor() {
+    void this.membership;
     if (
       typeof window !== 'undefined' &&
       isSubdomainHost() &&

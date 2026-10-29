@@ -88,7 +88,7 @@ export class EncountersPageComponent {
 
     return this.vtt
       .encounterDetails()
-      .filter((e) => e.campaignId === cid || e.campaignId === 1)
+      .filter((e) => e.campaignId === cid)
       .filter((e) => sesFilter === 'all' || e.sessionId === sesFilter)
       .filter((e) => {
         if (tab === 'upcoming') return !e.completed;

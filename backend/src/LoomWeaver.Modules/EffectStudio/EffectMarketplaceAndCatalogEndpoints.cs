@@ -157,8 +157,9 @@ public static class EffectMarketplaceAndCatalogEndpoints
             await file.CopyToAsync(ms, ct);
             var id = $"{Guid.NewGuid():N}{ext.ToLowerInvariant()}";
             await using var db = await mysql.OpenConnectionAsync(ct);
+            await EffectLibraryAndAssignmentEndpoints.EnsureTablesAsync(db, ct);
             await using var cmd = new MySqlCommand(
-                "INSERT INTO jane_scrum.mw_summon_assets (id,user_id,kind,mime_type,file_name,bytes) VALUES (@id,@u,@k,@m,@f,@b)", db);
+                "INSERT INTO lw_summon_assets (id,user_id,kind,mime_type,file_name,bytes) VALUES (@id,@u,@k,@m,@f,@b)", db);
             cmd.Parameters.AddWithValue("@id", id);
             cmd.Parameters.AddWithValue("@u", u.Id);
             cmd.Parameters.AddWithValue("@k", meta.Kind);
@@ -173,7 +174,8 @@ public static class EffectMarketplaceAndCatalogEndpoints
         {
             if (string.IsNullOrWhiteSpace(id) || id.Length > 64) return Results.NotFound();
             await using var db = await mysql.OpenConnectionAsync(ct);
-            await using var cmd = new MySqlCommand("SELECT mime_type, bytes FROM jane_scrum.mw_summon_assets WHERE id=@id LIMIT 1", db);
+            await EffectLibraryAndAssignmentEndpoints.EnsureTablesAsync(db, ct);
+            await using var cmd = new MySqlCommand("SELECT mime_type, bytes FROM lw_summon_assets WHERE id=@id LIMIT 1", db);
             cmd.Parameters.AddWithValue("@id", id);
             await using var r = await cmd.ExecuteReaderAsync(ct);
             if (!await r.ReadAsync(ct)) return Results.NotFound();
@@ -183,52 +185,19 @@ public static class EffectMarketplaceAndCatalogEndpoints
 
         api.MapGet("/campaigns/{cid:long}/members", async (long cid, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
         {
-            var members = new List<object>();
-            try
+            var rows = await CampaignMembershipStore.ListMembersAsync(mysql, (int)cid, ct);
+            var members = rows.Select(m => (object)new
             {
-                await using var db = await mysql.OpenConnectionAsync(ct);
-                await using var cmd = new MySqlCommand("""
-                    SELECT m.id, m.campaign_id, m.user_id, m.role, m.character_id, m.character_name,
-                           COALESCE(u.username, CONCAT('user-', m.user_id)),
-                           COALESCE(u.display_name, m.character_name, 'Adventurer'),
-                           u.avatar_url
-                    FROM jane_scrum.mw_campaign_members m
-                    LEFT JOIN jane_scrum.mw_users u ON u.id = m.user_id
-                    WHERE m.campaign_id = @cid
-                    ORDER BY CASE WHEN m.role IN ('dm','gm') THEN 0 ELSE 1 END, m.character_name
-                    """, db);
-                cmd.Parameters.AddWithValue("@cid", cid);
-                await using var r = await cmd.ExecuteReaderAsync(ct);
-                while (await r.ReadAsync(ct))
-                {
-                    var rawRole = r.IsDBNull(3) ? "player" : r.GetString(3);
-                    members.Add(new
-                    {
-                        id = r.GetInt64(0),
-                        campaign_id = r.GetInt64(1),
-                        user_id = r.GetInt64(2),
-                        role = rawRole is "gm" or "dm" ? "dm" : "player",
-                        character_id = r.IsDBNull(4) ? (long?)null : r.GetInt64(4),
-                        character_name = r.IsDBNull(5) ? null : r.GetString(5),
-                        username = r.GetString(6),
-                        display_name = r.GetString(7),
-                        avatar_url = r.IsDBNull(8) ? null : r.GetString(8)
-                    });
-                }
-            }
-            catch { }
-
-            if (members.Count == 0)
-            {
-                members.AddRange(new object[]
-                {
-                    new { id = 1L, campaign_id = cid, user_id = 1L, role = "dm", character_id = (long?)null, character_name = "Dungeon Master", username = "GeoJason", display_name = "Jason (GeoJason)", avatar_url = (string?)null },
-                    new { id = 2L, campaign_id = cid, user_id = 3L, role = "player", character_id = (long?)16L, character_name = "Dal Riata", username = "ScottBrogan", display_name = "Scott Brogan", avatar_url = (string?)null },
-                    new { id = 3L, campaign_id = cid, user_id = 5360L, role = "player", character_id = (long?)17L, character_name = "Fivi", username = "DallasCrow", display_name = "Dallas Crow", avatar_url = (string?)null },
-                    new { id = 4L, campaign_id = cid, user_id = 5359L, role = "player", character_id = (long?)18L, character_name = "Kildrid", username = "RyanIssak", display_name = "Ryan Issak", avatar_url = (string?)null },
-                    new { id = 5L, campaign_id = cid, user_id = 4L, role = "player", character_id = (long?)33L, character_name = "Kycius Grey Mountain", username = "StickHazen", display_name = "Stick Hazen", avatar_url = (string?)null }
-                });
-            }
+                id = m.Id,
+                campaign_id = cid,
+                user_id = m.UserId,
+                role = m.MemberRole == "gm" ? "dm" : m.MemberRole,
+                character_id = m.CharacterId,
+                character_name = m.CharacterName ?? m.CharacterKey,
+                username = m.Email,
+                display_name = m.CharacterName ?? m.CharacterKey ?? m.Email,
+                avatar_url = (string?)null
+            }).ToList();
 
             return Results.Ok(new { members });
         });

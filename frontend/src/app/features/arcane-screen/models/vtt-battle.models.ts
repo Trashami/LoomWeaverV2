@@ -1,4 +1,5 @@
 import { ActionRuleVm } from '../../effects/engine/effect-timeline.contract';
+import type { ActionBarSkinId } from '../components/vtt-action-bar/action-bar-skins';
 
 export type VttFogMode = 'los-only' | 'explored-los' | 'no-fog';
 
@@ -64,6 +65,7 @@ export interface VttTacticalAbilityVm extends ActionRuleVm {
 }
 
 export interface VttActionBarSettingsVm {
+  readonly skin: ActionBarSkinId;
   readonly opacity: number;
   readonly compactMode: boolean;
   readonly snapSensitivityFeet: number;

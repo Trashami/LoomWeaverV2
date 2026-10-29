@@ -10,6 +10,11 @@
     "changeOrigin": true,
     "ws": true
   },
+  "/5etools": {
+    "target": "https://loom-weaver.com",
+    "secure": true,
+    "changeOrigin": true
+  },
   "/assets/object-library/models": {
     "target": "https://loom-weaver.com",
     "secure": true,

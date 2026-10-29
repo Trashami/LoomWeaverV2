@@ -1,124 +1,189 @@
+using System.Text.Json;
 using LoomWeaver.Domain;
+using LoomWeaver.Infrastructure.MySql;
+using LoomWeaver.Modules.Auth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using MySqlConnector;
 
 namespace LoomWeaver.Modules.Sessions;
 
 public static class SessionChronicleEndpoints
 {
-    private static readonly List<SessionRecapContract> CampaignSessions = new()
-    {
-        new SessionRecapContract(
-            "session-18",
-            1,
-            18,
-            "Shadow Beneath the Mountain & Kutler's Skyship",
-            "Runic Cavern & Cinth Sky-Dock",
-            "Act I Finale",
-            2500,
-            "Deceived by Lord Emrys into entering the mountain cavern, the party battled the ancient life-bound dragon. Fivi landed the final killing blow with a tooth-loaded slingshot just before Emrys claimed the final Luminary clue and Captain Kutler arrived in a flying skyship.",
-            new[]
-            {
-                "Fivi slew the bound dragon at 1 HP with a slingshot loaded with a tooth",
-                "Emrys revealed his true design to trap the Sidhe Ard using the Luminaries",
-                "Captain Kutler returned from the Lost Isles with Chokrah ritual intelligence; Fivi claimed his skyship as hers"
-            },
-            new[]
-            {
-                new SessionDeepLinkContract("Runic Cavern VTT", "/arcane-screen", "1:Location:loc-mountain-cavern"),
-                new SessionDeepLinkContract("Fivi Character Sheet", "/characters", "1:Character:char-fivi"),
-                new SessionDeepLinkContract("Chokrah Clue in The Loom", "/loom", "1:Clue:clue-chokrah-manifest")
-            }
-        ),
-        new SessionRecapContract(
-            "session-17",
-            1,
-            17,
-            "Velvet, Brass & Fangs in Cinth",
-            "Cinth Guildhall & Masquerade Ballroom",
-            "Act I · Cinth",
-            1800,
-            "The party allied with the non-magical Artificers Guild of Cinth, attended the Lord of Cinth's masquerade, met the self-styled reformer Lord Emrys for the first time, and thwarted the vampire coven's bid to convert the city's nobility.",
-            new[]
-            {
-                "Befriended the Cinth Artificers Guild and inspected their phosphor-bronze defenses",
-                "First conversation with Lord Emrys regarding the reformed Council of Magic",
-                "Repelled the Crimson Covenant vampire ambush across the ballroom balcony"
-            },
-            new[]
-            {
-                new SessionDeepLinkContract("Cinth Ballroom Map", "/maps", "1:Location:loc-cinth"),
-                new SessionDeepLinkContract("Lord Emrys Dossier", "/campaigns", "1:NPC:npc-emrys"),
-                new SessionDeepLinkContract("Ballroom Audio Stems", "/assets", "1:Location:loc-cinth")
-            }
-        ),
-        new SessionRecapContract(
-            "session-16",
-            1,
-            16,
-            "The Plains of Red & The Quiet Maw",
-            "Northeast Road from Vandia to Cinth",
-            "Act I · Road to Cinth",
-            1400,
-            "Traveling northeast from the cliff-house near Vandia across the Plains of Red, Kildrid felt the hundred-year clawing beneath the southern mountain from afar while Kycius sewed an extradimensional containment pocket inside Dolly's mouth.",
-            new[]
-            {
-                "Kildrid sensed the poisoned mountain runes from the Cinth road without entering",
-                "Kycius stitched the Quiet Maw pocket inside Dolly so Fivi's companion spares lives",
-                "Laksis the little fire drake bonded closely with Kycius and Fivi"
-            },
-            new[]
-            {
-                new SessionDeepLinkContract("Kildrid Stone Sense Note", "/loom", "1:Character:char-kildrid"),
-                new SessionDeepLinkContract("Kycius & Dolly Loadout", "/characters", "1:Character:char-kycius"),
-                new SessionDeepLinkContract("Neo4j World Graph", "/weave", "1:Character:char-fivi")
-            }
-        )
-    };
-
     public static RouteGroupBuilder MapSessionChronicleEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/campaigns/{campaignId:int}/sessions", (int campaignId) =>
-            Results.Ok(CampaignSessions.Where(s => s.CampaignId == campaignId).OrderByDescending(s => s.SessionNumber).ToList()));
-
-        api.MapPost("/campaigns/{campaignId:int}/sessions", (int campaignId, CreateSessionRecapRequest req) =>
-        {
-            var nextNum = req.SessionNumber <= 0
-                ? (CampaignSessions.Count > 0 ? CampaignSessions.Max(s => s.SessionNumber) + 1 : 19)
-                : req.SessionNumber;
-            var xp = req.XpAwarded <= 0 ? 1500 : req.XpAwarded;
-
-            var created = new SessionRecapContract(
-                $"session-{nextNum}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
-                campaignId,
-                nextNum,
-                string.IsNullOrWhiteSpace(req.Title) ? $"Session {nextNum}: Book Two — Road to Edhellain" : req.Title.Trim(),
-                string.IsNullOrWhiteSpace(req.LocationName) ? "Borderland Village & Edhellain Road" : req.LocationName.Trim(),
-                "Book II Chronicle",
-                xp,
-                string.IsNullOrWhiteSpace(req.Summary)
-                    ? "Recorded in the living campaign chronicle with automated party XP distribution."
-                    : req.Summary.Trim(),
-                req.Highlights is { Count: > 0 }
-                    ? req.Highlights
-                    : new[]
-                    {
-                        $"Concluded Session {nextNum} and awarded +{xp} XP across the party",
-                        "Synchronized session memory with The Loom and Campaign Analytics"
-                    },
-                new[]
-                {
-                    new SessionDeepLinkContract("Campaign Quests", "/campaigns", "1:Character:char-dal"),
-                    new SessionDeepLinkContract("The Loom Recall", "/loom", "1:Character:char-munk"),
-                    new SessionDeepLinkContract("Analytics Ledger", "/statistics", "1:Character:char-fivi")
-                }
-            );
-
-            CampaignSessions.Insert(0, created);
-            return Results.Ok(created);
-        });
-
+        api.MapGet("/campaigns/{campaignId:int}/sessions", ListSessionsAsync);
+        api.MapPost("/campaigns/{campaignId:int}/sessions", CreateSessionAsync);
+        api.MapGet("/campaigns/{campaignId:int}/play-events", ListPlayEventsAsync);
         return api;
+    }
+
+    private static async Task<IResult> ListSessionsAsync(
+        int campaignId, LoomWeaverMySqlRepository mysql, CancellationToken ct)
+    {
+        var sessions = new List<SessionRecapContract>();
+        await using var db = await mysql.OpenConnectionAsync(ct);
+        await using var cmd = new MySqlCommand("""
+            SELECT s.session_id, s.session_number, s.title, s.scheduled_date_label,
+                   s.summary, s.objectives_json, s.primary_location_node_id,
+                   COALESCE(SUM(r.xp_amount), 0)
+            FROM lw_sessions s
+            LEFT JOIN lw_reward_awards r ON r.session_id = s.session_id
+            WHERE s.campaign_id = @c
+            GROUP BY s.session_id, s.session_number, s.title, s.scheduled_date_label,
+                     s.summary, s.objectives_json, s.primary_location_node_id
+            ORDER BY s.session_number DESC
+            """, db);
+        cmd.Parameters.AddWithValue("@c", campaignId);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var highlights = reader.IsDBNull(5)
+                ? Array.Empty<string>()
+                : JsonSerializer.Deserialize<string[]>(reader.GetString(5)) ?? [];
+            var location = reader.IsDBNull(6) ? string.Empty : reader.GetString(6);
+            var links = string.IsNullOrWhiteSpace(location)
+                ? Array.Empty<SessionDeepLinkContract>()
+                : [new SessionDeepLinkContract("Session location", "/maps", location)];
+            sessions.Add(new SessionRecapContract(
+                reader.GetString(0),
+                campaignId,
+                reader.GetInt32(1),
+                reader.GetString(2),
+                location,
+                reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
+                Convert.ToInt32(reader.GetInt64(7)),
+                reader.GetString(4),
+                highlights,
+                links));
+        }
+
+        return Results.Ok(sessions);
+    }
+
+    private static async Task<IResult> CreateSessionAsync(
+        int campaignId,
+        CreateSessionRecapRequest req,
+        HttpContext context,
+        LoomWeaverMySqlRepository mysql,
+        CancellationToken ct)
+    {
+        var access = await CampaignAccessResolver.ResolveAsync(context, campaignId, null, ct);
+        if (!access.IsAccountGm) return Results.Forbid();
+        if (string.IsNullOrWhiteSpace(req.Title) || req.Title.Trim().Length > 160)
+            return Results.BadRequest(new { error = "A session title (1-160 characters) is required." });
+        if (req.XpAwarded < 0 || req.XpAwarded > 1_000_000)
+            return Results.BadRequest(new { error = "XP must be between 0 and 1,000,000." });
+        if (req.Highlights?.Count > 100)
+            return Results.BadRequest(new { error = "A session can contain at most 100 highlights." });
+
+        var sessionId = $"session-{Guid.NewGuid():N}";
+        var summary = req.Summary?.Trim() ?? string.Empty;
+        var highlights = req.Highlights?.Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim()).ToArray() ?? [];
+        var title = req.Title.Trim();
+        var location = req.LocationName?.Trim() ?? string.Empty;
+        var sessionNumber = req.SessionNumber;
+        var objectivesJson = JsonSerializer.Serialize(highlights);
+
+        await using var db = await mysql.OpenConnectionAsync(ct);
+        await using var tx = await db.BeginTransactionAsync(ct);
+        if (sessionNumber <= 0)
+        {
+            await using var number = new MySqlCommand(
+                "SELECT COALESCE(MAX(session_number), 0) + 1 FROM lw_sessions WHERE campaign_id = @c", db, tx);
+            number.Parameters.AddWithValue("@c", campaignId);
+            sessionNumber = Convert.ToInt32(await number.ExecuteScalarAsync(ct));
+        }
+
+        await using (var insert = new MySqlCommand("""
+            INSERT INTO lw_sessions
+                (session_id, campaign_id, adventure_version_id, session_number, title,
+                 primary_location_node_id, session_state, epigraph, summary, objectives_json)
+            VALUES (@id, @c, 'session-chronicle-v1', @n, @title, NULLIF(@location, ''),
+                    'completed', '', @summary, @objectives)
+            """, db, tx))
+        {
+            insert.Parameters.AddWithValue("@id", sessionId);
+            insert.Parameters.AddWithValue("@c", campaignId);
+            insert.Parameters.AddWithValue("@n", sessionNumber);
+            insert.Parameters.AddWithValue("@title", title);
+            insert.Parameters.AddWithValue("@location", location);
+            insert.Parameters.AddWithValue("@summary", summary);
+            insert.Parameters.AddWithValue("@objectives", objectivesJson);
+            await insert.ExecuteNonQueryAsync(ct);
+        }
+
+        if (req.XpAwarded > 0)
+        {
+            var key = $"session:{sessionId}:party-xp";
+            await using var award = new MySqlCommand("""
+                INSERT INTO lw_reward_awards
+                    (campaign_id, session_id, source_node_id, idempotency_key, reward_kind, xp_amount, summary)
+                VALUES (@c, @s, @source, @key, 'xp', @xp, @summary)
+                """, db, tx);
+            award.Parameters.AddWithValue("@c", campaignId);
+            award.Parameters.AddWithValue("@s", sessionId);
+            award.Parameters.AddWithValue("@source", sessionId);
+            award.Parameters.AddWithValue("@key", key);
+            award.Parameters.AddWithValue("@xp", req.XpAwarded);
+            award.Parameters.AddWithValue("@summary", $"Party XP for session {sessionNumber}");
+            await award.ExecuteNonQueryAsync(ct);
+        }
+
+        var payload = JsonSerializer.Serialize(new { sessionNumber, title, location, xpAwarded = req.XpAwarded, highlights });
+        await using (var playEvent = new MySqlCommand("""
+            INSERT INTO lw_play_events (campaign_id, session_id, event_kind, actor_label, summary, payload_json)
+            VALUES (@c, @s, 'session_completed', @actor, @summary, @payload)
+            """, db, tx))
+        {
+            playEvent.Parameters.AddWithValue("@c", campaignId);
+            playEvent.Parameters.AddWithValue("@s", sessionId);
+            playEvent.Parameters.AddWithValue("@actor", access.Username);
+            playEvent.Parameters.AddWithValue("@summary", string.IsNullOrWhiteSpace(summary) ? title : summary);
+            playEvent.Parameters.AddWithValue("@payload", payload);
+            await playEvent.ExecuteNonQueryAsync(ct);
+        }
+
+        await tx.CommitAsync(ct);
+        return Results.Created($"/api/campaigns/{campaignId}/sessions/{sessionId}", new SessionRecapContract(
+            sessionId, campaignId, sessionNumber, title, location, string.Empty, req.XpAwarded,
+            summary, highlights, []));
+    }
+
+    private static async Task<IResult> ListPlayEventsAsync(
+        int campaignId,
+        HttpContext context,
+        LoomWeaverMySqlRepository mysql,
+        CancellationToken ct)
+    {
+        var access = await CampaignAccessResolver.ResolveAsync(context, campaignId, null, ct);
+        if (!access.IsAccountGm) return Results.Forbid();
+
+        var events = new List<object>();
+        await using var db = await mysql.OpenConnectionAsync(ct);
+        await using var cmd = new MySqlCommand("""
+            SELECT id, session_id, node_id, event_kind, actor_label, summary, payload_json, created_at
+            FROM lw_play_events WHERE campaign_id = @c ORDER BY id DESC LIMIT 500
+            """, db);
+        cmd.Parameters.AddWithValue("@c", campaignId);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            events.Add(new
+            {
+                id = reader.GetInt64(0),
+                sessionId = reader.IsDBNull(1) ? null : reader.GetString(1),
+                nodeId = reader.IsDBNull(2) ? null : reader.GetString(2),
+                kind = reader.GetString(3),
+                actor = reader.GetString(4),
+                summary = reader.GetString(5),
+                payload = reader.IsDBNull(6) ? (JsonElement?)null : JsonSerializer.Deserialize<JsonElement>(reader.GetString(6)),
+                createdAt = reader.GetDateTime(7)
+            });
+        }
+
+        return Results.Ok(events);
     }
 }

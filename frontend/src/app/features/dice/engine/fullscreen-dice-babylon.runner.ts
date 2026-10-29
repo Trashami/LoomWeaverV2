@@ -80,7 +80,7 @@ export class FullscreenDiceBabylonRunner {
       const camera = new ArcRotateCamera(
         'lw-fs-dice-cam',
         -Math.PI / 2,
-        0.05,
+        0.24,
         14.2,
         new Vector3(0, 0, 0),
         scene
@@ -266,7 +266,6 @@ export class FullscreenDiceBabylonRunner {
     const custom = this.stageService.getCurrentCustomConfig();
     this.soundService.playSettleChime(custom.soundProfileId);
 
-    const cameraPos = new Vector3(0, 14.2, -0.7);
     if (this.scene && (isNat20 || isCritFail)) {
       const targetPos = this.activeDice[0]?.mesh.position.clone() ?? new Vector3(0, 0.8, 0);
       if (isNat20) {

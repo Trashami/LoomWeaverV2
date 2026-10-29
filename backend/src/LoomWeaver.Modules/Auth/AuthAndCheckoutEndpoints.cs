@@ -47,7 +47,7 @@ public static class AuthAndCheckoutEndpoints
             {
                 return Results.Json(new { message = "Authentication required." }, statusCode: StatusCodes.Status401Unauthorized);
             }
-            return Results.Ok(MySqlUserAuthStore.GetPublicAccounts());
+            return Results.Ok(new[] { MySqlUserAuthStore.ToContract(caller) });
         });
 
         api.MapPost("/auth/login", async (
@@ -139,7 +139,6 @@ public static class AuthAndCheckoutEndpoints
                     req.Username ?? req.Email.Split('@')[0],
                     req.DisplayName,
                     req.Password,
-                    req.Role ?? "gm",
                     ct);
 
                 var expiresAt = DateTimeOffset.UtcNow.AddDays(30);
@@ -280,6 +279,14 @@ public static class AuthAndCheckoutEndpoints
         {
             var fromCookie = MySqlUserAuthStore.VerifyHmacJwt(Uri.UnescapeDataString(cookieToken));
             if (fromCookie is not null) return fromCookie;
+        }
+
+        // Browsers cannot set headers on WebSocket upgrades; SignalR sends access_token instead.
+        if (ctx.Request.Path.StartsWithSegments("/hubs") &&
+            ctx.Request.Query.TryGetValue("access_token", out var hubToken) &&
+            !string.IsNullOrWhiteSpace(hubToken))
+        {
+            return MySqlUserAuthStore.VerifyHmacJwt(hubToken.ToString());
         }
 
         return null;

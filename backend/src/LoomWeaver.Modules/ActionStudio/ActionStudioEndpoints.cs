@@ -157,6 +157,8 @@ public static class ActionStudioEndpoints
             var user = ResolveStudioUser(httpCtx, accountId);
             var repo = new ActionStudioMySqlRepository(mysql);
             var created = await repo.CreateQuickDmCampaignAsync(user, req, ct);
+            // The creator becomes the campaign GM in the canonical membership table.
+            await CampaignMembershipStore.UpsertAsync(mysql, created.Id, user, "gm", ct: ct);
             var studioContext = await repo.BuildStudioContextAsync(user, created.Id, ct);
             return Results.Ok(studioContext);
         });
@@ -181,68 +183,14 @@ public static class ActionStudioEndpoints
         return api;
     }
 
+    /// <summary>
+    /// The studio always acts as the authenticated caller. The legacy accountId parameter is
+    /// ignored (CampaignAccessMiddleware strips it) so one account can never impersonate another.
+    /// </summary>
     private static StoredUserRecord ResolveStudioUser(HttpContext ctx, string? explicitAccountId)
     {
-        if (!string.IsNullOrWhiteSpace(explicitAccountId))
-        {
-            var fromExplicit = MySqlUserAuthStore.GetPublicAccounts()
-                .FirstOrDefault(a =>
-                    string.Equals(a.AccountId, explicitAccountId.Trim(), StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(a.Username, explicitAccountId.Trim(), StringComparison.OrdinalIgnoreCase));
-
-            if (fromExplicit is not null)
-            {
-                var id = fromExplicit.Username switch
-                {
-                    "GeoJason" => 1L,
-                    "trashami" => 2L,
-                    "ScottBrogan" => 3L,
-                    "StickHazen" => 4L,
-                    "GregMeinert" => 4522L,
-                    "RyanIssak" => 5359L,
-                    "DallasCrow" => 5360L,
-                    "JoshTromborg" => 5361L,
-                    "PeteHigano" => 5362L,
-                    _ => 1L
-                };
-
-                return new StoredUserRecord(
-                    id,
-                    fromExplicit.AccountId,
-                    fromExplicit.Email,
-                    fromExplicit.Username,
-                    fromExplicit.DisplayName,
-                    string.Empty,
-                    string.Empty,
-                    fromExplicit.Role,
-                    fromExplicit.TierCode,
-                    fromExplicit.BoundCharacter,
-                    fromExplicit.OwnedAssetIds,
-                    fromExplicit.CreatorBalanceUsd
-                );
-            }
-        }
-
-        var authenticated = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
-        if (authenticated is not null)
-        {
-            return authenticated;
-        }
-
-        var defaultAccount = MySqlUserAuthStore.GetPublicAccounts()[0];
-        return new StoredUserRecord(
-            1L,
-            defaultAccount.AccountId,
-            defaultAccount.Email,
-            defaultAccount.Username,
-            defaultAccount.DisplayName,
-            string.Empty,
-            string.Empty,
-            defaultAccount.Role,
-            defaultAccount.TierCode,
-            defaultAccount.BoundCharacter,
-            defaultAccount.OwnedAssetIds,
-            defaultAccount.CreatorBalanceUsd
-        );
+        _ = explicitAccountId;
+        return AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx)
+               ?? throw new UnauthorizedAccessException("Sign in to use the ActionBuilder studio.");
     }
 }

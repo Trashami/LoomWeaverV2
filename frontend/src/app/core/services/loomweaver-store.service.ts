@@ -9,7 +9,23 @@ import {
 } from '../models/loomweaver.models';
 import { buildSeedDashboardForCampaign } from './dashboard-seed.data';
 import { LW_ASSETS, LW_GRAPH_EDGES, LW_SCENES, LW_SUBSCRIPTION_TIERS, LW_TELEMETRY } from './loomweaver-catalog.data';
-import { LW_CAMPAIGNS, LW_ENTITIES, LW_NAVIGATION } from './loomweaver-seed.data';
+import { LW_ENTITIES, LW_NAVIGATION } from './loomweaver-seed.data';
+
+const NO_CAMPAIGN: CampaignVm = {
+  id: 0, slug: '', name: 'No campaign selected', subtitle: '', systemCode: 'dnd5e', systemLabel: 'D&D 5e',
+  worldName: '', currentAct: '', currentSessionNumber: 0, currentLocationName: '', weaveEnabled: false,
+};
+
+interface ServerCampaign {
+  readonly id: number; readonly slug: string; readonly name: string; readonly subtitle: string;
+  readonly systemCode: CampaignVm['systemCode']; readonly worldName: string; readonly currentAct: string;
+  readonly currentSessionNumber: number; readonly currentLocationName: string; readonly weaveEnabled: boolean;
+  readonly my_role: 'dm' | 'player';
+}
+
+const SYSTEM_LABELS: Record<CampaignVm['systemCode'], string> = {
+  dnd5e: 'D&D 5e', pf2e: 'Pathfinder 2e', vampire_v5: 'Vampire: The Masquerade V5',
+};
 
 const ACTIVE_CAMPAIGN_STORAGE_KEY = 'lw_active_campaign_id_v2';
 const GENERATIVE_AI_OPT_IN_STORAGE_KEY = 'lw_generative_ai_opt_in_v2';
@@ -25,8 +41,8 @@ export class LoomWeaverStoreService {
   private readonly fullscreenDice = inject(FullscreenDiceOverlayService);
 
   readonly navigationItems = signal<readonly NavDestination[]>(LW_NAVIGATION);
-  readonly campaigns = signal<readonly CampaignVm[]>(LW_CAMPAIGNS);
-  readonly activeCampaignId = signal<number>(1);
+  readonly campaigns = signal<readonly CampaignVm[]>([NO_CAMPAIGN]);
+  readonly activeCampaignId = signal<number>(0);
   readonly activeUserAccountId = signal<string>('acc-gm-geojason');
   readonly activeUsername = signal<string>('GeoJason');
   readonly viewerRole = signal<ViewerRole>('gm');
@@ -75,12 +91,7 @@ export class LoomWeaverStoreService {
   });
 
   isUserGmForCampaign(campaign: CampaignVm): boolean {
-    const accId = (this.activeUserAccountId() || '').trim().toLowerCase();
-    const uname = (this.activeUsername() || '').trim().toLowerCase();
-    if (!accId || accId === 'unauthenticated') return false;
-    const dmIds = (campaign.dmAccountIds ?? []).map((x) => x.toLowerCase());
-    const dmNames = (campaign.dmUsernames ?? []).map((x) => x.toLowerCase());
-    return dmIds.includes(accId) || dmNames.includes(uname);
+    return campaign.id > 0 && campaign.myRole === 'dm';
   }
 
   readonly isGmForActiveCampaign = computed<boolean>(() => this.isUserGmForCampaign(this.activeCampaign()));
@@ -156,9 +167,37 @@ export class LoomWeaverStoreService {
   syncUserIdentity(accountId: string, username: string): void {
     this.activeUserAccountId.set(accountId);
     this.activeUsername.set(username);
-    const effectiveRole: ViewerRole = this.isGmForActiveCampaign() ? 'gm' : 'players';
-    this.viewerRole.set(effectiveRole);
-    this.refreshCampaignDashboard();
+    this.loadMyCampaigns();
+  }
+
+  /** Loads the campaigns the server says the signed-in user belongs to; GM status comes from the server only. */
+  loadMyCampaigns(preferredId?: number): void {
+    this.http.get<readonly ServerCampaign[]>('/api/v2/campaigns').subscribe({
+      next: (list) => {
+        const mapped = (list ?? []).map<CampaignVm>((c) => ({
+          ...c,
+          systemLabel: SYSTEM_LABELS[c.systemCode] ?? c.systemCode,
+          myRole: c.my_role,
+        }));
+        this.campaigns.set(mapped.length ? mapped : [NO_CAMPAIGN]);
+        const saved = preferredId ?? Number(this.readSavedCampaignId());
+        const next = mapped.find((c) => c.id === saved) ?? mapped[0] ?? NO_CAMPAIGN;
+        this.setCampaign(next.id);
+      },
+      error: () => {
+        this.campaigns.set([NO_CAMPAIGN]);
+        this.activeCampaignId.set(0);
+        this.viewerRole.set('players');
+      },
+    });
+  }
+
+  private readSavedCampaignId(): string | null {
+    try {
+      return typeof localStorage === 'undefined' ? null : localStorage.getItem(ACTIVE_CAMPAIGN_STORAGE_KEY);
+    } catch {
+      return null;
+    }
   }
 
   setCampaign(id: number): void {
@@ -467,15 +506,7 @@ export class LoomWeaverStoreService {
   }
 
   private restoreSavedCampaignSelection(): void {
-    try {
-      if (typeof localStorage === 'undefined') return;
-      const saved = Number(localStorage.getItem(ACTIVE_CAMPAIGN_STORAGE_KEY));
-      const available = this.campaigns();
-      const found = available.find((c) => c.id === saved) ?? available[0];
-      if (found) {
-        this.activeCampaignId.set(found.id);
-      }
-    } catch {}
+    // Campaign selection is resolved from the server after sign-in (loadMyCampaigns).
   }
 
   private verifyPolyglotHealth(): void {

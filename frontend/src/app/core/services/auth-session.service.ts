@@ -226,7 +226,6 @@ export class AuthSessionService {
     username: string,
     displayName: string,
     password: string,
-    role: 'gm' | 'players',
   ): void {
     const trimmedEmail = email.trim();
     const trimmedUser = username.trim() || trimmedEmail.split('@')[0];
@@ -248,7 +247,6 @@ export class AuthSessionService {
         username: trimmedUser,
         displayName: displayName.trim() || trimmedUser,
         password,
-        role,
       })
       .subscribe({
         next: (res) => {
@@ -306,6 +304,7 @@ export class AuthSessionService {
   logout(): void {
     this.http.post('/api/v2/auth/logout', {}).subscribe({ error: () => {} });
     this.clearLocalAndCookieState();
+    this.realtime.refreshPresence();
     void this.router.navigateByUrl('/welcome');
   }
 

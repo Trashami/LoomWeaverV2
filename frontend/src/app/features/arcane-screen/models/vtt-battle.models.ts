@@ -11,7 +11,8 @@ export type VttRightTabId =
   | 'npcs'
   | 'lore'
   | 'guide'
-  | 'trackers';
+  | 'trackers'
+  | 'settings';
 
 export type VttMeasureSubMode = 'spell' | 'movement';
 

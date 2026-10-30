@@ -1,0 +1,79 @@
+:host { display: block; min-width: 0; }
+
+.lw-vtt-status {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem 0.7rem;
+  padding: 0.4rem 0.7rem; border-radius: 10px;
+  background: rgba(5, 16, 12, 0.78);
+  border: 1px solid rgba(217, 183, 122, 0.3);
+  backdrop-filter: blur(4px);
+  color: #c9d9d2; font-size: 0.8rem;
+}
+
+.lw-vtt-status__title {
+  font-family: var(--lw-font-display, Georgia, serif);
+  font-weight: 700; color: #d9b77a; letter-spacing: 0.03em; margin-right: 0.2rem;
+}
+
+.lw-vtt-status__live {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-weight: 700; color: #ff6b6b;
+}
+
+.lw-vtt-status__dot {
+  width: 9px; height: 9px; border-radius: 50%; background: #ff4d4d;
+  box-shadow: 0 0 6px rgba(255, 77, 77, 0.85);
+}
+
+.lw-vtt-status__live--on { color: #49e892; }
+.lw-vtt-status__live--on .lw-vtt-status__dot {
+  background: #49e892;
+  box-shadow: 0 0 8px rgba(73, 232, 146, 0.95);
+  animation: lw-vtt-live-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes lw-vtt-live-glow {
+  0%, 100% { box-shadow: 0 0 4px rgba(73, 232, 146, 0.6); }
+  50% { box-shadow: 0 0 12px rgba(73, 232, 146, 1); }
+}
+
+.lw-vtt-status__select {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  span { font-size: 0.7rem; font-weight: 700; color: #d9b77a; text-transform: uppercase; }
+  select {
+    height: 30px; padding: 0 0.45rem; border-radius: 6px; max-width: 220px;
+    background: rgba(9, 25, 19, 0.9); border: 1px solid rgba(217, 183, 122, 0.32);
+    color: #f3e8d0; font-size: 0.78rem;
+  }
+}
+
+.lw-vtt-status__pill {
+  padding: 0.25rem 0.6rem; border-radius: 999px;
+  background: rgba(217, 183, 122, 0.12); border: 1px solid rgba(217, 183, 122, 0.3);
+  color: #f3e8d0; font-weight: 600; white-space: nowrap;
+  &--timer { font-variant-numeric: tabular-nums; color: #d9b77a; }
+}
+
+.lw-vtt-status__modes {
+  display: inline-flex; border-radius: 6px; overflow: hidden;
+  border: 1px solid rgba(217, 183, 122, 0.35);
+}
+
+.lw-vtt-status__mode {
+  padding: 0.3rem 0.7rem; cursor: pointer; border: 0;
+  background: transparent; color: #c9d9d2; font-weight: 700;
+  &.active { background: rgba(73, 232, 146, 0.18); color: #49e892; }
+  &:hover:not(.active) { color: #f3e8d0; }
+}
+
+.lw-vtt-status__btn {
+  padding: 0.32rem 0.7rem; border-radius: 6px; cursor: pointer; white-space: nowrap;
+  background: rgba(10, 26, 20, 0.92); border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #c9d9d2; font-weight: 600;
+  &:hover { border-color: #d9b77a; color: #f3e8d0; }
+  &--gold { border-color: #d9b77a; background: rgba(217, 183, 122, 0.2); color: #f3e8d0; }
+}
+
+.lw-vtt-status__tab {
+  border-color: rgba(73, 232, 146, 0.55); color: #49e892;
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+}

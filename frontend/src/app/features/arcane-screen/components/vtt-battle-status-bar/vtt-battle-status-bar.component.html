@@ -1,0 +1,46 @@
+<div class="lw-vtt-status" role="status" aria-label="Battle map status">
+  <span class="lw-vtt-status__title">Battle Map</span>
+
+  <span class="lw-vtt-status__live" [class.lw-vtt-status__live--on]="isLive()" [attr.title]="realtime.syncProtocolLabel()">
+    <span class="lw-vtt-status__dot" aria-hidden="true"></span>
+    <span>{{ liveLabel() }}</span>
+  </span>
+
+  <label class="lw-vtt-status__select" aria-label="Select active live encounter">
+    <select [ngModel]="vtt.activeEncounterId()" (ngModelChange)="encounterChange.emit($event)">
+      @for (enc of vtt.encounterDetails(); track enc.id) {
+        <option [value]="enc.id">{{ enc.name }}</option>
+      }
+    </select>
+  </label>
+
+  <span class="lw-vtt-status__pill">Round {{ vtt.activeRound() }} · {{ battle.activeInitiativeToken().name }}</span>
+  <span class="lw-vtt-status__pill lw-vtt-status__pill--timer">{{ timer.formatted() }}</span>
+
+  <label class="lw-vtt-status__select" title="Active player token for line of sight and turn actions">
+    <span>POV</span>
+    <select [ngModel]="battle.activeObserverToken().key" (ngModelChange)="vtt.selectedAttackerKey.set($event)">
+      @for (hero of vtt.partyTokensInScene(); track hero.key) {
+        <option [value]="hero.key">{{ hero.name }}</option>
+      }
+    </select>
+  </label>
+
+  <div class="lw-vtt-status__modes" role="group" aria-label="Map mode">
+    <button ngpButton type="button" class="lw-vtt-status__mode" [class.active]="!battle.mapMode3D()" [attr.aria-pressed]="!battle.mapMode3D()" (click)="modeChange.emit(false)">2D</button>
+    <button ngpButton type="button" class="lw-vtt-status__mode" [class.active]="battle.mapMode3D()" [attr.aria-pressed]="battle.mapMode3D()" (click)="modeChange.emit(true)">3D</button>
+  </div>
+
+  @if (isGm()) {
+    <button ngpButton type="button" class="lw-vtt-status__btn" (click)="handouts.openCompose()">Show to Players</button>
+    <button ngpButton type="button" class="lw-vtt-status__btn lw-vtt-status__btn--gold" (click)="nextTurn.emit()">Next Turn</button>
+  }
+
+  @if (handouts.hasRevealed()) {
+    <button ngpButton type="button" class="lw-vtt-status__btn lw-vtt-status__tab" (click)="handouts.openRevealed()">
+      {{ handouts.revealed()?.title }}
+    </button>
+  }
+
+  <ng-content />
+</div>

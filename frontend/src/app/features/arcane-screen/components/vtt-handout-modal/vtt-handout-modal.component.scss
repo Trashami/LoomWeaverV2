@@ -1,0 +1,55 @@
+.lw-vtt-modal-backdrop {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(2, 8, 6, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.lw-vtt-handout {
+  width: min(720px, 92vw); max-height: 86vh; overflow: auto;
+  display: flex; flex-direction: column; gap: 0.9rem;
+  padding: 1.4rem 1.6rem; border-radius: 12px;
+  background: linear-gradient(180deg, #0b1d16, #05100c);
+  border: 1px solid rgba(217, 183, 122, 0.55);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  color: #f3e8d0;
+}
+
+.lw-vtt-handout__head {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  h3 { margin: 0; font-family: var(--lw-font-display, Georgia, serif); font-size: 1.35rem; color: #d9b77a; }
+}
+
+.lw-vtt-handout__icon {
+  padding: 0.3rem; border-radius: 6px; border: 1px solid transparent;
+  background: transparent; color: #c9d9d2; cursor: pointer;
+  &:hover { border-color: rgba(217, 183, 122, 0.45); color: #f3e8d0; }
+}
+
+.lw-vtt-handout__field {
+  display: flex; flex-direction: column; gap: 0.35rem;
+  span { font-size: 0.74rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #d9b77a; }
+  input, textarea {
+    padding: 0.55rem 0.7rem; border-radius: 6px; resize: vertical;
+    background: rgba(9, 25, 19, 0.9); border: 1px solid rgba(217, 183, 122, 0.32);
+    color: #f3e8d0; font: inherit;
+    &:focus { outline: 2px solid #49e892; outline-offset: 1px; }
+  }
+}
+
+.lw-vtt-handout__body {
+  margin: 0; white-space: pre-wrap; line-height: 1.6; font-size: 1.02rem;
+}
+
+.lw-vtt-handout__actions {
+  display: flex; justify-content: flex-end; gap: 0.6rem;
+}
+
+.lw-vtt-handout__btn {
+  padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;
+  background: rgba(10, 26, 20, 0.92); border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #c9d9d2; font-weight: 600;
+  &:hover:not(:disabled) { border-color: #d9b77a; color: #f3e8d0; }
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+  &--gold { border-color: #d9b77a; background: rgba(217, 183, 122, 0.2); color: #f3e8d0; }
+}

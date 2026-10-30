@@ -14,7 +14,8 @@ export type VttRemoteEvent =
       readonly endZ: number;
       readonly targetKeys: readonly string[];
     }
-  | { readonly kind: 'fog_changed'; readonly mode: VttFogMode };
+  | { readonly kind: 'fog_changed'; readonly mode: VttFogMode }
+  | { readonly kind: 'handout_revealed'; readonly title: string; readonly body: string };
 
 type Payload = Readonly<Record<string, unknown>>;
 
@@ -73,6 +74,10 @@ export function parseVttEvent(evt: VttRealtimeEvent): VttRemoteEvent | null {
         ? { kind: 'fog_changed', mode: mode as VttFogMode }
         : null;
     }
+    case 'handout_revealed':
+      return typeof p['title'] === 'string' && typeof p['body'] === 'string'
+        ? { kind: 'handout_revealed', title: p['title'], body: p['body'] }
+        : null;
     default:
       return null;
   }

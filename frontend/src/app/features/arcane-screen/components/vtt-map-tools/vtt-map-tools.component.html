@@ -1,0 +1,54 @@
+<div class="lw-vtt-tools" [class.lw-vtt-tools--open]="expanded()">
+  @if (!expanded()) {
+    <button ngpButton type="button" class="lw-vtt-tools__pill" aria-expanded="false" aria-label="Open map tools" (click)="expanded.set(true)">
+      <span>Map Tools</span>
+      <lw-icon name="chevron-down" [size]="14" />
+    </button>
+  } @else {
+    <div class="lw-vtt-tools__row" role="toolbar" aria-label="Map tools">
+      <button ngpButton type="button" class="lw-vtt-tools__btn" [class.active]="battle.openDmDrawer() === 'fog-settings'" [attr.aria-label]="fogTitle()" [title]="fogTitle()" (click)="battle.toggleDmDrawer('fog-settings')">
+        <lw-icon name="eye" [size]="20" />
+      </button>
+      <button ngpButton type="button" class="lw-vtt-tools__btn" [class.active]="gridEnabled()" aria-label="Toggle grid" title="Grid" (click)="gridEnabled.set(!gridEnabled())">
+        <lw-icon name="grid" [size]="20" />
+      </button>
+      <button ngpButton type="button" class="lw-vtt-tools__btn" [class.active]="battle.measureEnabled()" aria-label="Measure" title="Measure" (click)="battle.toggleMeasureTool()">
+        <lw-icon name="ruler" [size]="20" />
+      </button>
+      <button ngpButton type="button" class="lw-vtt-tools__btn" [class.active]="battle.targetSelectionMode()" aria-label="Multi-target selection" title="Multi-target selection (T)" (click)="battle.targetSelectionMode.set(!battle.targetSelectionMode())">
+        <lw-icon name="target" [size]="20" />
+      </button>
+      <button ngpButton type="button" class="lw-vtt-tools__btn" aria-label="Roll selected dice" title="Roll dice" (click)="rollDice.emit()">
+        <lw-icon name="dices" [size]="20" />
+      </button>
+      <button ngpButton type="button" class="lw-vtt-tools__btn" [class.active]="battle.openDmDrawer() === 'scene-roster'" aria-label="Roster and traps" title="Roster & Traps" (click)="battle.toggleDmDrawer('scene-roster')">
+        <lw-icon name="users" [size]="20" />
+      </button>
+      <button ngpButton type="button" class="lw-vtt-tools__btn" [class.active]="railOpen()" aria-label="Party rail" title="Party rail" (click)="railOpen.set(!railOpen())">
+        <lw-icon name="layers" [size]="20" />
+      </button>
+      @if (isGm()) {
+        <button ngpButton type="button" class="lw-vtt-tools__btn" [class.active]="battle.openDmDrawer() === 'quick-add'" aria-label="Add monster or NPC" title="Add monster / NPC" (click)="battle.toggleDmDrawer('quick-add')">
+          <lw-icon name="user-plus" [size]="20" />
+        </button>
+        <button ngpButton type="button" class="lw-vtt-tools__btn" [class.active]="battle.openDmDrawer() === 'dm-session'" aria-label="DM tools" title="DM tools" (click)="battle.toggleDmDrawer('dm-session')">
+          <lw-icon name="settings" [size]="20" />
+        </button>
+      }
+      <a class="lw-vtt-tools__btn" routerLink="/encounters" aria-label="Build encounters" title="Build encounters">
+        <lw-icon name="swords" [size]="20" />
+      </a>
+      @if (serverSync.scenes().length > 0) {
+        <select class="lw-vtt-tools__scene" aria-label="Saved map scene" [ngModel]="serverSync.activeSceneKey()" (ngModelChange)="serverSync.loadScene($event)">
+          <option value="">Demo scene</option>
+          @for (scene of serverSync.scenes(); track scene.sceneKey) {
+            <option [value]="scene.sceneKey">{{ scene.name }}</option>
+          }
+        </select>
+      }
+      <button ngpButton type="button" class="lw-vtt-tools__btn lw-vtt-tools__btn--close" aria-expanded="true" aria-label="Collapse map tools" title="Collapse" (click)="expanded.set(false)">
+        <lw-icon name="chevron-up" [size]="20" />
+      </button>
+    </div>
+  }
+</div>

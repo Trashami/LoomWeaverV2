@@ -1,0 +1,22 @@
+<div class="lw-vtt-settings">
+  <fieldset class="lw-vtt-settings__group">
+    <legend>Map Quality</legend>
+    <p class="lw-vtt-settings__hint">Choose how detailed the battle map artwork is. Lower modes load lighter images.</p>
+    @for (opt of qualityOptions; track opt.id) {
+      <label class="lw-vtt-settings__option" [class.active]="display.mapQuality() === opt.id">
+        <input type="radio" name="lw-vtt-map-quality" [value]="opt.id" [checked]="display.mapQuality() === opt.id" (change)="select(opt.id)" />
+        <span class="lw-vtt-settings__option-text">
+          <strong>{{ opt.label }}</strong>
+          <small>{{ opt.hint }}</small>
+        </span>
+      </label>
+    }
+  </fieldset>
+
+  <fieldset class="lw-vtt-settings__group lw-vtt-settings__group--soon" disabled>
+    <legend>Coming Soon</legend>
+    <p class="lw-vtt-settings__hint">Quick dice skin</p>
+    <p class="lw-vtt-settings__hint">Battlefield theme</p>
+    <p class="lw-vtt-settings__hint">Action bar skin</p>
+  </fieldset>
+</div>

@@ -14,14 +14,11 @@ import {
   untracked,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { VttReturnRouteService } from '../../core/services/vtt-return-route.service';
 import { NgpButton } from 'ng-primitives/button';
 import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
-import {
-  LwButtonComponent,
-  LwIconComponent,
-} from '../../shared/ui/public-api';
+import { LwButtonComponent } from '../../shared/ui/public-api';
 import { WebAudioAmbienceService } from '../assets/engine/web-audio-ambience.service';
 import { FullscreenDiceOverlayService } from '../dice/engine/fullscreen-dice-overlay.service';
 import { BabylonEffectStageService } from '../effects/engine/babylon-effect-stage.service';
@@ -46,23 +43,31 @@ import {
 import type { DockAction, DockToken } from './components/vtt-action-dock/vtt-action-dock.models';
 import { VttBattleStateService } from './services/vtt-battle-state.service';
 import { VttCombatService } from './services/vtt-combat.service';
+import { VttDisplaySettingsService } from './services/vtt-display-settings.service';
+import { VttEncounterTimerService } from './services/vtt-encounter-timer.service';
 import { VttServerSyncService } from './services/vtt-server-sync.service';
+import { VttMapToolsComponent } from './components/vtt-map-tools/vtt-map-tools.component';
+import { VttBattleStatusBarComponent } from './components/vtt-battle-status-bar/vtt-battle-status-bar.component';
+import { VttSettingsPanelComponent } from './components/vtt-settings-panel/vtt-settings-panel.component';
+import { VttHandoutModalComponent } from './components/vtt-handout-modal/vtt-handout-modal.component';
 
 @Component({
   selector: 'lw-arcane-screen-page',
   standalone: true,
   imports: [
     FormsModule,
-    RouterLink,
     NgpButton,
     LwButtonComponent,
-    LwIconComponent,
     VttActionDockComponent,
     VttGmRailComponent,
     VttGmGuidePanelComponent,
     VttGmTrackersPanelComponent,
     VttSettingsModalComponent,
     VttDmDrawersComponent,
+    VttMapToolsComponent,
+    VttBattleStatusBarComponent,
+    VttSettingsPanelComponent,
+    VttHandoutModalComponent,
   ],
   templateUrl: './arcane-screen.page.html',
   styleUrl: './arcane-screen.page.scss',
@@ -81,6 +86,8 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   private readonly router = inject(Router);
   readonly serverSync = inject(VttServerSyncService);
   readonly vttReturn = inject(VttReturnRouteService);
+  readonly vttDisplay = inject(VttDisplaySettingsService);
+  readonly timer = inject(VttEncounterTimerService);
 
   constructor() {
     effect(() => {
@@ -101,10 +108,6 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
 
   readonly gridEnabled = signal<boolean>(true);
   private dragMoved = false;
-
-  readonly timerSeconds = signal<number>(872);
-  readonly timerRunning = signal<boolean>(true);
-  private timerHandle: ReturnType<typeof setInterval> | null = null;
 
   readonly selectedDiceFormula = signal<string>('1d20');
   readonly dmToolReadout = signal<string>(
@@ -130,15 +133,6 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
 
   readonly gridVerticalLines = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100];
   readonly gridHorizontalLines = [100, 200, 300, 400, 500, 600, 700];
-
-  readonly formattedTimer = computed(() => {
-    const total = this.timerSeconds();
-    const hrs = Math.floor(total / 3600);
-    const mins = Math.floor((total % 3600) / 60);
-    const secs = total % 60;
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
-  });
 
   readonly shouldRenderPlayerFog = computed(
     () =>
@@ -181,19 +175,17 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       );
       this.sync3dStage();
     }
-    this.timerHandle = setInterval(() => {
-      if (this.timerRunning()) {
-        this.timerSeconds.update((s) => s + 1);
-      }
-    }, 1000);
+    this.timer.start();
   }
 
   ngOnDestroy(): void {
-    if (this.timerHandle) {
-      clearInterval(this.timerHandle);
-      this.timerHandle = null;
-    }
+    this.timer.stop();
     this.stage.dispose();
+  }
+
+  setMapMode(is3d: boolean): void {
+    this.battle.mapMode3D.set(is3d);
+    this.sync3dStage();
   }
 
   sync3dStage(): void {

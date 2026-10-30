@@ -1,0 +1,43 @@
+<!-- GM composer -->
+@if (showCompose()) {
+  <div class="lw-vtt-modal-backdrop">
+    <section class="lw-vtt-handout" role="dialog" aria-modal="true" aria-label="Show to players">
+      <header class="lw-vtt-handout__head">
+        <h3>Show to Players</h3>
+        <button ngpButton type="button" class="lw-vtt-handout__icon" aria-label="Close composer" (click)="handouts.closeCompose()">
+          <lw-icon name="x" [size]="16" />
+        </button>
+      </header>
+      <label class="lw-vtt-handout__field">
+        <span>Title</span>
+        <input type="text" maxlength="120" placeholder="The Sealed Letter" [ngModel]="handouts.draftTitle()" (ngModelChange)="handouts.draftTitle.set($event)" />
+      </label>
+      <label class="lw-vtt-handout__field">
+        <span>Text shown to players</span>
+        <textarea rows="10" maxlength="4000" placeholder="Write what the players should read..." [ngModel]="handouts.draftBody()" (ngModelChange)="handouts.draftBody.set($event)"></textarea>
+      </label>
+      <footer class="lw-vtt-handout__actions">
+        <button ngpButton type="button" class="lw-vtt-handout__btn" (click)="handouts.closeCompose()">Cancel</button>
+        <button ngpButton type="button" class="lw-vtt-handout__btn lw-vtt-handout__btn--gold" [disabled]="!handouts.draftTitle().trim()" (click)="handouts.reveal()">Reveal to Players</button>
+      </footer>
+    </section>
+  </div>
+}
+
+<!-- Revealed handout (players and GM) -->
+@if (showView()) {
+  <div class="lw-vtt-modal-backdrop">
+    <section class="lw-vtt-handout" role="dialog" aria-modal="true" [attr.aria-label]="handouts.revealed()?.title">
+      <header class="lw-vtt-handout__head">
+        <h3>{{ handouts.revealed()?.title }}</h3>
+        <button ngpButton type="button" class="lw-vtt-handout__icon" aria-label="Close handout" (click)="handouts.closeView()">
+          <lw-icon name="x" [size]="16" />
+        </button>
+      </header>
+      <p class="lw-vtt-handout__body">{{ handouts.revealed()?.body }}</p>
+      <footer class="lw-vtt-handout__actions">
+        <button ngpButton type="button" class="lw-vtt-handout__btn" (click)="handouts.closeView()">Close</button>
+      </footer>
+    </section>
+  </div>
+}

@@ -20,10 +20,11 @@ export function toBaseGlbUrl(url: string): string {
   return url.replace(LOD_SUFFIX, '.glb');
 }
 
+/** Heavier tiers never stand in for a lighter request, so Performance never loads HQ files. */
 const TIER_FALLBACK: Record<GlbLodTier, readonly GlbLodTier[]> = {
   high: ['high', 'mid', 'low'],
-  mid: ['mid', 'low', 'high'],
-  low: ['low', 'mid', 'high'],
+  mid: ['mid', 'low'],
+  low: ['low', 'mid'],
 };
 
 export type GlbLodManifest = ReadonlyMap<string, Partial<Record<GlbLodTier, string>>>;

@@ -11,8 +11,6 @@ import {
   MeshBuilder,
   PointerEventTypes,
   Scene,
-  StandardMaterial,
-  Texture,
   Vector3,
 } from '@babylonjs/core';
 import {
@@ -34,8 +32,9 @@ import { FloorBumpAndColorConfig, TerrainMeshBuilder } from '../terrain/terrain-
 import { WallMeshBuilder } from '../walls/wall-mesh.builder';
 import { WaterSplineBuilder } from '../water/water-spline.builder';
 import { lodTierForQualityPreset } from './glb-lod';
-import { GlbCloneMetadata, GlbModelCache } from './glb-model-cache';
+import { GlbModelCache } from './glb-model-cache';
 import { LightDragController } from './light-drag.controller';
+import { StampSceneBuilder } from './stamp-scene.builder';
 import { LightFixtureBuilder } from '../lighting/light-fixture.builder';
 
 export interface PickedSceneEntityMeta {
@@ -99,6 +98,7 @@ export class BabylonMapStageService {
   private snapToGrid = true;
   private surfaceLockEnabled = false;
   private lastState: MapSceneGraphState | null = null;
+  private resyncTimer: ReturnType<typeof setTimeout> | null = null;
   private pointerDownClientX = 0;
   private pointerDownClientY = 0;
   private isLeftPointerDown = false;
@@ -833,6 +833,17 @@ export class BabylonMapStageService {
     this.rebuildSelectionGizmo();
   }
 
+  /** Coalesces the resyncs fired by each async model load into one rebuild. */
+  private scheduleSceneResync(): void {
+    if (this.resyncTimer !== null) return;
+    this.resyncTimer = setTimeout(() => {
+      this.resyncTimer = null;
+      if (this.scene && this.lastState) {
+        this.syncSceneGraph(this.lastState);
+      }
+    }, 150);
+  }
+
   syncSceneGraph(state: MapSceneGraphState): void {
     if (!this.scene) return;
     this.lastState = state;
@@ -857,17 +868,13 @@ export class BabylonMapStageService {
       state.scatterSeed,
       state.scatterDensity,
       state.scatterClusters,
-      () => {
-        if (this.lastState) this.syncSceneGraph(this.lastState);
-      },
+      () => this.scheduleSceneResync(),
     );
     const wallCount = WallMeshBuilder.rebuildWallMeshes(
       this.scene,
       state.walls,
       this.hideGmSecrets,
-      () => {
-        if (this.lastState) this.syncSceneGraph(this.lastState);
-      },
+      () => this.scheduleSceneResync(),
     );
     const pathCount = PathRibbonEngine.rebuildPathRibbonMeshes(this.scene, state.pathRibbons);
     this.rebuildStamps(this.scene, state.stamps);
@@ -889,105 +896,10 @@ export class BabylonMapStageService {
   }
 
   private rebuildStamps(scene: Scene, stamps: readonly MapStampNode[]): void {
-    scene.transformNodes
-      .filter((n) => n.name.startsWith('lw-stamp-node-'))
-      .forEach((n) => n.dispose(false, false));
-    scene.meshes
-      .filter((m) => m.name.startsWith('lw-stamp-'))
-      .forEach((m) => m.dispose(false, false));
-
-    const cellMeters = TerrainMeshBuilder.getCellStepMeters(); // 1.5m = 1x1x1 grid square
-
-    for (const st of stamps) {
-      if (this.hideGmSecrets && (st.gmSecretOnly || st.label.toLowerCase().includes('secret'))) {
-        continue;
-      }
-      const groundY = TerrainMeshBuilder.sampleElevationAt(scene, st.x, st.z);
-      const offsetY = st.placementMode === 'custom' ? (st.offsetY ?? 0) : 0;
-      const stampMeta: GlbCloneMetadata = {
-        lwNodeName: `lw-stamp-${st.id}`,
-        lwKind: 'object',
-        lwEntityId: st.id,
-      };
-      const sx = (st.scaleX ?? 1) * st.scale;
-      const sy = (st.scaleY ?? 1) * st.scale;
-      const sz = (st.scaleZ ?? 1) * st.scale;
-
-      // 1. Real 3D Asset Model (1x1x1 = 1.5m x 1.5m x 1.5m, flush on floor by default)
-      if (st.modelUrl) {
-        const tpl = GlbModelCache.getOrLoadTemplate(scene, st.modelUrl, () => {
-          if (this.lastState) {
-            this.rebuildStamps(scene, this.lastState.stamps);
-            SceneLightingController.refreshShadowCasters(scene);
-          }
-        });
-        if (tpl) {
-          const isUniform =
-            Math.abs(sx - sy) < 0.01 && Math.abs(sy - sz) < 0.01;
-          const inst = GlbModelCache.instantiateClone(
-            scene,
-            tpl,
-            `lw-stamp-node-${st.id}`,
-            cellMeters * sx,
-            cellMeters * sy,
-            cellMeters * sz,
-            isUniform,
-            false,
-            stampMeta,
-            {
-              colorHex: st.colorHex,
-              surfaceFinish: st.surfaceFinish,
-              opacity: st.opacity,
-            },
-          );
-          inst.position.set(st.x, groundY + offsetY, st.z);
-          inst.rotation.y = st.rotationY;
-          inst.rotation.x = ((st.tiltX ?? 0) * Math.PI) / 180;
-          continue;
-        }
-      }
-
-      // 2. 2D Cutout Floor Stamp / Decal
-      const texUrl = st.albedoUrl || st.thumbnailUrl;
-      if (texUrl) {
-        const decal = MeshBuilder.CreateGround(
-          `lw-stamp-${st.id}`,
-          { width: cellMeters * sx, height: cellMeters * sz },
-          scene,
-        );
-        decal.position.set(st.x, groundY + 0.04 + offsetY, st.z);
-        decal.rotation.y = st.rotationY;
-        decal.receiveShadows = true;
-        decal.metadata = stampMeta;
-
-        const matName = `lw-stamp-decal-mat-${st.id}`;
-        const existingMat = scene.getMaterialByName(matName) as StandardMaterial | null;
-        if (existingMat) {
-          existingMat.dispose(false, false);
-        }
-        const dMat = new StandardMaterial(matName, scene);
-        const diffTex = new Texture(texUrl, scene);
-        diffTex.hasAlpha = true;
-        dMat.diffuseTexture = diffTex;
-        dMat.useAlphaFromDiffuseTexture = true;
-        dMat.diffuseColor =
-          st.colorHex && st.colorHex.toLowerCase() !== '#ffffff'
-            ? Color3.FromHexString(st.colorHex)
-            : Color3.White();
-        dMat.alpha = st.opacity ?? 1.0;
-        dMat.specularColor = Color3.FromHexString('#18221c');
-        if (st.normalUrl) {
-          const bumpTex = new Texture(st.normalUrl, scene);
-          bumpTex.level = 1.25;
-          dMat.bumpTexture = bumpTex;
-        }
-        decal.material = dMat;
-      }
-    }
+    StampSceneBuilder.rebuild(scene, stamps, this.hideGmSecrets, () => this.scheduleSceneResync());
   }
 
-  private rebuildSelectionGizmo(): void {
-    if (!this.scene) return;
+  private rebuildSelectionGizmo(): void {    if (!this.scene) return;
     this.scene.meshes
       .filter((m) => m.name.startsWith('lw-gizmo-'))
       .forEach((m) => m.dispose());
@@ -1029,6 +941,10 @@ export class BabylonMapStageService {
 
   dispose(): void {
     this.stopHoldTimer();
+    if (this.resyncTimer !== null) {
+      clearTimeout(this.resyncTimer);
+      this.resyncTimer = null;
+    }
     this.wheelAbortController?.abort();
     this.wheelAbortController = null;
     this.resizeObserver?.disconnect();
@@ -1037,6 +953,7 @@ export class BabylonMapStageService {
     this.engine?.dispose();
     this.scene = null;
     this.engine = null;
+
     this.camera = null;
     this.cameraViews = null;
   }

@@ -1,9 +1,11 @@
 import {
+  AbstractMesh,
   Color3,
   DirectionalLight,
   HemisphericLight,
   Mesh,
   MeshBuilder,
+  Node,
   Scene,
   ShadowGenerator,
   StandardMaterial,
@@ -113,6 +115,7 @@ export class SceneLightingController {
     if (!shadowMap) return;
     shadowMap.renderList = [];
     for (const mesh of scene.meshes) {
+      if (isScatterMesh(mesh)) continue;
       if (
         mesh.name.startsWith('lw-wall-') ||
         mesh.name.startsWith('lw-door-') ||
@@ -123,4 +126,12 @@ export class SceneLightingController {
       }
     }
   }
+}
+
+/** Scatter props are numerous and tiny; re-rendering them into the shadow map each frame is the costly part. */
+function isScatterMesh(mesh: AbstractMesh): boolean {
+  for (let node: Node | null = mesh; node; node = node.parent) {
+    if (node.name.startsWith('lw-scatter-')) return true;
+  }
+  return false;
 }

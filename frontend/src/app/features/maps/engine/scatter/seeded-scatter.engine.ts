@@ -6,6 +6,9 @@ import { GlbModelCache } from '../rendering/glb-model-cache';
 import { TerrainMeshBuilder } from '../terrain/terrain-mesh.builder';
 
 export class SeededScatterEngine {
+  /** Signature of the last fully built scatter set per scene; lets unchanged rebuilds be skipped. */
+  private static readonly builtSignature = new WeakMap<Scene, { key: string; count: number }>();
+
   static rebuildScatterInstances(
     scene: Scene,
     _seed: number,
@@ -13,6 +16,13 @@ export class SeededScatterEngine {
     clusters?: readonly MapScatterClusterNode[],
     onGlbLoaded?: () => void,
   ): number {
+    const signature = clusters && clusters.length > 0 ? JSON.stringify(clusters) : '';
+    const built = this.builtSignature.get(scene);
+    if (built && built.key === signature && scene.transformNodes.some((n) => n.name.startsWith('lw-scatter-node-'))) {
+      return built.count;
+    }
+    this.builtSignature.delete(scene);
+
     [...scene.transformNodes]
       .filter((n) => n.name.startsWith('lw-scatter-node-'))
       .forEach((n) => n.dispose());
@@ -37,6 +47,7 @@ export class SeededScatterEngine {
       };
     };
 
+    let unresolved = false;
     if (clusters) {
       for (const cluster of clusters) {
         const nextRand = makePrng(cluster.seed);
@@ -45,7 +56,11 @@ export class SeededScatterEngine {
           ? GlbModelCache.getOrLoadTemplate(scene, cluster.modelUrl, onGlbLoaded)
           : null;
 
-        if (!glbTpl) continue;
+        if (!glbTpl) {
+          // Leave the signature unset so the async model load triggers a real rebuild.
+          unresolved = true;
+          continue;
+        }
         for (let j = 0; j < itemCount; j++) {
           if (totalInstances >= 1500) return totalInstances;
           const r = Math.sqrt(nextRand()) * Math.max(0.1, cluster.radius);
@@ -76,6 +91,9 @@ export class SeededScatterEngine {
       }
     }
 
+    if (!unresolved) {
+      this.builtSignature.set(scene, { key: signature, count: totalInstances });
+    }
     return totalInstances;
   }
 }

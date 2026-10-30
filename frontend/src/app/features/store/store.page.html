@@ -1,0 +1,103 @@
+<section class="store-page">
+  <header class="store-header">
+    <h1>LoomWeaver Store</h1>
+    <p class="meta">Published and official content from across LoomWeaver.</p>
+  </header>
+
+  <div class="toolbar">
+    <div class="chips" role="group" aria-label="Filter by content type">
+      @for (chip of chips; track chip.value) {
+        <button
+          type="button"
+          class="chip"
+          [class.active]="filter() === chip.value"
+          (click)="setFilter(chip.value)"
+        >{{ chip.label }}</button>
+      }
+    </div>
+    <form class="search" (ngSubmit)="runSearch()">
+      <input
+        type="search"
+        name="q"
+        placeholder="Search the store"
+        [ngModel]="search()"
+        (ngModelChange)="search.set($event)"
+      />
+      <button ngpButton type="submit" class="primary">Search</button>
+    </form>
+  </div>
+
+  @if (errorMessage()) {
+    <p class="error">{{ errorMessage() }}</p>
+  }
+
+  <div class="layout">
+    <div class="grid">
+      @for (item of items(); track item.sourceTable + ':' + item.sourceKey) {
+        <article
+          class="card"
+          [class.selected]="selected()?.sourceKey === item.sourceKey && selected()?.sourceTable === item.sourceTable"
+          (click)="select(item)"
+        >
+          <span class="type">{{ item.contentType }}</span>
+          <h2>{{ item.title }}</h2>
+          <p class="summary">{{ item.summary }}</p>
+          <div class="card-meta">
+            @if (showCreator(item)) {
+              <span>By {{ item.creatorUsername }}</span>
+            }
+            <span>{{ formatRating(item) }}</span>
+            <span>{{ item.acquisitionCount }} added</span>
+          </div>
+        </article>
+      } @empty {
+        @if (!loading()) {
+          <p class="meta">No items match this filter yet.</p>
+        }
+      }
+    </div>
+
+    @if (selected(); as item) {
+      <aside class="detail">
+        <div class="detail-head">
+          <span class="type">{{ item.contentType }}</span>
+          <button ngpButton type="button" class="ghost" (click)="closeDetail()">Close</button>
+        </div>
+        <h2>{{ item.title }}</h2>
+        @if (showCreator(item)) {
+          <p class="meta">Created by {{ item.creatorUsername }}</p>
+        }
+        <p>{{ item.summary }}</p>
+        <p class="meta">{{ formatRating(item) }} · {{ item.acquisitionCount }} added</p>
+
+        @if (!item.acquired) {
+          <button ngpButton type="button" class="primary" [disabled]="actionBusy()" (click)="acquire(item)">
+            Add to my account
+          </button>
+        } @else {
+          <p class="meta">In your account.</p>
+          <div class="rating-row" role="group" aria-label="Rate this item">
+            @for (n of [1, 2, 3, 4, 5]; track n) {
+              <button
+                ngpButton
+                type="button"
+                class="rate"
+                [class.active]="item.myRating === n"
+                [disabled]="actionBusy()"
+                (click)="rate(item, n)"
+              >{{ n }}</button>
+            }
+          </div>
+        }
+      </aside>
+    }
+  </div>
+
+  @if (hasMore()) {
+    <div class="more">
+      <button ngpButton type="button" class="ghost" [disabled]="loading()" (click)="loadMore()">
+        Load more
+      </button>
+    </div>
+  }
+</section>

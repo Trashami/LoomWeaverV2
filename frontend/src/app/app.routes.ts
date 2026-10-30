@@ -152,6 +152,12 @@ export const APP_ROUTES: Routes = [
       ),
   },
   {
+    path: 'store',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/store/store.page').then((m) => m.StorePageComponent),
+  },
+  {
     path: 'statistics',
     canActivate: [authGuard],
     loadComponent: () =>

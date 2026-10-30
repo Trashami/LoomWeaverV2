@@ -17,7 +17,7 @@ Not loaded here, on purpose:
   - monsterfeatures.json: sample data with no source field.
   - books.json: source metadata (cover, author, published) is already in dnd_sources.
 
-Writes only official rows (is_canonical = 1, owner_id NULL). Custom rows owned by users are never touched.
+Writes only official rows (is_canonical = 1, owner_id = the LoomWeaver pseudo user). Custom rows owned by users are never touched.
 
 Apply scripts/migrations/20261103_dnd_5etools_extras.sql before the first run.
 
@@ -37,6 +37,8 @@ from collections import defaultdict
 from pathlib import Path
 
 import pymysql
+
+from lw_official_owner import official_owner_id
 
 DEFAULT_DATA_DIR = "/var/www/jane-assets/5etools/data"
 DB_NAME = "loomweaver"
@@ -237,13 +239,18 @@ def official_scope(cur, table):
             (table,),
         )
         columns = {row[0] for row in cur.fetchall()}
-        SCOPE_CACHE[table] = " AND is_canonical = 1 AND owner_id IS NULL" if {"is_canonical", "owner_id"} <= columns else ""
+        SCOPE_CACHE[table] = {"is_canonical", "owner_id"} <= columns
     return SCOPE_CACHE[table]
 
 
-def upsert_entity(cur, table, identity, columns, values):
-    where = " AND ".join(f"{qi(c)} <=> %s" for c in identity) + official_scope(cur, table)
-    cur.execute(f"SELECT id FROM {qi(table)} WHERE {where} LIMIT 1", [values[c] for c in identity])
+def upsert_entity(cur, table, identity, columns, values, owner_id):
+    scoped = official_scope(cur, table)
+    where = " AND ".join(f"{qi(c)} <=> %s" for c in identity)
+    params = [values[c] for c in identity]
+    if scoped:
+        where += " AND is_canonical = 1 AND owner_id = %s"
+        params.append(owner_id)
+    cur.execute(f"SELECT id FROM {qi(table)} WHERE {where} LIMIT 1", params)
     found = cur.fetchone()
     if found:
         assignments = ", ".join(f"{qi(c)} = %s" for c in columns)
@@ -252,16 +259,18 @@ def upsert_entity(cur, table, identity, columns, values):
             [values[c] for c in columns] + [found[0]],
         )
         return "updated"
-    col_sql = ", ".join(qi(c) for c in ["name", "source_book", "page"] + columns)
-    placeholders = ", ".join(["%s"] * (3 + len(columns)))
-    cur.execute(
-        f"INSERT INTO {qi(table)} ({col_sql}) VALUES ({placeholders})",
-        [values["name"], values["source_book"], values["page"]] + [values[c] for c in columns],
-    )
+    insert_cols = ["name", "source_book", "page"] + columns
+    insert_vals = [values["name"], values["source_book"], values["page"]] + [values[c] for c in columns]
+    if scoped:
+        insert_cols.append("owner_id")
+        insert_vals.append(owner_id)
+    col_sql = ", ".join(qi(c) for c in insert_cols)
+    placeholders = ", ".join(["%s"] * len(insert_cols))
+    cur.execute(f"INSERT INTO {qi(table)} ({col_sql}) VALUES ({placeholders})", insert_vals)
     return "inserted"
 
 
-def load_entities(cur, by_table, known_sources, tables, report):
+def load_entities(cur, by_table, known_sources, tables, report, owner_id):
     stats = {}
     unknown_sources = defaultdict(int)
     for table, rows in sorted(by_table.items()):
@@ -293,12 +302,12 @@ def load_entities(cur, by_table, known_sources, tables, report):
             page = page if isinstance(page, int) else None
             values.update(name=name, source_book=source, page=page)
             values["raw_json"] = json.dumps(entry, ensure_ascii=False)
-            counts[upsert_entity(cur, table, identity, columns + ["raw_json"], values)] += 1
+            counts[upsert_entity(cur, table, identity, columns + ["raw_json"], values, owner_id)] += 1
         stats[table] = counts
     return stats, unknown_sources
 
 
-def load_fluff(cur, data_dir, tables, report):
+def load_fluff(cur, data_dir, tables, report, owner_id):
     matched = defaultdict(int)
     unmatched = defaultdict(int)
     for path in sorted(data_dir.glob("fluff-*.json")):
@@ -313,13 +322,17 @@ def load_fluff(cur, data_dir, tables, report):
                 name, source = entry.get("name"), entry.get("source")
                 if not isinstance(name, str) or not isinstance(source, str):
                     continue
-                where = " WHERE name = %s AND source_book = %s" + official_scope(cur, table)
-                cur.execute(f"SELECT COUNT(*) FROM {qi(table)}{where}", (name, source))
+                where = " WHERE name = %s AND source_book = %s"
+                params = [name, source]
+                if official_scope(cur, table):
+                    where += " AND is_canonical = 1 AND owner_id = %s"
+                    params.append(owner_id)
+                cur.execute(f"SELECT COUNT(*) FROM {qi(table)}{where}", params)
                 found = cur.fetchone()[0]
                 if found:
                     cur.execute(
                         f"UPDATE {qi(table)} SET fluff_json = %s{where}",
-                        (json.dumps(entry, ensure_ascii=False), name, source),
+                        [json.dumps(entry, ensure_ascii=False)] + params,
                     )
                 (matched if found else unmatched)[table] += 1
     return matched, unmatched
@@ -384,6 +397,7 @@ def run_load(data_dir):
     report = []
     conn = pymysql.connect(
         host=os.environ.get("LW_DB_HOST", "localhost"),
+        port=int(os.environ.get("LW_DB_PORT", "3306")),
         user=os.environ.get("LW_DB_USER", "loomweaver_app"),
         password=password,
         database=DB_NAME,
@@ -396,8 +410,9 @@ def run_load(data_dir):
             cur.execute("SELECT id FROM dnd_sources")
             known_sources = {row[0] for row in cur.fetchall()}
 
-            stats, unknown = load_entities(cur, by_table, known_sources, tables, report)
-            matched, unmatched = load_fluff(cur, data_dir, tables, report)
+            owner_id = official_owner_id(cur)
+            stats, unknown = load_entities(cur, by_table, known_sources, tables, report, owner_id)
+            matched, unmatched = load_fluff(cur, data_dir, tables, report, owner_id)
             spell_rows, spell_unknown = load_spell_sources(cur, data_dir, known_sources, tables, report)
         conn.commit()
     except Exception:

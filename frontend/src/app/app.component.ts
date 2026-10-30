@@ -161,6 +161,12 @@ const NAV_GROUPS: readonly StudioNavGroup[] = [
         route: "/marketplace",
         icon: "shopping-bag",
       },
+      {
+        id: "store",
+        label: "Store",
+        route: "/store",
+        icon: "store",
+      },
     ],
   },
 ];

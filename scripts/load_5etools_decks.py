@@ -1,6 +1,6 @@
 """Load 5etools decks.json into loomweaver.dnd_decks (idempotent).
 
-Official decks are is_canonical=1 with owner_id NULL. Custom (user-made) decks
+Official decks are is_canonical=1 and owned by the LoomWeaver pseudo user. Custom (user-made) decks
 use is_canonical=0 and owner_id set to the owning users.id.
 
 Cards (decks.json "card") load into dnd_deck_cards, one row per (name, set, source).
@@ -23,6 +23,8 @@ import sys
 from pathlib import Path
 
 import pymysql
+
+from lw_official_owner import official_owner_id
 
 DB_NAME = "loomweaver"
 SKIP_DECKS = {("Features Deck", "DMTCRG")}
@@ -134,10 +136,10 @@ def deck_row(deck):
     }
 
 
-def upsert_deck(cur, row):
+def upsert_deck(cur, row, owner_id):
     cur.execute(
-        "SELECT id FROM dnd_decks WHERE name=%s AND source_book=%s AND is_canonical=1 AND owner_id IS NULL",
-        (row["name"], row["source_book"]),
+        "SELECT id FROM dnd_decks WHERE name=%s AND source_book=%s AND is_canonical=1 AND owner_id=%s",
+        (row["name"], row["source_book"], owner_id),
     )
     found = cur.fetchone()
     if found:
@@ -151,20 +153,20 @@ def upsert_deck(cur, row):
         return "updated", found[0]
     cur.execute(
         """INSERT INTO dnd_decks (name, source_book, page, cards_count, has_card_art,
-               back_image_json, cards_ref_json, entries_json, raw_json, is_canonical, is_public)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 1, 1)""",
+               back_image_json, cards_ref_json, entries_json, raw_json, is_canonical, is_public, owner_id)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 1, 1, %s)""",
         (row["name"], row["source_book"], row["page"], row["cards_count"], row["has_card_art"],
-         row["back_image_json"], row["cards_ref_json"], row["entries_json"], row["raw_json"]),
+         row["back_image_json"], row["cards_ref_json"], row["entries_json"], row["raw_json"], owner_id),
     )
     return "inserted", cur.lastrowid
 
 
-def remove_skipped(cur):
+def remove_skipped(cur, owner_id):
     removed = 0
     for name, source in SKIP_DECKS:
         cur.execute(
-            "SELECT id FROM dnd_decks WHERE name=%s AND source_book=%s AND is_canonical=1 AND owner_id IS NULL",
-            (name, source),
+            "SELECT id FROM dnd_decks WHERE name=%s AND source_book=%s AND is_canonical=1 AND owner_id=%s",
+            (name, source, owner_id),
         )
         for (deck_id,) in cur.fetchall():
             cur.execute("DELETE FROM dnd_decks WHERE id=%s", (deck_id,))
@@ -196,11 +198,11 @@ def card_row(key, card, deck_id, back_path):
     }
 
 
-def upsert_card(cur, row):
+def upsert_card(cur, row, owner_id):
     cur.execute(
         """SELECT id FROM dnd_deck_cards WHERE name=%s AND set_name=%s AND source_book=%s
-           AND is_canonical=1 AND owner_scope_key=0 AND campaign_scope_key=0""",
-        (row["name"], row["set_name"], row["source_book"]),
+           AND is_canonical=1 AND owner_id=%s AND campaign_scope_key=0""",
+        (row["name"], row["set_name"], row["source_book"], owner_id),
     )
     found = cur.fetchone()
     values = [row[c] for c in CARD_COLUMNS]
@@ -210,32 +212,32 @@ def upsert_card(cur, row):
         return "updated", found[0]
     placeholders = ", ".join(["%s"] * len(CARD_COLUMNS))
     cur.execute(
-        f"INSERT INTO dnd_deck_cards (is_canonical, {', '.join(CARD_COLUMNS)}) VALUES (1, {placeholders})",
-        values,
+        f"INSERT INTO dnd_deck_cards (is_canonical, owner_id, {', '.join(CARD_COLUMNS)}) VALUES (1, %s, {placeholders})",
+        [owner_id] + values,
     )
     return "inserted", cur.lastrowid
 
 
-def prune_stale_cards(cur, keep_ids):
+def prune_stale_cards(cur, keep_ids, owner_id):
     if not keep_ids:
         raise RuntimeError("no cards planned; refusing to prune canonical deck cards")
     placeholders = ", ".join(["%s"] * len(keep_ids))
     cur.execute(
-        f"DELETE FROM dnd_deck_cards WHERE is_canonical=1 AND owner_scope_key=0 AND id NOT IN ({placeholders})",
-        keep_ids,
+        f"DELETE FROM dnd_deck_cards WHERE is_canonical=1 AND owner_id=%s AND id NOT IN ({placeholders})",
+        [owner_id] + list(keep_ids),
     )
     return cur.rowcount
 
 
-def write_cards(cur, plan, catalog, deck_ids):
+def write_cards(cur, plan, catalog, deck_ids, owner_id):
     counts = {"inserted": 0, "updated": 0}
     card_ids = {}
     for key, deck_key, back in plan["cards"]:
         deck_id = deck_ids.get(deck_key) if deck_key else None
-        status, card_id = upsert_card(cur, card_row(key, catalog[key], deck_id, back))
+        status, card_id = upsert_card(cur, card_row(key, catalog[key], deck_id, back), owner_id)
         counts[status] += 1
         card_ids[key] = card_id
-    counts["pruned"] = prune_stale_cards(cur, list(card_ids.values()))
+    counts["pruned"] = prune_stale_cards(cur, list(card_ids.values()), owner_id)
     for deck_id in deck_ids.values():
         cur.execute("DELETE FROM dnd_deck_card_refs WHERE deck_id=%s", (deck_id,))
     for ref in plan["refs"]:
@@ -279,6 +281,7 @@ def main():
 
     conn = pymysql.connect(
         host=os.environ.get("LW_DB_HOST", "localhost"),
+        port=int(os.environ.get("LW_DB_PORT", "3306")),
         user=os.environ.get("LW_DB_USER", "loomweaver_app"),
         password=password,
         database=DB_NAME,
@@ -287,14 +290,15 @@ def main():
     )
     try:
         with conn.cursor() as cur:
+            owner_id = official_owner_id(cur)
             counts = {"inserted": 0, "updated": 0}
             deck_ids = {}
             for row in rows:
-                status, deck_id = upsert_deck(cur, row)
+                status, deck_id = upsert_deck(cur, row, owner_id)
                 counts[status] += 1
                 deck_ids[(row["name"], row["source_book"])] = deck_id
-            removed = remove_skipped(cur)
-            card_counts = write_cards(cur, plan, catalog, deck_ids)
+            removed = remove_skipped(cur, owner_id)
+            card_counts = write_cards(cur, plan, catalog, deck_ids, owner_id)
         conn.commit()
         print(f"decks inserted={counts['inserted']} updated={counts['updated']} removed_skipped={removed}")
         print(f"cards inserted={card_counts['inserted']} updated={card_counts['updated']} "

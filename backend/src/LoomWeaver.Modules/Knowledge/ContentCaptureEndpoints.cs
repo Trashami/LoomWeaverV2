@@ -22,6 +22,29 @@ public sealed record ContentCaptureRequest(
     string? SourceRoute,
     string[]? LinkedCompositeKeys);
 
+public static class GraphRelations
+{
+    // Types mirror reference/adventureGuide/adventure-editor.catalog.json relationships.
+    public const string About = "ABOUT";
+    public const string Mentions = "MENTIONS";
+    public const string Contains = "CONTAINS";
+    public const string Reveals = "REVEALS";
+    public const string Supports = "SUPPORTS";
+    public const string Contradicts = "CONTRADICTS";
+    public const string LeadsTo = "LEADS_TO";
+    public const string PartOfStory = "PART_OF_STORY";
+    public const string Plans = "PLANS";
+    public const string OccursAt = "OCCURS_AT";
+    public const string HasClue = "HAS_CLUE";
+    public const string References = "REFERENCES";
+
+    public static readonly HashSet<string> Allowed = new(StringComparer.Ordinal)
+    {
+        About, Mentions, Contains, Reveals, Supports, Contradicts, LeadsTo,
+        PartOfStory, Plans, OccursAt, HasClue, References
+    };
+}
+
 public static class ContentCaptureEndpoints
 {
     private static readonly HashSet<string> AllowedVisibility = new(StringComparer.OrdinalIgnoreCase) { "gm", "players", "public" };
@@ -74,10 +97,10 @@ public static class ContentCaptureEndpoints
             .Distinct()
             .ToList();
 
-        var linkRows = links.Select(k => (Key: k, Relation: "mentions")).ToList();
+        var linkRows = links.Select(k => (Key: k, Relation: GraphRelations.Mentions)).ToList();
         if (!string.IsNullOrWhiteSpace(targetKey) && !linkRows.Any(r => r.Key == targetKey))
         {
-            linkRows.Add((Key: targetKey, Relation: "created"));
+            linkRows.Add((Key: targetKey, Relation: GraphRelations.About));
         }
 
         await using (var db = await mysql.OpenConnectionAsync(ct))
@@ -152,7 +175,7 @@ public static class ContentCaptureEndpoints
                     relIdx++,
                     campaignId,
                     compositeKey,
-                    relation == "created" ? "CREATED" : "MENTIONS",
+                    relation,
                     linkKey,
                     neoVis,
                     $"{intent} capture '{title}'",

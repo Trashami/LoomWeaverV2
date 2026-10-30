@@ -3,6 +3,7 @@ using LoomWeaver.Domain;
 using LoomWeaver.Infrastructure.MySql;
 using LoomWeaver.Infrastructure.Neo4j;
 using LoomWeaver.Modules.Auth;
+using LoomWeaver.Modules.Knowledge;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -288,15 +289,24 @@ public static class CharacterCreatorCatalogEndpoints
 
         api.MapPost("/loom/notes", async (
             LoomScopedNoteRequest req,
+            HttpContext context,
             LoomWeaverMySqlRepository mysql,
             LoomWeaverNeo4jService neo4j,
             CancellationToken ct) =>
         {
             var noteId = $"note-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
-            var campaignId = req.CampaignId <= 0 ? 1 : req.CampaignId;
+            var campaignId = req.CampaignId;
+            if (campaignId <= 0) return Results.BadRequest(new { error = "A campaignId is required." });
+
+            var access = await CampaignAccessResolver.ResolveAsync(context, campaignId, null, ct);
+            if (!access.IsMember) return Results.Forbid();
+
+            var isGmOnly = !string.Equals(req.Visibility, "global", StringComparison.OrdinalIgnoreCase);
+            if (isGmOnly && !access.IsEffectiveGm) return Results.Forbid();
+
             var compositeKey = $"{campaignId}:Note:{noteId}";
 
-            try
+            // The SQL write is the source of truth. Failures here propagate to the caller.
             {
                 await using var db = await mysql.OpenConnectionAsync(ct);
                 await using var cmd = new MySqlCommand("""
@@ -312,11 +322,15 @@ public static class CharacterCreatorCatalogEndpoints
                 cmd.Parameters.AddWithValue("@vis", req.Visibility);
                 cmd.Parameters.AddWithValue("@payload", JsonSerializer.Serialize(req));
                 await cmd.ExecuteNonQueryAsync(ct);
+            }
 
-                var neoVis = string.Equals(req.Visibility, "global", StringComparison.OrdinalIgnoreCase)
-                    ? "players"
-                    : "gm";
+            var neoVis = string.Equals(req.Visibility, "global", StringComparison.OrdinalIgnoreCase)
+                ? "players"
+                : "gm";
 
+            var graphProjected = true;
+            try
+            {
                 await neo4j.ProjectCharacterOrNpcNodeAsync(
                     campaignId,
                     new EntitySummaryDto(
@@ -329,55 +343,58 @@ public static class CharacterCreatorCatalogEndpoints
                         req.ContentText,
                         neoVis,
                         "approved",
-                        "/characters"),
+                        "/create"),
                     null,
                     null,
                     ct);
 
-                var targets = (req.MentionedCompositeKeys ?? Array.Empty<string>()).Distinct().ToList();
-                if (!string.IsNullOrWhiteSpace(req.SourceEntityKey) && !targets.Contains(req.SourceEntityKey))
+                var relIdx = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var sourceKey = req.SourceEntityKey?.Trim();
+                if (!string.IsNullOrWhiteSpace(sourceKey) && sourceKey.StartsWith($"{campaignId}:", StringComparison.Ordinal))
                 {
-                    targets.Insert(0, req.SourceEntityKey);
+                    await neo4j.ProjectEntityRelationshipAsync(
+                        relIdx++,
+                        campaignId,
+                        compositeKey,
+                        GraphRelations.About,
+                        sourceKey,
+                        neoVis,
+                        $"Note '{req.Title}' is about this entity",
+                        1,
+                        null,
+                        null,
+                        ct);
                 }
 
-                var relIdx = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var targets = (req.MentionedCompositeKeys ?? Array.Empty<string>())
+                    .Select(k => k?.Trim() ?? string.Empty)
+                    .Where(k => k.StartsWith($"{campaignId}:", StringComparison.Ordinal) && k != sourceKey)
+                    .Distinct()
+                    .ToList();
+
                 foreach (var targetKey in targets)
                 {
                     await neo4j.ProjectEntityRelationshipAsync(
                         relIdx++,
                         campaignId,
                         compositeKey,
-                        "MENTIONS",
+                        GraphRelations.Mentions,
                         targetKey,
                         neoVis,
                         $"Mentioned in {req.Visibility} {req.NoteType} note '{req.Title}'",
                         1,
                         null,
                         null,
-                        ct
-                    );
-
-                    if (!string.IsNullOrWhiteSpace(req.SourceEntityKey) && req.SourceEntityKey != targetKey)
-                    {
-                        await neo4j.ProjectEntityRelationshipAsync(
-                            relIdx++,
-                            campaignId,
-                            req.SourceEntityKey,
-                            "LINKED_IN_NOTE",
-                            targetKey,
-                            neoVis,
-                            $"Connected via {req.Visibility} note '{req.Title}'",
-                            1,
-                            null,
-                            null,
-                            ct
-                        );
-                    }
+                        ct);
                 }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
             }
             catch
             {
-                // Non-fatal if DB or Neo4j is offline locally
+                graphProjected = false;
             }
 
             return Results.Ok(new
@@ -389,6 +406,7 @@ public static class CharacterCreatorCatalogEndpoints
                 req.Visibility,
                 req.SourceEntityKey,
                 req.MentionedCompositeKeys,
+                graphProjected,
                 savedAt = DateTimeOffset.UtcNow
             });
         });

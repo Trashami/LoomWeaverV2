@@ -1,11 +1,10 @@
 <div class="lw-page">
-  <lw-panel
-    eyebrow="Modules 4 & 5 · .NET ActionBuilder + Babylon.js EffectBuilder"
+  <lw-page-header
     title="ActionBuilder & 3D Spell Effect Studio"
     subtitle="Author guided When / If / Then combat actions and bind them to real-time Babylon.js 3D projectile arcs, cones, beams, and runic sigils."
     icon="flame"
-    [elevated]="true">
-    <div panelActions>
+  >
+    <div pageActions>
       <lw-button
         [variant]="stage.reducedMotion() ? 'gold' : 'secondary'"
         size="sm"
@@ -14,7 +13,9 @@
       </lw-button>
       <a class="lw-action-link" routerLink="/arcane-screen">Fire Actions in Arcane Screen</a>
     </div>
+  </lw-page-header>
 
+  <lw-panel [elevated]="true">
     <div class="lw-builder-grid">
       <div class="lw-effect-stage">
         <div class="lw-effect-hud">

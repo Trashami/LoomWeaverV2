@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { Router, RouterLink } from '@angular/router';
 import { DashboardAlertItemVm } from '../../core/models/dashboard.models';
 import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
-import { LwCreatePlaceholderComponent, LwPanelComponent } from '../../shared/ui/public-api';
+import { LwCreatePlaceholderComponent, LwPageHeaderComponent, LwPanelComponent } from '../../shared/ui/public-api';
 
 interface WorldMapTile {
   readonly label: string;
@@ -27,7 +27,7 @@ const WORLD_MAP_TILES: readonly WorldMapTile[] = [
 @Component({
   selector: 'lw-home-page',
   standalone: true,
-  imports: [RouterLink, LwPanelComponent, LwCreatePlaceholderComponent],
+  imports: [RouterLink, LwPanelComponent, LwPageHeaderComponent, LwCreatePlaceholderComponent],
   templateUrl: './home.page.html',
   styleUrl: './home.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

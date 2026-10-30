@@ -20,6 +20,7 @@ import {
   LwQuestStepToggleEvent,
   LwQuestTrackerCardComponent,
   LwQuestTrackerItem,
+  LwPageHeaderComponent,
 } from '../../shared/ui/public-api';
 
 export type StoryPageViewMode = 'story-acts' | 'evidence-chain' | 'quests-registry';
@@ -28,6 +29,7 @@ export type StoryPageViewMode = 'story-acts' | 'evidence-chain' | 'quests-regist
   selector: 'lw-campaigns-page',
   standalone: true,
   imports: [
+    LwPageHeaderComponent,
     FormsModule,
     RouterLink,
     LwBadgeComponent,

@@ -1,14 +1,12 @@
 <lw-monster-market />
 <lw-item-market />
 <div class="lw-page">
-  <lw-panel
-    eyebrow="Module 10 · Creator-First 85/15 Economy & One-Click Module Importer"
+  <lw-page-header
     title="LoomWeaver Marketplace, Entitlements & Campaign Packager"
     [subtitle]="statusBanner()"
     icon="ShoppingBag"
-    [elevated]="true"
   >
-    <div panelActions class="lw-market-actions">
+    <div pageActions class="lw-market-actions">
       <lw-badge label="85 / 15 Creator Royalty Split" tone="emerald" />
       <lw-button variant="secondary" size="sm" icon="Download" (pressed)="exportCampaignPackage()">
         Export Campaign Package (.json)
@@ -17,6 +15,9 @@
         Copy 100% Free Player Invite Link
       </lw-button>
     </div>
+  </lw-page-header>
+
+  <lw-panel [elevated]="true">
 
     <div class="lw-creator-tools-bar">
       <div class="lw-royalty-calc">

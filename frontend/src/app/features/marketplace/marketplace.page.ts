@@ -12,6 +12,7 @@ import {
   LwCreatorModuleCardComponent,
   LwCreatorModuleItem,
   LwPanelComponent,
+  LwPageHeaderComponent,
 } from '../../shared/ui/public-api';
 
 const DEFAULT_CREATOR_MODULES: readonly LwCreatorModuleItem[] = [];
@@ -19,7 +20,8 @@ const DEFAULT_CREATOR_MODULES: readonly LwCreatorModuleItem[] = [];
 @Component({
   selector: 'lw-marketplace-page',
   standalone: true,
-  imports: [MonsterMarketComponent, ItemMarketComponent,
+  imports: [
+    LwPageHeaderComponent,MonsterMarketComponent, ItemMarketComponent,
     LwPanelComponent,
     LwBadgeComponent,
     LwButtonComponent,

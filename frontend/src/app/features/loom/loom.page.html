@@ -1,12 +1,10 @@
 <div class="lw-page">
-  <lw-panel
-    eyebrow="Module 8 · Zero-Generation GraphRAG + Per-Player Knowledge Isolation"
+  <lw-page-header
     title="The Loom · Living Campaign Memory & Scoped Note Vault"
     subtitle="100% free for GMs and Players. Searches only established canon and role-isolated session notes—never invents lore."
     icon="BookOpen"
-    [elevated]="true"
   >
-    <div panelActions class="lw-loom-top-actions">
+    <div pageActions class="lw-loom-top-actions">
       <lw-badge
         [label]="store.viewerRole() === 'gm' ? 'Scope: GM Canon + Secrets' : 'Scope: Player-Safe Canon'"
         [tone]="store.viewerRole() === 'gm' ? 'gm' : 'emerald'"
@@ -18,6 +16,9 @@
         <a class="lw-action-link" routerLink="/world-lore">Open World &amp; Lore Atlas</a>
       }
     </div>
+  </lw-page-header>
+
+  <lw-panel [elevated]="true">
 
     <div class="lw-witness-bar">
       <span class="lw-witness-bar__label">Per-Player Knowledge Isolation:</span>

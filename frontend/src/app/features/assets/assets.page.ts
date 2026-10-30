@@ -10,6 +10,7 @@ import {
   LwButtonComponent,
   LwPanelComponent,
   LwStemGainChangeEvent,
+  LwPageHeaderComponent,
 } from '../../shared/ui/public-api';
 import { WebAudioAmbienceService } from './engine/web-audio-ambience.service';
 
@@ -32,6 +33,7 @@ interface ServerAudioStateResponse {
   selector: 'lw-assets-page',
   standalone: true,
   imports: [
+    LwPageHeaderComponent,
     RouterLink,
     LwPanelComponent,
     LwBadgeComponent,

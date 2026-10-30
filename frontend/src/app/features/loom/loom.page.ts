@@ -10,6 +10,7 @@ import {
   LwPanelComponent,
   LwScopedNoteCardComponent,
   LwScopedNoteItem,
+  LwPageHeaderComponent,
 } from '../../shared/ui/public-api';
 
 interface GraphRagPathItem {
@@ -24,6 +25,7 @@ interface GraphRagPathItem {
   selector: 'lw-loom-page',
   standalone: true,
   imports: [
+    LwPageHeaderComponent,
     FormsModule,
     RouterLink,
     LwPanelComponent,

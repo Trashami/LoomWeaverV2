@@ -20,6 +20,7 @@ import {
   LwPanelComponent,
   LwRulesOptionSelectorComponent,
   RulesOptionItem,
+  LwPageHeaderComponent,
 } from '../../shared/ui/public-api';
 import { VttCombatService } from '../arcane-screen/services/vtt-combat.service';
 import { BabylonEffectStageService } from './engine/babylon-effect-stage.service';
@@ -88,6 +89,7 @@ const DEFAULT_EMITTER_PRESETS: readonly ParticleEmitterCurveVm[] = [
   selector: 'lw-effects-page',
   standalone: true,
   imports: [
+    LwPageHeaderComponent,
     FormsModule,
     RouterLink,
     LwPanelComponent,

@@ -1,14 +1,13 @@
-<lw-panel
-  variant="page-header"
-  eyebrow="GM Dashboard"
+<lw-page-header
   [title]="dashboard().campaignName"
   [subtitle]="dashboard().actTitle + ' · ' + dashboard().sessionBadgeLabel"
+  icon="map"
 >
-  <div panelActions class="lw-home__actions">
+  <div pageActions class="lw-home__actions">
     <a routerLink="/loom" class="lw-link-reset lw-home__action">Plan next session</a>
     <a routerLink="/weave" class="lw-link-reset lw-home__action">Open lore</a>
   </div>
-</lw-panel>
+</lw-page-header>
 
 <div class="lw-home__columns">
   <lw-panel title="Where you left off" [subtitle]="dashboard().lastActivityLabel">

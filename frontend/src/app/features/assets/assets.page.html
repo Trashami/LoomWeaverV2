@@ -1,17 +1,17 @@
 <div class="lw-page">
-  <lw-panel
-    eyebrow="Module 7 · Browser Web Audio API Multi-Stem Synthesizer + .NET Scene Transitions"
+  <lw-page-header
     title="Music, Ambience & Adaptive Soundscape Studio"
     subtitle="Mix 4 harmonic audio stems in real time, trigger smooth scene crossfades, and synchronize table ambience."
     icon="Music"
-    [elevated]="true"
   >
-    <div panelActions class="lw-assets-actions">
+    <div pageActions class="lw-assets-actions">
       <lw-badge [label]="'Active Scene: ' + activePreset().name" tone="emerald" icon="Music" />
       <lw-badge [label]="lastSyncBanner()" tone="gold" />
       <a class="lw-action-link" routerLink="/arcane-screen">Open in Arcane Screen VTT</a>
     </div>
+  </lw-page-header>
 
+  <lw-panel [elevated]="true">
     <lw-audio-stem-mixer
       [isPlaying]="audio.isPlaying()"
       [activePresetId]="audio.activePresetId()"

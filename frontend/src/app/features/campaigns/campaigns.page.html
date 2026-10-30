@@ -2,21 +2,13 @@
 @let chain = story.storyChain();
 
 <div class="lw-story-page">
-  <header class="lw-story-top">
-    <div class="lw-story-top__title-group">
-      <span class="lw-story-top__icon"><lw-icon name="book-open" [size]="20" tone="gold" /></span>
-      <div>
-        <h1 class="lw-story-top__title">QUESTS &amp; STORY</h1>
-        <p class="lw-story-top__sub">Plan, organize, and track your campaign's story, acts, and key moments.</p>
-      </div>
-    </div>
-
-    <div class="lw-story-top__tabs" role="tablist" aria-label="Quests and Story Views">
-      <button type="button" class="lw-story-tab" [class.lw-story-tab--active]="viewMode() === 'story-acts'" (click)="viewMode.set('story-acts')">Story &amp; Acts</button>
-      <button type="button" class="lw-story-tab" [class.lw-story-tab--active]="viewMode() === 'evidence-chain'" (click)="viewMode.set('evidence-chain')">Connected Chain &amp; Truth Ledger</button>
-      <button type="button" class="lw-story-tab" [class.lw-story-tab--active]="viewMode() === 'quests-registry'" (click)="viewMode.set('quests-registry')">Quest Steps &amp; Registry</button>
-    </div>
-  </header>
+  <lw-page-header title="Quests &amp; Story" subtitle="Plan, organize, and track your campaign's story, acts, and key moments." icon="book-open">
+    <nav pageTabs class="lw-page-tabs" role="tablist" aria-label="Quests and Story Views">
+      <button type="button" class="lw-page-tab" [class.lw-page-tab--active]="viewMode() === 'story-acts'" (click)="viewMode.set('story-acts')">Story &amp; Acts</button>
+      <button type="button" class="lw-page-tab" [class.lw-page-tab--active]="viewMode() === 'evidence-chain'" (click)="viewMode.set('evidence-chain')">Connected Chain &amp; Truth Ledger</button>
+      <button type="button" class="lw-page-tab" [class.lw-page-tab--active]="viewMode() === 'quests-registry'" (click)="viewMode.set('quests-registry')">Quest Steps &amp; Registry</button>
+    </nav>
+  </lw-page-header>
 
   @if (story.statusBanner(); as banner) {
     <div class="lw-story-banner">

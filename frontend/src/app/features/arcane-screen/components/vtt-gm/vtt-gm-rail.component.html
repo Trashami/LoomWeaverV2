@@ -1,0 +1,95 @@
+<aside class="lw-gm-rail" aria-label="Party status, initiative and encounter monitor">
+  <section class="lw-gm-card">
+    <header class="lw-gm-card__head">
+      <h3>Party Status</h3>
+      <button ngpButton type="button" class="lw-gm-link" (click)="collapse.emit()">Hide Rail</button>
+    </header>
+    @for (hero of vtt.partyTokensInScene(); track hero.key) {
+      <article class="lw-gm-row" [class.lw-gm-row--active]="hero.key === activeKey()">
+        <div class="lw-gm-row__head">
+          <strong>{{ hero.name }}</strong>
+          <span>AC {{ hero.armorClass }}</span>
+        </div>
+        <div class="lw-gm-hp" role="meter" [attr.aria-valuenow]="hero.currentHp" [attr.aria-valuemax]="hero.maxHp">
+          <div class="lw-gm-hp__fill" [style.width.%]="hpPercent(hero.currentHp, hero.maxHp)"></div>
+        </div>
+        <div class="lw-gm-row__meta">
+          <span>HP {{ hero.currentHp }}/{{ hero.maxHp }}</span>
+          <span class="lw-gm-pips" aria-label="Turn economy">
+            <i [class.spent]="hero.actionUsed" title="Action">A</i>
+            <i [class.spent]="hero.bonusUsed" title="Bonus Action">B</i>
+            <i [class.spent]="hero.reactionUsed" title="Reaction">R</i>
+          </span>
+          <span class="lw-gm-row__adjust">
+            <button ngpButton type="button" class="lw-gm-mini" aria-label="Lose 1 HP" (click)="adjustHp(hero.key, -1)">-1</button>
+            <button ngpButton type="button" class="lw-gm-mini" aria-label="Gain 1 HP" (click)="adjustHp(hero.key, 1)">+1</button>
+          </span>
+        </div>
+      </article>
+    } @empty {
+      <p class="lw-gm-empty">No party tokens in this scene.</p>
+    }
+  </section>
+
+  <section class="lw-gm-card">
+    <header class="lw-gm-card__head">
+      <h3>Initiative Order</h3>
+      <span class="lw-gm-round">Round {{ vtt.activeRound() }}</span>
+    </header>
+    <ol class="lw-gm-init">
+      @for (row of initiativeOrder(); track row.key) {
+        <li [class.lw-gm-init--active]="row.key === activeKey()">
+          <span class="lw-gm-init__score">{{ row.initiative }}</span>
+          <span class="lw-gm-init__name">{{ row.name }}</span>
+          <span class="lw-gm-init__faction" [class.hostile]="row.faction === 'hostile'">{{ row.faction }}</span>
+        </li>
+      }
+    </ol>
+    <footer class="lw-gm-card__foot">
+      <button ngpButton type="button" class="lw-gm-btn" (click)="nextTurn.emit()">Next Turn</button>
+    </footer>
+  </section>
+
+  <section class="lw-gm-card">
+    <header class="lw-gm-card__head">
+      <h3>Encounter Monitor</h3>
+      <span class="lw-gm-round">{{ hostileMonitor().length }} hostile</span>
+    </header>
+    @for (foe of hostileMonitor(); track foe.key) {
+      <article class="lw-gm-row" [class.lw-gm-row--active]="foe.key === activeKey()">
+        <div class="lw-gm-row__head">
+          <strong>{{ foe.name }}</strong>
+          @if (store.viewerRole() === 'gm' && !battle.isTokenInPlayerLoS(foe)) {
+            <span class="lw-gm-pill">Hidden</span>
+          } @else if (foe.key === activeKey()) {
+            <span class="lw-gm-pill lw-gm-pill--live">In Battle</span>
+          }
+        </div>
+        <div class="lw-gm-hp lw-gm-hp--hostile">
+          <div class="lw-gm-hp__fill" [style.width.%]="hpPercent(foe.currentHp, foe.maxHp)"></div>
+        </div>
+        <div class="lw-gm-row__meta">
+          <span>HP {{ foe.currentHp }}/{{ foe.maxHp }}</span>
+          <span>AC {{ foe.armorClass }}</span>
+        </div>
+      </article>
+    } @empty {
+      <p class="lw-gm-empty">No hostile creatures in this scene.</p>
+    }
+  </section>
+
+  <section class="lw-gm-card">
+    <header class="lw-gm-card__head">
+      <h3>Active Conditions</h3>
+    </header>
+    <div class="lw-gm-chips">
+      @for (c of vtt.activeConditions(); track c.id) {
+        <span [class]="'lw-gm-chip lw-gm-chip--' + c.tone" [title]="c.effectSummary">
+          {{ c.name }} · {{ c.targetLabel }} · {{ c.durationLabel }}
+        </span>
+      } @empty {
+        <p class="lw-gm-empty">No active conditions.</p>
+      }
+    </div>
+  </section>
+</aside>

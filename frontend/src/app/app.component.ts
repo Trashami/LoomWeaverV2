@@ -19,6 +19,10 @@ import { filter } from "rxjs";
 import { AuthSessionService } from "./core/services/auth-session.service";
 import { CampaignMembershipService } from "./core/services/campaign-membership.service";
 import {
+  VttReturnRouteService,
+  isVttPath,
+} from "./core/services/vtt-return-route.service";
+import {
   isSubdomainHost,
   resolveDefaultStudioRouteForHost,
 } from "./core/services/cookie-sso.helper";
@@ -199,6 +203,8 @@ export class AppComponent {
   private readonly router = inject(Router);
   private readonly meta = inject(Meta);
   private readonly membership = inject(CampaignMembershipService);
+  // Injected so it starts tracking the last non-VTT route on app boot.
+  private readonly vttReturn = inject(VttReturnRouteService);
 
   readonly currentUrl = signal<string>(this.resolveInitialBrowserPath());
   readonly globalSearchText = signal("");
@@ -243,6 +249,9 @@ export class AppComponent {
   readonly isFullBleedVttRoute = computed(() =>
     this.isFullBleedPath(this.currentUrl()),
   );
+
+  // The Arcane Screen runs fullscreen with no app header or left nav.
+  readonly isFullscreenVttRoute = computed(() => isVttPath(this.currentUrl()));
 
   readonly isLandingSurface = computed(() => {
     const clean =

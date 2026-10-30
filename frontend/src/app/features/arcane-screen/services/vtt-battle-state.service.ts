@@ -45,6 +45,9 @@ import {
 
 const ACTION_BAR_SKIN_KEY = 'lw.vtt.actionBarSkin';
 
+const VTT_FOG_MODES: readonly VttFogMode[] = ['los-only', 'explored-los', 'no-fog'];
+export { VTT_FOG_MODES };
+
 function readSavedActionBarSkin(): ActionBarSkinId {
   try {
     const saved = localStorage.getItem(ACTION_BAR_SKIN_KEY);
@@ -83,6 +86,11 @@ export class VttBattleStateService {
   readonly hideOutOfSightMonsters = signal<boolean>(true);
   readonly playerSightDistanceFeet = signal<number>(60);
   readonly gmPreviewPlayerVision = signal<boolean>(false);
+
+  /** Mirrors a GM fog change from the server-relayed event; unknown modes are ignored. */
+  applyRemoteFog(mode: VttFogMode): void {
+    if (VTT_FOG_MODES.includes(mode)) this.fogMode.set(mode);
+  }
 
   // Wall segments for current battlemap
   readonly walls = signal<readonly VttWallSegmentVm[]>(SEED_VTT_WALL_SEGMENTS);

@@ -1,0 +1,97 @@
+<div class="lw-gm-panel">
+  @if (encounter(); as enc) {
+    <nav class="lw-gm-subtabs" aria-label="Guide sections">
+      <button ngpButton type="button" [class.active]="section() === 'guide'" (click)="section.set('guide')">Guide</button>
+      <button ngpButton type="button" [class.active]="section() === 'notes'" (click)="section.set('notes')">Notes</button>
+      <button ngpButton type="button" [class.active]="section() === 'actions'" (click)="section.set('actions')">Quick Actions</button>
+    </nav>
+
+    @if (section() === 'guide') {
+      <section class="lw-gm-card">
+        <header class="lw-gm-card__head">
+          <h3>{{ enc.name }}</h3>
+          <span class="lw-gm-round">{{ enc.environment }} · {{ enc.estimatedDuration }}</span>
+        </header>
+        <p class="lw-gm-body">{{ enc.description }}</p>
+        @if (enc.readAloudText) {
+          <blockquote class="lw-gm-readaloud">
+            <p>{{ enc.readAloudText }}</p>
+            <button ngpButton type="button" class="lw-gm-link" (click)="copyReadAloud()">Copy Read Aloud</button>
+          </blockquote>
+        }
+      </section>
+
+      <section class="lw-gm-card">
+        <header class="lw-gm-card__head"><h3>Objectives</h3></header>
+        <ul class="lw-gm-list">
+          @for (obj of enc.objectives; track obj.id) {
+            <li>
+              <label class="lw-gm-check">
+                <input type="checkbox" [checked]="obj.completed" (change)="toggleObjective(obj.id)" />
+                <span [class.done]="obj.completed">{{ obj.text }}</span>
+              </label>
+            </li>
+          } @empty {
+            <li class="lw-gm-empty">No objectives set.</li>
+          }
+        </ul>
+      </section>
+
+      <section class="lw-gm-card">
+        <header class="lw-gm-card__head"><h3>Rewards</h3></header>
+        <ul class="lw-gm-list">
+          @for (reward of enc.rewards; track reward.id) {
+            <li>
+              <span [class.done]="reward.awarded">{{ reward.label }}</span>
+              <small>{{ reward.kind }}{{ reward.xpValue ? ' · ' + reward.xpValue + ' XP' : '' }}</small>
+            </li>
+          } @empty {
+            <li class="lw-gm-empty">No rewards listed.</li>
+          }
+        </ul>
+      </section>
+    }
+
+    @if (section() === 'notes') {
+      <section class="lw-gm-card">
+        <header class="lw-gm-card__head"><h3>Session Notes</h3><span class="lw-gm-round">{{ enc.sessionTitle }}</span></header>
+        @if (enc.sessionNotes) {
+          <p class="lw-gm-body lw-gm-pre">{{ enc.sessionNotes }}</p>
+        } @else {
+          <p class="lw-gm-empty">No session notes for this encounter.</p>
+        }
+      </section>
+    }
+
+    @if (section() === 'actions') {
+      <section class="lw-gm-card">
+        <header class="lw-gm-card__head"><h3>Group Prompts</h3></header>
+        <div class="lw-gm-btn-row">
+          <button ngpButton type="button" class="lw-gm-btn" (click)="promptGroupCheck('Group Wisdom (Perception) Check, DC 15')">Perception DC 15</button>
+          <button ngpButton type="button" class="lw-gm-btn" (click)="promptGroupCheck('Group Dexterity (Stealth) Check')">Stealth</button>
+          <button ngpButton type="button" class="lw-gm-btn" (click)="promptGroupCheck('Group Dexterity Saving Throw')">Dex Save</button>
+        </div>
+      </section>
+
+      <section class="lw-gm-card">
+        <header class="lw-gm-card__head"><h3>Party Recovery</h3></header>
+        <div class="lw-gm-btn-row">
+          <button ngpButton type="button" class="lw-gm-btn" (click)="rest('short')">Short Rest</button>
+          <button ngpButton type="button" class="lw-gm-btn" (click)="rest('long')">Long Rest</button>
+          <button ngpButton type="button" class="lw-gm-btn" [class.lw-gm-btn--on]="inspirationGranted()" (click)="grantInspiration()">Grant Inspiration</button>
+        </div>
+      </section>
+
+      <section class="lw-gm-card">
+        <header class="lw-gm-card__head"><h3>Random Tables</h3></header>
+        <div class="lw-gm-btn-row">
+          @for (table of tables; track table.id) {
+            <button ngpButton type="button" class="lw-gm-btn" (click)="rollTable(table.id)">{{ table.label }} d{{ table.die }}</button>
+          }
+        </div>
+      </section>
+    }
+  } @else {
+    <p class="lw-gm-empty">No live encounter selected. Pick one in the header to load its guide.</p>
+  }
+</div>

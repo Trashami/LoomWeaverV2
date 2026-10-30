@@ -1,6 +1,10 @@
 @if (isLandingSurface() || !auth.isAuthenticated()) {
   <router-outlet />
   <lw-auth-modal />
+} @else if (isFullscreenVttRoute()) {
+  <div class="lw-vtt-fullscreen">
+    <router-outlet />
+  </div>
 } @else {
   <div class="lw-shell">
     <lw-app-header-bar

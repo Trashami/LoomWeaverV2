@@ -1,0 +1,55 @@
+@if (battle.openDmDrawer() === 'fog-settings') {
+  <div class="lw-vtt-floating-drawer">
+    <div class="lw-vtt-drawer-head">
+      <h4>Encounter Vision & Fog of War Settings</h4>
+      <button ngpButton type="button" (click)="battle.openDmDrawer.set('none')">Close</button>
+    </div>
+    <div class="lw-vtt-drawer-grid">
+      <label class="lw-vtt-field">
+        <span>Encounter Fog of War Mode</span>
+        <select [ngModel]="battle.fogMode()" (ngModelChange)="battle.fogMode.set($event)">
+          <option value="los-only">Fog of War completely based on Line of Sight</option>
+          <option value="explored-los">Fog of War based on where they have traveled</option>
+          <option value="no-fog">No Fog at all</option>
+        </select>
+      </label>
+      <label class="lw-vtt-field">
+        <span>Player Sight Distance (ft)</span>
+        <input type="number" min="15" max="120" step="5" [ngModel]="battle.playerSightDistanceFeet()" (ngModelChange)="battle.playerSightDistanceFeet.set(+$event)" />
+      </label>
+      <label class="lw-vtt-check">
+        <input type="checkbox" [ngModel]="battle.hideOutOfSightMonsters()" (ngModelChange)="battle.hideOutOfSightMonsters.set($event)" />
+        <span>Hide monster tokens outside individual player sight distance & Line of Sight</span>
+      </label>
+      @if (store.viewerRole() === 'gm') {
+        <label class="lw-vtt-check">
+          <input type="checkbox" [ngModel]="battle.gmPreviewPlayerVision()" (ngModelChange)="battle.gmPreviewPlayerVision.set($event)" />
+          <span>Preview Player Fog & Hidden Monsters on GM Map</span>
+        </label>
+      }
+    </div>
+  </div>
+}
+
+@if (battle.openDmDrawer() === 'scene-roster') {
+  <div class="lw-vtt-floating-drawer">
+    <div class="lw-vtt-drawer-head">
+      <h4>Party, Scene Creatures & Active Traps</h4>
+      <button ngpButton type="button" (click)="battle.openDmDrawer.set('none')">Close</button>
+    </div>
+    <div class="lw-vtt-roster-strip">
+      @for (trap of vtt.activeLiveEncounter()?.traps ?? []; track trap.id) {
+        <div class="lw-vtt-trap-chip">
+          <strong>Trap: {{ trap.name }}</strong>
+          <span>{{ trap.saveOrAttack }} · {{ trap.damageFormula }} · Spot DC {{ trap.perceptionDc }}</span>
+        </div>
+      }
+      @for (cond of vtt.activeConditions(); track cond.id) {
+        <div class="lw-vtt-trap-chip">
+          <strong>{{ cond.name }} ({{ cond.durationLabel }})</strong>
+          <span>{{ cond.targetLabel }} · {{ cond.effectSummary }}</span>
+        </div>
+      }
+    </div>
+  </div>
+}

@@ -3,6 +3,16 @@
   min-height: 100vh;
 }
 
+.lw-vtt-fullscreen {
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #05100c;
+  color: #f2ead7;
+}
+
 .lw-shell {
   height: 100vh;
   max-height: 100vh;

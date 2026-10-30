@@ -1,0 +1,499 @@
+<!-- Bottom action console: hero card, action economy, category menus, map utilities, end turn -->
+<div
+  class="bottom-action-console"
+  [class.is-collapsed]="bottomConsoleCollapsed()"
+  [class.chat-station-open]="!chatLogStationCollapsed()"
+  role="region"
+  aria-label="Battlefield action console"
+>
+  @if (activeDisplayToken(); as token) {
+    <div class="console-hero-card" (click)="openSheet.emit(token)" title="View character sheet">
+      <div class="console-hero-medallion" [class.is-active-turn]="activeInitiativeTokenId() === token.id">
+        <div class="medallion-ring"></div>
+        <div class="medallion-avatar">
+          @if (token.imageUrl) {
+            <img [src]="token.imageUrl" [alt]="token.name" (error)="onImageError($event)" />
+          }
+          <span class="medallion-initials">{{ token.name.slice(0, 2).toUpperCase() }}</span>
+        </div>
+        @if (token.inspiration) {
+          <span class="medallion-insp-dot" title="Heroic Inspiration"></span>
+        }
+      </div>
+
+      <div class="console-hero-info">
+        <div class="console-name-row">
+          <strong class="console-token-name">{{ token.name }}</strong>
+          <span class="console-token-tag" [class.pc]="token.entityType === 'pc'">
+            {{ token.entityType === 'pc' ? 'PC' : token.entityType === 'monster' ? 'FOE' : 'NPC' }}
+          </span>
+        </div>
+
+        <div class="console-resource-pips" title="Action economy: action, bonus action, reaction, movement">
+          <span class="resource-pip pip-action" [class.used]="turnActionUsed()" title="Action"></span>
+          <span class="resource-pip pip-bonus" [class.used]="turnBonusActionUsed()" title="Bonus action"></span>
+          <span class="resource-pip pip-reaction" [class.used]="turnReactionUsed()" title="Reaction"></span>
+          <span class="resource-pip-divider"></span>
+          <span class="movement-stat-label">
+            <lw-icon name="directions_walk" [size]="10" />
+            <span>{{ turnMovementRemainingFeet() }}/{{ turnMovementMaxFeet() }}ft</span>
+          </span>
+        </div>
+
+        <div class="console-vitals-row">
+          <div class="console-hp-block" title="Hit points">
+            <div class="hp-gauge-track">
+              <div class="hp-gauge-fill" [style.width.%]="hpPercent(token)" [class.low]="isHpLow(token)"></div>
+            </div>
+            <span class="hp-val">HP {{ getTokenHp()(token) }}</span>
+          </div>
+          <div class="console-ac-chip" title="Armor class">
+            <lw-icon name="shield" [size]="10" />
+            <span>{{ getTokenAc()(token) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button
+      type="button"
+      class="console-collapse-toggle-btn"
+      (click)="toggleBottomConsole(); $event.stopPropagation()"
+      [attr.aria-label]="bottomConsoleCollapsed() ? 'Expand action console' : 'Minimize action console'"
+      [title]="bottomConsoleCollapsed() ? 'Expand action console' : 'Minimize action console'"
+    >
+      <lw-icon [name]="bottomConsoleCollapsed() ? 'keyboard_double_arrow_right' : 'keyboard_double_arrow_left'" [size]="14" />
+    </button>
+
+    @if (!bottomConsoleCollapsed()) {
+      <div class="console-category-buttons" (click)="$event.stopPropagation()">
+        <button type="button" class="category-menu-btn btn-melee" [class.active]="activeActionCategoryPopover() === 'melee'" (click)="toggleActionCategory('melee')" title="Melee attacks">
+          <span class="btn-text">Melee</span>
+          <span class="btn-count">{{ getMeleeAttacks()(token).length }}</span>
+        </button>
+        <button type="button" class="category-menu-btn btn-ranged" [class.active]="activeActionCategoryPopover() === 'ranged'" (click)="toggleActionCategory('ranged')" title="Ranged attacks">
+          <span class="btn-text">Ranged</span>
+          <span class="btn-count">{{ getRangedAttacks()(token).length }}</span>
+        </button>
+        <button type="button" class="category-menu-btn btn-spells" [class.active]="activeActionCategoryPopover() === 'spells'" (click)="toggleActionCategory('spells')" title="Spells and cantrips">
+          <span class="btn-text">Spells</span>
+          <span class="btn-count">{{ getSpells()(token).length }}</span>
+        </button>
+        <button type="button" class="category-menu-btn btn-bonus" [class.active]="activeActionCategoryPopover() === 'bonus'" (click)="toggleActionCategory('bonus')" title="Bonus actions">
+          <span class="btn-text">Bonus</span>
+          <span class="btn-count">{{ getBonusActions()(token).length || '-' }}</span>
+        </button>
+        <button type="button" class="category-menu-btn btn-reaction" [class.active]="activeActionCategoryPopover() === 'reactions'" (click)="toggleActionCategory('reactions')" title="Reactions and world interaction">
+          <span class="btn-text">React</span>
+          <span class="btn-count">{{ getReactions()(token).length || '-' }}</span>
+        </button>
+        <button type="button" class="category-menu-btn btn-abilities" [class.active]="activeActionCategoryPopover() === 'abilities'" (click)="toggleActionCategory('abilities')" title="Ability checks (d20)">
+          <span class="btn-text">Checks</span>
+          <span class="btn-count">d20</span>
+        </button>
+        <button type="button" class="category-menu-btn btn-saves" [class.active]="activeActionCategoryPopover() === 'saves'" (click)="toggleActionCategory('saves')" title="Saving throws (d20)">
+          <span class="btn-text">Saves</span>
+          <span class="btn-count">d20</span>
+        </button>
+        <button type="button" class="category-menu-btn btn-actions" [class.active]="activeActionCategoryPopover() === 'actions'" (click)="toggleActionCategory('actions')" title="Standard combat actions">
+          <span class="btn-text">Actions</span>
+          <span class="btn-count">Std</span>
+        </button>
+      </div>
+
+      @if (activeActionCategoryPopover(); as activeCat) {
+        <div class="console-category-popover" (click)="$event.stopPropagation()">
+          <div class="popover-nav-header">
+            <div class="popover-title-row">
+              <span class="popover-cat-indicator" [class]="'indicator-' + activeCat"></span>
+              <span class="popover-title">
+                @switch (activeCat) {
+                  @case ('melee') { Melee Attacks }
+                  @case ('ranged') { Ranged Attacks }
+                  @case ('spells') { Spells and Cantrips }
+                  @case ('bonus') { Bonus Actions }
+                  @case ('reactions') { Reactions and World Interact }
+                  @case ('abilities') { Ability Checks (d20) }
+                  @case ('saves') { Saving Throws (d20) }
+                  @case ('actions') { Standard Actions }
+                }
+              </span>
+            </div>
+            <button type="button" class="popover-close-btn" (click)="closeCategoryPopover()" title="Close menu" aria-label="Close menu">
+              <lw-icon name="close" [size]="13" />
+            </button>
+          </div>
+
+          <div class="popover-list-body">
+            @switch (activeCat) {
+              @case ('melee') {
+                @for (atk of getMeleeAttacks()(token); track atk.id) {
+                  <button type="button" class="category-item-card" [class.is-armed]="pendingAction() === atk.id || selectedAction()?.id === atk.id" (click)="menuActionSelect.emit({ action: atk, token })">
+                    <div class="item-card-main">
+                      <div class="item-name-row">
+                        <lw-icon name="gavel" [size]="14" />
+                        <strong>{{ atk.name }}</strong>
+                      </div>
+                      <div class="item-sub-row">
+                        <span class="item-stat-tag hit">{{ atk.attackFormula || '+5' }} to hit</span>
+                        <span class="item-stat-tag dmg">{{ atk.damageFormula }} {{ atk.damageType || 'slashing' }}</span>
+                      </div>
+                    </div>
+                    <div class="item-card-side">
+                      <span class="item-range-pill">{{ atk.maxRangeFeet || 5 }}ft</span>
+                    </div>
+                  </button>
+                } @empty {
+                  <div class="popover-empty-notice">No melee weapons equipped.</div>
+                }
+              }
+              @case ('ranged') {
+                @for (atk of getRangedAttacks()(token); track atk.id) {
+                  <button type="button" class="category-item-card" [class.is-armed]="pendingAction() === atk.id || selectedAction()?.id === atk.id" (click)="menuActionSelect.emit({ action: atk, token })">
+                    <div class="item-card-main">
+                      <div class="item-name-row">
+                        <lw-icon name="gps_fixed" [size]="14" />
+                        <strong>{{ atk.name }}</strong>
+                      </div>
+                      <div class="item-sub-row">
+                        <span class="item-stat-tag hit">{{ atk.attackFormula || '+5' }} to hit</span>
+                        <span class="item-stat-tag dmg">{{ atk.damageFormula }} {{ atk.damageType || 'piercing' }}</span>
+                      </div>
+                    </div>
+                    <div class="item-card-side">
+                      <span class="item-range-pill">{{ atk.maxRangeFeet || 60 }}ft</span>
+                    </div>
+                  </button>
+                } @empty {
+                  <div class="popover-empty-notice">No ranged weapons equipped.</div>
+                }
+              }
+              @case ('spells') {
+                @for (sp of getSpells()(token); track sp.id) {
+                  <button type="button" class="category-item-card is-spell-card" [class.is-armed]="pendingAction() === sp.id || selectedAction()?.id === sp.id" (click)="menuActionSelect.emit({ action: sp, token })">
+                    <div class="item-card-main">
+                      <div class="item-name-row">
+                        <lw-icon [name]="spellIcon(sp)" [size]="14" />
+                        <strong>{{ sp.name }}</strong>
+                        @if (sp.requiresConcentration) {
+                          <span class="conc-pill">Conc</span>
+                        }
+                      </div>
+                      <div class="item-sub-row">
+                        <span class="item-stat-tag spell-type">{{ sp.spellType || 'Arcana' }}</span>
+                        @if (sp.damageFormula) {
+                          <span class="item-stat-tag dmg">{{ sp.damageFormula }} {{ sp.damageType || '' }}</span>
+                        }
+                      </div>
+                    </div>
+                    <div class="item-card-side">
+                      @if (sp.aoeShape) {
+                        <span class="item-aoe-pill">{{ sp.aoeSizeFeet }}ft {{ sp.aoeShape }}</span>
+                      }
+                      <span class="item-range-pill">{{ sp.maxRangeFeet ? sp.maxRangeFeet + 'ft' : 'Self' }}</span>
+                    </div>
+                  </button>
+                } @empty {
+                  <div class="popover-empty-notice">No spells prepared or available.</div>
+                }
+              }
+              @case ('bonus') {
+                @for (act of getBonusActions()(token); track act.id) {
+                  <button type="button" class="category-item-card" (click)="menuActionSelect.emit({ action: act, token })">
+                    <div class="item-card-main">
+                      <div class="item-name-row">
+                        <lw-icon [name]="act.icon || 'bolt'" [size]="14" />
+                        <strong>{{ act.name }}</strong>
+                      </div>
+                      <p class="item-desc-text">{{ act.desc }}</p>
+                    </div>
+                    <div class="item-card-side">
+                      <span class="item-cost-pill bonus">{{ act.cost || 'Bonus' }}</span>
+                    </div>
+                  </button>
+                }
+              }
+              @case ('reactions') {
+                @for (react of getReactions()(token); track react.id) {
+                  <button type="button" class="category-item-card" (click)="menuActionSelect.emit({ action: react, token })">
+                    <div class="item-card-main">
+                      <div class="item-name-row">
+                        <lw-icon [name]="react.icon || 'shield'" [size]="14" />
+                        <strong>{{ react.name }}</strong>
+                      </div>
+                      <p class="item-desc-text">{{ react.desc }}</p>
+                    </div>
+                    <div class="item-card-side">
+                      <span class="item-cost-pill reaction">{{ react.cost || 'Reaction' }}</span>
+                    </div>
+                  </button>
+                }
+              }
+              @case ('abilities') {
+                <div class="popover-checks-grid">
+                  @for (stat of abilities; track stat) {
+                    <button type="button" class="check-grid-btn" (click)="abilityCheck.emit({ token, stat })">
+                      <span class="check-stat-name">{{ stat }}</span>
+                      <span class="check-roll-d20">1d20</span>
+                    </button>
+                  }
+                </div>
+              }
+              @case ('saves') {
+                <div class="popover-checks-grid">
+                  @for (stat of abilities; track stat) {
+                    <button type="button" class="check-grid-btn is-save" (click)="savingThrow.emit({ token, stat })">
+                      <span class="check-stat-name">{{ stat }}</span>
+                      <span class="check-roll-d20">Save</span>
+                    </button>
+                  }
+                </div>
+              }
+              @case ('actions') {
+                @for (std of standardActions; track std.id) {
+                  <button type="button" class="category-item-card" (click)="standardAction.emit({ action: std, token })">
+                    <div class="item-card-main">
+                      <div class="item-name-row">
+                        <lw-icon [name]="std.icon" [size]="14" />
+                        <strong>{{ std.name }}</strong>
+                      </div>
+                      <p class="item-desc-text">{{ std.desc }}</p>
+                    </div>
+                    <div class="item-card-side">
+                      <span class="item-cost-pill">{{ std.tag }}</span>
+                    </div>
+                  </button>
+                }
+              }
+            }
+          </div>
+        </div>
+      }
+    }
+  } @else {
+    <div class="console-empty-prompt">
+      <lw-icon name="gps_fixed" [size]="16" />
+      <span>Select a token or start combat to activate tactical controls</span>
+    </div>
+  }
+
+  @if (!bottomConsoleCollapsed()) {
+    <div class="console-right-dock">
+      <div class="console-map-utils">
+        <div class="hud-connected-wrap">
+          <button
+            type="button"
+            class="util-chip-btn"
+            [class.active]="showConnectedRoster()"
+            (click)="toggleConnectedRoster()"
+            title="Show connected players"
+            [attr.aria-expanded]="showConnectedRoster()"
+          >
+            <span class="hud-pulse-dot"></span>
+            <span class="chip-text">{{ onlineCount() }} online</span>
+          </button>
+
+          @if (showConnectedRoster()) {
+            <div class="hud-roster-popover" (click)="$event.stopPropagation()">
+              <div class="popover-header">
+                <span class="hud-pulse-dot"></span>
+                <span>Connected Players ({{ onlineCount() }})</span>
+              </div>
+              <div class="popover-roster">
+                @if (campaignOnlineUsers().length === 0) {
+                  <div class="hud-user-pill">
+                    <span class="user-status-dot online"></span>
+                    <span class="user-name">{{ currentUserName() }}</span>
+                    <span class="user-badge" [class.dm]="isGm()">{{ isGm() ? 'DM' : 'Player' }}</span>
+                  </div>
+                }
+                @for (u of campaignOnlineUsers(); track u.userId) {
+                  <div class="hud-user-pill" [class.is-self]="u.userId === currentUserId()">
+                    <span class="user-status-dot online"></span>
+                    <span class="user-name">{{ u.displayName }}</span>
+                    @if (u.isDm) {
+                      <span class="user-badge dm">DM</span>
+                    } @else {
+                      @let assigned = getAssignedTokenForUser()(u);
+                      @if (assigned) {
+                        <span class="user-badge token-badge">{{ assigned.name }}</span>
+                      } @else {
+                        <span class="user-badge spectator">Player</span>
+                      }
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+
+        <div class="util-divider"></div>
+
+        <button type="button" class="util-icon-btn" [class.active]="isMeasuring()" (click)="toggleMeasure.emit()" title="Distance and spell range ruler (R)" aria-label="Distance ruler">
+          <lw-icon name="straighten" [size]="14" />
+        </button>
+
+        <button
+          type="button"
+          class="util-icon-btn plan-action-btn"
+          [class.active]="showActionTestMenu() || isTestingAction()"
+          (click)="toggleActionTestMenu()"
+          title="Plan and test an action (preview movement, spell template, or attack reach)"
+          aria-label="Plan and test action"
+        >
+          <lw-icon name="my_location" [size]="14" />
+        </button>
+
+        @if (showActionTestMenu()) {
+          <div class="test-action-popover" (click)="$event.stopPropagation()">
+            <div class="popover-nav-header">
+              <div class="popover-title-row">
+                <lw-icon name="my_location" [size]="14" />
+                <span class="popover-title">Test Action and Range Planner</span>
+              </div>
+              <button type="button" class="popover-close-btn" (click)="showActionTestMenu.set(false)" title="Close" aria-label="Close planner">
+                <lw-icon name="close" [size]="12" />
+              </button>
+            </div>
+            <div class="test-action-body">
+              <p class="test-action-hint">Preview range, AoE template, and targets on the battlefield. Clicking the map ends the preview without acting.</p>
+
+              @if (activeDisplayToken(); as planToken) {
+                <button type="button" class="test-action-option" (click)="startMovementTest.emit(planToken)">
+                  <div class="opt-left">
+                    <lw-icon name="directions_walk" [size]="14" />
+                    <strong>Test Movement Speed</strong>
+                  </div>
+                  <span class="opt-stat">{{ turnMovementRemainingFeet() }}/{{ turnMovementMaxFeet() }}ft</span>
+                </button>
+
+                @let planSpells = getSpells()(planToken);
+                @if (planSpells.length > 0) {
+                  <div class="test-action-section-title">Spells and Cantrips</div>
+                  @for (spell of planSpells; track spell.id) {
+                    <button type="button" class="test-action-option" (click)="startActionTest.emit({ action: spell, token: planToken })">
+                      <div class="opt-left">
+                        <lw-icon [name]="spellIcon(spell)" [size]="14" />
+                        <strong>{{ spell.name }}</strong>
+                      </div>
+                      <div class="opt-right">
+                        @if (spell.aoeShape) {
+                          <span class="opt-badge aoe">{{ spell.aoeSizeFeet }}ft {{ spell.aoeShape }}</span>
+                        }
+                        <span class="opt-badge range">{{ spell.maxRangeFeet ? spell.maxRangeFeet + 'ft' : 'Self' }}</span>
+                      </div>
+                    </button>
+                  }
+                }
+
+                @let planAttacks = getMeleeAttacks()(planToken).concat(getRangedAttacks()(planToken));
+                @if (planAttacks.length > 0) {
+                  <div class="test-action-section-title">Weapons and Attacks</div>
+                  @for (atk of planAttacks; track atk.id) {
+                    <button type="button" class="test-action-option" (click)="startActionTest.emit({ action: atk, token: planToken })">
+                      <div class="opt-left">
+                        <lw-icon [name]="atk.maxRangeFeet && atk.maxRangeFeet > 10 ? 'gps_fixed' : 'gavel'" [size]="14" />
+                        <strong>{{ atk.name }}</strong>
+                      </div>
+                      <span class="opt-badge range">{{ atk.maxRangeFeet ? atk.maxRangeFeet + 'ft' : '5ft' }}</span>
+                    </button>
+                  }
+                }
+              } @else {
+                <p class="test-action-hint">Select a character token on the map to test its actions.</p>
+              }
+            </div>
+          </div>
+        }
+
+        <button type="button" class="util-icon-btn" [class.active]="focusMode()" (click)="toggleFocus.emit()" title="Toggle focus view (F)" [attr.aria-label]="focusMode() ? 'Exit focus view' : 'Enter focus view'">
+          <lw-icon [name]="focusMode() ? 'close_fullscreen' : 'open_in_full'" [size]="14" />
+        </button>
+
+        <div class="util-divider"></div>
+
+        <div class="console-zoom-group">
+          <button type="button" class="zoom-mini-btn" (click)="changeZoom.emit(-25)" title="Zoom out" aria-label="Zoom out">-</button>
+          <button type="button" class="zoom-text-btn" (click)="resetZoom.emit()" title="Reset zoom">{{ zoom() }}%</button>
+          <button type="button" class="zoom-mini-btn" (click)="changeZoom.emit(25)" title="Zoom in" aria-label="Zoom in">+</button>
+        </div>
+
+        <button type="button" class="util-icon-btn book-btn" [class.active]="actionMenuOpen()" (click)="toggleActionMenu()" title="Spellbook and actions codex" [attr.aria-expanded]="actionMenuOpen()">
+          <lw-icon [name]="actionMenuOpen() ? 'expand_more' : 'expand_less'" [size]="14" />
+        </button>
+      </div>
+
+      <div class="console-end-turn-wrap">
+        <button
+          type="button"
+          class="console-end-turn-btn"
+          [class.can-end]="canEndTurn()"
+          [class.is-my-turn]="activeDisplayToken() !== null && activeInitiativeTokenId() === activeDisplayToken()?.id"
+          (click)="endTurn.emit()"
+          title="End turn and advance initiative"
+        >
+          <div class="orb-outer-glow"></div>
+          <div class="orb-inner-sphere">
+            <lw-icon name="hourglass_empty" [size]="16" />
+            <span class="orb-text">End Turn</span>
+          </div>
+        </button>
+      </div>
+    </div>
+  }
+</div>
+
+@if (actionMessage() || isTestingAction()) {
+  <div class="action-hud-banner" [class.is-test]="isTestingAction()" role="status">
+    <div class="hud-banner-left">
+      @if (isTestingAction()) {
+        <span class="hud-tag test-tag">PLANNING / TEST MODE</span>
+      }
+      <span class="hud-banner-text">{{ actionMessage() || 'Testing action. Click anywhere on the map or press Esc to exit.' }}</span>
+    </div>
+    <button type="button" class="hud-banner-close" (click)="endActionTest.emit()" title="Exit preview (Esc)">
+      <lw-icon name="close" [size]="14" />
+      <span>End Test</span>
+    </button>
+  </div>
+}
+
+@if (pendingAction()) {
+  <div class="pending-action-chip">
+    <span>Ready: <strong>{{ selectedAction()?.name }}</strong></span>
+    <button type="button" (click)="cancelPendingAction.emit()" aria-label="Cancel pending action">
+      <lw-icon name="close" [size]="12" />
+    </button>
+  </div>
+}
+
+@if (actionMenuOpen() && activeDisplayToken(); as flyoutToken) {
+  <lw-vtt-action-dock-flyout
+    [token]="flyoutToken"
+    [activeTab]="activeActionTab()"
+    [tabs]="actionTabs"
+    [search]="actionSearch()"
+    [weapons]="filteredWeapons()"
+    [spellGroups]="spellGroups()"
+    [spellCount]="filteredSpells().length"
+    [standardActions]="standardActions"
+    [skills]="standardSkills"
+    [saves]="standardSaves"
+    [conditions]="allConditions"
+    [pendingActionId]="pendingAction()"
+    [hasCondition]="hasTokenCondition()"
+    [spellIcon]="spellIcon"
+    [spellTags]="spellTags"
+    (close)="actionMenuOpen.set(false)"
+    (tabChange)="setActionTab($event)"
+    (searchChange)="onActionSearch($event)"
+    (chooseAction)="chooseFromFlyout($event)"
+    (standardAction)="standardAction.emit($event)"
+    (skillCheck)="skillCheck.emit($event)"
+    (saveCheck)="saveCheck.emit($event)"
+    (toggleCondition)="toggleCondition.emit($event)"
+    (openSheet)="openSheet.emit($event)"
+    (editToken)="editToken.emit($event)"
+  />
+}

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using LoomWeaver.Domain;
 using LoomWeaver.Infrastructure.MySql;
 using LoomWeaver.Modules.Auth;
@@ -16,6 +17,8 @@ public sealed class TableRealtimeHub(LoomWeaverMySqlRepository repo) : Hub
 {
     private sealed record LiveConnection(int CampaignId, StoredUserRecord User, CampaignMembership Membership);
     private static readonly ConcurrentDictionary<string, LiveConnection> Seats = new();
+    private const int MaxVttPayloadChars = 16_000;
+    private static readonly HashSet<string> PersistedVttEventTypes = new(StringComparer.Ordinal) { "turn_changed", "effect_cast" };
 
     public static string GroupName(int campaignId) => $"campaign-{campaignId}";
     public static string GmGroupName(int campaignId) => $"campaign-{campaignId}-gm";
@@ -61,17 +64,7 @@ public sealed class TableRealtimeHub(LoomWeaverMySqlRepository repo) : Hub
     public async Task BroadcastTableAction(int campaignId, PublishRealtimeEventRequest request)
     {
         var user = CurrentUser();
-        if (!Seats.TryGetValue(Context.ConnectionId, out var seat) || seat.CampaignId != campaignId)
-        {
-            throw new HubException("Join the campaign table before broadcasting.");
-        }
-
-        await ReconcileCampaignConnectionsAsync(repo, Groups, campaignId, Context.ConnectionAborted);
-        if (!Seats.TryGetValue(Context.ConnectionId, out seat) || seat.CampaignId != campaignId)
-        {
-            throw new HubException("Campaign membership is no longer active.");
-        }
-
+        var seat = await RequireSeatAsync(campaignId);
         seat = seat with { User = user };
         Seats[Context.ConnectionId] = seat;
 
@@ -92,11 +85,84 @@ public sealed class TableRealtimeHub(LoomWeaverMySqlRepository repo) : Hub
         await Clients.Group(gmOnly ? GmGroupName(campaignId) : GroupName(campaignId)).SendAsync("TableEventReceived", evt);
     }
 
+    /// <summary>
+    /// Relays a VTT event. Only turn_changed and effect_cast are persisted to the play log; every other
+    /// type (including token_moved) is ephemeral. gm_* and fog_* events go to the GM group only.
+    /// </summary>
+    public async Task BroadcastVttEvent(int campaignId, VttRealtimeEvent evt)
+    {
+        var user = CurrentUser();
+        var seat = await RequireSeatAsync(campaignId);
+        seat = seat with { User = user };
+        Seats[Context.ConnectionId] = seat;
+
+        var type = (evt.Type ?? string.Empty).Trim();
+        if (type.Length is 0 or > 64) throw new HubException("A VTT event type is required (max 64 characters).");
+        if ((evt.ActorKey?.Length ?? 0) > 128) throw new HubException("The VTT actor key is too long.");
+        var payload = string.IsNullOrWhiteSpace(evt.PayloadJson) ? "{}" : evt.PayloadJson;
+        if (payload.Length > MaxVttPayloadChars) throw new HubException("The VTT payload is too large.");
+        try
+        {
+            using var _ = JsonDocument.Parse(payload);
+        }
+        catch (JsonException)
+        {
+            throw new HubException("The VTT payload must be valid JSON.");
+        }
+
+        var gmOnly = type.StartsWith("gm_", StringComparison.OrdinalIgnoreCase);
+        if (gmOnly && !seat.Membership.IsGm)
+        {
+            throw new HubException("Only the GM can send GM-only table events.");
+        }
+
+        if (PersistedVttEventTypes.Contains(type))
+        {
+            var persisted = await CampaignPlayEventStore.AppendAsync(
+                repo,
+                campaignId,
+                type,
+                user.DisplayName,
+                VttEventSummary(type, user.DisplayName),
+                payload,
+                Context.ConnectionAborted);
+            await Clients.Group(GroupName(campaignId)).SendAsync("TableEventReceived", persisted);
+            return;
+        }
+
+        var fogOrGm = gmOnly || type.StartsWith("fog_", StringComparison.OrdinalIgnoreCase);
+        var relayed = evt with { Type = type, PayloadJson = payload };
+        await Clients.Group(fogOrGm ? GmGroupName(campaignId) : GroupName(campaignId)).SendAsync("VttEventReceived", relayed);
+    }
+
     public override Task OnDisconnectedAsync(Exception? exception)
     {
         Seats.TryRemove(Context.ConnectionId, out _);
         return base.OnDisconnectedAsync(exception);
     }
+
+    private async Task<LiveConnection> RequireSeatAsync(int campaignId)
+    {
+        if (!Seats.TryGetValue(Context.ConnectionId, out var seat) || seat.CampaignId != campaignId)
+        {
+            throw new HubException("Join the campaign table before broadcasting.");
+        }
+
+        await ReconcileCampaignConnectionsAsync(repo, Groups, campaignId, Context.ConnectionAborted);
+        if (!Seats.TryGetValue(Context.ConnectionId, out seat) || seat.CampaignId != campaignId)
+        {
+            throw new HubException("Campaign membership is no longer active.");
+        }
+
+        return seat;
+    }
+
+    private static string VttEventSummary(string type, string actorName) => type switch
+    {
+        "turn_changed" => $"{actorName} changed the turn order.",
+        "effect_cast" => $"{actorName} cast an effect.",
+        _ => $"{actorName} sent a VTT event."
+    };
 
     private async Task RemoveCurrentSeatGroupsAsync()
     {

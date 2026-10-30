@@ -1,4 +1,5 @@
 import { Injectable, signal } from '@angular/core';
+import { Observable, Subject } from 'rxjs';
 import {
   ArcRotateCamera,
   Color3,
@@ -16,15 +17,23 @@ import {
   EffectTimelinePresetVm,
   VttTokenVm,
 } from './effect-timeline.contract';
+import { TokenDragController, TokenPlacement } from './token-drag-controller';
 
 @Injectable({ providedIn: 'root' })
 export class BabylonEffectStageService {
   private engine: Engine | null = null;
   private scene: Scene | null = null;
   private animHandle: number | null = null;
+  private dragController: TokenDragController | null = null;
+  private readonly draggedSubject = new Subject<TokenPlacement>();
+  private readonly droppedSubject = new Subject<TokenPlacement>();
 
   readonly activeKeyframeLabel = signal<string>('Ready');
   readonly reducedMotion = signal<boolean>(false);
+  /** Live positions while a token is being dragged on the ground plane. */
+  readonly tokenDragged: Observable<TokenPlacement> = this.draggedSubject.asObservable();
+  /** Final grid-snapped position when a dragged token is released at a new spot. */
+  readonly tokenDropped: Observable<TokenPlacement> = this.droppedSubject.asObservable();
 
   mountStage(
     canvas: HTMLCanvasElement,
@@ -79,6 +88,14 @@ export class BabylonEffectStageService {
       }
       const grid = MeshBuilder.CreateLineSystem('lw-vtt-grid', { lines }, this.scene);
       grid.color = Color3.FromHexString('#264035');
+
+      this.dragController = new TokenDragController(this.scene, ground, {
+        onDragStart: () => camera.detachControl(),
+        onDragEnd: () => camera.attachControl(canvas, true),
+        onDragged: (placement) => this.draggedSubject.next(placement),
+        onDropped: (placement) => this.droppedSubject.next(placement),
+      });
+      this.dragController.attach();
 
       this.syncTokens(tokens, attackerKey, targetKey, targetKey ? [targetKey] : []);
 
@@ -327,6 +344,8 @@ export class BabylonEffectStageService {
       cancelAnimationFrame(this.animHandle);
       this.animHandle = null;
     }
+    this.dragController?.detach();
+    this.dragController = null;
     this.scene?.dispose();
     this.engine?.dispose();
     this.scene = null;

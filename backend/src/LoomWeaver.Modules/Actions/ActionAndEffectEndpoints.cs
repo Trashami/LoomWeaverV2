@@ -97,7 +97,7 @@ public static class ActionAndEffectEndpoints
         )
     ];
 
-    private static List<EffectTimelinePresetDto> SeedEffects() =>
+    internal static List<EffectTimelinePresetDto> SeedEffects() =>
     [
         new(
             "fx-projectile-arc",

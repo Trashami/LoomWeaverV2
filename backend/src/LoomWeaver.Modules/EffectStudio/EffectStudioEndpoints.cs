@@ -51,6 +51,7 @@ public static class EffectStudioEndpoints
 
         api.MapEffectLibraryAndAssignmentEndpoints();
         api.MapEffectMarketplaceAndCatalogEndpoints();
+        api.MapEffectPresetEndpoints();
 
         api.MapGet("/effects/studio", async (
             int? campaignId,

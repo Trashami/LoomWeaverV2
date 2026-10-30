@@ -29,8 +29,9 @@ public static class VttSceneEndpoints
             var items = new List<VttSceneListItem>();
             await using var db = await mysql.OpenConnectionAsync(ct);
             await using var cmd = new MySqlCommand(
-                "SELECT scene_key, revision, document_json FROM lw_battlemap_scenes WHERE campaign_id=@c ORDER BY updated_at DESC LIMIT 50", db);
+                "SELECT scene_key, revision, document_json FROM lw_battlemap_scenes WHERE campaign_id=@c AND (@gm = 1 OR visibility IN ('public','players')) ORDER BY updated_at DESC LIMIT 50", db);
             cmd.Parameters.AddWithValue("@c", campaignId);
+            cmd.Parameters.AddWithValue("@gm", access.IsEffectiveGm ? 1 : 0);
             await using var r = await cmd.ExecuteReaderAsync(ct);
             while (await r.ReadAsync(ct))
                 items.Add(new VttSceneListItem(r.GetString(0), NameOf(JsonSerializer.Deserialize<JsonElement>(r.GetString(2)), r.GetString(0)), r.GetInt32(1)));
@@ -43,16 +44,17 @@ public static class VttSceneEndpoints
             var access = await CampaignAccessResolver.ResolveAsync(ctx, campaignId, null, ct);
             if (!access.IsMember) return Results.StatusCode(403);
             var stored = await MapSceneDocumentRepository.LoadAsync(mysql, campaignId, sceneKey, ct);
-            return stored is null
-                ? Results.NotFound(new { error = "That scene has not been saved." })
-                : Results.Ok(Project(sceneKey, stored));
+            if (stored is null || (!access.IsEffectiveGm && stored.Visibility == "gm"))
+                return Results.NotFound(new { error = "That scene has not been saved." });
+            return Results.Ok(Project(sceneKey, stored, access.IsEffectiveGm));
         });
     }
 
-    public static VttSceneDto Project(string sceneKey, StoredMapSceneDocument stored)
+    public static VttSceneDto Project(string sceneKey, StoredMapSceneDocument stored, bool viewerIsGm)
     {
         var walls = new List<VttWallDto>();
-        if (stored.Document.TryGetProperty("walls", out var list) && list.ValueKind == JsonValueKind.Array)
+        var includeWalls = viewerIsGm || stored.Visibility != "gm";
+        if (includeWalls && stored.Document.TryGetProperty("walls", out var list) && list.ValueKind == JsonValueKind.Array)
         {
             foreach (var wall in list.EnumerateArray().Take(500))
             {

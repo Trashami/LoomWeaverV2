@@ -1,6 +1,9 @@
 <div class="lw-vtt-screen" [class.lw-vtt-screen--right-collapsed]="battle.rightPanelCollapsed()">
   <header class="lw-vtt-header">
     <div class="lw-vtt-header__left">
+      <button type="button" class="lw-vtt-brand" aria-label="Return to LoomWeaver" title="Back to previous page" (click)="vttReturn.returnToPreviousPage()">
+        <img src="/landing-assets/brand/logo-wordmark.png" alt="LoomWeaver" />
+      </button>
       <span class="lw-vtt-live-pill"><span class="lw-vtt-live-dot"></span><span>Live VTT</span></span>
       <label class="lw-vtt-enc-select" aria-label="Select Active Live Encounter">
         <lw-icon name="swords" [size]="14" />
@@ -62,13 +65,19 @@
         </select>
       }
       <a class="lw-vtt-tool-btn" routerLink="/encounters">Build Encounters</a>
+      <button ngpButton type="button" class="lw-vtt-tool-btn" [class.active]="gmRailOpen()" (click)="gmRailOpen.set(!gmRailOpen())">
+        <span>{{ gmRailOpen() ? 'Hide Party Rail' : 'Party Rail' }}</span>
+      </button>
       <button ngpButton type="button" class="lw-vtt-tool-btn lw-vtt-tool-btn--panel" (click)="battle.rightPanelCollapsed.set(!battle.rightPanelCollapsed())">
         <span>{{ battle.rightPanelCollapsed() ? 'Open Panel' : 'Hide Panel' }}</span>
       </button>
     </div>
   </header>
 
-  <div class="lw-vtt-body">
+  <div class="lw-vtt-body" [class.lw-vtt-body--rail]="gmRailOpen()">
+    @if (gmRailOpen()) {
+      <lw-vtt-gm-rail (nextTurn)="nextTurn()" (collapse)="gmRailOpen.set(false)" />
+    }
     <section class="lw-vtt-map-stage" [class.lw-vtt-map-stage--3d]="battle.mapMode3D()" aria-label="Interactive Encounter Battle Map">
       <canvas #vttCanvas class="lw-vtt-babylon-canvas" [class.lw-vtt-babylon-canvas--active]="battle.mapMode3D()"></canvas>
       <div class="lw-vtt-map-backdrop" [class.lw-vtt-map-backdrop--dimmed]="battle.mapMode3D()" [style.backgroundImage]="'url(' + (vtt.activeLiveEncounter()?.thumbnailUrl ?? '') + ')'"></div>
@@ -230,38 +239,7 @@
         }
       </div>
 
-      @if (battle.openDmDrawer() === 'fog-settings') {
-        <div class="lw-vtt-floating-drawer">
-          <div class="lw-vtt-drawer-head">
-            <h4>Encounter Vision & Fog of War Settings</h4>
-            <button ngpButton type="button" (click)="battle.openDmDrawer.set('none')">Close</button>
-          </div>
-          <div class="lw-vtt-drawer-grid">
-            <label class="lw-vtt-field">
-              <span>Encounter Fog of War Mode</span>
-              <select [ngModel]="battle.fogMode()" (ngModelChange)="battle.fogMode.set($event)">
-                <option value="los-only">Fog of War completely based on Line of Sight</option>
-                <option value="explored-los">Fog of War based on where they have traveled</option>
-                <option value="no-fog">No Fog at all</option>
-              </select>
-            </label>
-            <label class="lw-vtt-field">
-              <span>Player Sight Distance (ft)</span>
-              <input type="number" min="15" max="120" step="5" [ngModel]="battle.playerSightDistanceFeet()" (ngModelChange)="battle.playerSightDistanceFeet.set(+$event)" />
-            </label>
-            <label class="lw-vtt-check">
-              <input type="checkbox" [ngModel]="battle.hideOutOfSightMonsters()" (ngModelChange)="battle.hideOutOfSightMonsters.set($event)" />
-              <span>Hide monster tokens outside individual player sight distance & Line of Sight</span>
-            </label>
-            @if (store.viewerRole() === 'gm') {
-              <label class="lw-vtt-check">
-                <input type="checkbox" [ngModel]="battle.gmPreviewPlayerVision()" (ngModelChange)="battle.gmPreviewPlayerVision.set($event)" />
-                <span>Preview Player Fog & Hidden Monsters on GM Map</span>
-              </label>
-            }
-          </div>
-        </div>
-      }
+      <lw-vtt-dm-drawers />
 
       @if (battle.openDmDrawer() === 'quick-add') {
         <div class="lw-vtt-floating-drawer">
@@ -328,98 +306,40 @@
         </div>
       }
 
-      @if (battle.openDmDrawer() === 'scene-roster') {
-        <div class="lw-vtt-floating-drawer">
-          <div class="lw-vtt-drawer-head">
-            <h4>Party, Scene Creatures & Active Traps</h4>
-            <button ngpButton type="button" (click)="battle.openDmDrawer.set('none')">Close</button>
-          </div>
-          <div class="lw-vtt-roster-strip">
-            @for (trap of vtt.activeLiveEncounter()?.traps ?? []; track trap.id) {
-              <div class="lw-vtt-trap-chip">
-                <strong>Trap: {{ trap.name }}</strong>
-                <span>{{ trap.saveOrAttack }} · {{ trap.damageFormula }} · Spot DC {{ trap.perceptionDc }}</span>
-              </div>
-            }
-            @for (cond of vtt.activeConditions(); track cond.id) {
-              <div class="lw-vtt-trap-chip">
-                <strong>{{ cond.name }} ({{ cond.durationLabel }})</strong>
-                <span>{{ cond.targetLabel }} · {{ cond.effectSummary }}</span>
-              </div>
-            }
-          </div>
-        </div>
-      }
 
-      @if (battle.settingsModalOpen()) {
-        <div class="lw-vtt-modal-backdrop" (click)="battle.settingsModalOpen.set(false)">
-          <div class="lw-vtt-settings-modal" role="dialog" aria-modal="true" aria-label="Action Bar & VTT HUD Settings" (click)="$event.stopPropagation()">
-            <div class="lw-vtt-settings-modal__head">
-              <div>
-                <h4>Action Bar & VTT HUD Settings</h4>
-                <span>Customize hotbar opacity, layout density, and targeting snap sensitivity.</span>
-              </div>
-              <button ngpButton type="button" class="lw-vtt-modal-close" (click)="battle.settingsModalOpen.set(false)">Close</button>
-            </div>
+      @if (battle.settingsModalOpen()) { <lw-vtt-settings-modal /> }
 
-            <div class="lw-vtt-settings-modal__body">
-              <label class="lw-vtt-setting-row">
-                <div class="lw-vtt-setting-row__label">
-                  <strong>Action Bar Skin</strong>
-                  <span>Choose the look of your bottom action bar.</span>
-                </div>
-                <select [ngModel]="battle.actionBarSettings().skin" (ngModelChange)="battle.updateActionBarSettings({ skin: $event })">
-                  @for (s of actionBarSkins; track s.id) {
-                    <option [value]="s.id">{{ s.label }}</option>
-                  }
-                </select>
-              </label>
-              <label class="lw-vtt-setting-row">
-                <div class="lw-vtt-setting-row__label">
-                  <strong>Action Bar Opacity ({{ battle.actionBarSettings().opacity }}%)</strong>
-                  <span>Adjust transparency of the bottom character action bar dock over the map.</span>
-                </div>
-                <input type="range" min="25" max="100" step="5" [ngModel]="battle.actionBarSettings().opacity" (ngModelChange)="battle.updateActionBarSettings({ opacity: +$event })" />
-              </label>
+      <lw-vtt-action-dock
+        [activeDisplayToken]="dockActiveToken()"
+        [activeInitiativeTokenId]="dockInitiativeTokenId()"
+        [turnActionUsed]="battle.activeObserverToken().actionUsed"
+        [turnBonusActionUsed]="battle.activeObserverToken().bonusUsed"
+        [turnReactionUsed]="battle.activeObserverToken().reactionUsed"
+        [turnMovementRemainingFeet]="battle.remainingMovementFeet()"
+        [turnMovementMaxFeet]="battle.activeObserverToken().movementFeet"
+        [canEndTurn]="isObserverActiveTurn() || store.viewerRole() === 'gm'"
+        [isGm]="store.viewerRole() === 'gm'"
+        [isMeasuring]="battle.measureEnabled()"
+        [pendingAction]="battle.pendingAbility()?.name ?? null"
+        [tokenActions]="dockTokenActions()"
+        [skin]="battle.actionBarSettings().skin"
+        [zoom]="100"
+        [getTokenHp]="dockHp"
+        [getTokenAc]="dockAc"
+        (chooseAction)="selectDockAction($event)"
+        (endTurn)="nextTurn()"
+        (toggleMeasure)="dockToggleMeasure()"
+        (standardAction)="dockStandardAction($event)"
+        (skillCheck)="dockCheck($event.skill.name, $event.token)"
+        (saveCheck)="dockCheck($event.save.name, $event.token)"
+        (abilityCheck)="dockCheck($event.stat, $event.token)"
+        (savingThrow)="dockCheck($event.stat + ' save', $event.token)"
+        (openSheet)="dmToolReadout.set('Opening sheet for ' + $event.name + '.')"
+        (cancelPendingAction)="battle.pendingAbility.set(null)"
+        (endActionTest)="battle.pendingAbility.set(null)"
+        (editToken)="dmToolReadout.set('Editing ' + $event.name + '.')"
+      />
 
-              <label class="lw-vtt-setting-row">
-                <div class="lw-vtt-setting-row__label">
-                  <strong>Single-Target Snap Distance ({{ battle.actionBarSettings().snapSensitivityFeet }} ft)</strong>
-                  <span>How close the cursor must get to snap single/multi-target spells onto a token.</span>
-                </div>
-                <input type="range" min="5" max="20" step="1" [ngModel]="battle.actionBarSettings().snapSensitivityFeet" (ngModelChange)="battle.updateActionBarSettings({ snapSensitivityFeet: +$event })" />
-              </label>
-
-              <label class="lw-vtt-check">
-                <input type="checkbox" [ngModel]="battle.actionBarSettings().compactMode" (ngModelChange)="battle.updateActionBarSettings({ compactMode: $event })" />
-                <span>Compact Action Bar Dock (reduce vertical height of hotbar slots)</span>
-              </label>
-
-              <label class="lw-vtt-check">
-                <input type="checkbox" [ngModel]="battle.actionBarSettings().showHotbarKeybinds" (ngModelChange)="battle.updateActionBarSettings({ showHotbarKeybinds: $event })" />
-                <span>Show hotbar slot keybind badges (1–9) & damage formulas</span>
-              </label>
-
-              <label class="lw-vtt-check">
-                <input type="checkbox" [ngModel]="battle.actionBarSettings().showMapRangeLabels" (ngModelChange)="battle.updateActionBarSettings({ showMapRangeLabels: $event })" />
-                <span>Show floating range & target count readout along the green cast line</span>
-              </label>
-
-              <label class="lw-vtt-check">
-                <input type="checkbox" [ngModel]="battle.actionBarSettings().autoCenterActiveTurn" (ngModelChange)="battle.updateActionBarSettings({ autoCenterActiveTurn: $event })" />
-                <span>Highlight active turn combatant ring in Initiative order</span>
-              </label>
-            </div>
-
-            <div class="lw-vtt-settings-modal__foot">
-              <button ngpButton type="button" class="lw-vtt-subpill" (click)="resetActionBarSettings()">Reset Defaults</button>
-              <lw-button variant="gold" size="sm" (pressed)="battle.settingsModalOpen.set(false)">Done</lw-button>
-            </div>
-          </div>
-        </div>
-      }
-
-      <lw-vtt-action-bar [skin]="battle.actionBarSettings().skin" [compact]="battle.actionBarSettings().compactMode" [opacity]="battle.actionBarSettings().opacity" [showKeys]="battle.actionBarSettings().showHotbarKeybinds" (abilitySelected)="selectTurnAbility($event)" (endTurn)="nextTurn()" (settingsRequested)="battle.settingsModalOpen.set(true)" />
     </section>
 
     @if (!battle.rightPanelCollapsed()) {
@@ -430,6 +350,8 @@
           <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'initiative'" (click)="battle.activeRightTab.set('initiative')">Initiative</button>
           <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'quests'" (click)="battle.activeRightTab.set('quests')">Quests</button>
           <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'npcs'" (click)="battle.activeRightTab.set('npcs')">NPCs</button>
+          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'guide'" (click)="battle.activeRightTab.set('guide')">Guide</button>
+          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'trackers'" (click)="battle.activeRightTab.set('trackers')">Trackers</button>
           <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'lore'" (click)="battle.activeRightTab.set('lore')">Lore</button>
         </nav>
 
@@ -519,6 +441,18 @@
                   }
                 </article>
               }
+            </div>
+          }
+
+          @if (battle.activeRightTab() === 'guide') {
+            <div class="lw-vtt-tab-list">
+              <lw-vtt-gm-guide (readout)="dmToolReadout.set($event)" />
+            </div>
+          }
+
+          @if (battle.activeRightTab() === 'trackers') {
+            <div class="lw-vtt-tab-list">
+              <lw-vtt-gm-trackers />
             </div>
           }
 

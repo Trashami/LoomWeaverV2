@@ -1,12 +1,14 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, effect, inject, signal, untracked } from '@angular/core';
+import { DestroyRef, Injectable, effect, inject, signal, untracked } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom } from 'rxjs';
 import { LoomWeaverStoreService } from '../../../core/services/loomweaver-store.service';
 import { LwAlertifyService } from '../../../core/services/lw-alertify.service';
-import { TableRealtimeSyncService } from '../../../core/services/table-realtime-sync.service';
+import { TableRealtimeSyncService, VttRealtimeEvent } from '../../../core/services/table-realtime-sync.service';
 import { CombatStateResponse, ServerVttToken, VttSceneListItem, VttSceneResponse } from '../models/vtt-server.models';
 import { VttBattleStateService } from './vtt-battle-state.service';
 import { VttCombatService } from './vtt-combat.service';
+import { parseVttEvent } from './vtt-realtime-events';
 
 /** Loads combat tokens and turn state from the API and sends movement and turn requests; the server decides what is allowed. */
 @Injectable({ providedIn: 'root' })
@@ -17,6 +19,7 @@ export class VttServerSyncService {
   private readonly battle = inject(VttBattleStateService);
   private readonly realtime = inject(TableRealtimeSyncService);
   private readonly alertify = inject(LwAlertifyService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly scenes = signal<readonly VttSceneListItem[]>([]);
   readonly activeSceneKey = signal('');
@@ -29,6 +32,46 @@ export class VttServerSyncService {
     effect(() => {
       if (this.store.activeCampaignId() > 0) untracked(() => void this.loadScenes());
     });
+    this.realtime.ensureConnected();
+    this.realtime.vttEvents
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((evt) => this.routeRemoteEvent(evt));
+  }
+
+  /** Sends a token move to the server, then tells other clients so their 2D and 3D views follow. */
+  async publishMove(key: string, x: number, z: number): Promise<boolean> {
+    const campaignId = this.store.activeCampaignId();
+    const ok = await this.moveToken(key, x, z);
+    if (ok && campaignId > 0) {
+      await this.realtime.publishVtt(campaignId, 'token_moved', this.localActorKey(), { key, x, z });
+    }
+    return ok;
+  }
+
+  private localActorKey(): string {
+    return this.store.activeUserAccountId();
+  }
+
+  private routeRemoteEvent(evt: VttRealtimeEvent): void {
+    if (evt.actorKey === this.localActorKey()) return;
+    const parsed = parseVttEvent(evt);
+    if (!parsed) return;
+    switch (parsed.kind) {
+      case 'token_moved':
+        this.vtt.applyRemoteTokenMove(parsed.key, parsed.x, parsed.z);
+        break;
+      case 'turn_changed':
+        this.vtt.applyRemoteTurn(parsed.activeKey, parsed.round);
+        break;
+      case 'effect_cast':
+        this.vtt.applyRemoteEffect(
+          parsed.presetId, parsed.startX, parsed.startZ, parsed.endX, parsed.endZ, parsed.targetKeys,
+        );
+        break;
+      case 'fog_changed':
+        this.battle.applyRemoteFog(parsed.mode);
+        break;
+    }
   }
 
   async loadScenes(): Promise<void> {
@@ -129,7 +172,15 @@ export class VttServerSyncService {
   async nextTurn(): Promise<boolean> {
     const base = this.base();
     if (!base) return false;
-    return this.send(`${base}/combat/next-turn`, {});
+    const campaignId = this.store.activeCampaignId();
+    const ok = await this.send(`${base}/combat/next-turn`, {});
+    if (ok && campaignId > 0) {
+      await this.realtime.publishVtt(campaignId, 'turn_changed', this.localActorKey(), {
+        activeKey: this.vtt.selectedAttackerKey(),
+        round: this.vtt.activeRound(),
+      });
+    }
+    return ok;
   }
 
   private async send(url: string, body: unknown): Promise<boolean> {

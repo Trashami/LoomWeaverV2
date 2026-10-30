@@ -1,0 +1,65 @@
+<div class="lw-vtt-modal-backdrop" (click)="close()">
+  <div class="lw-vtt-settings-modal" role="dialog" aria-modal="true" aria-label="Action Bar & VTT HUD Settings" (click)="$event.stopPropagation()">
+    <div class="lw-vtt-settings-modal__head">
+      <div>
+        <h4>Action Bar & VTT HUD Settings</h4>
+        <span>Customize hotbar opacity, layout density, and targeting snap sensitivity.</span>
+      </div>
+      <button ngpButton type="button" class="lw-vtt-modal-close" (click)="close()">Close</button>
+    </div>
+
+    <div class="lw-vtt-settings-modal__body">
+      <label class="lw-vtt-setting-row">
+        <div class="lw-vtt-setting-row__label">
+          <strong>Action Bar Skin</strong>
+          <span>Choose the look of your bottom action bar.</span>
+        </div>
+        <select [ngModel]="battle.actionBarSettings().skin" (ngModelChange)="battle.updateActionBarSettings({ skin: $event })">
+          @for (s of actionBarSkins; track s.id) {
+            <option [value]="s.id">{{ s.label }}</option>
+          }
+        </select>
+      </label>
+      <label class="lw-vtt-setting-row">
+        <div class="lw-vtt-setting-row__label">
+          <strong>Action Bar Opacity ({{ battle.actionBarSettings().opacity }}%)</strong>
+          <span>Adjust transparency of the bottom character action bar dock over the map.</span>
+        </div>
+        <input type="range" min="25" max="100" step="5" [ngModel]="battle.actionBarSettings().opacity" (ngModelChange)="battle.updateActionBarSettings({ opacity: +$event })" />
+      </label>
+
+      <label class="lw-vtt-setting-row">
+        <div class="lw-vtt-setting-row__label">
+          <strong>Single-Target Snap Distance ({{ battle.actionBarSettings().snapSensitivityFeet }} ft)</strong>
+          <span>How close the cursor must get to snap single/multi-target spells onto a token.</span>
+        </div>
+        <input type="range" min="5" max="20" step="1" [ngModel]="battle.actionBarSettings().snapSensitivityFeet" (ngModelChange)="battle.updateActionBarSettings({ snapSensitivityFeet: +$event })" />
+      </label>
+
+      <label class="lw-vtt-check">
+        <input type="checkbox" [ngModel]="battle.actionBarSettings().compactMode" (ngModelChange)="battle.updateActionBarSettings({ compactMode: $event })" />
+        <span>Compact Action Bar Dock (reduce vertical height of hotbar slots)</span>
+      </label>
+
+      <label class="lw-vtt-check">
+        <input type="checkbox" [ngModel]="battle.actionBarSettings().showHotbarKeybinds" (ngModelChange)="battle.updateActionBarSettings({ showHotbarKeybinds: $event })" />
+        <span>Show hotbar slot keybind badges (1–9) & damage formulas</span>
+      </label>
+
+      <label class="lw-vtt-check">
+        <input type="checkbox" [ngModel]="battle.actionBarSettings().showMapRangeLabels" (ngModelChange)="battle.updateActionBarSettings({ showMapRangeLabels: $event })" />
+        <span>Show floating range & target count readout along the green cast line</span>
+      </label>
+
+      <label class="lw-vtt-check">
+        <input type="checkbox" [ngModel]="battle.actionBarSettings().autoCenterActiveTurn" (ngModelChange)="battle.updateActionBarSettings({ autoCenterActiveTurn: $event })" />
+        <span>Highlight active turn combatant ring in Initiative order</span>
+      </label>
+    </div>
+
+    <div class="lw-vtt-settings-modal__foot">
+      <button ngpButton type="button" class="lw-vtt-subpill" (click)="resetDefaults()">Reset Defaults</button>
+      <lw-button variant="gold" size="sm" (pressed)="close()">Done</lw-button>
+    </div>
+  </div>
+</div>

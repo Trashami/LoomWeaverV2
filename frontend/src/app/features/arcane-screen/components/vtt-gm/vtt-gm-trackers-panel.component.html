@@ -1,0 +1,74 @@
+<div class="lw-gm-panel">
+  @if (encounter(); as enc) {
+    <nav class="lw-gm-subtabs" aria-label="Tracker sections">
+      <button ngpButton type="button" [class.active]="section() === 'npcs'" (click)="section.set('npcs')">Session NPCs</button>
+      <button ngpButton type="button" [class.active]="section() === 'traps'" (click)="section.set('traps')">Traps</button>
+      <button ngpButton type="button" [class.active]="section() === 'monsters'" (click)="section.set('monsters')">Monsters</button>
+    </nav>
+
+    @if (section() === 'npcs') {
+      @for (npc of enc.sessionNpcs; track npc.compositeKey) {
+        <article class="lw-gm-card">
+          <header class="lw-gm-card__head">
+            <h3>{{ npc.name }}</h3>
+            <span class="lw-gm-pill" [class.lw-gm-pill--live]="npc.includedInEncounter">{{ npc.includedInEncounter ? 'In Encounter' : npc.disposition }}</span>
+          </header>
+          <small class="lw-gm-sub">{{ npc.role }} · {{ npc.locationName }} · {{ npc.disposition }}</small>
+          <p class="lw-gm-body">{{ npc.summary }}</p>
+          @if (store.viewerRole() === 'gm' && npc.gmSecret) {
+            <p class="lw-gm-secret">GM Secret: {{ npc.gmSecret }}</p>
+          }
+        </article>
+      } @empty {
+        <p class="lw-gm-empty">No session NPCs attached to this encounter.</p>
+      }
+    }
+
+    @if (section() === 'traps') {
+      @for (trap of enc.traps; track trap.id) {
+        <article class="lw-gm-card">
+          <header class="lw-gm-card__head">
+            <h3>{{ trap.name }}</h3>
+            <span class="lw-gm-pill" [class.lw-gm-pill--live]="trap.armed">{{ trap.armed ? 'Armed' : 'Disarmed' }}</span>
+          </header>
+          <small class="lw-gm-sub">{{ trap.category }} · Trigger: {{ trap.trigger }}</small>
+          <p class="lw-gm-body">{{ trap.effectSummary }}</p>
+          <div class="lw-gm-row__meta">
+            <span>Spot DC {{ trap.perceptionDc }}</span>
+            <span>Disarm DC {{ trap.disarmDc }}</span>
+            <span>{{ trap.saveOrAttack }} · {{ trap.damageFormula }}</span>
+          </div>
+          <footer class="lw-gm-card__foot">
+            <button ngpButton type="button" class="lw-gm-btn" (click)="toggleTrap(trap.id)">{{ trap.armed ? 'Disarm' : 'Arm' }}</button>
+          </footer>
+        </article>
+      } @empty {
+        <p class="lw-gm-empty">No traps or hazards on this encounter.</p>
+      }
+    }
+
+    @if (section() === 'monsters') {
+      @for (m of enc.monsters; track m.slotId) {
+        <article class="lw-gm-card">
+          <header class="lw-gm-card__head">
+            <h3>{{ m.name }} <span class="lw-gm-sub">x{{ m.count }}</span></h3>
+            <span class="lw-gm-pill">{{ m.disposition }}</span>
+          </header>
+          <small class="lw-gm-sub">{{ m.creatureType }} · CR {{ m.challengeRating }} · {{ m.xpValue }} XP</small>
+          <div class="lw-gm-row__meta">
+            <span>AC {{ m.armorClass }}</span>
+            <span>HP {{ m.maxHp }}</span>
+            <span>Speed {{ m.speedFeet }} ft</span>
+            <span>DC {{ m.saveDc }}</span>
+          </div>
+          <p class="lw-gm-body">{{ m.signatureAttack }} · {{ m.damageFormula }}</p>
+          <p class="lw-gm-sub">{{ m.roleSummary }}</p>
+        </article>
+      } @empty {
+        <p class="lw-gm-empty">No monsters on this encounter.</p>
+      }
+    }
+  } @else {
+    <p class="lw-gm-empty">No live encounter selected.</p>
+  }
+</div>

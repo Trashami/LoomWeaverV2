@@ -4,7 +4,7 @@ using MySqlConnector;
 
 namespace LoomWeaver.Modules.Maps.Infrastructure;
 
-public sealed record StoredMapSceneDocument(int Revision, JsonElement Document);
+public sealed record StoredMapSceneDocument(int Revision, JsonElement Document, string Visibility = "players");
 
 public static class MapSceneDocumentRepository
 {
@@ -13,14 +13,14 @@ public static class MapSceneDocumentRepository
     {
         await using var db = await mysql.OpenConnectionAsync(ct);
         await using var cmd = new MySqlCommand("""
-            SELECT revision, document_json
+            SELECT revision, document_json, visibility
             FROM lw_battlemap_scenes WHERE campaign_id = @c AND scene_key = @s
             """, db);
         cmd.Parameters.AddWithValue("@c", campaignId);
         cmd.Parameters.AddWithValue("@s", sceneKey);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         return await reader.ReadAsync(ct)
-            ? new StoredMapSceneDocument(reader.GetInt32(0), JsonSerializer.Deserialize<JsonElement>(reader.GetString(1)))
+            ? new StoredMapSceneDocument(reader.GetInt32(0), JsonSerializer.Deserialize<JsonElement>(reader.GetString(1)), reader.GetString(2))
             : null;
     }
 

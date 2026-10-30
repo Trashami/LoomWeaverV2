@@ -9,7 +9,9 @@ export type VttRightTabId =
   | 'initiative'
   | 'quests'
   | 'npcs'
-  | 'lore';
+  | 'lore'
+  | 'guide'
+  | 'trackers';
 
 export type VttMeasureSubMode = 'spell' | 'movement';
 

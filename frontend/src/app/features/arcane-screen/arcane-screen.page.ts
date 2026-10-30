@@ -1,3 +1,4 @@
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -14,6 +15,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { VttReturnRouteService } from '../../core/services/vtt-return-route.service';
 import { NgpButton } from 'ng-primitives/button';
 import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
 import {
@@ -31,8 +33,17 @@ import {
   worldToSvgY,
 } from './engine/vtt-los-and-grid.engine';
 import { VttTacticalAbilityVm } from './models/vtt-battle.models';
-import { VttActionBarComponent } from './components/vtt-action-bar/vtt-action-bar.component';
-import { ACTION_BAR_SKINS } from './components/vtt-action-bar/action-bar-skins';
+import { VttSettingsModalComponent } from './components/vtt-settings-modal/vtt-settings-modal.component';
+import { VttDmDrawersComponent } from './components/vtt-dm-drawers/vtt-dm-drawers.component';
+import { VttActionDockComponent } from './components/vtt-action-dock/vtt-action-dock.component';
+import { VttGmRailComponent } from './components/vtt-gm/vtt-gm-rail.component';
+import { VttGmGuidePanelComponent } from './components/vtt-gm/vtt-gm-guide-panel.component';
+import { VttGmTrackersPanelComponent } from './components/vtt-gm/vtt-gm-trackers-panel.component';
+import {
+  toDockAction,
+  toDockToken,
+} from './components/vtt-action-dock/vtt-action-dock.adapter';
+import type { DockAction, DockToken } from './components/vtt-action-dock/vtt-action-dock.models';
 import { VttBattleStateService } from './services/vtt-battle-state.service';
 import { VttCombatService } from './services/vtt-combat.service';
 import { VttServerSyncService } from './services/vtt-server-sync.service';
@@ -46,7 +57,12 @@ import { VttServerSyncService } from './services/vtt-server-sync.service';
     NgpButton,
     LwButtonComponent,
     LwIconComponent,
-    VttActionBarComponent,
+    VttActionDockComponent,
+    VttGmRailComponent,
+    VttGmGuidePanelComponent,
+    VttGmTrackersPanelComponent,
+    VttSettingsModalComponent,
+    VttDmDrawersComponent,
   ],
   templateUrl: './arcane-screen.page.html',
   styleUrl: './arcane-screen.page.scss',
@@ -64,11 +80,22 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   readonly fullscreenDice = inject(FullscreenDiceOverlayService);
   private readonly router = inject(Router);
   readonly serverSync = inject(VttServerSyncService);
+  readonly vttReturn = inject(VttReturnRouteService);
 
   constructor() {
     effect(() => {
       this.vtt.tokens();
       untracked(() => this.sync3dStage());
+    });
+    this.stage.tokenDropped.pipe(takeUntilDestroyed()).subscribe((p) => {
+      this.vtt.applyRemoteTokenMove(p.key, p.x, p.z);
+      this.sync3dStage();
+      void this.serverSync.publishMove(p.key, p.x, p.z);
+    });
+    effect(() => {
+      const cue = this.vtt.remoteEffectCue();
+      if (!cue) return;
+      untracked(() => this.stage.playTrajectoryEffect(cue.preset, cue.startPos, cue.endPos));
     });
   }
 
@@ -83,6 +110,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   readonly dmToolReadout = signal<string>(
     'Session Ready: DM can drag any token; Players move on their Initiative turn. Click an ability below to aim & cast.',
   );
+  readonly gmRailOpen = signal<boolean>(true);
 
   // Quick-Add Monster & NPC Form State
   readonly quickAddMonsterId = signal<string>('creat-goblin-scout-a');
@@ -118,9 +146,22 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       (this.store.viewerRole() === 'players' || this.battle.gmPreviewPlayerVision()),
   );
 
-  readonly actionBarSkins = ACTION_BAR_SKINS;
   readonly isObserverActiveTurn = computed(
     () => this.battle.activeInitiativeToken()?.key === this.battle.activeObserverToken()?.key,
+  );
+
+  readonly dockHp = (token: DockToken): number => token.hp ?? 0;
+  readonly dockAc = (token: DockToken): number => token.armorClass ?? 10;
+
+  readonly dockActiveToken = computed<DockToken>(() =>
+    toDockToken(this.battle.activeObserverToken(), this.vtt.tokens()),
+  );
+  readonly dockActiveTokenId = computed<number>(() => this.dockActiveToken().id);
+  readonly dockTokenActions = computed<readonly DockAction[]>(() =>
+    this.battle.tacticalAbilities().map(toDockAction),
+  );
+  readonly dockInitiativeTokenId = computed<number>(() =>
+    toDockToken(this.battle.activeInitiativeToken(), this.vtt.tokens()).id,
   );
 
   ngAfterViewInit(): void {
@@ -231,7 +272,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     if (!this.battle.draggingTokenKey()) return;
     const result = this.battle.endTokenDrag();
     if (result.movedToken && result.distanceFeet > 0) {
-      void this.serverSync.moveToken(result.movedToken.key, result.movedToken.x, result.movedToken.z);
+      void this.serverSync.publishMove(result.movedToken.key, result.movedToken.x, result.movedToken.z);
       this.sync3dStage();
       this.dmToolReadout.set(
         `${this.store.viewerRole() === 'gm' ? 'DM Moved' : 'Moved'} ${result.movedToken.name} (${result.distanceFeet} ft).`,
@@ -297,8 +338,25 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     }
     this.sync3dStage();
     const moved = this.battle.activeObserverToken();
-    void this.serverSync.moveToken(moved.key, moved.x, moved.z);
+    void this.serverSync.publishMove(moved.key, moved.x, moved.z);
     this.dmToolReadout.set(`Moved ${moved.name} ${res.distanceFeet} ft along the 5-ft grid.`);
+  }
+
+  selectDockAction(action: DockAction): void {
+    const ability = this.battle.tacticalAbilities().find((a) => a.id === action.id);
+    if (ability) this.selectTurnAbility(ability);
+  }
+
+  dockStandardAction(detail: { action: { name: string }; token: DockToken }): void {
+    this.dmToolReadout.set(`${detail.token.name} uses ${detail.action.name}.`);
+  }
+
+  dockCheck(label: string, token: DockToken): void {
+    this.dmToolReadout.set(`${token.name}: ${label} check requested.`);
+  }
+
+  dockToggleMeasure(): void {
+    this.battle.toggleMeasureTool();
   }
 
   selectTurnAbility(ability: VttTacticalAbilityVm): void {
@@ -438,15 +496,4 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     });
   }
 
-  resetActionBarSettings(): void {
-    this.battle.actionBarSettings.set({
-      skin: 'loom-emerald',
-      opacity: 95,
-      compactMode: false,
-      snapSensitivityFeet: 10,
-      showHotbarKeybinds: true,
-      showMapRangeLabels: true,
-      autoCenterActiveTurn: true,
-    });
-  }
 }

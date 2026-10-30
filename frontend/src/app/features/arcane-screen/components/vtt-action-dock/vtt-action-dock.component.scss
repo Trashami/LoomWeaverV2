@@ -1,0 +1,47 @@
+@use 'dock-base';
+@use 'dock-menus';
+@use 'dock-status';
+
+:host {
+  display: contents;
+  --dock-accent: #49e892;
+  --dock-accent2: #2ee66b;
+  --dock-gold: #d9b77a;
+  --dock-text: #f3e8d0;
+  --dock-muted: #9fb3aa;
+  --dock-danger: #ef5d72;
+  --dock-accent-soft: rgba(73, 232, 146, 0.18);
+  --dock-accent-glow: rgba(73, 232, 146, 0.45);
+  --dock-surface: rgba(5, 16, 12, 0.96);
+  --dock-surface-deep: #05100c;
+}
+
+:host([data-skin='raven-gold']) {
+  --dock-accent: #d9b77a;
+  --dock-accent2: #b08a4a;
+  --dock-gold: #f0d28c;
+  --dock-accent-soft: rgba(217, 183, 122, 0.18);
+  --dock-accent-glow: rgba(217, 183, 122, 0.45);
+  --dock-surface: rgba(12, 10, 8, 0.96);
+  --dock-surface-deep: #0c0a08;
+}
+
+:host([data-skin='ember-forge']) {
+  --dock-accent: #ef8a4a;
+  --dock-accent2: #c4572a;
+  --dock-gold: #f2c27a;
+  --dock-accent-soft: rgba(239, 138, 74, 0.18);
+  --dock-accent-glow: rgba(239, 138, 74, 0.45);
+  --dock-surface: rgba(18, 8, 6, 0.96);
+  --dock-surface-deep: #120806;
+}
+
+:host([data-skin='loom-raven']) {
+  --dock-accent: #a99be0;
+  --dock-accent2: #7d6cc0;
+  --dock-gold: #d9b77a;
+  --dock-accent-soft: rgba(169, 155, 224, 0.18);
+  --dock-accent-glow: rgba(169, 155, 224, 0.45);
+  --dock-surface: rgba(8, 6, 16, 0.96);
+  --dock-surface-deep: #080610;
+}

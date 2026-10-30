@@ -1,0 +1,32 @@
+.lw-vtt-floating-drawer {
+  position: absolute; top: 3.4rem; right: 0.85rem;
+  width: min(460px, calc(100% - 1.7rem)); z-index: 15;
+  padding: 0.75rem 0.85rem; border-radius: 10px;
+  background: rgba(5, 16, 12, 0.96); border: 1px solid rgba(217, 183, 122, 0.42);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.65);
+  display: flex; flex-direction: column; gap: 0.6rem;
+}
+
+.lw-vtt-drawer-head {
+  display: flex; align-items: center; justify-content: space-between;
+  h4 { margin: 0; font-family: var(--lw-font-display); font-size: 0.88rem; color: #f3e8d0; }
+  button { background: transparent; border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 5px; color: #b8c9c1; font-size: 0.72rem; padding: 0.18rem 0.48rem; cursor: pointer; }
+}
+
+.lw-vtt-drawer-grid { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.lw-vtt-field {
+  display: flex; flex-direction: column; gap: 0.22rem; font-size: 0.74rem; color: #b7c8c0;
+  select, input { padding: 0.32rem 0.5rem; border-radius: 6px; background: #081812; border: 1px solid rgba(255, 255, 255, 0.14); color: #f3e8d0; font-size: 0.75rem; }
+}
+
+.lw-vtt-check { display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.75rem; color: #d8e8e0; cursor: pointer; }
+.lw-vtt-roster-strip { display: flex; flex-direction: column; gap: 0.38rem; max-height: 210px; overflow-y: auto; }
+
+.lw-vtt-trap-chip {
+  padding: 0.4rem 0.55rem; border-radius: 6px;
+  background: rgba(12, 28, 22, 0.9); border: 1px solid rgba(239, 93, 114, 0.35);
+  display: flex; flex-direction: column; font-size: 0.73rem;
+  strong { color: #f3e8d0; }
+  span { color: #b2c3bb; }
+}

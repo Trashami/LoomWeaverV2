@@ -1,0 +1,138 @@
+<div class="dock-flyout-drawer" (click)="$event.stopPropagation()">
+  <div class="flyout-header">
+    <span class="flyout-title">{{ activeTab() }}</span>
+    <input
+      type="text"
+      class="flyout-search"
+      [placeholder]="'Search ' + activeTab().toLowerCase() + '...'"
+      [value]="search()"
+      (input)="onSearch($event)"
+      aria-label="Search actions"
+    />
+    <button type="button" class="flyout-close" (click)="close.emit()" aria-label="Close codex">
+      <lw-icon name="close" [size]="13" />
+    </button>
+  </div>
+
+  <div class="flyout-tabs" role="tablist">
+    @for (tab of tabs(); track tab) {
+      <button
+        type="button"
+        role="tab"
+        class="flyout-tab"
+        [class.active]="activeTab() === tab"
+        [attr.aria-selected]="activeTab() === tab"
+        (click)="tabChange.emit(tab)"
+      >{{ tab }}</button>
+    }
+  </div>
+
+  <div class="flyout-content">
+    @switch (activeTab()) {
+      @case ('Attacks') {
+        @if (weapons().length === 0) {
+          <div class="flyout-empty">No weapon attacks configured on this token.</div>
+        }
+        <div class="flyout-grid">
+          @for (action of weapons(); track action.id) {
+            <button type="button" class="flyout-action-card" [class.selected]="pendingActionId() === action.id" (click)="chooseAction.emit(action)">
+              <div class="action-card-top">
+                <span class="action-card-name-group"><strong>{{ action.name }}</strong></span>
+                <span class="action-range">{{ action.maxRangeFeet }}ft</span>
+              </div>
+              <div class="action-card-stats">
+                <span>{{ action.attackFormula }} to hit</span>
+                <span>{{ action.damageFormula }} {{ action.damageType || '' }}</span>
+              </div>
+            </button>
+          }
+        </div>
+      }
+      @case ('Spells') {
+        @if (spellCount() === 0) {
+          <div class="flyout-empty">No spells found on this token.</div>
+        }
+        @for (grp of spellGroups(); track grp.levelName) {
+          <div class="spell-group-title">{{ grp.levelName }}</div>
+          <div class="flyout-grid">
+            @for (sp of grp.spells; track sp.id) {
+              <button type="button" class="flyout-action-card spell-card" [class.selected]="pendingActionId() === sp.id" (click)="chooseAction.emit(sp)">
+                <div class="action-card-top">
+                  <span class="action-card-name-group">
+                    <lw-icon [name]="spellIcon()(sp)" [size]="14" />
+                    <strong>{{ sp.name }}</strong>
+                  </span>
+                  <span class="action-range">{{ sp.maxRangeFeet }}ft</span>
+                </div>
+                <div class="action-card-stats">
+                  <span>{{ sp.damageFormula }} {{ sp.damageType || 'magical' }}</span>
+                  @if (spellTags()(sp).concentration) {
+                    <span class="aoe-badge">Conc</span>
+                  }
+                </div>
+              </button>
+            }
+          </div>
+        }
+      }
+      @case ('Actions') {
+        <div class="flyout-grid">
+          @for (std of standardActions(); track std.id) {
+            <button type="button" class="flyout-action-card standard-card" (click)="standardAction.emit({ action: std, token: token() })">
+              <div class="action-card-top">
+                <span class="action-card-name-group">
+                  <lw-icon [name]="std.icon" [size]="14" />
+                  <strong>{{ std.name }}</strong>
+                </span>
+                <span class="action-tag">{{ std.tag }}</span>
+              </div>
+              <p class="action-desc">{{ std.desc }}</p>
+            </button>
+          }
+        </div>
+      }
+      @case ('Skills') {
+        <div class="skills-grid">
+          @for (sk of skills(); track sk.name) {
+            <button type="button" class="skill-pill-btn" (click)="skillCheck.emit({ skill: sk, token: token() })">
+              <span class="skill-attr">{{ sk.ability }}</span>
+              <span class="skill-name">{{ sk.name }}</span>
+            </button>
+          }
+        </div>
+      }
+      @case ('Saves') {
+        <div class="saves-grid">
+          @for (sv of saves(); track sv.name) {
+            <button type="button" class="save-pill-btn" (click)="saveCheck.emit({ save: sv, token: token() })">
+              <span class="save-icon">{{ sv.ability }}</span>
+              <span class="save-name">{{ sv.name }}</span>
+            </button>
+          }
+        </div>
+      }
+      @case ('Utility') {
+        <div class="utility-panel">
+          <div class="utility-section-title">Token Conditions</div>
+          <div class="conditions-chip-grid">
+            @for (cond of conditions(); track cond) {
+              <button
+                type="button"
+                class="condition-chip-btn"
+                [class.active]="hasCondition()(token(), cond)"
+                [attr.aria-pressed]="hasCondition()(token(), cond)"
+                (click)="toggleCondition.emit({ tokenId: token().id, condition: cond })"
+              >{{ cond }}</button>
+            }
+          </div>
+
+          <div class="utility-section-title">Quick Actions</div>
+          <div class="utility-btn-row">
+            <button type="button" class="btn-subtle" (click)="openSheet.emit(token()); close.emit()">Full Character Sheet</button>
+            <button type="button" class="btn-subtle" (click)="editToken.emit(token()); close.emit()">Edit Token Art and Size</button>
+          </div>
+        </div>
+      }
+    }
+  </div>
+</div>

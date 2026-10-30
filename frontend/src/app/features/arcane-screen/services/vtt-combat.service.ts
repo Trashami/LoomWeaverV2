@@ -39,6 +39,15 @@ import {
 } from './vtt-combat.seed';
 import type { CombatResolutionResult, EncounterCompletionResult } from '../models/vtt-server.models';
 
+/** A cast relayed from another client; the page plays it in 3D and the 2D view can ignore it. */
+export interface VttRemoteEffectCue {
+  readonly seq: number;
+  readonly preset: EffectTimelinePresetVm;
+  readonly startPos: { x: number; z: number };
+  readonly endPos: { x: number; z: number };
+  readonly targetKeys: readonly string[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class VttCombatService {
   private readonly http = inject(HttpClient);
@@ -51,6 +60,8 @@ export class VttCombatService {
   readonly selectedAttackerKey = signal<string>('1:Character:char-dal');
   readonly selectedTargetKey = signal<string>('1:Encounter:vamp-1');
   readonly xpAwardBanner = signal<string | null>(null);
+  /** Latest effect cast by another client; `seq` changes on every cast so repeated presets still trigger. */
+  readonly remoteEffectCue = signal<VttRemoteEffectCue | null>(null);
 
   readonly sessions = signal<readonly CampaignSessionVm[]>(SEED_CAMPAIGN_SESSIONS);
   readonly activeSessionId = signal<string>('all');
@@ -401,6 +412,40 @@ export class VttCombatService {
       startPos: { x: attacker.x, z: attacker.z },
       endPos: { x: target.x, z: target.z },
     };
+  }
+
+  /** Mirrors another client's token move. Local state only; the server already holds the authoritative position. */
+  applyRemoteTokenMove(key: string, x: number, z: number): void {
+    this.tokens.update((list) => list.map((t) => (t.key === key ? { ...t, x, z } : t)));
+  }
+
+  /** Mirrors another client's turn change, keeping the initiative index in sync with the token order. */
+  applyRemoteTurn(activeKey: string, round: number): void {
+    this.activeRound.set(round);
+    const index = this.tokens().findIndex((t) => t.key === activeKey);
+    if (index < 0) return;
+    this.activeTurnIndex.set(index);
+    this.selectedAttackerKey.set(activeKey);
+  }
+
+  /** Publishes a remote cast as a cue for the stage; unknown presets are ignored. */
+  applyRemoteEffect(
+    presetId: string,
+    startX: number,
+    startZ: number,
+    endX: number,
+    endZ: number,
+    targetKeys: readonly string[],
+  ): void {
+    const preset = this.effectPresets().find((p) => p.id === presetId);
+    if (!preset) return;
+    this.remoteEffectCue.set({
+      seq: (this.remoteEffectCue()?.seq ?? 0) + 1,
+      preset,
+      startPos: { x: startX, z: startZ },
+      endPos: { x: endX, z: endZ },
+      targetKeys,
+    });
   }
 
   spawnCreatureIntoVtt(creature: CreatureCardVm): void {

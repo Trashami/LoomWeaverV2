@@ -1,6 +1,7 @@
 import { HubConnection, HubConnectionBuilder, HubConnectionState } from '@microsoft/signalr';
 import { Injectable, effect, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { Observable, Subject } from 'rxjs';
 import { LwAlertifyService } from './lw-alertify.service';
 import { LoomWeaverStoreService } from './loomweaver-store.service';
 
@@ -24,12 +25,20 @@ export interface TableRealtimeEventVm {
   readonly timestamp: string;
 }
 
+/** A live VTT event relayed by the server (token moves, turns, effects, fog changes). */
+export interface VttRealtimeEvent {
+  readonly type: string;
+  readonly actorKey: string;
+  readonly payloadJson: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class TableRealtimeSyncService {
   private readonly http = inject(HttpClient);
   private readonly store = inject(LoomWeaverStoreService);
   private readonly alertify = inject(LwAlertifyService);
   private readonly authenticated = signal(false);
+  private readonly vttEventsSubject = new Subject<VttRealtimeEvent>();
   private connection: HubConnection | null = null;
   private connectedCampaignId = 0;
   private connectionGeneration = 0;
@@ -39,6 +48,8 @@ export class TableRealtimeSyncService {
   readonly syncProtocolLabel = signal<string>('Disconnected');
   /** Increments whenever the server reports combat or token changes; consumers re-fetch from the API. */
   readonly combatTick = signal(0);
+  /** Live VTT events for the connected campaign; emits nothing while disconnected. */
+  readonly vttEvents: Observable<VttRealtimeEvent> = this.vttEventsSubject.asObservable();
 
   constructor() {
     effect(() => {
@@ -48,9 +59,15 @@ export class TableRealtimeSyncService {
     });
   }
 
+  /** Starts (or keeps) the campaign table connection without waiting for a presence refresh. */
+  ensureConnected(): void {
+    this.authenticated.set(this.hasSession());
+    const campaignId = this.store.activeCampaignId();
+    if (this.authenticated() && campaignId > 0) void this.connectToCampaign(campaignId);
+  }
+
   refreshPresence(): void {
-    const hasToken =
-      typeof localStorage !== 'undefined' && !!localStorage.getItem('mw_auth_token');
+    const hasToken = this.hasSession();
     this.authenticated.set(hasToken);
     if (!hasToken) {
       this.seats.set([]);
@@ -94,8 +111,39 @@ export class TableRealtimeSyncService {
     });
   }
 
+  /** Sends a VTT event to the campaign group. Resolves false when not connected or the server rejects it. */
+  async publishVtt(campaignId: number, type: string, actorKey: string, payload: unknown): Promise<boolean> {
+    const connection = this.connection;
+    if (!connection || connection.state !== HubConnectionState.Connected || this.connectedCampaignId !== campaignId) {
+      return false;
+    }
+    try {
+      await connection.invoke('BroadcastVttEvent', campaignId, {
+        type,
+        actorKey,
+        payloadJson: JSON.stringify(payload),
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private hasSession(): boolean {
+    return typeof localStorage !== 'undefined' && !!localStorage.getItem('mw_auth_token');
+  }
+
+  private isLive(campaignId: number): boolean {
+    const state = this.connection?.state;
+    return this.connectedCampaignId === campaignId && (
+      state === HubConnectionState.Connected ||
+      state === HubConnectionState.Connecting ||
+      state === HubConnectionState.Reconnecting
+    );
+  }
+
   private async connectToCampaign(campaignId: number): Promise<void> {
-    if (this.connectedCampaignId === campaignId && this.connection?.state === HubConnectionState.Connected) return;
+    if (this.isLive(campaignId)) return;
     const generation = ++this.connectionGeneration;
     await this.stopConnection();
     if (generation !== this.connectionGeneration) return;
@@ -110,6 +158,9 @@ export class TableRealtimeSyncService {
       if (evt.campaignId === this.store.activeCampaignId()) this.appendEventLocally(evt);
     });
     connection.on('CombatStateChanged', () => this.combatTick.update((n) => n + 1));
+    connection.on('VttEventReceived', (type: string, actorKey: string, payloadJson: string) =>
+      this.vttEventsSubject.next({ type, actorKey, payloadJson }),
+    );
     connection.onreconnecting(() => this.syncProtocolLabel.set('Reconnecting'));
     connection.onreconnected(async () => {
       try {

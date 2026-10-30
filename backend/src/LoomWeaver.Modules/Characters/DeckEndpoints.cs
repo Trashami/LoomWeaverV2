@@ -102,22 +102,19 @@ public static class DeckEndpoints
         return api;
     }
 
-    // Resolves cards_ref_json (uid = "name|set|source", optional count) to dnd_deck_cards rows.
-    // A count of N adds the card N times, so a uniform draw from the expanded list is weighted by count.
+    // Loads the deck's refs from dnd_deck_card_refs (ordered by ref_index). A ref with copies N yields N draw slots,
+    // so a uniform draw from the expanded list is weighted by copies. replacement=1 returns the card to the pool after it is drawn.
     private static async Task<Dictionary<string, object?>?> LoadDeckAsync(MySqlConnection db, int id, CancellationToken ct)
     {
         Dictionary<string, object?>? deck = null;
-        string? cardsJson = null;
         await using (var cmd = db.CreateCommand())
         {
-            cmd.CommandText = "SELECT `id`, `name`, `source_book`, `description`, `image_path`, `back_image_json`, `cards_ref_json` FROM `dnd_decks` WHERE `id` = @id LIMIT 1;";
+            cmd.CommandText = "SELECT `id`, `name`, `source_book`, `description`, `image_path`, `back_image_json` FROM `dnd_decks` WHERE `id` = @id LIMIT 1;";
             cmd.Parameters.AddWithValue("@id", id);
             await using var r = await cmd.ExecuteReaderAsync(ct);
             if (await r.ReadAsync(ct))
             {
                 deck = ReadRow(r);
-                cardsJson = deck.GetValueOrDefault("cards_ref_json") as string;
-                deck.Remove("cards_ref_json");
             }
         }
         if (deck is null)
@@ -125,74 +122,44 @@ public static class DeckEndpoints
             return null;
         }
 
-        var refs = ParseCardRefs(cardsJson);
-        var sourceBook = deck["source_book"] as string ?? string.Empty;
-
-        // Index every card in the deck's source by "name|set" so each uid resolves to its own set.
-        var bySetKey = new Dictionary<string, Dictionary<string, object?>>(StringComparer.OrdinalIgnoreCase);
+        var cards = new List<Dictionary<string, object?>>();
+        var unique = new HashSet<long>();
         await using (var cmd = db.CreateCommand())
         {
-            cmd.CommandText = "SELECT `name`, `set_name`, `source_book`, `face_image_url`, `back_image_url` FROM `dnd_deck_cards` WHERE `source_book` = @src;";
-            cmd.Parameters.AddWithValue("@src", sourceBook);
+            cmd.CommandText = """
+                SELECT r.`ref_index`, r.`copies`, r.`replacement`, c.`id`, c.`name`, c.`set_name`, c.`source_book`,
+                       c.`face_image_url`, c.`back_image_url`
+                FROM `dnd_deck_card_refs` r
+                JOIN `dnd_deck_cards` c ON c.`id` = r.`card_id`
+                WHERE r.`deck_id` = @id
+                ORDER BY r.`ref_index`;
+                """;
+            cmd.Parameters.AddWithValue("@id", id);
             await using var r = await cmd.ExecuteReaderAsync(ct);
             while (await r.ReadAsync(ct))
             {
-                var row = ReadRow(r);
-                bySetKey[$"{row["name"]}|{row["set_name"]}"] = row;
-            }
-        }
-
-        var cards = new List<Dictionary<string, object?>>();
-        var unique = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        for (var refIndex = 0; refIndex < refs.Count; refIndex++)
-        {
-            var (key, count, replacement) = refs[refIndex];
-            if (!bySetKey.TryGetValue(key, out var source))
-            {
-                continue;
-            }
-            unique.Add(key);
-            for (var copy = 0; copy < count; copy++)
-            {
-                var card = new Dictionary<string, object?>(source, StringComparer.OrdinalIgnoreCase)
+                var refIndex = r.GetInt32(0);
+                var copies = Math.Max(1, r.GetInt32(1));
+                var replacement = r.GetBoolean(2);
+                var source = ReadRow(r);
+                source.Remove("ref_index");
+                source.Remove("copies");
+                source.Remove("replacement");
+                unique.Add(Convert.ToInt64(source["id"]));
+                for (var copy = 0; copy < copies; copy++)
                 {
-                    ["key"] = $"{refIndex}-{copy}",
-                    ["replacement"] = replacement,
-                };
-                cards.Add(card);
+                    var card = new Dictionary<string, object?>(source, StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["key"] = $"{refIndex}-{copy}",
+                        ["replacement"] = replacement,
+                    };
+                    cards.Add(card);
+                }
             }
         }
         deck["cards"] = cards;
         deck["uniqueCardCount"] = unique.Count;
         return deck;
-    }
-
-    // uid is "name|set|source"; the key is "name|set" because the source is the deck's own source_book.
-    // replacement:true means the card returns to the pool after it is drawn. Absent or false means it is removed.
-    private static List<(string Key, int Count, bool Replacement)> ParseCardRefs(string? json)
-    {
-        var result = new List<(string Key, int Count, bool Replacement)>();
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            return result;
-        }
-        using var doc = JsonDocument.Parse(json);
-        foreach (var entry in doc.RootElement.EnumerateArray())
-        {
-            if (!entry.TryGetProperty("uid", out var uidEl) || uidEl.GetString() is not { } uid)
-            {
-                continue;
-            }
-            var parts = uid.Split('|');
-            if (parts.Length < 2)
-            {
-                continue;
-            }
-            var count = entry.TryGetProperty("count", out var countEl) && countEl.TryGetInt32(out var c) && c > 0 ? c : 1;
-            var replacement = entry.TryGetProperty("replacement", out var replEl) && replEl.ValueKind == JsonValueKind.True;
-            result.Add(($"{parts[0]}|{parts[1]}", count, replacement));
-        }
-        return result;
     }
 
     private static Dictionary<string, object?> ReadRow(MySqlDataReader r)

@@ -1,4 +1,5 @@
 import os
+import subprocess
 import tarfile
 import lw_deploy_env as env
 
@@ -26,6 +27,13 @@ CLIENT_DIST = os.path.join(ROOT, "frontend", "dist", "loomweaver-v2", "browser")
 SERVER_PUB = os.path.join(ROOT, "backend", "publish")
 CLIENT_TAR = os.path.join(ROOT, "frontend", "dist", "loomweaver_client.tar.gz")
 SERVER_TAR = os.path.join(ROOT, "backend", "loomweaver_server.tar.gz")
+
+print("Publishing backend (Release)...")
+subprocess.run(
+    ["dotnet", "publish", os.path.join(ROOT, "backend", "src", "LoomWeaver.Api", "LoomWeaver.Api.csproj"),
+     "-c", "Release", "-o", SERVER_PUB],
+    check=True,
+)
 
 print("Creating client and server archives...")
 with tarfile.open(CLIENT_TAR, "w:gz") as tf:
@@ -93,14 +101,28 @@ ln -sfn /var/www/shared-uploads /var/www/loomweaver/assets/uploads
 ln -sfn /var/www/jane-assets/5etools /var/www/loomweaver/assets/5etools
 ln -sfn /var/www/jane-assets/5etools/img /var/www/loomweaver/assets/5e-tools
 
-echo "3. Cleaning previous LoomWeaver app files..."
-rm -rf /var/www/vtt3d /var/www/generator /var/www/loommaps /var/www/loom-weaver /var/www/mythweaver
-rm -rf /var/www/loomweaver/client/* /var/www/loomweaver/server/*
+echo "3. Archiving previous LoomWeaver app files (moved, not deleted)..."
+ARCHIVE=/var/www/.lw_deploy_archive/$(date +%Y%m%d_%H%M%S)
+mkdir -p "$ARCHIVE/loomweaver-prev"
+for p in vtt3d generator loommaps loom-weaver mythweaver; do
+    if [ -e "/var/www/$p" ] || [ -L "/var/www/$p" ]; then
+        mv "/var/www/$p" "$ARCHIVE/"
+    fi
+done
+for x in client server; do
+    if [ -e "/var/www/loomweaver/$x" ]; then
+        mv "/var/www/loomweaver/$x" "$ARCHIVE/loomweaver-prev/"
+    fi
+done
+mkdir -p /var/www/loomweaver/client /var/www/loomweaver/server
+echo "Previous files archived under $ARCHIVE"
 
 echo "4. Extracting new LoomWeaver V2 client and server..."
 tar -xzf /tmp/loomweaver_client.tar.gz -C /var/www/loomweaver/client
 tar -xzf /tmp/loomweaver_server.tar.gz -C /var/www/loomweaver/server
-rm -rf /var/www/loomweaver/client/assets
+if [ -e /var/www/loomweaver/client/assets ] && [ ! -L /var/www/loomweaver/client/assets ]; then
+    mv /var/www/loomweaver/client/assets "$ARCHIVE/client-assets-from-tarball"
+fi
 ln -sfn /var/www/loomweaver/assets /var/www/loomweaver/client/assets
 ln -sfn /var/www/loomweaver/assets /var/www/loomweaver/map-assets
 
@@ -110,7 +132,6 @@ ln -sfn /var/www/loomweaver /var/www/mythweaver
 mkdir -p /var/www/loommaps /var/www/vtt3d/current /var/www/generator/current
 ln -sfn /var/www/loomweaver/client /var/www/loommaps/client
 ln -sfn /var/www/loomweaver/client /var/www/vtt3d/current/client
-ln -sfn /var/www/loomweaver/client/client
 ln -sfn /var/www/loomweaver/client /var/www/generator/current/client
 
 install -d -m 700 -o root -g root /etc/loomweaver
@@ -173,6 +194,12 @@ EOF
 
 systemctl daemon-reload
 systemctl restart loom-weaver.service mythweaver.service
+
+NGX_BAK=/var/backups/nginx-lw-$(date +%Y%m%d_%H%M%S)
+mkdir -p "$NGX_BAK"
+cp -a /etc/nginx/sites-available "$NGX_BAK/"
+cp -a /etc/nginx/sites-enabled "$NGX_BAK/"
+echo "Nginx configs backed up to $NGX_BAK"
 
 echo "7. Upgrading Nginx SEO canonical redirects, subdomain SSR entry points, and EffectBuilder SEO metadata..."
 python3 - << 'PYEOF'

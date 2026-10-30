@@ -129,12 +129,12 @@ export class MapStudioStoreService {
   ]);
 
   readonly catalogAssets = signal<readonly MapCatalogAssetItem[]>([
-    { id: 'cat-gothic-pillar', name: 'Cinth Gothic Obsidian Pillar', category: 'walls', subfolder: 'castle-timber', assetType: '3d-linked-stamp', isLightAware3D: true, isScatterReady: false, defaultScale: 1.25, defaultHeightFt: 18, previewPath: '/map-assets/models-3d/Meshy_AI_Ancient_Pillars_Hal_1.glb' },
+    { id: 'cat-gothic-pillar', name: 'Cinth Gothic Obsidian Pillar', category: 'walls', subfolder: 'castle-timber', assetType: '3d-linked-stamp', isLightAware3D: true, isScatterReady: false, defaultScale: 1.25, defaultHeightFt: 18, previewPath: '/map-assets/models-3d/Meshy_AI_Ancient_Pillars_Hal_1023202628_texture.glb' },
     { id: 'cat-clockwork-organ', name: 'Artificer Brass Pipe Organ', category: 'furniture', subfolder: 'room-furnishings-v1', assetType: '3d-linked-stamp', isLightAware3D: true, isScatterReady: false, defaultScale: 1.4, defaultHeightFt: 14, previewPath: '/map-assets/stamps-2d/room-furnishings-v1' },
     { id: 'cat-limestone-cliff', name: 'Stackable Limestone Cliff Escarpment', category: 'cliffs', subfolder: 'stackable-limestone-cliffs-v2', assetType: '3d-linked-stamp', isLightAware3D: true, isScatterReady: true, defaultScale: 1.6, defaultHeightFt: 20, previewPath: '/map-assets/stamps/cliffs' },
     { id: 'cat-poisoned-oak', name: 'Gwaedhellain Canopy Elder Tree', category: 'trees', subfolder: 'models-3d', assetType: '3d-linked-stamp', isLightAware3D: true, isScatterReady: true, defaultScale: 1.8, defaultHeightFt: 28, previewPath: '/map-assets/models-3d/Meshy_AI_tree_ancient_1023214424_texture.glb' },
     { id: 'cat-glowing-fungi', name: 'Bioluminescent Underdark Mushroom Cluster', category: 'plants', subfolder: 'models-3d', assetType: '3d-linked-stamp', isLightAware3D: true, isScatterReady: true, defaultScale: 0.9, defaultHeightFt: 6, previewPath: '/map-assets/models-3d/Meshy_AI_Whispering_Fungal_Pea_1023201247_texture.glb' },
-    { id: 'cat-runic-obelisk', name: 'Azure Sidhe Ard Runic Obelisk', category: 'ruins', subfolder: 'models-3d', assetType: '3d-linked-stamp', isLightAware3D: true, isScatterReady: false, defaultScale: 1.35, defaultHeightFt: 16, previewPath: '/map-assets/models-3d/Meshy_AI_Azure_Runic_Obelisk_1023201822_texture.glb' },
+    { id: 'cat-runic-obelisk', name: 'Azure Sidhe Ard Runic Obelisk', category: 'ruins', subfolder: 'models-3d', assetType: '3d-linked-stamp', isLightAware3D: true, isScatterReady: false, defaultScale: 1.35, defaultHeightFt: 16, previewPath: '/map-assets/models-3d/Meshy_AI_Azure_Runic_Obelisk_1023090809_texture.glb' },
     { id: 'cat-mountain-dragon', name: 'Trapped Elder Dragon Monument', category: 'dungeon', subfolder: 'models-3d', assetType: '3d-linked-stamp', isLightAware3D: true, isScatterReady: false, defaultScale: 2.4, defaultHeightFt: 30, previewPath: '/map-assets/models-3d/mountain_dragon.glb' },
   ]);
 

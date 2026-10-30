@@ -17,7 +17,7 @@ export const VTT_MAP_QUALITY_OPTIONS: readonly VttMapQualityOption[] = [
 /** Asset file suffix per quality; visual uses the base file. */
 const QUALITY_SUFFIX: Readonly<Record<VttMapQuality, string>> = {
   performance: '-low',
-  balanced: '-med',
+  balanced: '-mid',
   visual: '',
 };
 

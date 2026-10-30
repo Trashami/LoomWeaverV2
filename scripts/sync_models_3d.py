@@ -1,13 +1,16 @@
 """Sync C:\\map assets\\3d-models to the server's models-3d folder and register the models in MySQL.
 
-    python scripts/sync_models_3d.py upload     # resumable upload to a staging dir (live site untouched)
-    python scripts/sync_models_3d.py finalize   # verify, back up the old folder, swap, register in MySQL
+    python scripts/sync_models_3d.py download-server-only  # fetch server-only untiered files for the local shrink tool
+    python scripts/sync_models_3d.py upload     # writes models-registry.json, resumable upload to staging (live untouched)
+    python scripts/sync_models_3d.py finalize   # verify, keep server-only files, back up old folder, swap, register in MySQL
 
 Files are named {base}_{low|mid|high}.glb. Maps store only {base}; clients resolve the quality tier.
+Quality mapping: low = Performance, mid = Balanced, high = Visual.
 """
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import stat
 import sys
@@ -18,13 +21,62 @@ from pathlib import Path
 from lw_deploy_env import connect, put_mysql_cnf, require, run
 
 LOCAL = Path(r"C:\map assets\3d-models")
+SERVER_ONLY_DIR = Path(r"C:\map assets\server-only-3d")
 LIVE = "/var/www/loomweaver/assets/models-3d"
 STAGE = LIVE + ".incoming"
 VARIANT = re.compile(r"^(?P<base>.+)_(?P<q>low|mid|high)\.glb$")
+REGISTRY_NAME = "models-registry.json"
+MANIFEST_NAME = "glb-shrink-manifest.json"
+QUALITY_MAP = {"low": "Performance", "mid": "Balanced", "high": "Visual"}
+
+
+def tier_files() -> list[Path]:
+    return sorted(p for p in LOCAL.iterdir() if p.is_file() and VARIANT.match(p.name))
 
 
 def local_files() -> list[Path]:
-    return sorted(p for p in LOCAL.iterdir() if p.is_file())
+    extras = [LOCAL / MANIFEST_NAME, LOCAL / REGISTRY_NAME]
+    return tier_files() + [p for p in extras if p.exists()]
+
+
+def write_registry() -> dict:
+    models: dict[str, dict[str, dict]] = {}
+    for path in tier_files():
+        match = VARIANT.match(path.name)
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        models.setdefault(match["base"], {})[match["q"]] = {
+            "file": path.name,
+            "bytes": path.stat().st_size,
+            "sha256": digest,
+        }
+    registry = {
+        "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "qualityMap": QUALITY_MAP,
+        "models": [
+            {"base": base, "displayName": display_name(base), "variants": variants}
+            for base, variants in sorted(models.items())
+        ],
+    }
+    (LOCAL / REGISTRY_NAME).write_text(json.dumps(registry, indent=2), encoding="utf-8")
+    print(f"registry: {len(registry['models'])} models, {len(tier_files())} files -> {LOCAL / REGISTRY_NAME}", flush=True)
+    return registry
+
+
+def download_server_only() -> None:
+    ssh = connect()
+    sftp = ssh.open_sftp()
+    SERVER_ONLY_DIR.mkdir(parents=True, exist_ok=True)
+    for attr in sftp.listdir_attr(LIVE):
+        name = attr.filename
+        if not stat.S_ISREG(attr.st_mode) or VARIANT.match(name) or name == MANIFEST_NAME:
+            continue
+        sftp.get(f"{LIVE}/{name}", str(SERVER_ONLY_DIR / name))
+        print(f"downloaded {name} ({attr.st_size} bytes)", flush=True)
+    sftp.close()
+    ssh.close()
+
+
+_lock = threading.Lock()
 
 
 WORKERS = 8
@@ -50,6 +102,7 @@ def _worker(queue: list[Path], progress: dict) -> None:
 
 
 def upload() -> None:
+    write_registry()
     ssh = connect()
     sftp = ssh.open_sftp()
     run(ssh, f"mkdir -p {STAGE}", sudo=True)
@@ -77,26 +130,22 @@ def display_name(base: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[_\-]+", " ", base)).strip()[:160]
 
 
-def build_sql(files: list[Path]) -> str:
-    models: dict[str, dict[str, tuple[int, str]]] = {}
-    for path in files:
-        match = VARIANT.match(path.name)
-        if not match:
-            continue
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        models.setdefault(match["base"], {})[match["q"]] = (path.stat().st_size, digest)
+def build_sql(registry: dict) -> str:
     lines = ["USE loomweaver;", "START TRANSACTION;"]
-    for base, variants in models.items():
+    for model in registry["models"]:
+        base = model["base"]
         esc = base.replace("\\", "\\\\").replace("'", "''")
+        name = model["displayName"].replace("\\", "\\\\").replace("'", "''")
         lines.append(
             "INSERT INTO lw_asset_models (base_name, display_name, category, entitlement) "
-            f"VALUES ('{esc}', '{display_name(base).replace(chr(39), chr(39) * 2)}', '3d-stamp', 'free') "
+            f"VALUES ('{esc}', '{name}', '3d-stamp', 'free') "
             "ON DUPLICATE KEY UPDATE display_name = VALUES(display_name);"
         )
-        for quality, (size, digest) in variants.items():
+        for quality, variant in model["variants"].items():
             lines.append(
                 "INSERT INTO lw_asset_model_variants (base_name, quality, storage_ref, byte_size, sha256) "
-                f"VALUES ('{esc}', '{quality}', 'models-3d/{esc}_{quality}.glb', {size}, '{digest}') "
+                f"VALUES ('{esc}', '{quality}', 'models-3d/{variant['file'].replace(chr(39), chr(39) * 2)}', "
+                f"{variant['bytes']}, '{variant['sha256']}') "
                 "ON DUPLICATE KEY UPDATE storage_ref = VALUES(storage_ref), "
                 "byte_size = VALUES(byte_size), sha256 = VALUES(sha256);"
             )
@@ -105,6 +154,7 @@ def build_sql(files: list[Path]) -> str:
 
 
 def finalize() -> None:
+    registry = json.loads((LOCAL / REGISTRY_NAME).read_text(encoding="utf-8"))
     files = local_files()
     ssh = connect()
     sftp = ssh.open_sftp()
@@ -115,15 +165,21 @@ def finalize() -> None:
 
     stamp = time.strftime("%Y%m%dT%H%M%S")
     backup = f"{LIVE}.bak-{stamp}"
-    # Keep older base-named files that records may still point at, without overwriting new ones.
+    # Carry over server-only files (untiered GLBs, sidecars, jpgs, symlinks) until they are re-processed.
+    # Old tiered files are not carried over; the backup keeps them.
+    carry = (
+        f"cd {LIVE} && for f in *; do case \"$f\" in "
+        f"*_low.glb|*_mid.glb|*_high.glb|{MANIFEST_NAME}|{REGISTRY_NAME}) ;; "
+        f"*) cp -a -n \"$f\" {STAGE}/ ;; esac; done && cd /"
+    )
     print(run(ssh, (
-        f"set -e; cp -n {LIVE}/* {STAGE}/ 2>/dev/null || true; "
+        f"set -e; {carry}; "
         f"mv {LIVE} {backup}; mv {STAGE} {LIVE}; "
         f"chown -R root:www-data {LIVE}; find {LIVE} -type d -exec chmod 755 {{}} +; find {LIVE} -type f -exec chmod 644 {{}} +; "
         f"echo swapped; ls {LIVE} | wc -l; echo backup {backup}"
     ), sudo=True))
 
-    sql = build_sql(files)
+    sql = build_sql(registry)
     with sftp.open("/tmp/lw_models_register.sql", "w") as handle:
         handle.write(sql)
     sftp.close()
@@ -138,4 +194,10 @@ def finalize() -> None:
 
 
 if __name__ == "__main__":
-    {"upload": upload, "finalize": finalize}[sys.argv[1] if len(sys.argv) > 1 else "upload"]()
+    commands = {
+        "upload": upload,
+        "finalize": finalize,
+        "download-server-only": download_server_only,
+        "registry": write_registry,
+    }
+    commands[sys.argv[1] if len(sys.argv) > 1 else "upload"]()

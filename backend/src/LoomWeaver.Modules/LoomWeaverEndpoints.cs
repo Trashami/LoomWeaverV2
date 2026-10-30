@@ -19,7 +19,6 @@ using LoomWeaver.Modules.Maps;
 using LoomWeaver.Modules.Marketplace;
 using LoomWeaver.Modules.Realtime;
 using LoomWeaver.Modules.Sessions;
-using LoomWeaver.Modules.Statistics;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -41,7 +40,6 @@ public static class LoomWeaverEndpoints
             api.MapEffectStudioEndpoints();
             api.MapDiceForgeEndpoints();
             api.MapAudioAmbienceEndpoints();
-            api.MapCampaignAnalyticsEndpoints();
             api.MapLoomAndWeaveEndpoints();
             api.MapWorldLoreEndpoints();
             api.MapConnectedStoryEndpoints();

@@ -15,12 +15,11 @@ import {
   WorldMapSummaryVm,
 } from '../models/world-lore.models';
 import { LoomWeaverStoreService } from './loomweaver-store.service';
-import { ATLAS_LAYER_FILTERS, getSeedLocationsForCampaign } from './world-lore-seed.data';
-import { buildSeedWorldLoreWorkspace } from './world-lore-workspace-seed.data';
+import { ATLAS_LAYER_FILTERS } from './world-lore-seed.data';
+import { buildEmptyWorldLoreWorkspace } from './world-lore-workspace.data';
 import {
   DEFAULT_ACTIVE_LAYERS,
   DEFAULT_LORE_CATEGORIES,
-  buildFallbackHistoryEventVm,
   buildFallbackLocationVm,
   buildFallbackLoreEntryVm,
   buildMarkerFromLocation,
@@ -60,8 +59,8 @@ export class WorldLoreFacadeService {
   readonly errorBanner = signal<string | null>(null);
   readonly statusBanner = signal<string | null>(null);
 
-  readonly workspace = signal<WorldLoreWorkspaceVm>(buildSeedWorldLoreWorkspace(1, 'gm', true));
-  readonly locationsState = signal<readonly LocationInspectorDetailVm[]>(getSeedLocationsForCampaign(1, 'gm'));
+  readonly workspace = signal<WorldLoreWorkspaceVm>(buildEmptyWorldLoreWorkspace(0, 'players', false));
+  readonly locationsState = signal<readonly LocationInspectorDetailVm[]>([]);
   readonly isGm = computed(() => this.store.viewerRole() === 'gm');
 
   constructor() {
@@ -283,7 +282,9 @@ export class WorldLoreFacadeService {
       next: (saved) => {
         this.applySavedLocationLocally({ ...saved, attachedSessionId: payload.attachedSessionId ?? saved.attachedSessionId ?? existing?.attachedSessionId ?? null, attachedSessionLabel: payload.attachedSessionLabel ?? saved.attachedSessionLabel ?? existing?.attachedSessionLabel ?? null, playerVisibilityPolicy: payload.playerVisibilityPolicy ?? saved.playerVisibilityPolicy ?? existing?.playerVisibilityPolicy ?? 'auto_lore_revealed', style: payload.style ?? saved.style ?? existing?.style }, payload.xPercent, payload.yPercent);
       },
-      error: () => {},
+      error: () => {
+        this.errorBanner.set(`Location "${payload.name}" was not saved. Refresh to see the stored state.`);
+      },
     });
   }
 
@@ -403,7 +404,9 @@ export class WorldLoreFacadeService {
           regionOverlays: cur.regionOverlays.map((o) => (o.id === saved.id ? { ...optimistic, ...saved } : o)),
         }));
       },
-      error: () => {},
+      error: () => {
+        this.errorBanner.set(`Region "${req.name}" was not saved. Refresh to see the stored state.`);
+      },
     });
   }
 
@@ -412,7 +415,7 @@ export class WorldLoreFacadeService {
     const cid = this.store.activeCampaignId();
     this.http.post<LoreEntryVm>(`/api/v2/campaigns/${cid}/world-lore/lore?role=gm`, req).subscribe({
       next: (saved) => this.upsertLoreLocally(saved),
-      error: () => this.upsertLoreLocally(buildFallbackLoreEntryVm(cid, req)),
+      error: () => this.errorBanner.set('Lore entry was not saved. Please try again.'),
     });
   }
 
@@ -421,23 +424,18 @@ export class WorldLoreFacadeService {
     const cid = this.store.activeCampaignId();
     this.http.post<WorldHistoryChronicleEventVm>(`/api/v2/campaigns/${cid}/world-lore/history?role=gm`, req).subscribe({
       next: (created) => this.workspace.update((cur) => ({ ...cur, historyEvents: [...cur.historyEvents, created] })),
-      error: () =>
-        this.workspace.update((cur) => ({
-          ...cur,
-          historyEvents: [...cur.historyEvents, buildFallbackHistoryEventVm(cid, cur.historyEvents.length * 10 + 10, this.activeMap()?.mapId ?? null, req)],
-        })),
+      error: () => this.errorBanner.set('History event was not saved. Please try again.'),
     });
   }
 
   private loadWorkspaceForCampaign(campaignId: number, role: 'gm' | 'players', weaveEnabled: boolean): void {
-    const seedWs = buildSeedWorldLoreWorkspace(campaignId, role, weaveEnabled);
-    const seedLocs = getSeedLocationsForCampaign(campaignId, role);
-    this.workspace.set(seedWs);
-    this.locationsState.set(seedLocs);
-    this.activeMapId.set(seedWs.activeMapId);
+    const empty = buildEmptyWorldLoreWorkspace(campaignId, role, weaveEnabled);
+    this.workspace.set(empty);
+    this.locationsState.set([]);
+    this.activeMapId.set(empty.activeMapId);
     this.selectedLocationKey.set(null);
     this.inspectorContextMode.set('session-guide');
-    this.selectedLoreId.set(seedWs.loreEntries[0]?.id ?? null);
+    this.selectedLoreId.set(null);
     this.errorBanner.set(null);
     this.loading.set(true);
     this.http.get<WorldLoreWorkspaceVm>(`/api/v2/campaigns/${campaignId}/world-lore?role=${role}`).subscribe({
@@ -451,7 +449,12 @@ export class WorldLoreFacadeService {
           }
         }
       },
-      error: () => this.loading.set(false),
+      error: () => {
+        this.loading.set(false);
+        if (this.store.activeCampaignId() === campaignId) {
+          this.errorBanner.set('Could not load world and lore for this campaign. Check your connection and try again.');
+        }
+      },
     });
   }
 

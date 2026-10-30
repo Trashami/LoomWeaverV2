@@ -1,8 +1,4 @@
-import { ViewerRole } from '../models/loomweaver.models';
-import {
-  AtlasLayerFilterOption,
-  LocationInspectorDetailVm,
-} from '../models/world-lore.models';
+import { AtlasLayerFilterOption } from '../models/world-lore.models';
 
 export const ATLAS_LAYER_FILTERS: readonly AtlasLayerFilterOption[] = [
   { id: 'Locations', label: 'Locations', icon: 'map-pin' },
@@ -33,10 +29,3 @@ export const DEFAULT_LORE_CATEGORIES: readonly string[] = [
   'Myths & Legends',
   'Important Documents',
 ];
-
-export function getSeedLocationsForCampaign(
-  _campaignId: number,
-  _role: ViewerRole,
-): readonly LocationInspectorDetailVm[] {
-  return [];
-}

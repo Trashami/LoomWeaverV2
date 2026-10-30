@@ -2,7 +2,7 @@ import { ViewerRole } from '../models/loomweaver.models';
 import { WorldLoreWorkspaceVm } from '../models/world-lore.models';
 import { DEFAULT_LORE_CATEGORIES } from './world-lore-seed.data';
 
-export function buildSeedWorldLoreWorkspace(
+export function buildEmptyWorldLoreWorkspace(
   campaignId: number,
   role: ViewerRole,
   weaveEnabled: boolean,

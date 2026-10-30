@@ -295,40 +295,6 @@ export function buildFallbackLoreEntryVm(
   };
 }
 
-export function buildFallbackHistoryEventVm(
-  cid: number,
-  sortOrder: number,
-  mapId: string | null,
-  req: {
-    title: string;
-    eraName: string;
-    worldDateLabel: string;
-    category: string;
-    summary: string;
-    sessionNumber: number | null;
-    locationKey: string | null;
-    visibility: 'players' | 'gm';
-  },
-): WorldHistoryChronicleEventVm {
-  return {
-    id: `ev-${Date.now()}`,
-    campaignId: cid,
-    title: req.title,
-    eraName: req.eraName,
-    worldDateLabel: req.worldDateLabel,
-    sortOrder,
-    sessionNumber: req.sessionNumber,
-    realSessionDateLabel: req.sessionNumber ? `Session ${req.sessionNumber}` : 'World Lore Record',
-    category: req.category,
-    summary: req.summary,
-    locationKey: req.locationKey,
-    locationName: req.locationKey,
-    mapId,
-    linkedEntities: [],
-    visibility: req.visibility,
-  };
-}
-
 export function readSavedPrimaryTab(
   campaignId: number,
   weaveEnabled: boolean,

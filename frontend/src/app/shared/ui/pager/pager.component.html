@@ -1,0 +1,22 @@
+<nav class="lw-pager" aria-label="Pages">
+  <lw-button variant="ghost" size="sm" label="Previous" [disabled]="busy() || page() <= 0" (pressed)="go(page() - 1)" />
+  @for (slot of slots(); track $index) {
+    @if (slot < 0) {
+      <span class="lw-pager__gap" aria-hidden="true">…</span>
+    } @else {
+      <lw-button
+        variant="secondary"
+        size="sm"
+        [active]="slot === page()"
+        [label]="'' + (slot + 1)"
+        [disabled]="busy()"
+        [title]="'Page ' + (slot + 1)"
+        (pressed)="go(slot)"
+      />
+    }
+  }
+  <lw-button variant="ghost" size="sm" label="Next" [disabled]="busy() || page() >= pageCount() - 1" (pressed)="go(page() + 1)" />
+  @if (total() > 0) {
+    <span class="lw-pager__meta">Page {{ page() + 1 }} of {{ pageCount() }} · {{ total() }} total</span>
+  }
+</nav>

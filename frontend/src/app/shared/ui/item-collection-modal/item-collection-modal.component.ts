@@ -46,6 +46,7 @@ export class LwItemCollectionModalComponent {
   readonly campaignLocations = input<readonly LwCampaignLocationOptionVm[]>([]);
 
   readonly collectionSaved = output<LwCreateItemCollectionDraftVm>();
+  readonly pickerSearch = output<string>();
 
   readonly publishedToStore = signal(false);
   readonly name = signal<string>('');
@@ -55,18 +56,13 @@ export class LwItemCollectionModalComponent {
   readonly selectedItemIds = signal<readonly string[]>([]);
   readonly itemSearchQuery = signal<string>('');
   readonly errorMessage = signal<string>('');
+  private pickerTimer: ReturnType<typeof setTimeout> | undefined;
 
-  readonly filteredPickerItems = computed<readonly LwCatalogItemVm[]>(() => {
-    const q = this.itemSearchQuery().trim().toLowerCase();
-    const list = this.availableItems();
-    if (!q) return list;
-    return list.filter(
-      (it) =>
-        it.name.toLowerCase().includes(q) ||
-        it.category.toLowerCase().includes(q) ||
-        it.rarity.toLowerCase().includes(q),
-    );
-  });
+  onItemSearchChange(value: string): void {
+    this.itemSearchQuery.set(value);
+    clearTimeout(this.pickerTimer);
+    this.pickerTimer = setTimeout(() => this.pickerSearch.emit(value.trim()), 200);
+  }
 
   constructor() {
     effect(
@@ -93,6 +89,7 @@ export class LwItemCollectionModalComponent {
         }
         this.itemSearchQuery.set('');
         this.errorMessage.set('');
+        this.pickerSearch.emit('');
       },
       { allowSignalWrites: true },
     );

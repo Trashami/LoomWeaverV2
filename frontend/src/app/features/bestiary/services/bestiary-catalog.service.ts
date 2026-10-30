@@ -53,10 +53,13 @@ export class BestiaryCatalogService {
 
   readonly monsters = signal<readonly LwMonsterSummaryVm[]>([]);
   readonly total = signal<number>(0);
+  /** Zero-based index of the page currently shown. */
+  readonly page = signal<number>(0);
+  readonly pageSize = PAGE_SIZE;
+  readonly pageCount = computed(() => Math.max(1, Math.ceil(this.total() / PAGE_SIZE)));
   readonly loading = signal<boolean>(false);
   readonly listError = signal<string>('');
   readonly databaseOnline = signal<boolean>(true);
-  readonly hasMore = computed(() => this.monsters().length < this.total());
 
   readonly openKey = signal<string | null>(null);
   readonly detail = signal<LwMonsterDetailVm | null>(null);
@@ -141,11 +144,19 @@ export class BestiaryCatalogService {
   }
 
   reload(): void {
+    this.page.set(0);
     this.fetchPage(0);
   }
 
-  loadMore(): void {
-    if (!this.loading() && this.hasMore()) this.fetchPage(this.monsters().length);
+  goToPage(index: number): void {
+    const target = Math.min(Math.max(0, index), this.pageCount() - 1);
+    if (this.loading() || target === this.page()) return;
+    this.page.set(target);
+    this.fetchPage(target * PAGE_SIZE);
+  }
+
+  refreshPage(): void {
+    this.fetchPage(this.page() * PAGE_SIZE);
   }
 
   openMonster(key: string): void {
@@ -204,7 +215,7 @@ export class BestiaryCatalogService {
           `${saved.summary.name} ${saved.summary.isPublished ? 'is live in the market for free.' : 'is saved privately to your account.'}`,
           'gold',
         );
-        this.reload();
+        this.refreshPage();
         this.openKey.set(saved.summary.key);
         this.detail.set(saved);
       },
@@ -247,7 +258,7 @@ export class BestiaryCatalogService {
     request$.subscribe({
       next: (page) => {
         if (id !== this.requestId) return;
-        this.monsters.update((list) => (offset === 0 ? page.items : [...list, ...page.items]));
+        this.monsters.set(page.items);
         this.total.set(page.total);
         this.databaseOnline.set(page.databaseOnline);
         this.remember(page.items);

@@ -17,6 +17,7 @@ import {
   LwItemDetailModalComponent,
   LwItemRarity,
   LwItemSortOption,
+  LwPagerComponent,
   LwPanelComponent,
 } from '../../shared/ui/public-api';
 import { ItemsCatalogService } from './services/items-catalog.service';
@@ -35,6 +36,7 @@ import { ItemsCatalogService } from './services/items-catalog.service';
     LwItemDetailModalComponent,
     LwItemCustomModalComponent,
     LwItemCollectionModalComponent,
+    LwPagerComponent,
   ],
   templateUrl: './items.page.html',
   styleUrl: './items.page.scss',

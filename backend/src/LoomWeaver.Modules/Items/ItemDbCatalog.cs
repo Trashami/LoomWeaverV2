@@ -35,6 +35,115 @@ public static class ItemDbCatalog
         return await reader.ReadAsync(ct) ? Map(reader) : null;
     }
 
+    public static async Task<int> CountOfficialAsync(MySqlConnection db, ItemPageRequest req, CancellationToken ct)
+    {
+        var (where, parameters) = BuildOfficialWhere(req);
+        await using var cmd = new MySqlCommand($"SELECT COUNT(*) FROM dnd_items WHERE {where};", db);
+        foreach (var (name, value) in parameters) cmd.Parameters.AddWithValue(name, value);
+        return Convert.ToInt32(await cmd.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture);
+    }
+
+    public static async Task<List<JsonObject>> PageOfficialAsync(MySqlConnection db, ItemPageRequest req, int skip, int take, CancellationToken ct)
+    {
+        var rows = new List<JsonObject>();
+        if (take <= 0) return rows;
+        var (where, parameters) = BuildOfficialWhere(req);
+        await using var cmd = new MySqlCommand(
+            $"SELECT {Columns} FROM dnd_items WHERE {where} ORDER BY {OrderBy(req.Sort)} LIMIT {take} OFFSET {skip};", db);
+        foreach (var (name, value) in parameters) cmd.Parameters.AddWithValue(name, value);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct)) rows.Add(Map(reader));
+        return rows;
+    }
+
+    // Mirrors the client-side rules that were previously applied to the full list.
+    private static (string Where, List<(string Name, object Value)> Parameters) BuildOfficialWhere(ItemPageRequest req)
+    {
+        var clauses = new List<string> { "is_canonical = 1", "campaign_id IS NULL" };
+        var parameters = new List<(string Name, object Value)>();
+
+        switch (req.Source)
+        {
+            case "Official": clauses.Add("is_homebrew = 0"); break;
+            case "Homebrew": clauses.Add("is_homebrew = 1"); break;
+            case "StoreFree": clauses.Add("1 = 0"); break; // Store-free items are always user-authored.
+        }
+
+        if (req.Category == "Wondrous Gear")
+            clauses.Add($"COALESCE(item_type, '') NOT IN ({Bind(AllCategoryCodes, "cat", parameters)})");
+        else if (req.Category != "All")
+            clauses.Add(CategoryCodes.TryGetValue(req.Category, out var codes)
+                ? $"item_type IN ({Bind(codes, "cat", parameters)})"
+                : "1 = 0");
+
+        if (req.Rarity != "All")
+        {
+            clauses.Add("LOWER(rarity) = LOWER(@rarity)");
+            parameters.Add(("@rarity", req.Rarity));
+        }
+
+        var search = req.Search?.Trim();
+        if (!string.IsNullOrEmpty(search))
+        {
+            clauses.Add("(name LIKE @search OR description LIKE @search OR rarity LIKE @search OR damage_type LIKE @search OR damage_dice LIKE @search OR source_id LIKE @search)");
+            parameters.Add(("@search", $"%{EscapeLike(search)}%"));
+        }
+
+        if (req.Ids is not null)
+        {
+            var numericIds = req.Ids
+                .Where(id => id.StartsWith("db-", StringComparison.Ordinal) && long.TryParse(id[3..], out _))
+                .Select(id => id[3..]);
+            clauses.Add($"id IN ({Bind(numericIds, "id", parameters)})");
+        }
+
+        return (string.Join(" AND ", clauses), parameters);
+    }
+
+    private static string OrderBy(string sort) => sort switch
+    {
+        "name-desc" => "name DESC, source_id DESC",
+        "price-asc" => "value_gp ASC, name ASC",
+        "price-desc" => "value_gp DESC, name ASC",
+        "rarity-asc" => $"{RarityRank} ASC, name ASC",
+        "rarity-desc" => $"{RarityRank} DESC, name ASC",
+        "weight-asc" => "weight ASC, name ASC",
+        _ => "name ASC, source_id ASC",
+    };
+
+    private const string RarityRank =
+        "CASE LOWER(rarity) WHEN 'uncommon' THEN 2 WHEN 'rare' THEN 3 WHEN 'very rare' THEN 4 WHEN 'legendary' THEN 5 WHEN 'artifact' THEN 6 ELSE 1 END";
+
+    private static readonly Dictionary<string, string[]> CategoryCodes = new()
+    {
+        ["Weapon"] = ["M", "R"],
+        ["Armor"] = ["LA", "MA", "HA"],
+        ["Shield"] = ["S"],
+        ["Focus"] = ["SCF"],
+        ["Potion & Consumable"] = ["P", "SC", "FD"],
+        ["Tool & Kit"] = ["T", "AT", "GS", "INS", "TB"],
+        ["Companion Gear"] = ["MNT", "TAH", "VEH", "SHP", "AIR"],
+    };
+
+    private static readonly string[] AllCategoryCodes = CategoryCodes.Values.SelectMany(codes => codes).ToArray();
+
+    private static string Bind(IEnumerable<string> values, string prefix, List<(string Name, object Value)> parameters)
+    {
+        var names = new List<string>();
+        foreach (var value in values)
+        {
+            var name = $"@{prefix}{names.Count}";
+            names.Add(name);
+            parameters.Add((name, value));
+        }
+        return names.Count == 0 ? "NULL" : string.Join(",", names);
+    }
+
+    private static string EscapeLike(string value) =>
+        value.Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("%", "\\%", StringComparison.Ordinal)
+            .Replace("_", "\\_", StringComparison.Ordinal);
+
     private static JsonObject Map(MySqlDataReader r)
     {
         var description = Str(r, "description") ?? "";

@@ -19,6 +19,7 @@ import {
   LwMonsterSightingDraft,
   LwMonsterSortOption,
   LwMonsterSourceFilter,
+  LwPagerComponent,
   LwPanelComponent,
   LwSaveMonsterCollectionDraft,
 } from '../../shared/ui/public-api';
@@ -39,6 +40,7 @@ import { MonsterTokenLibraryService } from './services/monster-token-library.ser
     LwMonsterDetailModalComponent,
     LwMonsterCustomModalComponent,
     LwMonsterCollectionModalComponent,
+    LwPagerComponent,
   ],
   templateUrl: './bestiary.page.html',
   styleUrl: './bestiary.page.scss',

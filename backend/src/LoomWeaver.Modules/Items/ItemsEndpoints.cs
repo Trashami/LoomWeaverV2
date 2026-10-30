@@ -10,6 +10,8 @@ namespace LoomWeaver.Modules.Items;
 
 public static class ItemsEndpoints
 {
+    private const int MaxIdFilter = 500;
+
     public static void MapItemsEndpoints(this IEndpointRouteBuilder api)
     {
         api.MapGet("/items", async (HttpContext ctx, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
@@ -19,6 +21,18 @@ public static class ItemsEndpoints
             var items = await ItemDbCatalog.ListAsync(db, ct);
             items.AddRange(await ReadAsync(db, "item", user?.Id ?? -1, false, null, ct));
             return Results.Ok(items);
+        });
+        api.MapGet("/items/page", async (HttpContext ctx, LoomWeaverMySqlRepository repo,
+            string? search, string? category, string? rarity, string? source, string? sort,
+            int? offset, int? limit, string? ids, CancellationToken ct) =>
+        {
+            var user = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
+            var idList = string.IsNullOrWhiteSpace(ids)
+                ? null
+                : ids.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(MaxIdFilter).ToList();
+            var request = new ItemPageRequest(search, category ?? "All", rarity ?? "All", source ?? "All", sort ?? "name-asc", idList);
+            await using var db = await OpenAsync(repo, ct);
+            return Results.Ok(await ItemCatalogPage.QueryAsync(db, request, user?.Id ?? -1, Math.Max(0, offset ?? 0), Math.Clamp(limit ?? 48, 1, 200), ct));
         });
         api.MapGet("/marketplace/items", async (LoomWeaverMySqlRepository repo, CancellationToken ct) =>
         {

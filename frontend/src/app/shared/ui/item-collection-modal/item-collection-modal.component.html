@@ -113,14 +113,14 @@
             <input
               type="text"
               class="lw-col-field__input lw-col-field__input--compact"
-              placeholder="Filter items to add..."
+              placeholder="Search items to add..."
               [ngModel]="itemSearchQuery()"
-              (ngModelChange)="itemSearchQuery.set($event)"
+              (ngModelChange)="onItemSearchChange($event)"
             />
           </div>
 
           <div class="lw-col-modal__item-list">
-            @for (it of filteredPickerItems(); track it.id) {
+            @for (it of availableItems(); track it.id) {
               <button
                 ngpButton
                 type="button"

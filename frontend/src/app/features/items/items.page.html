@@ -10,7 +10,7 @@
 
   <lw-panel variant="studio">
     <div class="lw-items-context">
-      <span>{{ catalog.filteredAndSortedItems().length }} items</span>
+      <span>{{ catalog.totalItems() }} items</span>
       <div class="lw-items-character">
         @if (catalog.targetCampaignCharacter(); as character) {
           <span>Adding to <strong>{{ character.name }}</strong></span>
@@ -78,7 +78,9 @@
         </div>
       }
     </div>
-    @if (catalog.filteredAndSortedItems().length === 0) {
+    @if (catalog.loadingPage() && catalog.pageItems().length === 0) {
+      <p class="lw-items-status" role="status">Loading items…</p>
+    } @else if (catalog.pageItems().length === 0) {
       <div class="lw-items-empty">
         <p class="lw-items-empty__title">No items found.</p>
         <p class="lw-items-empty__sub">
@@ -96,7 +98,7 @@
       </div>
     } @else {
       <div class="lw-items-grid">
-        @for (item of catalog.filteredAndSortedItems(); track item.id) {
+        @for (item of catalog.pageItems(); track item.id) {
           <lw-item-card
             [item]="item"
             [canAdd]="!!catalog.targetCampaignCharacter() && !catalog.busy()"
@@ -112,6 +114,13 @@
           />
         }
       </div>
+      <lw-pager
+        [page]="catalog.page()"
+        [pageCount]="catalog.pageCount()"
+        [total]="catalog.totalItems()"
+        [busy]="catalog.loadingPage()"
+        (pageChange)="catalog.goToPage($event)"
+      />
     }
   </lw-panel>
 
@@ -209,7 +218,8 @@
   [(open)]="collectionModalOpen"
   [campaignName]="store.activeCampaign().name"
   [editingCollection]="editingCollection()"
-  [availableItems]="catalog.allItems()"
+  [availableItems]="catalog.pickerItems()"
   [campaignLocations]="catalog.campaignLocations()"
+  (pickerSearch)="catalog.searchPicker($event)"
   (collectionSaved)="handleCollectionSaved($event)"
 />

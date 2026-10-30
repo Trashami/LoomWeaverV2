@@ -110,15 +110,16 @@
       </div>
 
       <div class="lw-bestiary-more">
-        @if (catalog.loading()) {
-          <span class="lw-bestiary-more__label">Loading monsters...</span>
-        } @else if (catalog.hasMore() && !catalog.collectionKeys()) {
-          <lw-button
-            variant="secondary"
-            size="sm"
-            [label]="'Load more (' + catalog.monsters().length + ' of ' + catalog.total() + ')'"
-            (pressed)="catalog.loadMore()"
+        @if (!catalog.collectionKeys() && catalog.pageCount() > 1) {
+          <lw-pager
+            [page]="catalog.page()"
+            [pageCount]="catalog.pageCount()"
+            [total]="catalog.total()"
+            [busy]="catalog.loading()"
+            (pageChange)="catalog.goToPage($event)"
           />
+        } @else if (catalog.loading()) {
+          <span class="lw-bestiary-more__label">Loading monsters...</span>
         }
       </div>
     }

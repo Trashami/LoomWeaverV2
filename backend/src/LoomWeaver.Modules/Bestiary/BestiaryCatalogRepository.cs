@@ -162,8 +162,11 @@ public static class BestiaryCatalogRepository
                     "cr-desc" => $"{CrExpr} DESC, name ASC",
                     _ => "name ASC, source_id ASC"
                 };
+                // Page ids first so JSON_EXTRACT only runs for the rows on this page, not every match.
                 await using var cmd = new MySqlCommand(
-                    $"SELECT {SummaryColumns} FROM dnd_monster_library {whereSql} ORDER BY {order} LIMIT {take} OFFSET {offset};", conn);
+                    $"SELECT {SummaryColumns} FROM dnd_monster_library m " +
+                    $"JOIN (SELECT id FROM dnd_monster_library {whereSql} ORDER BY {order} LIMIT {take} OFFSET {offset}) p USING (id) " +
+                    $"ORDER BY {order};", conn);
                 Bind(cmd);
                 await using var r = await cmd.ExecuteReaderAsync(ct);
                 while (await r.ReadAsync(ct)) items.Add(ReadSummary(r));

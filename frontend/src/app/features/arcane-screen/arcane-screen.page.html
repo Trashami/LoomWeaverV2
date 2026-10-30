@@ -4,6 +4,14 @@
       <img src="/landing-assets/brand/raven-emblem.png" alt="LoomWeaver" width="150" height="150" />
     </button>
     <button ngpButton type="button" class="lw-vtt-back-btn" (click)="vttReturn.returnToPreviousPage()">Back</button>
+    <lw-vtt-map-tools
+      [(gridEnabled)]="gridEnabled"
+      [(railOpen)]="gmRailOpen"
+      (rollDice)="rollSelectedDice()"
+    />
+    <button ngpButton type="button" class="lw-vtt-panel-toggle" (click)="battle.rightPanelCollapsed.set(!battle.rightPanelCollapsed())">
+      {{ battle.rightPanelCollapsed() ? 'Open Panel' : 'Hide Panel' }}
+    </button>
   </div>
 
   <div class="lw-vtt-body" [class.lw-vtt-body--rail]="gmRailOpen()">
@@ -17,35 +25,11 @@
           (nextTurn)="nextTurn()"
           (modeChange)="setMapMode($event)"
         />
-        <div class="lw-vtt-stage-top__tools">
-          <lw-vtt-map-tools
-            [(gridEnabled)]="gridEnabled"
-            [(railOpen)]="gmRailOpen"
-            (rollDice)="rollSelectedDice()"
-          />
-          <button ngpButton type="button" class="lw-vtt-panel-toggle" (click)="battle.rightPanelCollapsed.set(!battle.rightPanelCollapsed())">
-            {{ battle.rightPanelCollapsed() ? 'Open Panel' : 'Hide Panel' }}
-          </button>
-        </div>
       </div>
       <canvas #vttCanvas class="lw-vtt-babylon-canvas" [class.lw-vtt-babylon-canvas--active]="battle.mapMode3D()"></canvas>
       <div class="lw-vtt-map-backdrop" [class.lw-vtt-map-backdrop--dimmed]="battle.mapMode3D()" [style.backgroundImage]="'url(' + vttDisplay.backdropUrl(vtt.activeLiveEncounter()?.thumbnailUrl) + ')'"></div>
 
       <svg #battleSvg class="lw-vtt-svg" [class.lw-vtt-svg--3d-overlay]="battle.mapMode3D()" viewBox="0 0 1200 800" preserveAspectRatio="none" (mousemove)="onBattleMapPointerMove($event)" (mouseup)="onBattleMapMouseUp()" (click)="onBattleMapClick($event)">
-        <defs>
-          <mask id="vtt-los-only-mask">
-            <rect x="0" y="0" width="1200" height="800" fill="white" />
-            <polygon [attr.points]="battle.observerSightPolygonSvg()" fill="black" />
-          </mask>
-          <mask id="vtt-explored-mask">
-            <rect x="0" y="0" width="1200" height="800" fill="white" />
-            @for (c of battle.exploredCirclesSvg(); track c.id) {
-              <circle [attr.cx]="c.cx" [attr.cy]="c.cy" [attr.r]="c.r" fill="#666666" />
-            }
-            <polygon [attr.points]="battle.observerSightPolygonSvg()" fill="black" />
-          </mask>
-        </defs>
-
         @if (gridEnabled()) {
           <g class="lw-vtt-svg__grid">
             @for (gx of gridVerticalLines; track gx) {
@@ -65,12 +49,8 @@
           }
         </g>
 
-        @if (shouldRenderPlayerFog()) {
-          @if (battle.fogMode() === 'los-only') {
-            <rect x="0" y="0" width="1200" height="800" fill="rgba(3, 8, 6, 0.92)" mask="url(#vtt-los-only-mask)" />
-          } @else if (battle.fogMode() === 'explored-los') {
-            <rect x="0" y="0" width="1200" height="800" fill="rgba(3, 8, 6, 0.9)" mask="url(#vtt-explored-mask)" />
-          }
+        @if (fog.layerHref(); as fogHref) {
+          <image class="lw-vtt-svg__fog" [attr.href]="fogHref" x="0" y="0" width="1200" height="800" preserveAspectRatio="none" />
         }
 
         @if (battle.activeRangeAndAoePreview(); as aoe) {
@@ -116,6 +96,7 @@
              [class.lw-vtt-token--in-aoe]="battle.activeRangeAndAoePreview()?.highlightedKeys?.has(token.key)"
              [class.lw-vtt-token--active-turn]="battle.activeInitiativeToken().key === token.key"
              [class.lw-vtt-token--hidden-los]="!battle.isTokenInPlayerLoS(token)"
+             [attr.opacity]="battle.tokenOpacity(token)"
              [attr.transform]="'translate(' + toSvgX(token.x) + ',' + toSvgY(token.z) + ')'"
              (mousedown)="onTokenMouseDown($event, token)"
              (click)="onTokenClicked($event, token)">

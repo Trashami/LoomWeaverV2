@@ -46,6 +46,10 @@ export interface VttTokenVm {
   readonly bonusUsed: boolean;
   readonly reactionUsed: boolean;
   readonly movementFeet: number;
+  /** Sight range in feet. Falls back to the player sight setting when absent. */
+  readonly sightFeet?: number;
+  /** Darkvision range in feet. Extends vision when it exceeds sight. */
+  readonly darkvisionFeet?: number;
 }
 
 export interface CombatResolutionLogVm {

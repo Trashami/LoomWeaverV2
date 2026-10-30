@@ -8,11 +8,13 @@ import {
   distanceInFeet,
   findClosestSnapToken,
   findTokensInAoe,
-  hasLineOfSight,
   snapToFiveFootGrid,
-  worldToSvgX,
-  worldToSvgY,
 } from '../engine/vtt-los-and-grid.engine';
+import {
+  FogObserver,
+  tokenVisionRadiusFeet,
+  visibilityFactorForPoint,
+} from '../engine/vtt-fog-of-war.engine';
 import {
   VttActionBarSettingsVm,
   VttChatMessageVm,
@@ -202,24 +204,26 @@ export class VttBattleStateService {
     );
   });
 
-  readonly exploredCirclesSvg = computed(() =>
-    this.exploredTrailPoints().map((pt, idx) => ({
-      id: `exp-${idx}`,
-      cx: worldToSvgX(pt.x),
-      cy: worldToSvgY(pt.z),
-      r: Math.round((pt.radiusFeet / 2.5 / 24) * 1200),
-    })),
+  /** Every party token acts as a vision source, using its own sight and darkvision. */
+  readonly fogObservers = computed<readonly FogObserver[]>(() =>
+    this.vtt
+      .tokens()
+      .filter((t) => t.faction === 'party')
+      .map((t) => ({
+        x: t.x,
+        z: t.z,
+        radiusFeet: tokenVisionRadiusFeet(t, this.playerSightDistanceFeet()),
+      })),
   );
 
+  /** 0..1 opacity for a token in the player view. Party tokens are always fully shown. */
+  tokenOpacity(token: VttTokenVm): number {
+    if (token.faction === 'party' || this.fogMode() === 'no-fog') return 1;
+    return visibilityFactorForPoint({ x: token.x, z: token.z }, this.fogObservers(), this.walls());
+  }
+
   isTokenInPlayerLoS(token: VttTokenVm): boolean {
-    const obs = this.activeObserverToken();
-    if (!obs || token.key === obs.key) return true;
-    return hasLineOfSight(
-      { x: obs.x, z: obs.z },
-      { x: token.x, z: token.z },
-      this.playerSightDistanceFeet(),
-      this.walls(),
-    );
+    return this.tokenOpacity(token) > 0;
   }
 
   readonly visibleMapTokens = computed<readonly VttTokenVm[]>(() => {

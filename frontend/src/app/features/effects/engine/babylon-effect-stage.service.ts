@@ -18,6 +18,7 @@ import {
   VttTokenVm,
 } from './effect-timeline.contract';
 import { TokenDragController, TokenPlacement } from './token-drag-controller';
+import { BabylonFogPlane } from './babylon-fog-plane';
 
 @Injectable({ providedIn: 'root' })
 export class BabylonEffectStageService {
@@ -25,6 +26,7 @@ export class BabylonEffectStageService {
   private scene: Scene | null = null;
   private animHandle: number | null = null;
   private dragController: TokenDragController | null = null;
+  private fogPlane: BabylonFogPlane | null = null;
   private readonly draggedSubject = new Subject<TokenPlacement>();
   private readonly droppedSubject = new Subject<TokenPlacement>();
 
@@ -88,6 +90,7 @@ export class BabylonEffectStageService {
       }
       const grid = MeshBuilder.CreateLineSystem('lw-vtt-grid', { lines }, this.scene);
       grid.color = Color3.FromHexString('#264035');
+      this.fogPlane = new BabylonFogPlane(this.scene);
 
       this.dragController = new TokenDragController(this.scene, ground, {
         onDragStart: () => camera.detachControl(),
@@ -122,11 +125,17 @@ export class BabylonEffectStageService {
     }
   }
 
+  /** Sets the fog layer from the player view. A null layer hides the fog. */
+  syncFog(layer: HTMLCanvasElement | null): void {
+    this.fogPlane?.setLayer(layer);
+  }
+
   syncTokens(
     tokens: readonly VttTokenVm[],
     attackerKey?: string,
     targetKey?: string,
     targetedKeys: readonly string[] = [],
+    opacityByKey: ReadonlyMap<string, number> = new Map(),
   ): void {
     if (!this.scene) return;
     this.scene.meshes
@@ -152,6 +161,7 @@ export class BabylonEffectStageService {
       );
       cyl.position.set(t.x, isDead ? 0.12 : 0.45, t.z);
       cyl.metadata = { tokenKey: t.key };
+      cyl.visibility = opacityByKey.get(t.key) ?? 1;
 
       const mat = new StandardMaterial(`lw-tmat-${t.key}`, this.scene);
       mat.diffuseColor = isTargeted
@@ -346,6 +356,8 @@ export class BabylonEffectStageService {
     }
     this.dragController?.detach();
     this.dragController = null;
+    this.fogPlane?.dispose();
+    this.fogPlane = null;
     this.scene?.dispose();
     this.engine?.dispose();
     this.scene = null;

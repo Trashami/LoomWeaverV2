@@ -43,6 +43,7 @@ import {
 import type { DockAction, DockToken } from './components/vtt-action-dock/vtt-action-dock.models';
 import { VttBattleStateService } from './services/vtt-battle-state.service';
 import { VttCombatService } from './services/vtt-combat.service';
+import { VttFogService } from './services/vtt-fog.service';
 import { VttDisplaySettingsService } from './services/vtt-display-settings.service';
 import { VttEncounterTimerService } from './services/vtt-encounter-timer.service';
 import { VttServerSyncService } from './services/vtt-server-sync.service';
@@ -80,6 +81,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   readonly store = inject(LoomWeaverStoreService);
   readonly vtt = inject(VttCombatService);
   readonly battle = inject(VttBattleStateService);
+  readonly fog = inject(VttFogService);
   readonly stage = inject(BabylonEffectStageService);
   readonly audio = inject(WebAudioAmbienceService);
   readonly fullscreenDice = inject(FullscreenDiceOverlayService);
@@ -92,6 +94,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   constructor() {
     effect(() => {
       this.vtt.tokens();
+      this.fog.layer();
       untracked(() => this.sync3dStage());
     });
     this.stage.tokenDropped.pipe(takeUntilDestroyed()).subscribe((p) => {
@@ -133,12 +136,6 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
 
   readonly gridVerticalLines = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100];
   readonly gridHorizontalLines = [100, 200, 300, 400, 500, 600, 700];
-
-  readonly shouldRenderPlayerFog = computed(
-    () =>
-      this.battle.fogMode() !== 'no-fog' &&
-      (this.store.viewerRole() === 'players' || this.battle.gmPreviewPlayerVision()),
-  );
 
   readonly isObserverActiveTurn = computed(
     () => this.battle.activeInitiativeToken()?.key === this.battle.activeObserverToken()?.key,
@@ -194,7 +191,9 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       this.vtt.selectedAttackerKey(),
       this.vtt.selectedTargetKey(),
       this.battle.allReticleTargetKeys(),
+      this.fog.opacityByKey(),
     );
+    this.stage.syncFog(this.fog.layer());
   }
 
   @HostListener('window:keydown', ['$event'])

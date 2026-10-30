@@ -117,14 +117,13 @@ const NAV_GROUPS: readonly StudioNavGroup[] = [
       {
         id: "handouts-clues",
         label: "Handouts & Clues",
-        route: "/assets",
+        route: "/handouts",
         icon: "file-text",
       },
-      // Reuses existing /statistics route until a dedicated timelines route exists.
       {
         id: "timelines",
         label: "Timelines",
-        route: "/statistics",
+        route: "/timeline",
         icon: "clock-3",
       },
     ],

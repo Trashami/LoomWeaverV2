@@ -138,6 +138,12 @@ export const APP_ROUTES: Routes = [
       import('./features/effects/effects.page').then((m) => m.EffectsPageComponent),
   },
   {
+    path: 'handouts',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/handouts/handouts.page').then((m) => m.HandoutsPageComponent),
+  },
+  {
     path: 'assets',
     canActivate: [authGuard],
     loadComponent: () =>
@@ -158,11 +164,12 @@ export const APP_ROUTES: Routes = [
       import('./features/store/store.page').then((m) => m.StorePageComponent),
   },
   {
-    path: 'statistics',
+    path: 'timeline',
     canActivate: [authGuard],
     loadComponent: () =>
-      import('./features/statistics/statistics.page').then((m) => m.StatisticsPageComponent),
+      import('./features/timeline/timeline.page').then((m) => m.TimelinePageComponent),
   },
+  { path: 'statistics', redirectTo: 'timeline' },
   {
     path: 'bestiary',
     canActivate: [authGuard],

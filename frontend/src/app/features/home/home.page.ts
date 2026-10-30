@@ -1,43 +1,33 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { NgpButton } from 'ng-primitives/button';
-import {
-  DashboardActivityItemVm,
-  DashboardAlertItemVm,
-  DashboardNoteItemVm,
-} from '../../core/models/dashboard.models';
-import { AuthSessionService } from '../../core/services/auth-session.service';
+import { DashboardAlertItemVm } from '../../core/models/dashboard.models';
 import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
-import {
-  LwCampaignResumeCardComponent,
-  LwCreatePlaceholderComponent,
-  LwDashboardAlertsCardComponent,
-  LwIconComponent,
-  LwPartyMemberStatusVm,
-  LwPartyRosterCardComponent,
-  LwQuestTrackerCardComponent,
-  LwQuestTrackerItem,
-  LwRecentActivityFeedComponent,
-  LwRecentNotesCardComponent,
-  LwUpcomingSessionCardComponent,
-} from '../../shared/ui/public-api';
+import { LwCreatePlaceholderComponent, LwPanelComponent } from '../../shared/ui/public-api';
+
+interface WorldMapTile {
+  readonly label: string;
+  readonly hint: string;
+  readonly route: string;
+}
+
+const WORLD_MAP_TILES: readonly WorldMapTile[] = [
+  { label: 'Quests & Story', hint: 'Active threads and chronicle', route: '/campaigns' },
+  { label: 'Sessions', hint: 'Plan and run play sessions', route: '/loom' },
+  { label: 'Lore & Locations', hint: 'Places, factions, and history', route: '/weave' },
+  { label: 'Maps', hint: 'Regions and battlemaps', route: '/maps' },
+  { label: 'Characters', hint: 'Party sheets and level-ups', route: '/characters' },
+  { label: 'Encounters', hint: 'Combat and the Arcane Screen', route: '/encounters' },
+  { label: 'Bestiary', hint: 'Creatures and NPC stat blocks', route: '/bestiary' },
+  { label: 'Items & Spells', hint: 'Gear, magic, and effects', route: '/items' },
+  { label: 'Timelines', hint: 'Session history and table log', route: '/timeline' },
+  { label: 'Handouts & Clues', hint: 'Player-facing documents', route: '/handouts' },
+  { label: 'Sourcebooks', hint: 'Reference rules and books', route: '/sources' },
+];
 
 @Component({
   selector: 'lw-home-page',
   standalone: true,
-  imports: [
-    RouterLink,
-    NgpButton,
-    LwIconComponent,
-    LwCampaignResumeCardComponent,
-    LwUpcomingSessionCardComponent,
-    LwRecentActivityFeedComponent,
-    LwRecentNotesCardComponent,
-    LwQuestTrackerCardComponent,
-    LwPartyRosterCardComponent,
-    LwDashboardAlertsCardComponent,
-    LwCreatePlaceholderComponent,
-  ],
+  imports: [RouterLink, LwPanelComponent, LwCreatePlaceholderComponent],
   templateUrl: './home.page.html',
   styleUrl: './home.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -45,63 +35,36 @@ import {
 export class HomePageComponent {
   private readonly router = inject(Router);
   readonly store = inject(LoomWeaverStoreService);
-  readonly auth = inject(AuthSessionService);
-
-  readonly selectedQuestId = signal<string>('quest-shadows-stone');
 
   readonly dashboard = computed(() => this.store.campaignDashboard());
+  readonly worldMapTiles = WORLD_MAP_TILES;
 
-  readonly questTrackerItems = computed<readonly LwQuestTrackerItem[]>(() =>
-    this.dashboard().activeQuests.map((q) => ({
-      id: q.id,
-      title: q.title,
-      summary: q.summary,
-      categoryBadge: q.categoryBadge,
-      badgeTone: q.badgeTone,
-      questGiver: 'Campaign Chronicle',
-      originLocation: this.store.activeCampaign().currentLocationName,
-      completionLocation: this.store.activeCampaign().worldName,
-      prerequisites: 'None',
-      xpReward: 1200,
-      status: 'active',
-      clueKeys: [q.compositeKey],
-      steps: [
-        {
-          stepId: `${q.id}-step-1`,
-          description: q.summary,
-          locationName: this.store.activeCampaign().currentLocationName,
-          completed: false,
-        },
-      ],
-    })),
+  readonly openPrepItems = computed(() =>
+    this.dashboard().upcomingSession.checklist.filter((item) => !item.completed),
   );
 
-  onActivitySelected(item: DashboardActivityItemVm): void {
-    this.store.inspectEntity(item.compositeKey);
-  }
+  readonly donePrepItems = computed(() =>
+    this.dashboard().upcomingSession.checklist.filter((item) => item.completed),
+  );
 
-  onNoteSelected(note: DashboardNoteItemVm): void {
-    this.store.inspectEntity(note.compositeKey);
-  }
+  readonly doneBeats = computed(() => this.dashboard().sessionGuide.beats.filter((b) => b.done));
 
-  onQuestSelected(quest: LwQuestTrackerItem): void {
-    this.selectedQuestId.set(quest.id);
-    if (quest.clueKeys.length > 0) {
-      this.store.inspectEntity(quest.clueKeys[0]);
+  readonly openBeats = computed(() => this.dashboard().sessionGuide.beats.filter((b) => !b.done));
+
+  readonly unreadAlerts = computed(() => this.dashboard().alerts.filter((a) => !a.read));
+
+  readonly hasSessions = computed(() => this.dashboard().sessionState !== 'no_sessions');
+
+  openItem(routeLink: string, compositeKey?: string): void {
+    if (compositeKey) {
+      this.store.inspectEntity(compositeKey);
     }
-    void this.router.navigate(['/campaigns']);
+    if (routeLink) {
+      void this.router.navigateByUrl(routeLink);
+    }
   }
 
-  onMemberSelected(member: LwPartyMemberStatusVm): void {
-    this.store.inspectEntity(member.compositeKey);
-    void this.router.navigateByUrl(member.routeLink || '/characters');
-  }
-
-  onAlertSelected(alert: DashboardAlertItemVm): void {
+  acknowledgeAlert(alert: DashboardAlertItemVm): void {
     this.store.acknowledgeDashboardAlert(alert.id);
-  }
-
-  openCharacterStudio(): void {
-    void this.router.navigate(['/characters']);
   }
 }

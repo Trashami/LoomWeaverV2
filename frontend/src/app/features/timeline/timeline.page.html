@@ -1,0 +1,73 @@
+<lw-panel
+  variant="page-header"
+  eyebrow="Timelines"
+  title="Campaign Timeline"
+  subtitle="Every session in order, with what happened, where it took place, and the XP it awarded."
+>
+  <div panelActions class="lw-timeline__actions">
+    <a routerLink="/loom" class="lw-link-reset">Open Sessions</a>
+  </div>
+</lw-panel>
+
+@if (loading()) {
+  <p class="lw-timeline__status">Loading timeline...</p>
+} @else if (sessions().length === 0) {
+  <lw-create-placeholder
+    title="No sessions yet"
+    hint="Plan your first session to start the timeline."
+    route="/loom"
+  />
+} @else {
+  <div class="lw-timeline__summary">
+    <span>{{ sessions().length }} sessions</span>
+    <span>{{ totalXp() }} XP awarded</span>
+  </div>
+
+  <ol class="lw-timeline__list">
+    @for (session of sessions(); track session.id) {
+      <li class="lw-timeline__item">
+        <div class="lw-timeline__marker">{{ session.sessionNumber }}</div>
+        <lw-panel [title]="session.title" [subtitle]="session.dateLabel || 'Undated session'">
+          <p class="lw-timeline__body">{{ session.summary }}</p>
+          <div class="lw-timeline__meta">
+            @if (session.locationName) {
+              <span>Location: {{ session.locationName }}</span>
+            }
+            <span>{{ session.xpAwarded }} XP</span>
+          </div>
+          @if (session.highlights.length) {
+            <ul class="lw-timeline__highlights">
+              @for (highlight of session.highlights; track highlight) {
+                <li>{{ highlight }}</li>
+              }
+            </ul>
+          }
+        </lw-panel>
+      </li>
+    }
+  </ol>
+}
+
+@if (eventsVisible()) {
+  <lw-panel
+    variant="page-header"
+    eyebrow="GM only"
+    title="Play Log"
+    subtitle="Recent table events recorded during play. Visible to the GM only."
+  >
+    @if (playEvents().length === 0) {
+      <p class="lw-timeline__status">No play events recorded yet.</p>
+    } @else {
+      <ul class="lw-timeline__events">
+        @for (event of playEvents(); track event.id) {
+          <li>
+            <span class="lw-timeline__event-time">{{ event.createdAt | date: 'MMM d, h:mm a' }}</span>
+            <span class="lw-timeline__event-kind">{{ event.kind }}</span>
+            <span>{{ event.summary }}</span>
+            <span class="lw-timeline__event-actor">{{ event.actor }}</span>
+          </li>
+        }
+      </ul>
+    }
+  </lw-panel>
+}

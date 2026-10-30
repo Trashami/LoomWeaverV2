@@ -2,17 +2,18 @@
   display: block;
 }
 
+// Every panel shares the Quests & Story studio surface so pages read as one UI.
 .lw-panel {
-  background: var(--lw-panel-bg, var(--lw-bg-surface));
-  border: 1px solid var(--lw-panel-border, var(--lw-border-subtle));
-  border-radius: var(--lw-panel-radius, var(--lw-radius-lg));
+  background: var(--lw-panel-bg, var(--lw-bg-studio));
+  border: 1px solid var(--lw-panel-border, var(--lw-border-studio));
+  border-radius: var(--lw-panel-radius, 12px);
   box-shadow: var(--lw-shadow-card);
   transition: border-color 150ms ease, background 150ms ease;
 }
 
 .lw-panel--elevated {
-  background: var(--lw-bg-elevated);
-  border-color: var(--lw-border-gold);
+  background: var(--lw-bg-studio-header);
+  border-color: rgba(217, 183, 122, 0.34);
 }
 
 .lw-panel--padded {
@@ -67,18 +68,17 @@
   flex-wrap: wrap;
 }
 
-// Studio surfaces match the Dashboard and Quests & Story panels.
 .lw-panel--studio {
   background: var(--lw-bg-studio);
   border-color: var(--lw-border-studio);
-  border-radius: 12px;
 }
 
+// Page header bar: matches the Quests & Story top bar (gold icon-less uppercase title).
 .lw-panel--page-header {
   background: var(--lw-bg-studio-header);
   border-color: rgba(217, 183, 122, 0.24);
   border-radius: 10px;
-  padding: 0.65rem 0.95rem;
+  padding: 0.55rem 0.95rem;
   box-shadow: none;
 
   .lw-panel__header {
@@ -89,8 +89,13 @@
     border: 0;
   }
 
-  .lw-panel__title { color: #f3e6cb; font-size: 1.15rem; }
-  .lw-panel__subtitle { font-size: 0.8rem; }
+  .lw-panel__title {
+    color: #f6e7c8;
+    font-size: 1.05rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .lw-panel__subtitle { font-size: 0.76rem; color: #9cb2a7; }
   .lw-panel__body:empty { display: none; }
 }
 

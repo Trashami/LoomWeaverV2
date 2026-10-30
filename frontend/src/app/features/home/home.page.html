@@ -1,132 +1,161 @@
-@if (store.campaigns().length === 0) {
-  <section class="lw-dashboard-empty" aria-label="No Active Campaigns">
-    <h2>Welcome to LoomWeaver</h2>
-    <p>You do not have an active campaign yet. Create a new world or join an existing table with an invite link.</p>
-    <div class="lw-dashboard-empty__actions">
-      <a ngpButton routerLink="/campaigns" class="lw-dashboard-empty__btn lw-dashboard-empty__btn--primary">
-        <span>Create Campaign</span>
-      </a>
-      <a ngpButton routerLink="/campaigns" class="lw-dashboard-empty__btn">
-        <span>Join Campaign</span>
-      </a>
-    </div>
-  </section>
-} @else {
-  @let dash = dashboard();
-  <div class="lw-dashboard">
-    <!-- Section A: Resume Campaign Hero Banner -->
-    <lw-campaign-resume-card
-      [campaignName]="dash.campaignName"
-      [narrativeSummary]="dash.narrativeSummary"
-      [actTitle]="dash.actTitle"
-      [actSubtitle]="dash.actSubtitle"
-      [sessionBadgeLabel]="dash.sessionBadgeLabel"
-      [sessionBadgeSubtitle]="dash.sessionBadgeSubtitle"
-      [lastActivityLabel]="dash.lastActivityLabel"
-      [artworkUrl]="dash.heroArtworkUrl"
-      [sessionState]="dash.sessionState"
-      [viewerRole]="store.viewerRole()"
-    />
-
-    <!-- Middle 3-Column Row: Next Session Planning | Recent Activity | Recent Notes -->
-    <section
-      class="lw-dashboard__cards-grid"
-      aria-label="Session Planning, Recent Activity, and Recent Notes"
-    >
-      <lw-upcoming-session-card
-        [session]="dash.upcomingSession"
-        [viewerRole]="store.viewerRole()"
-        (prepItemToggled)="store.togglePrepChecklistItem($event)"
-      />
-
-      @if (dash.recentActivity.length > 0) {
-        <lw-recent-activity-feed
-          [items]="dash.recentActivity"
-          (activitySelected)="onActivitySelected($event)"
-        />
-      } @else {
-        <lw-create-placeholder
-          title="Recent Activity"
-          hint="Activity appears here once your table starts playing."
-          route="/arcane-screen"
-        />
-      }
-
-      @if (dash.recentNotes.length > 0) {
-        <lw-recent-notes-card
-          [notes]="dash.recentNotes"
-          (noteSelected)="onNoteSelected($event)"
-        />
-      } @else {
-        <lw-create-placeholder
-          title="Recent Notes"
-          hint="Write a note in the Loom to see it here."
-          route="/loom"
-        />
-      }
-    </section>
-
-    <!-- Bottom 3-Column Row: Open Threads / Active Quests | Party Snapshot | Alerts -->
-    <section
-      class="lw-dashboard__cards-grid"
-      aria-label="Open Threads, Party Snapshot, and Alerts"
-    >
-      <article class="lw-dash-card" aria-label="Open Threads and Active Quests">
-        <header class="lw-dash-card__header">
-          <div class="lw-dash-card__heading">
-            <lw-icon name="scroll" [size]="15" />
-            <h2 class="lw-dash-card__title">OPEN THREADS / ACTIVE QUESTS</h2>
-          </div>
-          <a
-            ngpButton
-            routerLink="/campaigns"
-            class="lw-dash-card__icon-btn"
-            title="Add or Manage Quests"
-          >
-            <lw-icon name="plus" [size]="14" />
-          </a>
-        </header>
-
-        <div class="lw-dash-card__list">
-          @for (quest of questTrackerItems(); track quest.id) {
-            <lw-quest-tracker-card
-              [quest]="quest"
-              variant="compact-row"
-              [selected]="selectedQuestId() === quest.id"
-              (questSelected)="onQuestSelected($event)"
-            />
-          } @empty {
-            <lw-create-placeholder
-              title="Open Threads"
-              hint="Add a quest to start tracking active threads."
-              route="/campaigns"
-            />
-          }
-        </div>
-      </article>
-
-      @if (dash.partyMembers.length > 0) {
-        <lw-party-roster-card
-          title="PARTY SNAPSHOT"
-          [members]="dash.partyMembers"
-          [selectedKey]="store.inspectedEntityKey() ?? ''"
-          [healthTitle]="dash.partyHealthTitle"
-          [healthSubtitle]="dash.partyHealthSubtitle"
-          (memberSelected)="onMemberSelected($event)"
-          (addMemberRequested)="openCharacterStudio()"
-        />
-      } @else {
-        <lw-create-placeholder
-          title="Party Snapshot"
-          hint="Add a character to build your party."
-          route="/characters"
-        />
-      }
-
-      <lw-dashboard-alerts-card
-        [alerts]="dash.alerts"
-        (alertSelected)="onAlertSelected($event)"
-      />
-    </section>
+<lw-panel
+  variant="page-header"
+  eyebrow="GM Dashboard"
+  [title]="dashboard().campaignName"
+  [subtitle]="dashboard().actTitle + ' · ' + dashboard().sessionBadgeLabel"
+>
+  <div panelActions class="lw-home__actions">
+    <a routerLink="/loom" class="lw-link-reset lw-home__action">Plan next session</a>
+    <a routerLink="/weave" class="lw-link-reset lw-home__action">Open lore</a>
   </div>
-}
+</lw-panel>
+
+<div class="lw-home__columns">
+  <lw-panel title="Where you left off" [subtitle]="dashboard().lastActivityLabel">
+    @if (dashboard().narrativeSummary) {
+      <p class="lw-home__summary">{{ dashboard().narrativeSummary }}</p>
+    }
+    @if (dashboard().recentActivity.length) {
+      <ul class="lw-home__list">
+        @for (item of dashboard().recentActivity.slice(0, 5); track item.id) {
+          <li>
+            <button type="button" class="lw-home__row" (click)="openItem(item.routeLink, item.compositeKey)">
+              <strong>{{ item.title }}</strong>
+              <span>{{ item.description }}</span>
+              <span class="lw-home__meta">{{ item.entityType }} · {{ item.relativeTime }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    } @else {
+      <lw-create-placeholder
+        title="No activity yet"
+        hint="Recent changes to your world will appear here."
+        route="/weave"
+      />
+    }
+  </lw-panel>
+
+  <lw-panel title="Next steps" [subtitle]="hasSessions() ? dashboard().upcomingSession.prepStatusLabel : 'No session scheduled'">
+    @if (hasSessions()) {
+      <div class="lw-home__session">
+        <strong>Session {{ dashboard().upcomingSession.sessionNumber }}: {{ dashboard().upcomingSession.title }}</strong>
+        <span class="lw-home__meta">
+          {{ dashboard().upcomingSession.scheduledDateLabel }}
+          @if (dashboard().upcomingSession.locationTitle) {
+            · {{ dashboard().upcomingSession.locationTitle }}
+          }
+        </span>
+      </div>
+      @if (openPrepItems().length) {
+        <h3 class="lw-home__heading">Prep to do</h3>
+        <ul class="lw-home__list">
+          @for (item of openPrepItems(); track item.id) {
+            <li>
+              <button type="button" class="lw-home__row" (click)="openItem(item.routeLink)">
+                <span>{{ item.label }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    } @else {
+      <lw-create-placeholder
+        title="Plan your first session"
+        hint="Sessions drive your prep list, timeline, and beats."
+        route="/loom"
+      />
+    }
+
+    @if (unreadAlerts().length) {
+      <h3 class="lw-home__heading">Alerts</h3>
+      <ul class="lw-home__list">
+        @for (alert of unreadAlerts(); track alert.id) {
+          <li>
+            <div class="lw-home__alert">
+              <button type="button" class="lw-home__row" (click)="openItem(alert.routeLink)">
+                <strong>{{ alert.title }}</strong>
+                <span>{{ alert.description }}</span>
+              </button>
+              <button type="button" class="lw-home__dismiss" (click)="acknowledgeAlert(alert)">Dismiss</button>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+
+    @if (dashboard().activeQuests.length) {
+      <h3 class="lw-home__heading">Active quests</h3>
+      <ul class="lw-home__list">
+        @for (quest of dashboard().activeQuests; track quest.id) {
+          <li>
+            <button type="button" class="lw-home__row" (click)="openItem(quest.routeLink, quest.compositeKey)">
+              <strong>{{ quest.title }}</strong>
+              <span>{{ quest.summary }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    }
+
+    @if (openBeats().length) {
+      <h3 class="lw-home__heading">Open beats</h3>
+      <ul class="lw-home__checks">
+        @for (beat of openBeats(); track beat.id) {
+          <li>{{ beat.label }}</li>
+        }
+      </ul>
+    }
+  </lw-panel>
+
+  <lw-panel title="Completed work" [subtitle]="doneBeats().length + ' beats · ' + donePrepItems().length + ' prep items'">
+    @if (donePrepItems().length) {
+      <h3 class="lw-home__heading">Prep finished</h3>
+      <ul class="lw-home__checks">
+        @for (item of donePrepItems(); track item.id) {
+          <li>{{ item.label }}</li>
+        }
+      </ul>
+    }
+    @if (doneBeats().length) {
+      <h3 class="lw-home__heading">Beats played</h3>
+      <ul class="lw-home__checks">
+        @for (beat of doneBeats(); track beat.id) {
+          <li>{{ beat.label }}</li>
+        }
+      </ul>
+    }
+    @if (dashboard().recentNotes.length) {
+      <h3 class="lw-home__heading">Recent notes</h3>
+      <ul class="lw-home__list">
+        @for (note of dashboard().recentNotes.slice(0, 5); track note.id) {
+          <li>
+            <button type="button" class="lw-home__row" (click)="openItem(note.routeLink, note.compositeKey)">
+              <strong>{{ note.title }}</strong>
+              <span>{{ note.excerpt }}</span>
+              <span class="lw-home__meta">{{ note.relativeTime }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    }
+    @if (!donePrepItems().length && !doneBeats().length && !dashboard().recentNotes.length) {
+      <lw-create-placeholder
+        title="Nothing completed yet"
+        hint="Finish prep items and play beats to see your progress here."
+        route="/loom"
+      />
+    }
+  </lw-panel>
+</div>
+
+<lw-panel title="World map" subtitle="Every area of your campaign. Start anywhere.">
+  <div class="lw-home__map">
+    @for (tile of worldMapTiles; track tile.route) {
+      <a class="lw-home__tile lw-link-reset" [routerLink]="tile.route">
+        <strong>{{ tile.label }}</strong>
+        <span>{{ tile.hint }}</span>
+      </a>
+    }
+  </div>
+</lw-panel>

@@ -1,0 +1,69 @@
+<lw-panel
+  variant="page-header"
+  eyebrow="Handouts"
+  title="Handouts & Clues"
+  subtitle="Player-facing documents, clues, and lore pages drawn from your world. Select one to read it."
+/>
+
+@if (loading()) {
+  <p class="lw-handouts__status">Loading handouts...</p>
+} @else if (handouts().length === 0) {
+  <lw-create-placeholder
+    title="No handouts yet"
+    hint="Write a lore entry to create your first handout."
+    route="/weave"
+  />
+} @else {
+  <div class="lw-handouts__filters" role="tablist">
+    @for (category of categories(); track category) {
+      <button
+        type="button"
+        class="lw-handouts__chip"
+        [class.lw-handouts__chip--active]="activeCategory() === category"
+        (click)="selectCategory(category)"
+      >
+        {{ category }}
+      </button>
+    }
+  </div>
+
+  <div class="lw-handouts__layout">
+    <lw-panel title="Index" [subtitle]="visibleHandouts().length + ' entries'">
+      @if (visibleHandouts().length === 0) {
+        <p class="lw-handouts__status">No handouts in this category.</p>
+      } @else {
+        <ul class="lw-handouts__list">
+          @for (entry of visibleHandouts(); track entry.id) {
+            <li>
+              <button
+                type="button"
+                class="lw-handouts__row"
+                [class.lw-handouts__row--active]="selected()?.id === entry.id"
+                (click)="selectedId.set(entry.id)"
+              >
+                <strong>{{ entry.title }}</strong>
+                <span>{{ entry.category || 'Uncategorized' }} · {{ entry.visibility }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </lw-panel>
+
+    @if (selected(); as entry) {
+      <lw-panel [title]="entry.title" [subtitle]="entry.subtitle || entry.category">
+        @if (entry.artworkUrl) {
+          <img class="lw-handouts__art" [src]="entry.artworkUrl" [alt]="entry.title" />
+        }
+        @if (entry.excerpt) {
+          <p class="lw-handouts__excerpt">{{ entry.excerpt }}</p>
+        }
+        <div class="lw-handouts__content">{{ entry.content }}</div>
+        <div class="lw-handouts__footer">
+          <span>Visibility: {{ entry.visibility }}</span>
+          <span>Updated {{ entry.updatedAtLabel }}</span>
+        </div>
+      </lw-panel>
+    }
+  </div>
+}

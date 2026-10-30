@@ -207,6 +207,12 @@ export const APP_ROUTES: Routes = [
       import('./features/sourcebooks/sourcebook-reader.page').then((m) => m.SourceBookReaderPageComponent),
   },
   {
+    path: 'create',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/create/create.page').then((m) => m.CreatePageComponent),
+  },
+  {
     path: 'loom',
     canActivate: [authGuard],
     loadComponent: () =>

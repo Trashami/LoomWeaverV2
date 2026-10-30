@@ -1,0 +1,107 @@
+.lw-create__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.lw-create__tile {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  text-align: left;
+  color: inherit;
+  background: rgba(5, 16, 12, 0.45);
+  border: 1px solid rgba(217, 183, 122, 0.45);
+  border-radius: 10px;
+  cursor: pointer;
+
+  strong { color: #d9b77a; }
+  span { font-size: 0.9rem; opacity: 0.85; }
+  em { font-size: 0.8rem; font-style: normal; opacity: 0.65; }
+
+  &:hover { border-color: #d9b77a; }
+}
+
+.lw-create__resume,
+.lw-create__ghost,
+.lw-create__toolbar button,
+.lw-create__save {
+  padding: 6px 12px;
+  color: #d9b77a;
+  background: transparent;
+  border: 1px solid rgba(217, 183, 122, 0.45);
+  border-radius: 8px;
+  cursor: pointer;
+
+  &:hover { border-color: #d9b77a; }
+}
+
+.lw-create__resume { margin-bottom: 12px; }
+
+.lw-create__form {
+  display: grid;
+  gap: 12px;
+}
+
+.lw-create__field {
+  display: grid;
+  gap: 4px;
+
+  span { font-size: 0.85rem; color: #d9b77a; }
+
+  input,
+  select,
+  textarea {
+    padding: 8px 10px;
+    color: inherit;
+    background: rgba(5, 16, 12, 0.5);
+    border: 1px solid rgba(217, 183, 122, 0.35);
+    border-radius: 8px;
+  }
+}
+
+.lw-create__prompts p {
+  margin: 2px 0;
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+.lw-create__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lw-create__editor {
+  min-height: 260px;
+  padding: 14px;
+  background: rgba(5, 16, 12, 0.5);
+  border: 1px solid rgba(217, 183, 122, 0.35);
+  border-radius: 10px;
+  outline: none;
+
+  &:focus { border-color: #d9b77a; }
+}
+
+.lw-create__actions { display: flex; justify-content: flex-end; }
+
+.lw-create__save:disabled { opacity: 0.5; cursor: wait; }
+
+.lw-create__status {
+  color: #d9b77a;
+
+  &--error { color: #e8a0a0; }
+}
+
+.lw-create__recent {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li { display: grid; gap: 2px; }
+  span { font-size: 0.8rem; opacity: 0.7; }
+}
+
+.lw-create__empty { opacity: 0.7; }

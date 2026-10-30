@@ -1,0 +1,103 @@
+<lw-page-header
+  title="Create"
+  subtitle="Write anything. The Loom files it in the right place and links it into your world."
+  icon="edit_note"
+>
+  @if (intent()) {
+    <button type="button" class="lw-create__ghost" (click)="discard()">Discard and switch</button>
+  }
+</lw-page-header>
+
+@if (!intent()) {
+  <lw-panel title="What are you writing?" subtitle="Pick one. The page stays on that type until you discard it.">
+    @if (lastIntent(); as last) {
+      <button type="button" class="lw-create__resume" (click)="resume()">Resume: {{ last.label }}</button>
+    }
+    <div class="lw-create__grid">
+      @for (option of intents; track option.key) {
+        <button type="button" class="lw-create__tile" (click)="choose(option)">
+          <strong>{{ option.label }}</strong>
+          <span>{{ option.summary }}</span>
+          <em>{{ option.destination }}</em>
+        </button>
+      }
+    </div>
+  </lw-panel>
+} @else if (intent(); as active) {
+  <lw-panel [title]="active.label" [subtitle]="'Goes to: ' + active.destination">
+    <div class="lw-create__form">
+      <label class="lw-create__field">
+        <span>Title</span>
+        <input type="text" maxlength="160" [ngModel]="title()" (ngModelChange)="title.set($event)" />
+      </label>
+
+      <label class="lw-create__field">
+        <span>Visibility</span>
+        <select [ngModel]="visibility()" (ngModelChange)="visibility.set($event)">
+          <option value="gm">GM only</option>
+          <option value="players">Players</option>
+          <option value="public">Public</option>
+        </select>
+      </label>
+
+      @for (field of active.fields; track field.key) {
+        <label class="lw-create__field">
+          <span>{{ field.label }}</span>
+          <input
+            type="text"
+            [value]="fieldValue(field.key)"
+            (input)="setField(field.key, $any($event.target).value)"
+            [attr.placeholder]="field.hint ?? null"
+          />
+        </label>
+      }
+
+      <label class="lw-create__field">
+        <span>Linked entities (composite keys, comma or line separated)</span>
+        <textarea rows="2" [ngModel]="linkedKeysText()" (ngModelChange)="linkedKeysText.set($event)"></textarea>
+      </label>
+
+      <div class="lw-create__prompts">
+        @for (prompt of active.prompts; track prompt) {
+          <p>{{ prompt }}</p>
+        }
+      </div>
+
+      <div class="lw-create__toolbar" role="toolbar" aria-label="Formatting">
+        <button type="button" (click)="format('bold')"><b>B</b></button>
+        <button type="button" (click)="format('italic')"><i>I</i></button>
+        <button type="button" (click)="format('underline')"><u>U</u></button>
+        <button type="button" (click)="format('insertUnorderedList')">List</button>
+        <button type="button" (click)="format('formatBlock', 'h2')">Heading</button>
+        <button type="button" (click)="useTemplate(editor)">Use template</button>
+      </div>
+
+      <div #editor class="lw-create__editor" contenteditable="true" role="textbox" aria-label="Body"></div>
+
+      <div class="lw-create__actions">
+        <button type="button" class="lw-create__save" [disabled]="saving()" (click)="save(editor)">
+          {{ saving() ? 'Saving…' : 'Save to the Loom' }}
+        </button>
+      </div>
+
+      @if (status(); as s) {
+        <p class="lw-create__status" [class.lw-create__status--error]="s.tone === 'error'" role="status">{{ s.text }}</p>
+      }
+    </div>
+  </lw-panel>
+}
+
+<lw-panel title="Recently filed" subtitle="What the Loom has recorded for this campaign.">
+  @if (recent().length === 0) {
+    <p class="lw-create__empty">Nothing filed yet.</p>
+  } @else {
+    <ul class="lw-create__recent">
+      @for (row of recent(); track row.captureKey) {
+        <li>
+          <strong>{{ row.title }}</strong>
+          <span>{{ row.intent }} · {{ row.targetKind }} · {{ row.createdAt | date: 'short' }}</span>
+        </li>
+      }
+    </ul>
+  }
+</lw-panel>

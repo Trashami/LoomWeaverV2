@@ -58,8 +58,8 @@ public static class CompendiumAndStudioEndpoints
             ["classes"] = ("dnd_custom_classes", "source_book", "description"),
             ["species"] = ("dnd_custom_species", "source_book", "description"),
             ["races"] = ("dnd_custom_species", "source_book", "description"),
-            ["backgrounds"] = ("dnd_custom_backgrounds", "source_book", "description"),
-            ["feats"] = ("dnd_custom_feats", "source_book", "description"),
+            ["backgrounds"] = ("dnd_backgrounds", "source_book", "description"),
+            ["feats"] = ("dnd_feats", "source_book", "description"),
             ["spells"] = ("dnd_spells", "source_book", "description"),
             ["spell-effects"] = ("dnd_spell_effects", "source_book", "spell_name"),
             ["items"] = ("dnd_items", "source_id", "description"),
@@ -261,7 +261,7 @@ public static class CompendiumAndStudioEndpoints
                     await using var cmd = new MySqlCommand("""
                         SELECT id, name, COALESCE(category, 'Feat'), COALESCE(LEFT(description, 260), ''),
                                image_path, COALESCE(source_book, 'PHB')
-                        FROM dnd_custom_feats
+                        FROM dnd_feats
                         WHERE (@q = '' OR name LIKE @like OR description LIKE @like)
                         ORDER BY name ASC
                         LIMIT @lim

@@ -759,7 +759,7 @@ def main():
               `higher_levels` mediumtext COLLATE utf8mb4_unicode_ci,
               `is_homebrew` tinyint(1) NOT NULL DEFAULT '0',
               `author` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-              `owner_id` varchar(191) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+              `owner_id` bigint DEFAULT NULL,
               `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
               `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
               `source_book` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -777,7 +777,6 @@ def main():
               `foundry_json` longtext COLLATE utf8mb4_unicode_ci,
               `campaign_scope_key` bigint GENERATED ALWAYS AS (coalesce(`campaign_id`,0)) STORED,
               PRIMARY KEY (`id`),
-              UNIQUE KEY `uq_spell_name_owner` (`name`,`owner_id`),
               UNIQUE KEY `uq_spell_name_source` (`name`,`source_book`),
               KEY `idx_spells_source_book` (`source_book`),
               KEY `idx_spells_school_code` (`school_code`)

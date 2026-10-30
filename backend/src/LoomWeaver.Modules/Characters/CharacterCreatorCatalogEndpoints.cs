@@ -158,7 +158,7 @@ public static class CharacterCreatorCatalogEndpoints
                            COALESCE(feature_name, 'Background Feature'),
                            COALESCE(LEFT(feature_desc, 220), ''),
                            COALESCE(LEFT(description, 260), '')
-                    FROM dnd_custom_backgrounds
+                    FROM dnd_backgrounds
                     WHERE is_public = 1
                     ORDER BY name ASC
                     LIMIT 400;
@@ -185,7 +185,7 @@ public static class CharacterCreatorCatalogEndpoints
                     SELECT id, name, COALESCE(source_book, 'PHB'), COALESCE(category, 'General'),
                            COALESCE(CAST(prerequisite_json AS CHAR), ''),
                            COALESCE(LEFT(description, 280), '')
-                    FROM dnd_custom_feats
+                    FROM dnd_feats
                     WHERE is_public = 1
                     ORDER BY name ASC
                     LIMIT 500;

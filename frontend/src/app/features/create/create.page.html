@@ -75,9 +75,17 @@
       <div #editor class="lw-create__editor" contenteditable="true" role="textbox" aria-label="Body"></div>
 
       <div class="lw-create__actions">
-        <button type="button" class="lw-create__save" [disabled]="saving()" (click)="save(editor)">
-          {{ saving() ? 'Saving…' : 'Save to the Loom' }}
-        </button>
+        @if (filed(); as done) {
+          <div class="lw-create__filed" role="status">
+            <strong>Saved to the Loom: {{ done.title }}</strong>
+            <span>Filed in {{ done.label }}. {{ done.graphProjected ? 'Linked into the graph.' : 'Saved; the graph link is pending.' }}</span>
+            <button type="button" class="lw-create__save" (click)="writeAnother(editor)">Write another</button>
+          </div>
+        } @else {
+          <button type="button" class="lw-create__save" [disabled]="saving()" (click)="save(editor)">
+            {{ saving() ? 'Saving…' : 'Save to the Loom' }}
+          </button>
+        }
       </div>
 
       @if (status(); as s) {

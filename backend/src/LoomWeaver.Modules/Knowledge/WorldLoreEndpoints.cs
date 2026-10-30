@@ -19,6 +19,7 @@ public static class WorldLoreEndpoints
             HttpContext httpContext, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
         {
             await Maps.Features.WorldAtlas.AtlasLocationBridge.Hydrate(repo,campaignId,ct);
+            await LoreEntryRepository.Hydrate(repo,campaignId,ct);
             var isGm = IsGm(httpContext, campaignId, role);
             return Results.Ok(BuildWorkspace(campaignId, isGm, mapId));
         });
@@ -266,11 +267,13 @@ public static class WorldLoreEndpoints
 
     private static void MapLoreAndHistoryEndpoints(RouteGroupBuilder world)
     {
-        world.MapPost("/lore", (
+        world.MapPost("/lore", async (
             int campaignId,
             string? role,
             UpsertLoreEntryRequest req,
-            HttpContext httpContext) =>
+            HttpContext httpContext,
+            LoomWeaverMySqlRepository repo,
+            CancellationToken ct) =>
         {
             if (!IsGm(httpContext, campaignId, role))
             {
@@ -282,6 +285,7 @@ public static class WorldLoreEndpoints
                 return Results.BadRequest(new { message = "Title and category are required." });
             }
 
+            await LoreEntryRepository.Hydrate(repo, campaignId, ct);
             var list = EnsureCampaignList(WorldLoreCatalogStore.LoreByCampaign, campaignId);
             var cleanTitle = req.Title.Trim();
             var cleanCat = req.Category.Trim();
@@ -293,8 +297,7 @@ public static class WorldLoreEndpoints
             var id = string.IsNullOrWhiteSpace(req.Id)
                 ? $"lore-{Slugify(cleanTitle)}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds() % 10000}"
                 : req.Id.Trim();
-            var existingIdx = list.FindIndex(e => e.Id == id);
-            var existing = existingIdx >= 0 ? list[existingIdx] : null;
+            var existing = list.FirstOrDefault(e => e.Id == id);
             var content = string.IsNullOrWhiteSpace(req.Content)
                 ? (req.Excerpt ?? $"{cleanTitle} — cataloged under {cleanCat}.")
                 : req.Content.Trim();
@@ -322,8 +325,14 @@ public static class WorldLoreEndpoints
                 DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
             );
 
-            if (existingIdx >= 0) list[existingIdx] = entry;
-            else list.Insert(0, entry);
+            try
+            {
+                await LoreEntryRepository.SaveAsync(repo, entry, ct);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Conflict(new { message = ex.Message });
+            }
 
             return Results.Ok(entry);
         });

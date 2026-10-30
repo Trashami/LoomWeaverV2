@@ -306,27 +306,39 @@ public static class CharacterCreatorCatalogEndpoints
 
             var compositeKey = $"{campaignId}:Note:{noteId}";
 
-            // The SQL write is the source of truth. Failures here propagate to the caller.
-            {
-                await using var db = await mysql.OpenConnectionAsync(ct);
-                await using var cmd = new MySqlCommand("""
-                    INSERT INTO lw_lore_entries (campaign_id, entry_key, category, title, subtitle, summary, visibility_scope, payload_json)
-                    VALUES (@cid, @ekey, 'Notes', @title, @sub, @sum, @vis, @payload)
-                    ON DUPLICATE KEY UPDATE title = VALUES(title), summary = VALUES(summary), visibility_scope = VALUES(visibility_scope), payload_json = VALUES(payload_json);
-                    """, db);
-                cmd.Parameters.AddWithValue("@cid", campaignId);
-                cmd.Parameters.AddWithValue("@ekey", noteId);
-                cmd.Parameters.AddWithValue("@title", req.Title);
-                cmd.Parameters.AddWithValue("@sub", $"{req.NoteType} · {req.Visibility} · by {req.AuthorUsername}");
-                cmd.Parameters.AddWithValue("@sum", req.ContentText);
-                cmd.Parameters.AddWithValue("@vis", req.Visibility);
-                cmd.Parameters.AddWithValue("@payload", JsonSerializer.Serialize(req));
-                await cmd.ExecuteNonQueryAsync(ct);
-            }
-
             var neoVis = string.Equals(req.Visibility, "global", StringComparison.OrdinalIgnoreCase)
                 ? "players"
                 : "gm";
+
+            var sourceKeyForLinks = req.SourceEntityKey?.Trim();
+            var linkedKeys = new List<string>();
+            if (!string.IsNullOrWhiteSpace(sourceKeyForLinks)) linkedKeys.Add(sourceKeyForLinks);
+            linkedKeys.AddRange((req.MentionedCompositeKeys ?? Array.Empty<string>())
+                .Select(k => k?.Trim() ?? string.Empty)
+                .Where(k => k.Length > 0));
+
+            var noteText = string.IsNullOrWhiteSpace(req.ContentText) ? req.Title : req.ContentText.Trim();
+            var noteEntry = new LoreEntryDto(
+                noteId,
+                compositeKey,
+                campaignId,
+                req.Title.Trim(),
+                $"{req.NoteType} · {req.Visibility} · by {req.AuthorUsername}",
+                "Notes",
+                noteText.Length > 160 ? noteText[..157] + "..." : noteText,
+                noteText,
+                "/icrandor_world_dashboard.jpg",
+                [req.NoteType ?? "Note"],
+                linkedKeys.Distinct(StringComparer.Ordinal).ToList(),
+                Array.Empty<LocationRelatedEntityDto>(),
+                neoVis,
+                false,
+                "Just now",
+                "Just now",
+                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
+            // The MySQL write is the source of truth. Failures here propagate to the caller.
+            await LoreEntryRepository.SaveAsync(mysql, noteEntry, ct);
 
             var graphProjected = true;
             try

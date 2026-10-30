@@ -12,6 +12,13 @@ import { LwPanelComponent } from '../../shared/ui/panel/panel.component';
 
 const LAST_INTENT_KEY = 'lw.create.lastIntent';
 
+interface FiledEntry {
+  readonly title: string;
+  readonly label: string;
+  readonly compositeKey: string | null;
+  readonly graphProjected: boolean;
+}
+
 interface CaptureRow {
   readonly captureKey: string;
   readonly intent: string;
@@ -49,6 +56,7 @@ export class CreatePageComponent {
   readonly fieldValues = signal<Record<string, string>>({});
   readonly saving = signal(false);
   readonly status = signal<{ tone: 'ok' | 'error'; text: string } | null>(null);
+  readonly filed = signal<FiledEntry | null>(null);
   readonly recent = signal<readonly CaptureRow[]>([]);
 
   constructor() {
@@ -107,11 +115,13 @@ export class CreatePageComponent {
     this.registry.saveAndCapture(intent, draft).subscribe({
       next: (receipt) => {
         this.saving.set(false);
-        const graph = receipt.graphProjected ? 'and linked into the graph' : 'saved; the graph link is pending';
-        this.status.set({ tone: 'ok', text: `${intent.label} saved ${graph}.` });
-        editor.innerHTML = '';
-        this.title.set('');
-        this.linkedKeysText.set('');
+        // The written content stays on screen until the user chooses to write another entry.
+        this.filed.set({
+          title,
+          label: intent.destination,
+          compositeKey: receipt.compositeKey,
+          graphProjected: receipt.graphProjected,
+        });
         this.loadRecent();
       },
       error: () => {
@@ -119,6 +129,14 @@ export class CreatePageComponent {
         this.status.set({ tone: 'error', text: `${intent.label} was not saved. Nothing was recorded. Try again.` });
       },
     });
+  }
+
+  writeAnother(editor: HTMLElement): void {
+    editor.innerHTML = '';
+    this.title.set('');
+    this.linkedKeysText.set('');
+    this.filed.set(null);
+    this.status.set(null);
   }
 
   private resetForm(): void {
@@ -129,6 +147,7 @@ export class CreatePageComponent {
       this.fieldValues.set(Object.fromEntries(intent.fields.map((f) => [f.key, f.defaultValue ?? ''])));
     }
     this.title.set('');
+    this.filed.set(null);
     this.status.set(null);
     this.lastIntent.set(this.readLastIntent());
   }

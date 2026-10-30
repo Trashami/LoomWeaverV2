@@ -297,6 +297,7 @@ CREATE TABLE IF NOT EXISTS `lw_lore_entries` (
   `artwork_url` VARCHAR(500) NOT NULL,
   `visibility` ENUM('public','players','gm') NOT NULL DEFAULT 'players',
   `archived` TINYINT(1) NOT NULL DEFAULT 0,
+  `payload_json` JSON NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   KEY `ix_lw_lore_entries_entity` (`entity_id`),

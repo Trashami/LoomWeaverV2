@@ -85,6 +85,23 @@
 
 .lw-create__actions { display: flex; justify-content: flex-end; }
 
+.lw-create__filed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(217, 183, 122, 0.55);
+  border-radius: 6px;
+  background: rgba(217, 183, 122, 0.08);
+  color: #d9b77a;
+
+  strong { font-weight: 600; }
+  span { flex: 1 1 16rem; font-size: 0.9rem; opacity: 0.9; }
+}
+
 .lw-create__save:disabled { opacity: 0.5; cursor: wait; }
 
 .lw-create__status {

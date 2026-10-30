@@ -1,59 +1,27 @@
 @let ws = worldLore.workspace();
 <div class="lw-world-page">
-  <header class="lw-world-header">
-    <div class="lw-world-header__titles">
-      <h1>WORLD &amp; LORE</h1>
-      <p>Atlas, locations, lore, history, and connected world knowledge.</p>
-    </div>
-
-    <nav class="lw-world-tabs" role="tablist" aria-label="World and Lore Views">
-      <button
-        type="button"
-        role="tab"
-        class="lw-world-tab"
-        [class.lw-world-tab--active]="worldLore.activePrimaryTab() === 'atlas'"
+  <lw-page-header title="World &amp; Lore" subtitle="Atlas, locations, lore, history, and connected world knowledge." icon="map">
+    <nav pageTabs class="lw-page-tabs" role="tablist" aria-label="World and Lore Views">
+      <button type="button" role="tab" class="lw-page-tab"
+        [class.lw-page-tab--active]="worldLore.activePrimaryTab() === 'atlas'"
         [attr.aria-selected]="worldLore.activePrimaryTab() === 'atlas'"
-        (click)="worldLore.setPrimaryTab('atlas')">
-        <lw-icon name="map" [size]="15"></lw-icon>
-        <span>Atlas</span>
-      </button>
-
-      <button
-        type="button"
-        role="tab"
-        class="lw-world-tab"
-        [class.lw-world-tab--active]="worldLore.activePrimaryTab() === 'lore'"
+        (click)="worldLore.setPrimaryTab('atlas')">Atlas</button>
+      <button type="button" role="tab" class="lw-page-tab"
+        [class.lw-page-tab--active]="worldLore.activePrimaryTab() === 'lore'"
         [attr.aria-selected]="worldLore.activePrimaryTab() === 'lore'"
-        (click)="worldLore.setPrimaryTab('lore')">
-        <lw-icon name="menu_book" [size]="15"></lw-icon>
-        <span>Lore Library</span>
-      </button>
-
-      <button
-        type="button"
-        role="tab"
-        class="lw-world-tab"
-        [class.lw-world-tab--active]="worldLore.activePrimaryTab() === 'history'"
+        (click)="worldLore.setPrimaryTab('lore')">Lore Library</button>
+      <button type="button" role="tab" class="lw-page-tab"
+        [class.lw-page-tab--active]="worldLore.activePrimaryTab() === 'history'"
         [attr.aria-selected]="worldLore.activePrimaryTab() === 'history'"
-        (click)="worldLore.setPrimaryTab('history')">
-        <lw-icon name="history_edu" [size]="15"></lw-icon>
-        <span>History</span>
-      </button>
-
+        (click)="worldLore.setPrimaryTab('history')">History</button>
       @if (isWeaveEnabled()) {
-        <button
-          type="button"
-          role="tab"
-          class="lw-world-tab"
-          [class.lw-world-tab--active]="worldLore.activePrimaryTab() === 'relationships'"
+        <button type="button" role="tab" class="lw-page-tab"
+          [class.lw-page-tab--active]="worldLore.activePrimaryTab() === 'relationships'"
           [attr.aria-selected]="worldLore.activePrimaryTab() === 'relationships'"
-          (click)="worldLore.setPrimaryTab('relationships')">
-          <lw-icon name="hub" [size]="15"></lw-icon>
-          <span>Relationships</span>
-        </button>
+          (click)="worldLore.setPrimaryTab('relationships')">Relationships</button>
       }
     </nav>
-  </header>
+  </lw-page-header>
 
   @if (worldLore.errorBanner(); as err) {
     <div class="lw-world-banner lw-world-banner--error" role="alert">

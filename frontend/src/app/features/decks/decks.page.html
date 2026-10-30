@@ -1,18 +1,14 @@
 <section class="decks-page">
-  <header class="decks-header">
-    @if (deck(); as d) {
-      <a class="back-link" routerLink="/decks" [queryParams]="{ source: d.source_book }">All {{ d.source_book }} decks</a>
-      <h1>{{ d.name }}</h1>
-      <p class="meta">{{ d.source_book }} · {{ d.uniqueCardCount }} unique cards</p>
-      @if (d.description) {
-        <p class="description">{{ d.description }}</p>
-      }
-    } @else {
-      <h1>Decks</h1>
-      <p class="meta">
-        @if (sourceFilter) { Source {{ sourceFilter }} } @else { All sourcebooks }
-      </p>
-      <div class="search-row">
+  @if (deck(); as d) {
+    <lw-page-header [title]="d.name" [subtitle]="d.source_book + ' - ' + d.uniqueCardCount + ' unique cards'">
+      <a pageActions class="back-link" routerLink="/decks" [queryParams]="{ source: d.source_book }">All {{ d.source_book }} decks</a>
+    </lw-page-header>
+    @if (d.description) {
+      <p class="description">{{ d.description }}</p>
+    }
+  } @else {
+    <lw-page-header title="Decks" [subtitle]="sourceFilter ? 'Source ' + sourceFilter : 'All sourcebooks'">
+      <div pageActions class="search-row">
         <input
           type="search"
           placeholder="Search decks"
@@ -23,8 +19,9 @@
         />
         <button type="button" ngpButton (click)="loadList()">Search</button>
       </div>
-    }
-  </header>
+    </lw-page-header>
+  }
+
 
   @if (errorMessage()) {
     <p class="error" role="alert">{{ errorMessage() }}</p>

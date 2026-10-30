@@ -1,21 +1,11 @@
 <section class="sourcebook-page">
   @if (source(); as s) {
-    <header class="book-header">
-      <a class="back-link" routerLink="/sources">All sourcebooks</a>
-      <div class="book-title-row">
-        @if (s.cover_path) {
-          <img class="cover" [src]="s.cover_path" [alt]="s.name + ' cover'" />
-        }
-        <div>
-          <h1>{{ s.name }}</h1>
-          <p class="meta">
-            {{ s.id }} · {{ s.source_group ?? 'Source' }}
-            @if (s.author) { · {{ s.author }} }
-            @if (s.published) { · {{ s.published }} }
-          </p>
-        </div>
-      </div>
-    </header>
+    <lw-page-header [title]="s.name" [subtitle]="s.id + ' · ' + (s.source_group ?? 'Source') + (s.author ? ' · ' + s.author : '') + (s.published ? ' · ' + s.published : '')">
+      <a pageActions class="back-link" routerLink="/sources">All sourcebooks</a>
+    </lw-page-header>
+    @if (s.cover_path) {
+      <img class="cover" [src]="s.cover_path" [alt]="s.name + ' cover'" />
+    }
 
     @if (s.decks.length > 0) {
       <section class="panel">
@@ -57,9 +47,8 @@
       </ol>
     </section>
   } @else {
-    <header>
-      <h1>Sourcebooks</h1>
-      <div class="search-row">
+    <lw-page-header title="Sourcebooks" subtitle="Rulebooks and adventures imported into LoomWeaver.">
+      <div pageActions class="search-row">
         <input
           type="search"
           placeholder="Search sourcebooks"
@@ -70,7 +59,7 @@
         />
         <button type="button" ngpButton (click)="loadList()">Search</button>
       </div>
-    </header>
+    </lw-page-header>
 
     @if (loading()) {
       <p class="meta">Loading...</p>

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgpButton } from 'ng-primitives/button';
+import { LwPageHeaderComponent } from '../../shared/ui/public-api';
 import {
   StoreApiService,
   StoreContentType,
@@ -19,7 +20,7 @@ const PLATFORM_CREATOR = 'loomweaver';
 @Component({
   selector: 'lw-store-page',
   standalone: true,
-  imports: [FormsModule, NgpButton],
+  imports: [FormsModule, NgpButton, LwPageHeaderComponent],
   templateUrl: './store.page.html',
   styleUrl: './store.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

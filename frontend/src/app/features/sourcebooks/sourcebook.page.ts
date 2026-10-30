@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { NgpButton } from 'ng-primitives/button';
+import { LwPageHeaderComponent } from '../../shared/ui/public-api';
 import {
   LwSourceDetailVm,
   LwSourceSummaryVm,
@@ -11,7 +12,7 @@ import {
 @Component({
   selector: 'lw-sourcebook-page',
   standalone: true,
-  imports: [FormsModule, RouterLink, NgpButton],
+  imports: [FormsModule, RouterLink, NgpButton, LwPageHeaderComponent],
   templateUrl: './sourcebook.page.html',
   styleUrl: './sourcebook.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

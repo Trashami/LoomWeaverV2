@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { NgpButton } from 'ng-primitives/button';
+import { LwPageHeaderComponent } from '../../shared/ui/public-api';
 import {
   DeckApiService,
   LwDeckCardVm,
@@ -12,7 +13,7 @@ import {
 @Component({
   selector: 'lw-decks-page',
   standalone: true,
-  imports: [FormsModule, RouterLink, NgpButton],
+  imports: [FormsModule, RouterLink, NgpButton, LwPageHeaderComponent],
   templateUrl: './decks.page.html',
   styleUrl: './decks.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

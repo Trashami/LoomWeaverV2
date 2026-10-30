@@ -66,7 +66,7 @@ export class VttBattleStateService {
 
   // Right Collapsible Panel State
   readonly rightPanelCollapsed = signal<boolean>(false);
-  readonly activeRightTab = signal<VttRightTabId>('initiative');
+  readonly activeRightTab = signal<VttRightTabId>('combat-log');
 
   // Floating Battle Map Drawers & Action Bar Settings Modal
   readonly openDmDrawer = signal<VttOpenDmDrawer>('none');

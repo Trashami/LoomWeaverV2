@@ -116,7 +116,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   readonly dmToolReadout = signal<string>(
     'Session Ready: DM can drag any token; Players move on their Initiative turn. Click an ability below to aim & cast.',
   );
-  readonly gmRailOpen = signal<boolean>(true);
+  readonly gmRailOpen = signal<boolean>(false);
 
   // Quick-Add Monster & NPC Form State
   readonly quickAddMonsterId = signal<string>('creat-goblin-scout-a');

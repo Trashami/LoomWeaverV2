@@ -276,16 +276,26 @@
     @if (!battle.rightPanelCollapsed()) {
       <aside class="lw-vtt-right-panel" aria-label="Encounter Information & Role-Scoped Drawer">
         <nav class="lw-vtt-right-tabs" aria-label="Encounter Drawer Tabs">
-          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'chat'" (click)="battle.activeRightTab.set('chat')">Chat</button>
-          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'combat-log'" (click)="battle.activeRightTab.set('combat-log')">Combat Log</button>
-          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'initiative'" (click)="battle.activeRightTab.set('initiative')">Initiative</button>
+          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'combat-log'" (click)="battle.activeRightTab.set('combat-log')">Roll Log</button>
+          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'chat'" (click)="battle.activeRightTab.set('chat')">Campaign Chat</button>
           <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'quests'" (click)="battle.activeRightTab.set('quests')">Quests</button>
+          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'settings'" (click)="battle.activeRightTab.set('settings')">Settings</button>
+        </nav>
+        <nav class="lw-vtt-right-tabs lw-vtt-right-tabs--secondary" aria-label="Encounter Tools">
+          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'initiative'" (click)="battle.activeRightTab.set('initiative')">Initiative</button>
           <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'npcs'" (click)="battle.activeRightTab.set('npcs')">NPCs</button>
           <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'guide'" (click)="battle.activeRightTab.set('guide')">Guide</button>
           <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'trackers'" (click)="battle.activeRightTab.set('trackers')">Trackers</button>
           <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'lore'" (click)="battle.activeRightTab.set('lore')">Lore</button>
-          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'settings'" (click)="battle.activeRightTab.set('settings')">Settings</button>
         </nav>
+
+        <div class="lw-vtt-dice-row" aria-label="Dice roller">
+          @for (die of ['d4', 'd6', 'd8', 'd10', 'd12', 'd20', 'd100']; track die) {
+            <button ngpButton type="button" class="lw-vtt-die-btn" [class.active]="selectedDiceFormula() === '1' + die" (click)="selectedDiceFormula.set('1' + die)">{{ die }}</button>
+          }
+          <input type="text" class="lw-vtt-dice-input" aria-label="Dice formula" [ngModel]="selectedDiceFormula()" (ngModelChange)="selectedDiceFormula.set($event)" (keyup.enter)="rollSelectedDice()" />
+          <button ngpButton type="button" class="lw-vtt-die-btn lw-vtt-die-btn--roll" (click)="rollSelectedDice()">Roll</button>
+        </div>
 
         <div class="lw-vtt-right-content">
           @if (battle.activeRightTab() === 'settings') {

@@ -44,6 +44,8 @@ export class GlbModelCache {
   private static decoderConfigured = false;
   private static lodTier: GlbLodTier = 'mid';
   private static lodManifest: GlbLodManifest | undefined;
+  /** Bumped on every eviction so loads started under an old tier are discarded on completion. */
+  private static generation = 0;
 
   /** Supplies the server's list of existing LOD files so missing variants are never requested. */
   static setLodManifest(manifest: GlbLodManifest): void {
@@ -141,7 +143,11 @@ export class GlbModelCache {
       return existing;
     }
     if (!this.pending.has(url)) {
+      const gen = this.generation;
       const loadPromise = this.loadGlbTemplateAsync(scene, url).then((tpl) => {
+        if (gen !== this.generation) {
+          return null;
+        }
         this.pending.delete(url);
         if (!tpl) {
           this.failedUrls.add(url);
@@ -157,10 +163,29 @@ export class GlbModelCache {
     return null;
   }
 
+  static getLodTier(): GlbLodTier {
+    return this.lodTier;
+  }
+
+  /**
+   * Switches the detail tier and frees every template from the previous tier.
+   * Callers must dispose all instances first; clones share geometry with their template.
+   */
   static setLodTier(tier: GlbLodTier): boolean {
     if (this.lodTier === tier) return false;
     this.lodTier = tier;
+    this.evictTemplates();
     return true;
+  }
+
+  static evictTemplates(): void {
+    this.generation++;
+    for (const tpl of this.cache.values()) {
+      tpl.templatePivot.dispose(false, true);
+    }
+    this.cache.clear();
+    this.pending.clear();
+    this.failedUrls.clear();
   }
 
   private static async loadGlbTemplateAsync(
@@ -168,11 +193,13 @@ export class GlbModelCache {
     modelUrl: string,
   ): Promise<CachedGlbTemplate | null> {
     try {
+      const gen = this.generation;
       const lastSlash = modelUrl.lastIndexOf('/');
       const rootUrl = modelUrl.slice(0, lastSlash + 1);
       const fileName = modelUrl.slice(lastSlash + 1);
       const result = await SceneLoader.ImportMeshAsync('', rootUrl, fileName, scene);
-      if (scene.isDisposed) {
+      if (scene.isDisposed || gen !== this.generation) {
+        result.meshes.forEach((m) => m.dispose());
         return null;
       }
 

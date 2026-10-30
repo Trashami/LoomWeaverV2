@@ -800,8 +800,13 @@ export class BabylonMapStageService {
 
   setQualityPreset(preset: string): void {
     if (!this.engine) return;
-    if (GlbModelCache.setLodTier(lodTierForQualityPreset(preset)) && this.lastState) {
-      this.syncSceneGraph(this.lastState);
+    const tier = lodTierForQualityPreset(preset);
+    if (tier !== GlbModelCache.getLodTier() && this.scene) {
+      this.disposeGlbInstances(this.scene);
+      GlbModelCache.setLodTier(tier);
+      if (this.lastState) {
+        this.syncSceneGraph(this.lastState);
+      }
     }
     if (preset === 'Cinematic 3D') {
       this.engine.setHardwareScalingLevel(0.85);
@@ -871,6 +876,16 @@ export class BabylonMapStageService {
     this.activeInstanceCount.set(
       scatterCount + state.stamps.length + state.lights.length + wallCount + pathCount,
     );
+  }
+
+  /** Removes every GLB instance (stamps, scatter, ghost) so old-tier geometry can be freed. */
+  private disposeGlbInstances(scene: Scene): void {
+    scene.transformNodes
+      .filter((n) => /^lw-(stamp-node|scatter-node|ghost)-/.test(n.name))
+      .forEach((n) => n.dispose(false, false));
+    scene.meshes
+      .filter((m) => /^lw-(stamp|scatter|ghost)-/.test(m.name))
+      .forEach((m) => m.dispose(false, false));
   }
 
   private rebuildStamps(scene: Scene, stamps: readonly MapStampNode[]): void {

@@ -20,6 +20,7 @@ import {
   LwMonsterSortOption,
   LwMonsterSourceFilter,
   LwPagerComponent,
+  LwPageHeaderComponent,
   LwPanelComponent,
   LwSaveMonsterCollectionDraft,
 } from '../../shared/ui/public-api';
@@ -34,6 +35,7 @@ import { MonsterTokenLibraryService } from './services/monster-token-library.ser
     FormsModule,
     NgpButton,
     LwPanelComponent,
+    LwPageHeaderComponent,
     LwBadgeComponent,
     LwButtonComponent,
     LwMonsterCardComponent,

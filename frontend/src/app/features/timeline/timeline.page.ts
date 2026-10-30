@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
-import { LwCreatePlaceholderComponent, LwPanelComponent } from '../../shared/ui/public-api';
+import { LwCreatePlaceholderComponent, LwPageHeaderComponent, LwPanelComponent } from '../../shared/ui/public-api';
 
 interface SessionEntry {
   readonly id: string;
@@ -28,7 +28,7 @@ interface PlayEventEntry {
 @Component({
   selector: 'lw-timeline-page',
   standalone: true,
-  imports: [DatePipe, RouterLink, LwPanelComponent, LwCreatePlaceholderComponent],
+  imports: [DatePipe, RouterLink, LwPanelComponent, LwPageHeaderComponent, LwCreatePlaceholderComponent],
   templateUrl: './timeline.page.html',
   styleUrl: './timeline.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

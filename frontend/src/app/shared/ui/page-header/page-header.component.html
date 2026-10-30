@@ -1,0 +1,19 @@
+<header class="lw-page-header">
+  <div class="lw-page-header__title-group">
+    <span class="lw-page-header__icon"><lw-icon [name]="icon()" [size]="20" tone="gold" /></span>
+    <div>
+      <h1 class="lw-page-header__title">{{ title() }}</h1>
+      @if (subtitle()) {
+        <p class="lw-page-header__sub">{{ subtitle() }}</p>
+      }
+    </div>
+  </div>
+
+  <div class="lw-page-header__tabs">
+    <ng-content select="[pageTabs]" />
+  </div>
+
+  <div class="lw-page-header__actions">
+    <ng-content select="[pageActions]" />
+  </div>
+</header>

@@ -1,12 +1,13 @@
 <div class="lw-page lw-bestiary-page">
-  <lw-panel variant="page-header" title="Bestiary" subtitle="Creatures and homebrew for your adventures.">
-    <div panelActions class="lw-bestiary-actions">
+  <lw-page-header title="Bestiary" subtitle="Creatures and homebrew for your adventures.">
+    <div pageActions class="lw-bestiary-actions">
       @if (campaign.isEffectiveGm()) {
         <lw-button variant="secondary" size="sm" label="New collection" (pressed)="openCreateCollection()" />
       }
       <lw-button variant="emerald" size="sm" label="New monster" (pressed)="catalog.openCreateCustom()" />
     </div>
-  </lw-panel>
+  </lw-page-header>
+
   <lw-panel variant="studio">
     <div class="lw-bestiary-status">
       <span>{{ catalog.total() }} monsters</span>

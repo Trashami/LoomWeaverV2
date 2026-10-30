@@ -1,12 +1,12 @@
 <div class="lw-page lw-items-page">
-  <lw-panel variant="page-header" title="Items" subtitle="Equipment and homebrew for your adventures.">
-    <div panelActions class="lw-items-header-actions">
+  <lw-page-header title="Items" subtitle="Equipment and homebrew for your adventures.">
+    <div pageActions class="lw-items-header-actions">
       @if (isEffectiveGm()) {
         <lw-button variant="secondary" size="sm" label="New collection" (pressed)="openCreateCollectionModal()" />
       }
       <lw-button variant="emerald" size="sm" label="New item" (pressed)="openCreateCustomItemModal()" />
     </div>
-  </lw-panel>
+  </lw-page-header>
 
   <lw-panel variant="studio">
     <div class="lw-items-context">

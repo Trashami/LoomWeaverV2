@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
-import { LwCreatePlaceholderComponent, LwPanelComponent } from '../../shared/ui/public-api';
+import { LwCreatePlaceholderComponent, LwPageHeaderComponent, LwPanelComponent } from '../../shared/ui/public-api';
 
 interface HandoutEntry {
   readonly id: string;
@@ -23,7 +23,7 @@ interface LoreWorkspaceResponse {
 @Component({
   selector: 'lw-handouts-page',
   standalone: true,
-  imports: [LwPanelComponent, LwCreatePlaceholderComponent],
+  imports: [LwPageHeaderComponent, LwPanelComponent, LwCreatePlaceholderComponent],
   templateUrl: './handouts.page.html',
   styleUrl: './handouts.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

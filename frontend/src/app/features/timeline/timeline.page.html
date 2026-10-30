@@ -1,13 +1,8 @@
-<lw-panel
-  variant="page-header"
-  eyebrow="Timelines"
-  title="Campaign Timeline"
-  subtitle="Every session in order, with what happened, where it took place, and the XP it awarded."
->
-  <div panelActions class="lw-timeline__actions">
+<lw-page-header title="Campaign Timeline" subtitle="Every session in order, with what happened, where it took place, and the XP it awarded.">
+  <div pageActions class="lw-timeline__actions">
     <a routerLink="/loom" class="lw-link-reset">Open Sessions</a>
   </div>
-</lw-panel>
+</lw-page-header>
 
 @if (loading()) {
   <p class="lw-timeline__status">Loading timeline...</p>

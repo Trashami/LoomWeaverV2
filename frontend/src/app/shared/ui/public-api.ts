@@ -61,6 +61,7 @@ export * from './monster-statblock/monster-statblock.component';
 export * from './npc-card/npc-card.component';
 export * from './note-composer-modal/note-composer-modal.component';
 export * from './panel/panel.component';
+export * from './page-header/page-header.component';
 export * from './pager/pager.component';
 export * from './party-roster-card/party-roster-card.component';
 export * from './quest-tracker-card/quest-tracker-card.component';

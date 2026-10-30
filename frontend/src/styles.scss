@@ -43,6 +43,21 @@ textarea {
   outline-offset: 2px;
 }
 
+.lw-page-tabs {
+  display: inline-flex; gap: 0.35rem; background: rgba(5, 13, 10, 0.84);
+  padding: 0.22rem; border-radius: 8px; border: 1px solid rgba(217, 183, 122, 0.22);
+}
+
+.lw-page-tab {
+  padding: 0.36rem 0.72rem; border-radius: 6px; border: 1px solid transparent;
+  background: transparent; color: #a3b8ae; font-size: 0.75rem; font-weight: 600; cursor: pointer;
+  &:hover { color: #f6e7c8; }
+  &--active {
+    background: linear-gradient(180deg, rgba(217, 183, 122, 0.24), rgba(73, 232, 146, 0.12));
+    border-color: rgba(217, 183, 122, 0.45); color: #f9eccf;
+  }
+}
+
 .lw-page-grid {
   display: grid;
   gap: var(--lw-space-lg);

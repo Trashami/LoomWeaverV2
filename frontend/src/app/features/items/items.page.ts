@@ -18,6 +18,7 @@ import {
   LwItemRarity,
   LwItemSortOption,
   LwPagerComponent,
+  LwPageHeaderComponent,
   LwPanelComponent,
 } from '../../shared/ui/public-api';
 import { ItemsCatalogService } from './services/items-catalog.service';
@@ -30,6 +31,7 @@ import { ItemsCatalogService } from './services/items-catalog.service';
     RouterLink,
     NgpButton,
     LwPanelComponent,
+    LwPageHeaderComponent,
     LwBadgeComponent,
     LwButtonComponent,
     LwItemCardComponent,

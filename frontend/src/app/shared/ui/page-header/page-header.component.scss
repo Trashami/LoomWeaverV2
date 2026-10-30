@@ -1,0 +1,28 @@
+:host { display: block; min-width: 0; }
+
+.lw-page-header {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: 0.75rem; padding: 0.55rem 0.95rem; border-radius: 10px;
+  border: 1px solid rgba(217, 183, 122, 0.24);
+  background: linear-gradient(90deg, rgba(8, 22, 16, 0.96) 0%, rgba(7, 16, 13, 0.94) 100%);
+}
+
+.lw-page-header__title-group { display: flex; align-items: center; gap: 0.65rem; }
+
+.lw-page-header__icon {
+  width: 34px; height: 34px; border-radius: 8px;
+  border: 1px solid rgba(217, 183, 122, 0.36); background: rgba(217, 183, 122, 0.1);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+
+.lw-page-header__title {
+  margin: 0; font-family: var(--lw-font-display, Georgia, serif);
+  font-size: 1.05rem; letter-spacing: 0.06em; color: #f6e7c8; text-transform: uppercase;
+}
+
+.lw-page-header__sub { margin: 0.1rem 0 0; font-size: 0.76rem; color: #9cb2a7; }
+
+.lw-page-header__tabs:empty,
+.lw-page-header__actions:empty { display: none; }
+
+.lw-page-header__actions { display: inline-flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }

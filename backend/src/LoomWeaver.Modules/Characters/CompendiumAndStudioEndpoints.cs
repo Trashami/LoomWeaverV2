@@ -436,6 +436,7 @@ public static class CompendiumAndStudioEndpoints
         });
 
         api.MapCharacterCreatorCatalogEndpoints();
+        api.MapCustomFeatsBackgroundsEndpoints();
 
         return api;
     }

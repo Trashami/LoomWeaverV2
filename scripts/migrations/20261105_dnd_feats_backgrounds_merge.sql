@@ -1,6 +1,6 @@
 -- Merge homebrew/custom feat and background columns into the canonical tables.
--- dnd_custom_feats / dnd_custom_backgrounds are retired after the loader and backend
--- switch to dnd_feats / dnd_backgrounds (see scripts/merge_custom_feats_backgrounds.py).
+-- dnd_custom_feats / dnd_custom_backgrounds are dropped by 20261107_retire_dnd_custom_feats_backgrounds.sql
+-- after the backend switched to dnd_feats / dnd_backgrounds.
 -- Official rows: is_canonical = 1, owner_id NULL, is_public = 1.
 -- Custom (user-owned) rows will use is_canonical = 0 and owner_id = lw_users.id.
 

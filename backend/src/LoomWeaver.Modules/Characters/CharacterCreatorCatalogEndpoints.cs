@@ -2,6 +2,7 @@ using System.Text.Json;
 using LoomWeaver.Domain;
 using LoomWeaver.Infrastructure.MySql;
 using LoomWeaver.Infrastructure.Neo4j;
+using LoomWeaver.Modules.Auth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -26,8 +27,9 @@ public static class CharacterCreatorCatalogEndpoints
 {
     public static RouteGroupBuilder MapCharacterCreatorCatalogEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/characters/creator-catalog", async (LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
+        api.MapGet("/characters/creator-catalog", async (HttpContext ctx, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
         {
+            var ownerId = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx)?.Id ?? -1;
             var species = new List<object>();
             var subraces = new List<object>();
             var classes = new List<object>();
@@ -159,10 +161,10 @@ public static class CharacterCreatorCatalogEndpoints
                            COALESCE(LEFT(feature_desc, 220), ''),
                            COALESCE(LEFT(description, 260), '')
                     FROM dnd_backgrounds
-                    WHERE is_public = 1
+                    WHERE (is_canonical = 1 AND is_public = 1) OR (is_canonical = 0 AND owner_id = @owner)
                     ORDER BY name ASC
                     LIMIT 400;
-                    """, db))
+                    """, db).WithParameter("@owner", ownerId))
                 await using (var r = await cmd.ExecuteReaderAsync(ct))
                 {
                     while (await r.ReadAsync(ct))
@@ -172,8 +174,8 @@ public static class CharacterCreatorCatalogEndpoints
                             id = r.GetInt64(0),
                             name = r.GetString(1),
                             sourceBook = r.GetString(2),
-                            skillsJson = r.GetString(3),
-                            toolsJson = r.GetString(4),
+                            skillsJson = CatalogProficiencyJson.ToStringArray(r.GetString(3)),
+                            toolsJson = CatalogProficiencyJson.ToStringArray(r.GetString(4)),
                             featureName = r.GetString(5),
                             featureDesc = r.GetString(6),
                             description = r.GetString(7)
@@ -186,10 +188,10 @@ public static class CharacterCreatorCatalogEndpoints
                            COALESCE(CAST(prerequisite_json AS CHAR), ''),
                            COALESCE(LEFT(description, 280), '')
                     FROM dnd_feats
-                    WHERE is_public = 1
+                    WHERE (is_canonical = 1 AND is_public = 1) OR (is_canonical = 0 AND owner_id = @owner)
                     ORDER BY name ASC
                     LIMIT 500;
-                    """, db))
+                    """, db).WithParameter("@owner", ownerId))
                 await using (var r = await cmd.ExecuteReaderAsync(ct))
                 {
                     while (await r.ReadAsync(ct))

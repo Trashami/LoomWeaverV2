@@ -11,114 +11,10 @@ namespace LoomWeaver.Modules.Knowledge;
 
 public static class LoomAndWeaveEndpoints
 {
-    private static readonly List<ScopedCampaignNoteContract> CampaignNotes = new()
-    {
-        new ScopedCampaignNoteContract(
-            "note-kildrid-stone",
-            1,
-            "Stone-Sense Tremor Along the Northeast Cinth Road",
-            "Passing the southern mountain forest on the road from Vandia to Cinth, Kildrid felt rhythmic, centuries-old clawing against runic bedrock—an ancient dragon bound alive beneath the mountain.",
-            "party_shared",
-            "Kildrid",
-            "Kildrid",
-            9,
-            "/maps",
-            new[] { "1:Location:loc-mountain-cavern", "1:Character:char-kildrid" },
-            DateTimeOffset.UtcNow.AddDays(-6)
-        ),
-        new ScopedCampaignNoteContract(
-            "note-kycius-dolly",
-            1,
-            "The Quiet Maw Sewn Inside Dolly",
-            "On the road to Cinth, Kycius stitched an extradimensional containment pocket inside Dolly's mouth so Fivi's companion swallows targets into stasis rather than killing them outright.",
-            "party_shared",
-            "Kycius",
-            "Kycius",
-            10,
-            "/characters",
-            new[] { "1:Character:char-kycius", "1:Character:char-fivi" },
-            DateTimeOffset.UtcNow.AddDays(-5)
-        ),
-        new ScopedCampaignNoteContract(
-            "note-fivi-private",
-            1,
-            "Fivi's Fear of the Feywild Outcast Road",
-            "Fivi jokes loudest when the party talks of home. She was cast out of the Feywild and fears she belongs nowhere, which is why she claims Captain Kutler's skyship as already hers.",
-            "private_player",
-            "Fivi",
-            "Fivi",
-            12,
-            "/characters",
-            new[] { "1:Character:char-fivi" },
-            DateTimeOffset.UtcNow.AddDays(-3)
-        ),
-        new ScopedCampaignNoteContract(
-            "note-dal-private",
-            1,
-            "Missing Pages of the Edhellainian Crown",
-            "Dal suspects the torn ledger pages in Edhellain name his bloodline as the true royal lineage, though he has not yet chosen whether to claim the throne.",
-            "private_player",
-            "Dal",
-            "Dal",
-            14,
-            "/campaigns",
-            new[] { "1:Character:char-dal" },
-            DateTimeOffset.UtcNow.AddDays(-2)
-        ),
-        new ScopedCampaignNoteContract(
-            "note-gm-emrys-trap",
-            1,
-            "GM Secret: Emrys's Life-Bound Dragon & The Priors' Siphon",
-            "Emrys cannot slay the mountain dragon himself because the dragon bound its life to his before containment. He is diverting the party into the cavern so they kill it and let him extract the final Luminary location.",
-            "gm_only",
-            "Game Master",
-            "GM",
-            15,
-            "/arcane-screen",
-            new[] { "1:NPC:npc-emrys", "1:Secret:sec-priors-siphon" },
-            DateTimeOffset.UtcNow.AddDays(-1)
-        )
-    };
+    // Campaign notes and Weave drafts start empty and are created per campaign by the GM.
+    private static readonly List<ScopedCampaignNoteContract> CampaignNotes = new();
 
-    private static readonly List<WeaveDraftContract> WeaveDrafts = new()
-    {
-        new WeaveDraftContract(
-            "draft-cinth-artificer",
-            "1:NPC:draft-master-vael",
-            "NPC",
-            "Master Artificer Vaelen Thorne",
-            "Chief Aether-wright of the Cinth Guildhall",
-            "A non-magical engineer scarred during the Moonlight Wars who builds phosphor-bronze arc condensers so ordinary citizens never kneel to the Council of Magic again.",
-            "Grounded in Cinth Artificers Guild & post-Moonlight Wars class tension.",
-            new[] { "ALLY_OF -> 1:Faction:fac-artificers", "OPPOSES -> 1:NPC:npc-emrys" },
-            "draft",
-            "players"
-        ),
-        new WeaveDraftContract(
-            "draft-chokrah-vault",
-            "1:Quest:draft-chokrah-convoy",
-            "Quest",
-            "The Chokrah Siphon Ledgers of Lost Isles",
-            "Follow Captain Kutler's skyship intelligence into the Priors' titration vaults",
-            "Investigate the ritual Chokrah shipments brought from the Lost Isles and expose how the Priors siphon innate magic from street-born initiates.",
-            "Grounded in Captain Kutler's skyship return & Ekkos Priors distortion.",
-            new[] { "INVOLVES -> 1:NPC:npc-kutler", "EXPOSES -> 1:Secret:sec-priors-siphon" },
-            "draft",
-            "gm"
-        ),
-        new WeaveDraftContract(
-            "draft-orc-vanguard",
-            "1:Encounter:draft-village-siege",
-            "Monster",
-            "Iron-Tusk Full-Blood Orc Siegebreaker",
-            "Book Two Village Assault Vanguard (CR 7)",
-            "Heavy siege infantry massing near the timber village where Munk was raised and trained before the skyship crash.",
-            "Grounded in Book Two opening arc & Munk's mentor storyline.",
-            new[] { "THREATENS -> 1:Character:char-munk" },
-            "draft",
-            "gm"
-        )
-    };
+    private static readonly List<WeaveDraftContract> WeaveDrafts = new();
 
     public static RouteGroupBuilder MapLoomAndWeaveEndpoints(this RouteGroupBuilder api)
     {
@@ -178,7 +74,7 @@ public static class LoomAndWeaveEndpoints
             var isGm = access.IsEffectiveGm;
             var viewerRole = access.EffectiveViewerRole;
             var witness = string.IsNullOrWhiteSpace(req.WitnessCharacter) ? "All Party" : req.WitnessCharacter.Trim();
-            var q = string.IsNullOrWhiteSpace(req.Query) ? "What is happening in Cinth?" : req.Query.Trim();
+            var q = string.IsNullOrWhiteSpace(req.Query) ? "" : req.Query.Trim();
 
             var entities = await repo.GetAuthorizedEntitiesAsync(campaignId, viewerRole, null, ct);
             var matchedEntities = entities
@@ -224,8 +120,7 @@ public static class LoomAndWeaveEndpoints
                      (witness == "All Party" || string.Equals(n.WitnessCharacter, witness, StringComparison.OrdinalIgnoreCase))))
                 .Where(n =>
                     n.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                    n.Content.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                    matchingNoteDefault(q))
+                    n.Content.Contains(q, StringComparison.OrdinalIgnoreCase))
                 .Take(4)
                 .ToList();
 
@@ -261,8 +156,8 @@ public static class LoomAndWeaveEndpoints
             WeaveGenerateRequest req) =>
         {
             var cat = string.IsNullOrWhiteSpace(req.Category) ? "NPC" : req.Category.Trim();
-            var loc = string.IsNullOrWhiteSpace(req.GroundedLocation) ? "Cinth & Plains of Vistagh" : req.GroundedLocation.Trim();
-            var prompt = string.IsNullOrWhiteSpace(req.Prompt) ? "Cinth Artificer counterweight to the Council of Magic" : req.Prompt.Trim();
+            var loc = string.IsNullOrWhiteSpace(req.GroundedLocation) ? "Campaign canon" : req.GroundedLocation.Trim();
+            var prompt = string.IsNullOrWhiteSpace(req.Prompt) ? "Campaign-grounded draft" : req.Prompt.Trim();
             var id = $"draft-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
 
             var draft = new WeaveDraftContract(
@@ -327,10 +222,10 @@ public static class LoomAndWeaveEndpoints
                     updated.Subtitle,
                     "Allied",
                     "emerald",
-                    "/six-engines-showcase.jpg",
+                    "",
                     updated.Summary,
                     $"\"{updated.Subtitle}\"",
-                    "Approved in The Weave · Linked to Session 15",
+                    "Approved in The Weave",
                     $"/weave?node={updated.Id}",
                     updated.Visibility);
             }
@@ -339,11 +234,6 @@ public static class LoomAndWeaveEndpoints
 
         return api;
     }
-
-    private static bool matchingNoteDefault(string q) =>
-        q.Contains("Cinth", StringComparison.OrdinalIgnoreCase) ||
-        q.Contains("mountain", StringComparison.OrdinalIgnoreCase) ||
-        q.Contains("Kildrid", StringComparison.OrdinalIgnoreCase);
 
     private static string NormalizeScope(string? scope) =>
         scope?.Trim().ToLowerInvariant() switch

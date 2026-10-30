@@ -2,7 +2,7 @@ import { DiceSkinConfig } from './dice-skin.types';
 
 export const ELVEN_SKIN: DiceSkinConfig = {
   id: 'skin-fey-emerald',
-  name: 'Edhellain Moonwood',
+  name: 'Moonwood',
   tagline: 'Ancient ironwood heart-grain inlaid with living fey-emerald sap',
   materialFamily: 'Moonwood & Fey Sap',
   tier: 'Reward',

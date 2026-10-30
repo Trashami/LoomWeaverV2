@@ -229,7 +229,7 @@ public static class CharacterSheetLiveTelemetryEndpoints
             var modeStr = mode == "advantage" ? " (ADV)" : mode == "disadvantage" ? " (DIS)" : "";
             var formula = $"{count}d{sides}{modStr}{modeStr}";
             var charKey = string.IsNullOrWhiteSpace(req.CharacterKey) ? "char-ciaran" : req.CharacterKey.Trim();
-            var charName = string.IsNullOrWhiteSpace(req.CharacterName) ? "Ciarán Fiachra" : req.CharacterName.Trim();
+            var charName = string.IsNullOrWhiteSpace(req.CharacterName) ? "Sample Hero" : req.CharacterName.Trim();
             var itemName = string.IsNullOrWhiteSpace(req.ItemName) ? "Check" : req.ItemName.Trim();
             var slotCost = string.IsNullOrWhiteSpace(req.ActionSlotCost) ? "none" : req.ActionSlotCost.Trim();
             var outcomeBadge = isNat20 ? " [NAT 20!]" : isCritFail ? " [CRIT FAIL!]" : "";
@@ -379,12 +379,12 @@ public static class CharacterSheetLiveTelemetryEndpoints
     {
         var seeds = new (string Key, string Name, int Rolls, int N20, int N1, int Landed, int Missed, int Intr, int Red, int Dmg, int Mit, int Peak)[]
         {
-            ("char-ciaran", "Ciarán Fiachra", 64, 5, 2, 22, 6, 4, 5, 318, 86, 42),
-            ("char-dal", "Dallas (Dal)", 82, 9, 3, 31, 7, 3, 4, 486, 140, 46),
-            ("char-fivi", "Fivi", 79, 11, 4, 27, 8, 5, 6, 418, 85, 44),
-            ("char-kildrid", "Kildrid", 71, 5, 2, 21, 6, 6, 9, 342, 390, 58),
-            ("char-kycius", "Kycius", 76, 8, 2, 28, 7, 4, 5, 452, 175, 39),
-            ("char-munk", "Munk", 84, 10, 3, 35, 9, 2, 8, 614, 520, 46)
+            ("char-ciaran", "Sample Hero", 64, 5, 2, 22, 6, 4, 5, 318, 86, 42),
+            ("char-dal", "Aldric", 82, 9, 3, 31, 7, 3, 4, 486, 140, 46),
+            ("char-fivi", "Tomas", 79, 11, 4, 27, 8, 5, 6, 418, 85, 44),
+            ("char-kildrid", "Brenna", 71, 5, 2, 21, 6, 6, 9, 342, 390, 58),
+            ("char-kycius", "Sera", 76, 8, 2, 28, 7, 4, 5, 452, 175, 39),
+            ("char-munk", "Osric", 84, 10, 3, 35, 9, 2, 8, 614, 520, 46)
         };
         foreach (var s in seeds)
         {

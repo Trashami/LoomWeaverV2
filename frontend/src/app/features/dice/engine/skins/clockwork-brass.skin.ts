@@ -2,7 +2,7 @@ import { DiceSkinConfig } from './dice-skin.types';
 
 export const CLOCKWORK_BRASS_SKIN: DiceSkinConfig = {
   id: 'skin-clockwork-brass',
-  name: 'Cinth Artificer Brass',
+  name: 'Artificer Brass',
   tagline: 'Machined phosphor-bronze plates with pressurized aether-amber gauges',
   materialFamily: 'Artificer Brass & Aether',
   tier: 'Creator',

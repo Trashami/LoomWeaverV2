@@ -1,6 +1,10 @@
+using System.Collections.Concurrent;
+using System.Text.Json;
+using LoomWeaver.Infrastructure.MySql;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using MySqlConnector;
 
 namespace LoomWeaver.Modules.Sessions;
 
@@ -125,299 +129,332 @@ public sealed record CampaignDashboardResponseDto(
 
 public static class CampaignDashboardEndpoints
 {
-    private static readonly Dictionary<int, List<DashboardPrepItemDto>> PrepByCampaign = new()
-    {
-        [1] = new List<DashboardPrepItemDto>
-        {
-            new("prep-1", "Review encounter: Shadow Stalker", true, "/encounters", true),
-            new("prep-2", "Prep Brother Malric dialogue", true, "/campaigns", true),
-            new("prep-3", "Finalize map and lighting", false, "/maps", true),
-            new("prep-4", "Prepare handouts and clues", false, "/assets", false),
-            new("prep-5", "Review treasure and rewards", false, "/campaigns", true),
-        },
-        [2] = new List<DashboardPrepItemDto>
-        {
-            new("prep-2-1", "Calibrate Clockwork Vault hazard DCs", true, "/encounters", true),
-            new("prep-2-2", "Stage Absalom Grand Bazaar map tokens", true, "/maps", false),
-            new("prep-2-3", "Prepare Starstone resonance handout", true, "/assets", false),
-            new("prep-2-4", "Review High Clockmaster dialogue tree", false, "/campaigns", true),
-        },
-        [3] = new List<DashboardPrepItemDto>
-        {
-            new("prep-3-1", "Audit Elysium Boon Ledger", true, "/campaigns", true),
-            new("prep-3-2", "Set Conservatory ambient lighting", false, "/maps", false),
-            new("prep-3-3", "Review Prince Harbor blood-hunt edict", false, "/loom", true),
-        }
-    };
+    private const string DefaultArtwork = "/combat-caves.jpg";
+    private static readonly string[] RingColors = ["#d9b77a", "#49e892", "#2ee66b", "#c08a4b"];
 
-    private static readonly Dictionary<int, List<DashboardSessionBeatDto>> BeatsByCampaign = new()
-    {
-        [1] = new List<DashboardSessionBeatDto>
-        {
-            new("beat-1", "Arrival at the ruined chapel", true),
-            new("beat-2", "Speaking with Brother Malric", true),
-            new("beat-3", "Tracks leading to the crypt", false),
-            new("beat-4", "Ambush in the courtyard", false),
-            new("beat-5", "Discover what stirs beneath the chapel", false),
-        },
-        [2] = new List<DashboardSessionBeatDto>
-        {
-            new("beat-2-1", "Enter the Clockwork Vaults beneath Absalom", true),
-            new("beat-2-2", "Bypass the brass pendulum ward", false),
-            new("beat-2-3", "Confront the Vault Automaton Warden", false),
-        },
-        [3] = new List<DashboardSessionBeatDto>
-        {
-            new("beat-3-1", "Present credentials to the Keeper of Elysium", true),
-            new("beat-3-2", "Question Lady Vance in the Conservatory", false),
-            new("beat-3-3", "Prevent the Masquerade breach at Harbor Pier", false),
-        }
-    };
-
-    private static readonly Dictionary<int, List<DashboardAlertItemDto>> AlertsByCampaign = new()
-    {
-        [1] = new List<DashboardAlertItemDto>
-        {
-            new("alert-1", "Level Up Available", "Seraphine can advance to level 5", "level-up", "gold", "/characters", false, false),
-            new("alert-2", "1 Pending Invite", "Marcus has been invited to the campaign", "invite", "emerald", "/campaigns", false, true),
-            new("alert-3", "Unresolved Reminder", "Determine the source of the shadow magic", "reminder", "amber", "/loom", false, true),
-            new("alert-4", "Asset Import Complete", "3 new map assets added to your library", "asset", "emerald", "/assets", false, false),
-        },
-        [2] = new List<DashboardAlertItemDto>
-        {
-            new("alert-2-1", "Feat Selection Pending", "2 Pathfinder characters have unspent skill feats", "level-up", "gold", "/characters", false, false),
-            new("alert-2-2", "Vault Map Synced", "Clockwork Vault 2.5D lighting baked", "asset", "emerald", "/maps", false, false),
-        },
-        [3] = new List<DashboardAlertItemDto>
-        {
-            new("alert-3-1", "Hunger Warning", "2 coterie members are at Hunger 4", "reminder", "amber", "/characters", false, false),
-            new("alert-3-2", "Boon Ledger Updated", "Harpy recorded a major boon in Elysium", "invite", "gold", "/campaigns", false, true),
-        }
-    };
+    // Checklist, beat, and alert state is held in memory per campaign, matching the previous behavior.
+    private static readonly ConcurrentDictionary<string, bool> PrepState = new();
+    private static readonly ConcurrentDictionary<string, bool> BeatState = new();
+    private static readonly ConcurrentDictionary<string, bool> AlertState = new();
 
     public static RouteGroupBuilder MapCampaignDashboardEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/campaigns/{campaignId:int}/dashboard", (int campaignId, string? role) =>
-        {
-            var isGm = string.Equals(role, "gm", StringComparison.OrdinalIgnoreCase);
-            return Results.Ok(BuildDashboardResponse(campaignId, isGm));
-        });
+        api.MapGet("/campaigns/{campaignId:int}/dashboard", GetDashboardAsync);
 
-        api.MapPost("/campaigns/{campaignId:int}/dashboard/prep/{itemId}/toggle", (int campaignId, string itemId, string? role) =>
-        {
-            var isGm = string.Equals(role, "gm", StringComparison.OrdinalIgnoreCase);
-            if (!PrepByCampaign.TryGetValue(campaignId, out var list))
-            {
-                list = PrepByCampaign[1];
-            }
+        api.MapPost("/campaigns/{campaignId:int}/dashboard/prep/{itemId}/toggle",
+            (int campaignId, string itemId, string? role, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
+                ToggleAsync(PrepState, campaignId, itemId, role, mysql, ct, toggle: true));
 
-            var idx = list.FindIndex(i => i.Id == itemId);
-            if (idx >= 0)
-            {
-                var cur = list[idx];
-                list[idx] = cur with { Completed = !cur.Completed };
-            }
+        api.MapPost("/campaigns/{campaignId:int}/dashboard/beats/{beatId}/toggle",
+            (int campaignId, string beatId, string? role, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
+                ToggleAsync(BeatState, campaignId, beatId, role, mysql, ct, toggle: true));
 
-            return Results.Ok(BuildDashboardResponse(campaignId, isGm));
-        });
-
-        api.MapPost("/campaigns/{campaignId:int}/dashboard/beats/{beatId}/toggle", (int campaignId, string beatId, string? role) =>
-        {
-            var isGm = string.Equals(role, "gm", StringComparison.OrdinalIgnoreCase);
-            if (!BeatsByCampaign.TryGetValue(campaignId, out var list))
-            {
-                list = BeatsByCampaign[1];
-            }
-
-            var idx = list.FindIndex(b => b.Id == beatId);
-            if (idx >= 0)
-            {
-                var cur = list[idx];
-                list[idx] = cur with { Done = !cur.Done };
-            }
-
-            return Results.Ok(BuildDashboardResponse(campaignId, isGm));
-        });
-
-        api.MapPost("/campaigns/{campaignId:int}/dashboard/alerts/{alertId}/acknowledge", (int campaignId, string alertId, string? role) =>
-        {
-            var isGm = string.Equals(role, "gm", StringComparison.OrdinalIgnoreCase);
-            if (!AlertsByCampaign.TryGetValue(campaignId, out var list))
-            {
-                list = AlertsByCampaign[1];
-            }
-
-            var idx = list.FindIndex(a => a.Id == alertId);
-            if (idx >= 0)
-            {
-                var cur = list[idx];
-                list[idx] = cur with { Read = true };
-            }
-
-            return Results.Ok(BuildDashboardResponse(campaignId, isGm));
-        });
+        api.MapPost("/campaigns/{campaignId:int}/dashboard/alerts/{alertId}/acknowledge",
+            (int campaignId, string alertId, string? role, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
+                ToggleAsync(AlertState, campaignId, alertId, role, mysql, ct, toggle: false));
 
         return api;
     }
 
-    private static CampaignDashboardResponseDto BuildDashboardResponse(int campaignId, bool isGm)
+    private static async Task<IResult> GetDashboardAsync(
+        int campaignId, string? role, LoomWeaverMySqlRepository mysql, CancellationToken ct)
     {
-        var cid = PrepByCampaign.ContainsKey(campaignId) ? campaignId : 1;
-        var rawPrep = PrepByCampaign[cid];
-        var visiblePrep = rawPrep.Where(p => isGm || !p.GmOnly).ToList();
-        var completedPrep = rawPrep.Count(p => p.Completed);
-        var totalPrep = rawPrep.Count;
-        var beats = BeatsByCampaign[cid];
-        var alerts = AlertsByCampaign[cid].Where(a => isGm || !a.GmOnly).ToList();
+        var isGm = string.Equals(role, "gm", StringComparison.OrdinalIgnoreCase);
+        await using var db = await mysql.OpenConnectionAsync(ct);
+        var dashboard = await BuildAsync(db, campaignId, isGm, ct);
+        return dashboard is null ? Results.NotFound() : Results.Ok(dashboard);
+    }
 
-        if (cid == 2)
+    private static async Task<IResult> ToggleAsync(
+        ConcurrentDictionary<string, bool> state,
+        int campaignId,
+        string itemId,
+        string? role,
+        LoomWeaverMySqlRepository mysql,
+        CancellationToken ct,
+        bool toggle)
+    {
+        var key = $"{campaignId}:{itemId}";
+        if (toggle)
         {
-            return new CampaignDashboardResponseDto(
-                2,
-                "Echoes of the Starstone",
-                "planned",
-                "ACT I",
-                "Siege of the Spire",
-                "Session 6",
-                "The Clockwork Vaults",
-                "Today at 6:15 PM",
-                "Beneath the Grand Bazaar of Absalom, ancient brass gears grind awake. The party stands before the Starstone Vault seal as the High Clockmaster's constructs patrol the lower catwalks.",
-                "/landing-assets/engines/engine-3-loommaps-atlas.jpg",
-                new DashboardUpcomingSessionDto(
-                    "session-2-6",
-                    6,
-                    "Session 6 — The Clockwork Vaults",
-                    "/landing-assets/engines/engine-3-loommaps-atlas.jpg",
-                    "Sunday, May 18, 2025",
-                    "6:00 PM – 10:00 PM (4h)",
-                    "Subterranean Vaults",
-                    "Absalom Grand Bazaar",
-                    completedPrep == totalPrep ? "Ready" : "Prep In Progress",
-                    completedPrep,
-                    totalPrep,
-                    visiblePrep),
-                new List<DashboardActivityItemDto>
-                {
-                    new("act-2-1", "High Clockmaster (NPC) updated", "NPC", "Adjusted construct command aura", "1h ago", "/campaigns", "1:NPC:npc-kutler", "players"),
-                    new("act-2-2", "Clockwork Vaults (Map Scene)", "Map Scene", "Added dynamic gear hazards and catwalks", "3h ago", "/maps", "1:Location:loc-cinth", "players"),
-                },
-                new List<DashboardNoteItemDto>
-                {
-                    new("note-2-1", "Starstone Resonance Log", "Harmonic frequency matches the Ascendant Court spire.", "2h ago", "/loom", "1:Clue:clue-kildrid-tremor", "players"),
-                },
-                new List<DashboardQuestThreadDto>
-                {
-                    new("quest-2-1", "Siege of the Spire", "Unlock the lower Starstone vault", "Main Story", "gold", "/campaigns", "1:Quest:quest-cinth-gala", "players"),
-                    new("quest-2-2", "Gears of the Bazaar", "Recover the missing guild ledger", "In Progress", "emerald", "/campaigns", "1:Quest:quest-chokrah-ledger", "players"),
-                },
-                new List<DashboardPartyMemberDto>
-                {
-                    new("pm-2-1", "1:PlayerCharacter:pc-dal", "Valeros", "Human Fighter", 54, 58, "HP 54/58", 21, true, "VA", "#d9b77a", false, "/characters"),
-                    new("pm-2-2", "1:PlayerCharacter:pc-fivi", "Ezren", "Human Wizard", 38, 38, "HP 38/38", 17, true, "EZ", "#49e892", true, "/characters"),
-                },
-                "All party members are healthy",
-                "Three-action economy ready · No persistent conditions.",
-                alerts,
-                new DashboardSessionGuideDto(
-                    "SESSION 6 — THE CLOCKWORK VAULTS",
-                    "/landing-assets/engines/engine-3-loommaps-atlas.jpg",
-                    "\"Every gear in Absalom turns toward the Starstone.\"",
-                    "The party descends beneath the Grand Bazaar into the sealed clockwork vaults.",
-                    beats,
-                    new List<DashboardGuideNpcDto>
-                    {
-                        new("1:NPC:npc-kutler", "High Clockmaster", "Vault Warden · Guarded", "Guarded", "emerald", "HC", "#d9b77a"),
-                    },
-                    isGm
-                        ? new[] { "The Vault Warden is bound to the Starstone conduit.", "A hidden bypass rune lies behind the third pendulum." }
-                        : Array.Empty<string>()));
+            state.AddOrUpdate(key, true, (_, value) => !value);
+        }
+        else
+        {
+            state[key] = true;
         }
 
-        var allActivity = new List<DashboardActivityItemDto>
-        {
-            new("act-1", "Brother Malric (NPC) updated", "NPC", "Added new dialogue and motivations", "2h ago", "/campaigns", "1:NPC:npc-emrys", "players"),
-            new("act-2", "The Ruined Chapel (Map Scene)", "Map Scene", "Added lighting and new areas", "4h ago", "/maps", "1:Location:loc-cinth", "players"),
-            new("act-3", "Shadow Stalker (Encounter)", "Encounter", "Adjusted HP and added lair actions", "6h ago", "/encounters", "1:Encounter:enc-cinth-ballroom", "gm"),
-            new("act-4", "Whispers in the Woods (Note)", "Note", "New clue about the forged blade", "8h ago", "/loom", "1:Clue:clue-kildrid-tremor", "players"),
-            new("act-5", "Seraphine (Character)", "Character", "Updated spells and equipment", "1d ago", "/characters", "1:PlayerCharacter:pc-kycius", "players"),
-        };
+        return await GetDashboardAsync(campaignId, role, mysql, ct);
+    }
 
-        var allNotes = new List<DashboardNoteItemDto>
+    private static async Task<CampaignDashboardResponseDto?> BuildAsync(
+        MySqlConnection db, int campaignId, bool isGm, CancellationToken ct)
+    {
+        var campaign = await ReadCampaignAsync(db, campaignId, ct);
+        if (campaign is null)
         {
-            new("note-1", "Carvings Beneath the Chapel", "Strange symbols match those from the mountain tomb. They speak of a...", "3h ago", "/loom", "1:Clue:clue-kildrid-tremor", "players"),
-            new("note-2", "Brother Malric's Warning", "He believes the shadows are not just undead, but something older...", "1d ago", "/loom", "1:NPC:npc-emrys", "players"),
-            new("note-3", "The Star-Etched Arrow", "Found on a fallen scout. The fletching bears the mark of the Vale.", "2d ago", "/assets", "1:PlayerCharacter:pc-dal", "players"),
-            new("note-4", "Whispering Woods Rumors", "Locals speak of lights in the trees and voices at night.", "3d ago", "/loom", "1:Location:loc-plains-red", "players"),
-            new("note-5", "A Debt of Iron", "The dwarven smith in Varik expects payment soon. Time is short.", "4d ago", "/campaigns", "1:Faction:fac-artificers", "players"),
-            new("note-gm-secret", "Emrys Life-Bond Rune Transcript", "GM Secret: Vaelkorath bound his life force directly to Emrys.", "5d ago", "/weave", "1:Secret:sec-emrys-trap", "gm"),
-        };
+            return null;
+        }
 
-        var allQuests = new List<DashboardQuestThreadDto>
-        {
-            new("quest-shadows-stone", "Shadows in the Stone", "Investigate the ruined chapel", "Main Story", "gold", "/campaigns", "1:Quest:quest-cinth-gala", "players"),
-            new("quest-missing-caravan", "The Missing Caravan", "Search the old road for survivors", "In Progress", "emerald", "/campaigns", "1:Quest:quest-chokrah-ledger", "players"),
-            new("quest-whispers-woods", "Whispers in the Woods", "Speak to the hermit of Elderwood", "In Progress", "emerald", "/campaigns", "1:Clue:clue-kildrid-tremor", "players"),
-            new("quest-debt-iron", "A Debt of Iron", "Deliver the forged blade to Varik", "In Progress", "emerald", "/campaigns", "1:Faction:fac-artificers", "players"),
-            new("quest-lost-expedition", "The Lost Expedition", "Discover what happened to the Vale scouts", "Side Quest", "gold", "/campaigns", "1:Location:loc-plains-red", "players"),
-            new("quest-gm-priors", "The Priors Chokrah Siphon", "Hidden GM thread tracking stolen student magic", "GM Secret", "gm", "/weave", "1:Faction:fac-priors", "gm"),
-        };
+        var session = await ReadCurrentSessionAsync(db, campaignId, campaign.CurrentSessionNumber, ct);
+        var party = await ReadPartyAsync(db, campaignId, ct);
+        var events = await ReadRecentEventsAsync(db, campaignId, ct);
+
+        var sessionNumber = session?.Number ?? campaign.CurrentSessionNumber;
+        var sessionKey = session?.Id ?? $"session-{sessionNumber}";
+        var artwork = session?.Artwork ?? DefaultArtwork;
+
+        var checklist = (session?.Objectives ?? [])
+            .Select((text, index) =>
+            {
+                var id = $"obj-{index}";
+                var completed = PrepState.TryGetValue($"{campaignId}:{id}", out var done) && done;
+                return new DashboardPrepItemDto(id, text, completed, "/campaigns", false);
+            })
+            .Where(item => isGm || !item.GmOnly)
+            .ToList();
+        var completedPrep = checklist.Count(item => item.Completed);
+
+        var beats = (session?.StoppingPoints ?? [])
+            .Select((text, index) =>
+            {
+                var id = $"beat-{index}";
+                var done = BeatState.TryGetValue($"{campaignId}:{id}", out var value) && value;
+                return new DashboardSessionBeatDto(id, text, done);
+            })
+            .ToList();
+
+        var hurt = party.Count(member => member.CurrentHp < member.MaxHp);
+        var levelUpReady = party.Count(member => member.CurrentXp >= member.NextXp);
+        var partyMembers = party
+            .Select((member, index) => new DashboardPartyMemberDto(
+                member.Key,
+                $"{campaignId}:PlayerCharacter:{member.Key}",
+                member.Name,
+                string.Join(" ", new[] { member.Ancestry, member.ClassName }.Where(s => !string.IsNullOrWhiteSpace(s))),
+                member.CurrentHp,
+                member.MaxHp,
+                $"HP {member.CurrentHp}/{member.MaxHp}",
+                member.ArmorClass,
+                false,
+                Initials(member.Name),
+                RingColors[index % RingColors.Length],
+                member.CurrentXp >= member.NextXp,
+                "/characters"))
+            .ToList();
+
+        var activity = events
+            .Select(evt => new DashboardActivityItemDto(
+                $"event-{evt.Id}",
+                HumanizeKind(evt.Kind),
+                evt.Kind,
+                evt.Summary,
+                RelativeTime(evt.CreatedAt),
+                "/campaigns",
+                $"{campaignId}:Event:{evt.Id}",
+                "players"))
+            .ToList();
 
         return new CampaignDashboardResponseDto(
-            1,
-            "Shadow of the Mountain",
-            "live",
-            "ACT I",
-            "Shadows in the Stone",
-            "Session 15",
-            "The Ruined Chapel",
-            "Today at 7:42 PM",
-            "The party has followed the trail into the Whispering Woods, where an ancient, half-buried chapel holds secrets older than the kingdom. Strange noises echo within, and Brother Malric awaits their arrival.",
-            "/landing-assets/backgrounds/section-atmosphere.jpg",
+            (int)campaign.Id,
+            campaign.Name,
+            session?.State ?? "planned",
+            campaign.CurrentAct,
+            campaign.WorldName,
+            $"Session {sessionNumber}",
+            session?.Title ?? "No session scheduled",
+            events.Count > 0 ? RelativeTime(events[0].CreatedAt) : "No activity yet",
+            session?.Summary ?? campaign.Subtitle,
+            artwork,
             new DashboardUpcomingSessionDto(
-                "session-15",
-                15,
-                "Session 15 — The Ruined Chapel",
-                "/combat-caves.jpg",
-                "Saturday, May 17, 2025",
-                "7:00 PM – 11:00 PM (4h)",
-                "The Ruined Chapel",
-                "Whispering Woods",
-                completedPrep == 0 ? "Not Started" : (completedPrep >= totalPrep ? "Ready" : "Prep In Progress"),
+                sessionKey,
+                sessionNumber,
+                session?.Title ?? $"Session {sessionNumber}",
+                artwork,
+                session?.ScheduledLabel ?? string.Empty,
+                string.Empty,
+                campaign.LocationName,
+                campaign.WorldName,
+                PrepStatusLabel(checklist.Count, completedPrep),
                 completedPrep,
-                totalPrep,
-                visiblePrep),
-            allActivity.Where(a => isGm || a.Visibility != "gm").ToList(),
-            allNotes.Where(n => isGm || n.Visibility != "gm").Take(5).ToList(),
-            allQuests.Where(q => isGm ? q.Visibility != "hidden" : q.Visibility == "players").Take(5).ToList(),
-            new List<DashboardPartyMemberDto>
-            {
-                new("party-kael", "1:PlayerCharacter:pc-dal", "Kael", "Human Ranger", 32, 38, "HP 32/38", 16, true, "KA", "#d9b77a", false, "/characters?focus=pc-dal"),
-                new("party-lira", "1:PlayerCharacter:pc-fivi", "Lira", "Elf Sorcerer", 24, 24, "HP 24/24", 15, true, "LI", "#49e892", false, "/characters?focus=pc-fivi"),
-                new("party-stonehide", "1:PlayerCharacter:pc-kildrid", "Stonehide", "Goliath Barbarian", 41, 45, "HP 41/45", 17, true, "ST", "#e2a85c", false, "/characters?focus=pc-kildrid"),
-                new("party-seraphine", "1:PlayerCharacter:pc-kycius", "Seraphine", "Tiefling Cleric", 27, 27, "HP 27/27", 18, true, "SE", "#5ec2e8", true, "/characters?focus=pc-kycius"),
-            },
-            "All party members are healthy",
-            "No critical conditions or exhaustion.",
-            alerts,
+                checklist.Count,
+                checklist),
+            activity,
+            [],
+            [],
+            partyMembers,
+            partyMembers.Count == 0 ? "No party members yet" : hurt == 0 ? "All party members are healthy" : $"{hurt} party member(s) below full HP",
+            $"{partyMembers.Count} characters · {levelUpReady} ready to level up",
+            [],
             new DashboardSessionGuideDto(
-                "SESSION 15 — THE RUINED CHAPEL",
-                "/combat-caves.jpg",
-                "\"Old stones remember. And something stirs beneath them still.\"",
-                "A crumbling chapel stands on the edge of the Whispering Woods. Strange noises and missing travelers have drawn the party here, where an uneasy silence hangs over the ruins.",
+                $"SESSION {sessionNumber} — {(session?.Title ?? "NOT SCHEDULED").ToUpperInvariant()}",
+                artwork,
+                session?.Epigraph ?? string.Empty,
+                session?.Summary ?? string.Empty,
                 beats,
-                new List<DashboardGuideNpcDto>
-                {
-                    new("1:NPC:npc-emrys", "Brother Malric", "Chapel Keeper · Cautious", "Cautious", "gold", "BM", "#d9b77a"),
-                    new("1:NPC:npc-kutler", "Sister Elowen", "Healer · Guarded", "Guarded", "emerald", "SE", "#49e892"),
-                    new("1:Encounter:enc-cinth-ballroom", "Shadow Stalker", "Ruin Stalker · Hostile", "Hostile", "crimson", "GS", "#e25c5c"),
-                },
-                isGm
-                    ? new[]
-                    {
-                        "A sealed crypt lies beneath the altar.",
-                        "Brother Malric knows more than he admits.",
-                        "The shadows are connected to the mountain."
-                    }
-                    : Array.Empty<string>()));
+                [],
+                []));
     }
+
+    private static async Task<CampaignRow?> ReadCampaignAsync(MySqlConnection db, int campaignId, CancellationToken ct)
+    {
+        await using var cmd = new MySqlCommand("""
+            SELECT id, name, subtitle, current_act, current_session_number, current_location_name, world_name
+            FROM lw_campaigns WHERE id = @c
+            """, db);
+        cmd.Parameters.AddWithValue("@c", campaignId);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+        {
+            return null;
+        }
+
+        return new CampaignRow(
+            reader.GetInt64(0),
+            reader.GetString(1),
+            reader.GetString(2),
+            reader.GetString(3),
+            reader.GetInt32(4),
+            reader.GetString(5),
+            reader.GetString(6));
+    }
+
+    private static async Task<SessionRow?> ReadCurrentSessionAsync(
+        MySqlConnection db, int campaignId, int currentSessionNumber, CancellationToken ct)
+    {
+        await using var cmd = new MySqlCommand("""
+            SELECT session_id, session_number, title, session_state, scheduled_date_label, epigraph,
+                   summary, artwork_url, objectives_json, stopping_points_json
+            FROM lw_sessions
+            WHERE campaign_id = @c
+            ORDER BY (session_number = @current) DESC, session_number DESC
+            LIMIT 1
+            """, db);
+        cmd.Parameters.AddWithValue("@c", campaignId);
+        cmd.Parameters.AddWithValue("@current", currentSessionNumber);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+        {
+            return null;
+        }
+
+        return new SessionRow(
+            reader.GetString(0),
+            reader.GetInt32(1),
+            reader.GetString(2),
+            reader.GetString(3),
+            reader.GetString(4),
+            reader.GetString(5),
+            reader.GetString(6),
+            reader.GetString(7),
+            ParseList(reader, 8),
+            ParseList(reader, 9));
+    }
+
+    private static async Task<List<PartyRow>> ReadPartyAsync(MySqlConnection db, int campaignId, CancellationToken ct)
+    {
+        var party = new List<PartyRow>();
+        await using var cmd = new MySqlCommand("""
+            SELECT character_key, name, ancestry, class_name, current_xp, next_level_xp,
+                   current_hp, max_hp, armor_class
+            FROM lw_characters
+            WHERE campaign_id = @c
+            ORDER BY name
+            """, db);
+        cmd.Parameters.AddWithValue("@c", campaignId);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            party.Add(new PartyRow(
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetString(3),
+                reader.GetInt32(4),
+                reader.GetInt32(5),
+                reader.GetInt32(6),
+                reader.GetInt32(7),
+                reader.GetInt32(8)));
+        }
+
+        return party;
+    }
+
+    private static async Task<List<EventRow>> ReadRecentEventsAsync(MySqlConnection db, int campaignId, CancellationToken ct)
+    {
+        var events = new List<EventRow>();
+        await using var cmd = new MySqlCommand("""
+            SELECT id, event_kind, summary, created_at
+            FROM lw_play_events
+            WHERE campaign_id = @c
+            ORDER BY created_at DESC, id DESC
+            LIMIT 10
+            """, db);
+        cmd.Parameters.AddWithValue("@c", campaignId);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            events.Add(new EventRow(
+                reader.GetInt64(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetDateTime(3)));
+        }
+
+        return events;
+    }
+
+    private static IReadOnlyList<string> ParseList(MySqlDataReader reader, int ordinal)
+    {
+        if (reader.IsDBNull(ordinal))
+        {
+            return [];
+        }
+
+        return JsonSerializer.Deserialize<string[]>(reader.GetString(ordinal)) ?? [];
+    }
+
+    private static string PrepStatusLabel(int total, int completed) =>
+        total == 0 ? "No prep items"
+        : completed == 0 ? "Not Started"
+        : completed >= total ? "Ready"
+        : "Prep In Progress";
+
+    private static string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length switch
+        {
+            0 => "?",
+            1 => parts[0][..1].ToUpperInvariant(),
+            _ => $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant(),
+        };
+    }
+
+    private static string HumanizeKind(string kind) =>
+        string.Join(" ", kind.Split(['_', '-', '.'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(word => char.ToUpperInvariant(word[0]) + word[1..]));
+
+    private static string RelativeTime(DateTime createdAt)
+    {
+        var span = DateTime.UtcNow - DateTime.SpecifyKind(createdAt, DateTimeKind.Utc);
+        if (span.TotalMinutes < 1) return "just now";
+        if (span.TotalHours < 1) return $"{(int)span.TotalMinutes}m ago";
+        if (span.TotalDays < 1) return $"{(int)span.TotalHours}h ago";
+        return $"{(int)span.TotalDays}d ago";
+    }
+
+    private sealed record CampaignRow(
+        long Id, string Name, string Subtitle, string CurrentAct,
+        int CurrentSessionNumber, string LocationName, string WorldName);
+
+    private sealed record SessionRow(
+        string Id, int Number, string Title, string State, string ScheduledLabel, string Epigraph,
+        string Summary, string Artwork, IReadOnlyList<string> Objectives, IReadOnlyList<string> StoppingPoints);
+
+    private sealed record PartyRow(
+        string Key, string Name, string Ancestry, string ClassName, int CurrentXp, int NextXp,
+        int CurrentHp, int MaxHp, int ArmorClass);
+
+    private sealed record EventRow(long Id, string Kind, string Summary, DateTime CreatedAt);
 }

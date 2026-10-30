@@ -94,7 +94,7 @@
           </div>           <div class="lw-dnd-sense-row is-selectable" role="button" tabindex="0" (click)="inspectContextRule('sense', 'Passive Insight (' + passiveInsight() + ')', '10 + WIS (Insight) bonus')">
             <span class="lw-dnd-sense-row__val">{{ passiveInsight() }}</span>             <span class="lw-dnd-sense-row__lbl">PASSIVE INSIGHT</span>
           </div>         </div>
-        <p class="lw-dnd-panel__foot-note is-selectable" role="button" tabindex="0" (click)="inspectContextRule('sense', 'Darkvision 60 ft. & Anelith Sense', 'See in dim light within 60 ft as bright light and in darkness as dim light')">           Darkvision 60 ft. · Anelith / Stone-Sense
+        <p class="lw-dnd-panel__foot-note is-selectable" role="button" tabindex="0" (click)="inspectContextRule('sense', 'Darkvision 60 ft.', 'See in dim light within 60 ft as bright light and in darkness as dim light')">           Darkvision 60 ft.
         </p>       </section>
       <section class="lw-dnd-panel">         <header class="lw-dnd-panel__head"><h2>PROFICIENCIES &amp; TRAINING</h2></header>
         <div class="lw-dnd-prof-blocks">           <div class="lw-dnd-prof-block is-selectable" role="button" tabindex="0" (click)="inspectContextRule('training', 'Armor Training', 'Light Armor, Medium Armor, Shields')">
@@ -129,8 +129,8 @@
         <button type="button" class="lw-dnd-ac-shield" (click)="inspectArmorClass()" title="Click to inspect Armor Class calculation & reactions">           <span class="lw-dnd-ac-shield__lbl">ARMOR</span>
           <strong class="lw-dnd-ac-shield__val">{{ sheet().armorClass }}</strong>           <span class="lw-dnd-ac-shield__sub">CLASS</span>
         </button>         <div class="lw-dnd-defenses-box">
-          <div class="lw-dnd-def-col is-selectable" role="button" tabindex="0" (click)="inspectContextRule('defense', 'Defenses & Lineage Wards', 'Anelith Ward · Fey Ancestry (Advantage vs Charmed, Immune to Magical Sleep)')">             <span class="lw-dnd-def-col__lbl">DEFENSES</span>
-            <p>Anelith Ward · Fey Ancestry</p>           </div>
+          <div class="lw-dnd-def-col is-selectable" role="button" tabindex="0" (click)="inspectContextRule('defense', 'Defenses & Lineage Wards', 'Fey Ancestry (Advantage vs Charmed, Immune to Magical Sleep)')">             <span class="lw-dnd-def-col__lbl">DEFENSES</span>
+            <p>Fey Ancestry</p>           </div>
           <div class="lw-dnd-def-col is-selectable" role="button" tabindex="0" (click)="inspectContextRule('condition', 'Active Conditions & Roll State', economy().rollMode !== 'normal' ? economy().rollMode.toUpperCase() + ' Active' : economy().heroicInspiration ? 'Heroic Inspiration Ready' : 'No Negative Conditions')">             <span class="lw-dnd-def-col__lbl">CONDITIONS</span>
             <p>{{ economy().rollMode !== 'normal' ? economy().rollMode.toUpperCase() : economy().heroicInspiration ? 'Inspiration Ready' : 'None Active' }}</p>           </div>
         </div>         <div class="lw-dnd-economy-bar">
@@ -243,7 +243,7 @@
         <!-- TAB 5: BACKGROUND -->         @if (mainSheetTab() === 'BACKGROUND') {
           <div class="lw-dnd-tab-body lw-custom-scroll">             <div class="lw-dnd-spell-header-strip">
               <div class="lw-spell-kpi is-selectable" (click)="inspectContextRule('training', 'Background: ' + sheet().backgroundName, sheet().backgroundSummary)"><span>BACKGROUND</span><strong>{{ sheet().backgroundName }}</strong></div>               <div class="lw-spell-kpi is-selectable" (click)="inspectContextRule('condition', 'Alignment: ' + sheet().alignment, sheet().quote)"><span>ALIGNMENT</span><strong>{{ sheet().alignment }}</strong></div>
-              <div class="lw-spell-kpi is-selectable" (click)="inspectContextRule('defense', 'Faith & Patron', 'Ekkos & The Anelith')"><span>FAITH / PATRON</span><strong>Ekkos &amp; The Anelith</strong></div>               <div class="lw-spell-kpi"><span>SIZE</span><strong>Medium</strong></div>
+              <div class="lw-spell-kpi is-selectable" (click)="inspectContextRule('defense', 'Faith & Patron', 'Your deity')"><span>FAITH / PATRON</span><strong>Your deity</strong></div>               <div class="lw-spell-kpi"><span>SIZE</span><strong>Medium</strong></div>
             </div>             <div class="lw-dnd-section-block">
               <h3>CHRONICLE BACKSTORY</h3>               <p class="lw-dnd-prose">{{ sheet().backgroundSummary }}</p>
               <p class="lw-dnd-prose"><em>{{ sheet().quote }}</em></p>             </div>

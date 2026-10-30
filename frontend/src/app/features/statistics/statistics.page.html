@@ -2,7 +2,7 @@
 <div class="lw-stats-page">
   <lw-panel
     eyebrow="Module 11 · .NET Reporting Engine + Telemetry Ledgers"
-    [title]="data.campaignName"
+    [title]="data.campaignName || 'Campaign Statistics'"
     subtitle="Real-time combat telemetry, damage-by-element distributions, d20 entropy verification, and automated achievements."
     [elevated]="true"
   >
@@ -19,7 +19,6 @@
       <div class="lw-stats-page__kpi-card">
         <span>Sessions & Encounters</span>
         <strong>{{ data.sessionsCompleted }} Sessions · {{ data.encountersCleared }} Cleared</strong>
-        <lw-badge label="100% Canon Verified" tone="emerald" />
       </div>
       <div class="lw-stats-page__kpi-card">
         <span>Total Party XP Awarded</span>
@@ -58,18 +57,22 @@
         }
       </div>
 
-      <div class="lw-stats-page__radar-pair">
-        <lw-stat-radar
-          title="Party Aggregate Profile"
-          subtitle="18 Sessions · 5 Adventurers"
-          [axes]="data.partyRadar"
-        />
-        <lw-stat-radar
-          [title]="selectedCharacter().name"
-          [subtitle]="selectedCharacter().classTitle"
-          [axes]="selectedCharacter().radarProfile"
-        />
-      </div>
+      @if (selectedCharacter(); as hero) {
+        <div class="lw-stats-page__radar-pair">
+          <lw-stat-radar
+            title="Party Aggregate Profile"
+            [subtitle]="data.sessionsCompleted + ' Sessions · ' + data.characterTelemetry.length + ' Adventurers'"
+            [axes]="data.partyRadar"
+          />
+          <lw-stat-radar
+            [title]="hero.name"
+            [subtitle]="hero.classTitle"
+            [axes]="hero.radarProfile"
+          />
+        </div>
+      } @else {
+        <p class="lw-stats-page__empty">No adventurer telemetry yet. Run encounters in the Arcane Screen to populate these records.</p>
+      }
     </lw-panel>
 
     <lw-panel

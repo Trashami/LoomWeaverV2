@@ -44,7 +44,7 @@ export class LoomPageComponent {
     () => this.generativeAiEnabled() || this.store.weaveEnabled(),
   );
 
-  readonly witnessOptions = ['All Party', 'Dal', 'Fivi', 'Kildrid', 'Kycius', 'Munk'];
+  readonly witnessOptions = ['All Party'];
   readonly activeWitness = signal<string>('All Party');
   readonly notes = signal<readonly LwScopedNoteItem[]>([]);
   readonly synthesisBanner = signal<string>(
@@ -56,15 +56,10 @@ export class LoomPageComponent {
   readonly newNoteTitle = signal<string>('');
   readonly newNoteContent = signal<string>('');
   readonly newNoteScope = signal<'party_shared' | 'private_player' | 'gm_only'>('party_shared');
-  readonly newNoteWitness = signal<string>('Kildrid');
+  readonly newNoteWitness = signal<string>('Party');
   readonly newNoteRoute = signal<string>('/campaigns');
 
-  readonly presetPrompts = [
-    'What did Kildrid sense beneath the mountain on the road to Cinth?',
-    'Who is Lord Emrys and what does he claim about the Council of Magic?',
-    'What did Kycius sew inside Dolly and why?',
-    'What is the Chokrah cargo manifest clue connected to the Priors?',
-  ];
+  readonly presetPrompts: readonly string[] = [];
 
   readonly visibleNotes = computed(() => {
     const isGm = this.store.viewerRole() === 'gm';

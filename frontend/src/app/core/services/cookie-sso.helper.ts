@@ -101,7 +101,7 @@ export function profileFromJwtPayload(token: string): UserAccountProfileVm | nul
     role,
     tierCode: String(payload['tier'] || 'adventurer'),
     boundCharacter: String(payload['witness'] || (role === 'gm' ? 'GM' : 'Dal')),
-    ownedAssetIds: ['asset-map-cinth', 'asset-dice-runed-obsidian'],
+    ownedAssetIds: ['asset-map-starter', 'asset-dice-runed-obsidian'],
     creatorBalanceUsd: 0,
   };
 }

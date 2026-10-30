@@ -45,7 +45,7 @@ export interface ParticleEmitterCurveVm {
 const DEFAULT_EMITTER_PRESETS: readonly ParticleEmitterCurveVm[] = [
   {
     id: 'emit-solar-supernova',
-    name: 'Anelith Luminary Supernova',
+    name: 'Radiant Supernova',
     emissionRatePerSec: 420,
     particleLifetimeMs: 1150,
     gravityY: -1.2,
@@ -58,7 +58,7 @@ const DEFAULT_EMITTER_PRESETS: readonly ParticleEmitterCurveVm[] = [
   },
   {
     id: 'emit-crimson-mist',
-    name: 'Cinth Vampire Blood-Mist',
+    name: 'Crimson Blood-Mist',
     emissionRatePerSec: 280,
     particleLifetimeMs: 1600,
     gravityY: 0.4,
@@ -71,7 +71,7 @@ const DEFAULT_EMITTER_PRESETS: readonly ParticleEmitterCurveVm[] = [
   },
   {
     id: 'emit-artificer-aether',
-    name: 'Artificer Phosphor-Bronze Spark',
+    name: 'Phosphor Spark',
     emissionRatePerSec: 520,
     particleLifetimeMs: 780,
     gravityY: -3.8,
@@ -109,7 +109,7 @@ export class EffectsPageComponent implements AfterViewInit, OnDestroy {
   readonly stage = inject(BabylonEffectStageService);
 
   readonly emitterPresets = signal<readonly ParticleEmitterCurveVm[]>(DEFAULT_EMITTER_PRESETS);
-  readonly customEmitterName = signal<string>('Aether Condenser Spiral');
+  readonly customEmitterName = signal<string>('Aether Spiral');
   readonly customEmissionRate = signal<number>(480);
   readonly customLifetimeMs = signal<number>(1100);
   readonly customGravityY = signal<number>(-1.5);
@@ -117,10 +117,10 @@ export class EffectsPageComponent implements AfterViewInit, OnDestroy {
   readonly customBlendMode = signal<string>('Additive');
 
   readonly selectedEffectId = signal<string>('fx-projectile-arc');
-  readonly newActionName = signal<string>('Cinth Clockwork Arc Discharge');
+  readonly newActionName = signal<string>('Clockwork Arc Discharge');
   readonly newActionCost = signal<ActionRuleVm['actionCost']>('1 Action');
   readonly newActionRange = signal<number>(45);
-  readonly newActionWhen = signal<string>('WHEN: Artificer Capacitor Overcharge Activated');
+  readonly newActionWhen = signal<string>('WHEN: Capacitor Overcharge Activated');
   readonly newActionIf = signal<string>('IF: Target within 45ft & Attack Roll >= AC');
   readonly newActionThen = signal<string>('THEN: Deal 3d10 + 4 Lightning & Apply Shocked');
   readonly newActionFormula = signal<string>('3d10 + 4');

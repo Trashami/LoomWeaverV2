@@ -7,7 +7,7 @@ import {
   AssetCardVm, CampaignVm, CombatTelemetryVm, EntityCardVm, GraphEdgeVm,
   LoomCitationVm, NavDestination, QualityProfile, SceneVm, SubscriptionTierVm, ViewerRole,
 } from '../models/loomweaver.models';
-import { buildSeedDashboardForCampaign } from './dashboard-seed.data';
+import { buildEmptyDashboard } from './dashboard-empty.data';
 import { LW_ASSETS, LW_GRAPH_EDGES, LW_SCENES, LW_SUBSCRIPTION_TIERS, LW_TELEMETRY } from './loomweaver-catalog.data';
 import { LW_ENTITIES, LW_NAVIGATION } from './loomweaver-seed.data';
 
@@ -51,12 +51,12 @@ export class LoomWeaverStoreService {
   readonly hideAiContent = signal<boolean>(true);
   readonly experienceMode = signal<LwExperienceMode>('advanced');
   readonly loomDrawerOpen = signal<boolean>(false);
-  readonly loomQuery = signal<string>('What did Kildrid sense beneath the mountain on the road to Cinth?');
+  readonly loomQuery = signal<string>('');
   readonly qualityProfile = signal<QualityProfile>('Balanced');
   readonly inspectedEntityKey = signal<string | null>(null);
   readonly backendOnline = signal<boolean>(true);
   readonly quickRollBanner = signal<string>('1d20 Ready');
-  readonly campaignDashboard = signal<CampaignDashboardVm>(buildSeedDashboardForCampaign(1, 'gm'));
+  readonly campaignDashboard = signal<CampaignDashboardVm>(buildEmptyDashboard(0));
 
   private readonly rawEntities = signal<readonly EntityCardVm[]>(LW_ENTITIES);
   private readonly rawAssets = signal<readonly AssetCardVm[]>(LW_ASSETS);
@@ -275,8 +275,8 @@ export class LoomWeaverStoreService {
     const campaignId = this.activeCampaignId();
     const role = this.viewerRole();
 
-    // Immediately set role-filtered seed state so no previous campaign or GM secret ever leaks
-    this.campaignDashboard.set(buildSeedDashboardForCampaign(campaignId, role));
+    // Clear to an empty placeholder so a previous campaign's data never remains visible.
+    this.campaignDashboard.set(buildEmptyDashboard(campaignId));
 
     this.http
       .get<CampaignDashboardVm>(`/api/v2/campaigns/${campaignId}/dashboard?role=${role}`)
@@ -286,7 +286,11 @@ export class LoomWeaverStoreService {
             this.campaignDashboard.set(res);
           }
         },
-        error: () => {},
+        error: () => {
+          if (this.activeCampaignId() === campaignId) {
+            this.campaignDashboard.set(buildEmptyDashboard(campaignId));
+          }
+        },
       });
   }
 

@@ -119,7 +119,7 @@ public sealed class ActionStudioMySqlRepository(LoomWeaverMySqlRepository mysql)
         await EnsureSchemaAsync(ct);
         var allCampaigns = await LoadAllDmCampaignsAsync(ct);
         var dmOwnedCampaigns = allCampaigns.Where(c => IsUserDmOfCampaign(user, c)).ToList();
-        var playerOnlyNames = user.Id is 1 or 2 ? new List<string>() : new List<string> { "Shadow of the Mountain (DM: GeoJason)" };
+        var playerOnlyNames = user.Id is 1 or 2 ? new List<string>() : new List<string> { "Test Campaign (DM: GeoJason)" };
 
         string? switchedNotice = null;
         DmCampaignOptionDto? activeCampaign = null;
@@ -153,7 +153,7 @@ public sealed class ActionStudioMySqlRepository(LoomWeaverMySqlRepository mysql)
         var canAccess = activeCampaign is not null;
         string? deniedReason = canAccess
             ? null
-            : $"You are signed in as {user.DisplayName} (Player in 'Shadow of the Mountain'). Players in a campaign cannot view or edit that campaign's ActionBuilder rules unless they have their own DM campaign.";
+            : $"You are signed in as {user.DisplayName} (Player in '{(requestedCampaignId.HasValue ? allCampaigns.FirstOrDefault(c => c.Id == requestedCampaignId.Value)?.Name : null) ?? "this campaign"}'). Players in a campaign cannot view or edit that campaign's ActionBuilder rules unless they have their own DM campaign.";
 
         var rules = canAccess && activeCampaign is not null ? await GetRulesForCampaignAsync(activeCampaign.Id, ct) : [];
 
@@ -464,20 +464,20 @@ public sealed class ActionStudioMySqlRepository(LoomWeaverMySqlRepository mysql)
 
     private static List<DmCampaignOptionDto> BuildSeedDmCampaigns() =>
     [
-        new(1, "shadow-of-the-mountain", "Shadow of the Mountain", "dnd5e", "D&D 5e (2024 + Icrandor Canon)", 1, "GeoJason", "dm", 2),
+        new(1, "test-campaign", "Test Campaign", "dnd5e", "D&D 5e (2024)", 1, "GeoJason", "dm", 2),
         new(2, "echoes-of-the-starstone", "Echoes of the Starstone", "pf2e", "Pathfinder 2e Remaster", 4522, "GregMeinert", "dm", 1),
         new(3, "court-of-velvet-ash", "Court of Velvet Ash", "vtm5e", "Vampire: The Masquerade V5", 5363, "KennethAlexander", "dm", 1),
-        new(103, "edhellain-exiles-scott", "Chronicles of Edhellain (Scott's Campaign)", "dnd5e", "D&D 5e (2024 Homebrew)", 3, "ScottBrogan", "dm", 0),
-        new(104, "lost-isles-threads-stick", "Threads of the Lost Isles (Stick's Campaign)", "dnd5e", "D&D 5e (2024 Homebrew)", 4, "StickHazen", "dm", 0),
-        new(105, "vandia-nocturne-greg", "Vandia Nocturne (Greg's Campaign)", "dnd5e", "D&D 5e (2024 Homebrew)", 4522, "GregMeinert", "dm", 0)
+        new(103, "scott-campaign", "Scott's Campaign", "dnd5e", "D&D 5e (2024 Homebrew)", 3, "ScottBrogan", "dm", 0),
+        new(104, "stick-campaign", "Stick's Campaign", "dnd5e", "D&D 5e (2024 Homebrew)", 4, "StickHazen", "dm", 0),
+        new(105, "greg-campaign", "Greg's Campaign", "dnd5e", "D&D 5e (2024 Homebrew)", 4522, "GregMeinert", "dm", 0)
     ];
 
     private static IReadOnlyList<ActionStudioAccountOptionDto> BuildDemoAccounts() =>
     [
-        new(1, "acc-gm-geojason", "GeoJason", "Jason (GeoJason · DM of Shadow of the Mountain)", "jtromborg1@gmail.com", "DM of Shadow of the Mountain", true, 1),
-        new(3, "acc-player-dal", "ScottBrogan", "ScottBrogan (Player in Shadow · DM of Edhellain)", "scott.brogan@loomweaver.com", "Player in Shadow -> Defaults to Own Campaign", true, 103),
-        new(4, "acc-player-kycius", "StickHazen", "Stick Hazen (Player in Shadow · DM of Lost Isles)", "stick.hazen@loomweaver.com", "Player in Shadow -> Defaults to Own Campaign", true, 104),
-        new(5360, "acc-player-fivi", "DallasCrow", "Dallas Crow (Fivi · Player Only, No DM Campaign)", "dallas.crow@loomweaver.com", "Player Only (Blocked Unless Own Campaign Created)", false, 0),
-        new(5359, "acc-player-kildrid", "RyanIssak", "Ryan Issak (Kildrid · Player Only, No DM Campaign)", "ryan.issak@loomweaver.com", "Player Only (Blocked Unless Own Campaign Created)", false, 0)
+        new(1, "acc-gm-geojason", "GeoJason", "Jason (GeoJason · DM of Test Campaign)", "jtromborg1@gmail.com", "DM of Test Campaign", true, 1),
+        new(3, "acc-player-dal", "ScottBrogan", "ScottBrogan (Player · DM of Scott's Campaign)", "scott.brogan@loomweaver.com", "Player -> Defaults to Own Campaign", true, 103),
+        new(4, "acc-player-kycius", "StickHazen", "Tester Four (Player · DM of Test Campaign)", "stick.hazen@loomweaver.com", "Player -> Defaults to Own Campaign", true, 104),
+        new(5360, "acc-player-fivi", "DallasCrow", "Tester Five (Player Only, No DM Campaign)", "dallas.crow@loomweaver.com", "Player Only (Blocked Unless Own Campaign Created)", false, 0),
+        new(5359, "acc-player-kildrid", "RyanIssak", "Tester Six (Player Only, No DM Campaign)", "ryan.issak@loomweaver.com", "Player Only (Blocked Unless Own Campaign Created)", false, 0)
     ];
 }

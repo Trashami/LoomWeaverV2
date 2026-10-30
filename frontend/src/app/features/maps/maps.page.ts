@@ -68,13 +68,8 @@ import {
   WallDrawMode,
   WallOpeningNode,
 } from './engine/map-scene-contract';
-import { INITIAL_CINTH_SCENE_GRAPH, createBlankSceneGraph } from './engine/map-scene-seed';
-import {
-  DEFAULT_EXISTING_MAPS,
-  DEFAULT_MAP_MATERIALS,
-  DEFAULT_MARKETPLACE_MAPS,
-  INITIAL_SELECTED_WALL_NODE,
-} from './engine/map-studio-presets';
+import { createBlankSceneGraph } from './engine/map-scene-defaults';
+import { INITIAL_SELECTED_WALL_NODE } from './engine/map-asset-fallbacks';
 import {
   BabylonMapStageService,
   PickedSceneEntityMeta,
@@ -120,7 +115,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   readonly leftDockCollapsed = signal<boolean>(false);
   readonly rightDockCollapsed = signal<boolean>(true);
 
-  readonly mapTitle = signal<string>('The Forgotten Crypt');
+  readonly mapTitle = signal<string>('Untitled Map');
   readonly gridCols = signal<number>(50);
   readonly gridRows = signal<number>(50);
   readonly studioMode = signal<MapEditorModeTab>('build');
@@ -132,8 +127,8 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   readonly snapEnabled = signal<boolean>(true);
   readonly showPlayerSafeOnly = signal<boolean>(false);
 
-  readonly existingMaps = signal<readonly LwExistingMapSummary[]>(DEFAULT_EXISTING_MAPS);
-  readonly marketplaceMaps = signal<readonly LwMarketplaceMapItem[]>(DEFAULT_MARKETPLACE_MAPS);
+  readonly existingMaps = signal<readonly LwExistingMapSummary[]>([]);
+  readonly marketplaceMaps = signal<readonly LwMarketplaceMapItem[]>([]);
   readonly campaigns = computed(() =>
     this.store.campaigns().map((c) => ({ id: c.id, name: c.name })),
   );
@@ -182,7 +177,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   readonly selectedPlacedId = signal<string | null>(null);
   readonly selectedPlacedKind = signal<'wall' | 'door' | 'object' | 'light' | null>(null);
   readonly selectedPlacedWallId = signal<string | null>(null);
-  readonly materials = signal<readonly LwMapMaterialPreset[]>(DEFAULT_MAP_MATERIALS);
+  readonly materials = signal<readonly LwMapMaterialPreset[]>([]);
   readonly selectedNode = signal<LwSelectedSceneNode>(INITIAL_SELECTED_WALL_NODE);
 
   readonly floorTilingScale = signal<number>(10);
@@ -264,7 +259,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   private lastScatterPaintPos: { x: number; z: number } | null = null;
 
   readonly selectedSceneKey = signal<string>('scene-forgotten-crypt');
-  readonly sceneGraph = signal<MapSceneGraphState>(createBlankSceneGraph('The Forgotten Crypt'));
+  readonly sceneGraph = signal<MapSceneGraphState>(createBlankSceneGraph('Untitled Scene'));
 
   private isWallAsset(a: LwMapPngAssetItem): boolean {
     const n = a.name.toLowerCase();
@@ -471,7 +466,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     const campaignObj =
       this.campaigns().find((c) => c.id === intent.campaignId) ?? {
         id: intent.campaignId,
-        name: 'Shadow of the Mountain',
+        name: 'Untitled Campaign',
       };
     const sessionObj =
       this.sessions().find((s) => s.id === intent.sessionId) ?? this.sessions()[0];
@@ -530,11 +525,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.store.setCampaign(summary.campaignId);
     this.dimensionMode.set(summary.dimensionMode);
     this.cameraView.set(summary.dimensionMode === '2d' ? 'real-2d' : 'isometric');
-    this.sceneGraph.set(
-      summary.sceneKey === 'scene-cinth-ballroom'
-        ? INITIAL_CINTH_SCENE_GRAPH
-        : createBlankSceneGraph(summary.name, summary.sceneKey),
-    );
+    this.sceneGraph.set(createBlankSceneGraph(summary.name, summary.sceneKey));
     this.selectedPlacedId.set(null);
     this.selectedPlacedKind.set(null);
     this.wallStartAnchor.set(null);

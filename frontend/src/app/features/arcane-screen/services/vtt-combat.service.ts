@@ -519,7 +519,7 @@ export class VttCombatService {
     effectId: string,
     isGm: boolean,
   ): void {
-    const cleanName = name.trim() || 'Custom Cinth Artificer Strike';
+    const cleanName = name.trim() || 'Custom Strike';
     const created: ActionRuleVm = {
       id: `act-${Date.now()}`,
       name: cleanName,

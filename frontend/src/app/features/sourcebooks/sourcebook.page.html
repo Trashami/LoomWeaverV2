@@ -40,10 +40,13 @@
 
     <section class="panel">
       <h2>Contents</h2>
+      @if (s.sections.length) {
+        <p><a class="read-link" [routerLink]="['/sources', s.id, 'read']">Read this book</a></p>
+      }
       <ol class="section-list">
         @for (section of s.sections; track section.id) {
           <li>
-            <span>{{ section.name }}</span>
+            <a [routerLink]="['/sources', s.id, 'read']" [queryParams]="{ section: section.id }">{{ section.name }}</a>
             @if (section.page) {
               <span class="meta">p. {{ section.page }}</span>
             }

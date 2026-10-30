@@ -221,7 +221,7 @@ public static class ActionRuleCatalog
                 new("11-16", "Weapon", "6d6 - 8d6 extra precision damage.", "Master Assassin"),
                 new("17-20", "Weapon", "9d6 - 10d6 extra precision damage.", "Mythic Vital Strike")
             ],
-            WorksWith: ["Fivi's Tooth Slingshot", "Opportunity Attack (Off-Turn)", "Steady Aim"],
+            WorksWith: ["Ranged Ricochet Slingshot", "Opportunity Attack (Off-Turn)", "Steady Aim"],
             ConflictsWith: ["Disadvantage on Attack Roll", "Heavy Non-Finesse Weapons"],
             Tags: ["Rogue", "Precision", "Finesse", "Class Feature", "Core Engine"],
             IsCustomizedForCampaign: false,
@@ -242,13 +242,13 @@ public static class ActionRuleCatalog
             1 =>
             [
                 new(
-                    Id: "rule-fivi-tooth-slingshot",
-                    RuleCode: "Campaign.FiviToothSlingshot",
-                    Name: "Fivi's Tooth Slingshot",
+                    Id: "rule-ricochet-slingshot",
+                    RuleCode: "Campaign.RicochetSlingshot",
+                    Name: "Ricochet Slingshot",
                     Category: "Actions",
                     SourceLabel: "Campaign Bypass",
                     RulesetCode: "dnd5e-2024",
-                    Summary: "Fivi's signature fey-tuned slingshot loaded with an ancient tooth. Bypasses standard Ranged Attack to deal 3d8+5 piercing damage and execute a lethal final-sliver finisher against mythic targets.",
+                    Summary: "A tuned slingshot loaded with a rare projectile. Bypasses standard Ranged Attack to deal 3d8+5 piercing damage and execute a lethal finisher against wounded targets.",
                     ActionCost: "1 Action",
                     ActionType: "Ranged Weapon Attack (Campaign Custom)",
                     RangeLabel: "60 / 120 feet",
@@ -264,7 +264,7 @@ public static class ActionRuleCatalog
                     SourceFilePath: "frontend/src/app/services/midi-combat-automation.service.ts",
                     Clauses:
                     [
-                        new("c-fv-1", "When", ["Ranged Slingshot Attack Declared"], "MidiCombatAutomationService", "executeWorkflow", "Initiates Fivi's ranged attack workflow.", "ANY"),
+                        new("c-fv-1", "When", ["Ranged Slingshot Attack Declared"], "MidiCombatAutomationService", "executeWorkflow", "Initiates the ranged attack workflow.", "ANY"),
                         new("c-fv-2", "Contains", ["Weapon.Properties Contains 'Ranged'", "Action.Tags Contains 'Spell'"], "MidiCombatAutomationService", "evaluateSneakAttackEligibility", "Eligible for Sneak Attack and Fey ricochet.", "ALL"),
                         new("c-fv-3", "Where", ["Distance(Attacker, Target) <= 60 ft"], "MidiCombatAutomationService", "executeWorkflow", "Normal range 60 ft without disadvantage.", "ALL"),
                         new("c-fv-4", "If", ["AttackTotal >= TargetAC"], "CombatRuleInterpreter", "ResolveShieldReactionWindow", "Checks hit against target AC.", "ALL"),
@@ -277,9 +277,9 @@ public static class ActionRuleCatalog
                         new("11-16", "90 ft", "4d8 + 6 piercing; ignores half/three-quarters cover.", "Feywild Outcast Arc"),
                         new("17-20", "120 ft", "Guaranteed lethal finisher when target is at its last sliver of HP.", "Mountain-Slayer Slingshot")
                     ],
-                    WorksWith: ["Sneak Attack", "Dolly Pocket-Maw Ammo Pouch", "Laksis Ember Assist"],
+                    WorksWith: ["Sneak Attack", "Pocket-Maw Ammo Pouch", "Ember Assist"],
                     ConflictsWith: ["Wind Wall"],
-                    Tags: ["Campaign Custom", "Fivi", "Ranged", "Slingshot"],
+                    Tags: ["Campaign Custom", "Ranged", "Slingshot"],
                     IsCustomizedForCampaign: true,
                     UpdatedByUsername: "GeoJason",
                     UpdatedAt: "2026-10-26T15:00:00Z",
@@ -287,15 +287,15 @@ public static class ActionRuleCatalog
                     BypassesCoreRuleId: "rule-attack-action"
                 ),
                 new(
-                    Id: "rule-chokrah-overchannel",
-                    RuleCode: "Campaign.ChokrahOverchannel",
-                    Name: "Chokrah Ritual Overchannel",
+                    Id: "rule-reagent-overchannel",
+                    RuleCode: "Campaign.ReagentOverchannel",
+                    Name: "Ritual Reagent Overchannel",
                     Category: "Actions",
                     SourceLabel: "Campaign Custom",
                     RulesetCode: "dnd5e-2024",
-                    Summary: "Consumes refined Chokrah ritual reagent during spellcasting to amplify spell damage by +2d8 Radiant/Necrotic and raise Spell Save DC by +2 for the cast.",
+                    Summary: "Consumes refined ritual reagent during spellcasting to amplify spell damage by +2d8 Radiant/Necrotic and raise Spell Save DC by +2 for the cast.",
                     ActionCost: "1 Bonus Action",
-                    ActionType: "Bonus Action Augmentation (Shadow of the Mountain)",
+                    ActionType: "Bonus Action Augmentation (Campaign Custom)",
                     RangeLabel: "Self",
                     TargetLabel: "Self (Augments Active Spell)",
                     AttackOrSaveLabel: "Increases Spell Save DC by +2",
@@ -309,21 +309,21 @@ public static class ActionRuleCatalog
                     SourceFilePath: "LoomWeaver.GameSystems/Dnd5eSystemRules.cs",
                     Clauses:
                     [
-                        new("c-ck-1", "When", ["Chokrah Ritual Overchannel Declared"], "MidiCombatAutomationService", "executeWorkflow", "Declared alongside a leveled spell cast.", "ANY"),
-                        new("c-ck-2", "Contains", ["Inventory.Reagents Contains 'Chokrah'", "Action.Tags Contains 'Spell'"], "CharacterCalculationEngine", "ComputeSpellSaveDc", "Verifies Chokrah reagent in caster inventory.", "ALL"),
-                        new("c-ck-3", "With", ["VFX Preset 'fx-ground-sigil'"], "CharacterCalculationEngine", "ComputeSpellSaveDc", "Triggers hexagonal Anelith ground sigil.", "ALL"),
-                        new("c-ck-4", "Then", ["Apply Chokrah +2d8 Necrotic/Radiant Surge"], "CharacterCalculationEngine", "ComputeSpellSaveDc", "Adds +2d8 damage and +2 Save DC.", "ALL")
+                        new("c-ck-1", "When", ["Reagent Overchannel Declared"], "MidiCombatAutomationService", "executeWorkflow", "Declared alongside a leveled spell cast.", "ANY"),
+                        new("c-ck-2", "Contains", ["Inventory.Reagents Contains 'Ritual Reagent'", "Action.Tags Contains 'Spell'"], "CharacterCalculationEngine", "ComputeSpellSaveDc", "Verifies ritual reagent in caster inventory.", "ALL"),
+                        new("c-ck-3", "With", ["VFX Preset 'fx-ground-sigil'"], "CharacterCalculationEngine", "ComputeSpellSaveDc", "Triggers a ground sigil effect.", "ALL"),
+                        new("c-ck-4", "Then", ["Apply +2d8 Necrotic/Radiant Surge"], "CharacterCalculationEngine", "ComputeSpellSaveDc", "Adds +2d8 damage and +2 Save DC.", "ALL")
                     ],
                     ScalingTiers:
                     [
-                        new("1-4", "Self", "+1d8 damage and +1 Spell Save DC.", "Initiate Chokrah Dose"),
-                        new("5-10", "Self", "+2d8 damage and +2 Spell Save DC.", "Refined Chokrah Dose"),
-                        new("11-16", "Self", "+3d8 damage and +2 Spell Save DC.", "Cinth Guild Distillation"),
-                        new("17-20", "Self", "+4d8 damage and +3 Spell Save DC.", "Prior Overdraw")
+                        new("1-4", "Self", "+1d8 damage and +1 Spell Save DC.", "Initiate Dose"),
+                        new("5-10", "Self", "+2d8 damage and +2 Spell Save DC.", "Refined Dose"),
+                        new("11-16", "Self", "+3d8 damage and +2 Spell Save DC.", "Guild Distillation"),
+                        new("17-20", "Self", "+4d8 damage and +3 Spell Save DC.", "Overdraw")
                     ],
-                    WorksWith: ["Kycius Thread-Seer Hex", "Kildrid Anelith Binding Pulse"],
+                    WorksWith: ["Thread-Seer Hex", "Binding Pulse"],
                     ConflictsWith: ["Antimagic Field"],
-                    Tags: ["Campaign Custom", "Chokrah", "Spell Augmentation"],
+                    Tags: ["Campaign Custom", "Ritual Reagent", "Spell Augmentation"],
                     IsCustomizedForCampaign: true,
                     UpdatedByUsername: "GeoJason",
                     UpdatedAt: "2026-10-26T15:30:00Z",

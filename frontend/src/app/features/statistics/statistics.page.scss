@@ -10,6 +10,11 @@
   flex-wrap: wrap;
 }
 
+.lw-stats-page__empty {
+  margin: 0;
+  opacity: 0.7;
+}
+
 .lw-stats-page__kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));

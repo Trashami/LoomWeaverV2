@@ -53,6 +53,8 @@
           [module]="mod"
           (importRequested)="importCreatorModule($event)"
         />
+      } @empty {
+        <p class="lw-marketplace-empty">No creator modules are published yet.</p>
       }
     </div>
   </lw-panel>

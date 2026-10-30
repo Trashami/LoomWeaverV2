@@ -53,7 +53,7 @@ public static class ActionAndEffectEndpoints
     [
         new(
             "act-fivi-tooth",
-            "Fivi's Dragon-Tooth Slingshot Ricochet",
+            "Ranged Ricochet Slingshot",
             "Ranged Weapon Attack",
             "1 Action",
             60,
@@ -64,7 +64,7 @@ public static class ActionAndEffectEndpoints
         ),
         new(
             "act-kildrid-seal",
-            "Kildrid's Anelith Hexagonal Binding Pulse",
+            "Hexagonal Binding Pulse",
             "Abjuration Spell / Rune",
             "1 Action",
             30,
@@ -75,18 +75,18 @@ public static class ActionAndEffectEndpoints
         ),
         new(
             "act-laksis-cone",
-            "Laksis Fire-Drake Cinder Breath",
+            "Fire-Drake Cinder Breath",
             "Companion Bonus Action",
             "1 Bonus Action",
             20,
-            "WHEN: Kycius Commands Familiar Bonus Action",
+            "WHEN: Familiar Commands Bonus Action",
             "IF: Targets in 20ft Cone Fail DC 15 DEX Save",
             "THEN: Deal 4d6 Fire + Ignite Ground + Emit Ember Cone",
             8, 15, "4d6 + 3", "fx-ember-cone", "approved"
         ),
         new(
             "act-munk-cleave",
-            "Munk's Homestead Sky-Breaker Cleave",
+            "Sky-Breaker Cleave",
             "Melee Weapon Attack",
             "1 Action",
             10,
@@ -111,7 +111,7 @@ public static class ActionAndEffectEndpoints
         ),
         new(
             "fx-ground-sigil",
-            "Anelith Hexagonal Ground Sigil & Pillars",
+            "Hexagonal Ground Sigil & Pillars",
             "sigil",
             "#2ed39a",
             "#d4a853",
@@ -121,7 +121,7 @@ public static class ActionAndEffectEndpoints
         ),
         new(
             "fx-ember-cone",
-            "Laksis Dragonfire Cinder Cone",
+            "Dragonfire Cinder Cone",
             "cone",
             "#ff6b35",
             "#ffd166",

@@ -15,8 +15,8 @@ public static class AuthAndCheckoutEndpoints
         new(
             "cs_live_a1b2c3d4e5",
             "paid_settled",
-            "mod-cinth-masquerade-pack",
-            "Cinth Masquerade & Artificer District Campaign Module",
+            "mod-starter-pack",
+            "Starter Campaign Module",
             24.00,
             20.40,
             3.60,
@@ -27,8 +27,8 @@ public static class AuthAndCheckoutEndpoints
         new(
             "cs_live_f6g7h8i9j0",
             "paid_settled",
-            "mod-shadow-mountain-raid",
-            "Shadow of the Mountain — Runic Cavern & Dragon Boss Pack",
+            "mod-raid-pack",
+            "Raid Encounter & Boss Pack",
             18.00,
             15.30,
             2.70,
@@ -233,11 +233,11 @@ public static class AuthAndCheckoutEndpoints
                 $"cs_live_{now.ToUnixTimeMilliseconds():x}",
                 "paid_settled",
                 string.IsNullOrWhiteSpace(req.ItemId) ? "mod-skyship-lost-isles" : req.ItemId.Trim(),
-                string.IsNullOrWhiteSpace(req.ItemTitle) ? "Kutler's Skyship & Lost Isles Pack" : req.ItemTitle.Trim(),
+                string.IsNullOrWhiteSpace(req.ItemTitle) ? "Skyship & Lost Isles Pack" : req.ItemTitle.Trim(),
                 gross,
                 creatorTransfer,
                 platformFee,
-                string.IsNullOrWhiteSpace(req.CreatorHandle) ? "@IcrandorCartography" : req.CreatorHandle.Trim(),
+                string.IsNullOrWhiteSpace(req.CreatorHandle) ? "@LoomWeaverCreator" : req.CreatorHandle.Trim(),
                 $"LW-8515-{RandomNumberGenerator.GetInt32(1000, 9999)}",
                 now
             );

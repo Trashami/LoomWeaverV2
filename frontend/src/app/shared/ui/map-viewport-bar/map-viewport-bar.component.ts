@@ -14,14 +14,8 @@ export type LwMapQualityPreset = 'Auto' | 'Cinematic 3D' | 'Balanced 3D' | 'Perf
 })
 export class LwMapViewportBarComponent {
   readonly activeView = input<LwMapCameraView>('isometric');
-  readonly activeTheme = input<string>('Abandoned Crypt');
-  readonly themes = input<readonly string[]>([
-    'Abandoned Crypt',
-    'Cinth Masquerade Ballroom',
-    'Gwaedhellain Poisoned Canopy',
-    'Plains of Red Battlefield',
-    'Vandia Cliff House',
-  ]);
+  readonly activeTheme = input<string>('');
+  readonly themes = input<readonly string[]>([]);
   readonly activeQuality = input<LwMapQualityPreset>('Balanced 3D');
   readonly qualityPresets = input<readonly LwMapQualityPreset[]>([
     'Auto',

@@ -115,24 +115,33 @@ public static class ConnectedStoryEngine
 
             var activeBeatId = ConnectedStorySeedStore.ActiveBeatId;
             var allBeats = ConnectedStorySeedStore.Acts.SelectMany(a => a.Beats).ToList();
-            var activeBeat = allBeats.FirstOrDefault(b => b.Id == activeBeatId)
-                             ?? allBeats.FirstOrDefault(b => b.Id == "beat-2-1-arrival")
-                             ?? allBeats.First();
+            if (allBeats.Count == 0)
+            {
+                return new CampaignStoryWorkspaceDto(
+                    CampaignId: campaignId,
+                    CampaignTitle: "", CampaignSubtitle: "", HeroArtworkUrl: "",
+                    CurrentActLabel: "", CurrentActSub: "", NextSessionLabel: "", NextSessionSub: "",
+                    TotalSessionsLabel: "", TotalSessionsSub: "", ActiveBeatId: "", ActiveBeatTitle: "",
+                    Acts: [], SessionSequence: [], LoreAndClues: [], ConnectedGroups: [],
+                    ActiveStoryChain: new ConnectedStoryChainDto("", "", "", "", [], [], [], 0, 0));
+            }
+
+            var activeBeat = allBeats.FirstOrDefault(b => b.Id == activeBeatId) ?? allBeats[0];
 
             var chain = BuildConnectedChain(campaignId, access, activeBeat.ScopeNodeId);
             var connectedGroups = BuildConnectedGroupsForBeat(activeBeat, access.IsEffectiveGm);
 
             return new CampaignStoryWorkspaceDto(
                 CampaignId: campaignId,
-                CampaignTitle: "SHADOW OF THE MOUNTAIN",
-                CampaignSubtitle: "Six Luminaries, a bound dragon beneath the Southern Peaks, and the road to Cinth — a kingdom where ancient power stirs and old secrets refuse to stay buried.",
-                HeroArtworkUrl: "/combat-caves.jpg",
-                CurrentActLabel: "Act II",
-                CurrentActSub: "The Road to Cinth",
-                NextSessionLabel: "Session 15",
-                NextSessionSub: "The Ruined Chapel",
-                TotalSessionsLabel: "14 sessions",
-                TotalSessionsSub: "In progress",
+                CampaignTitle: "",
+                CampaignSubtitle: "",
+                HeroArtworkUrl: "",
+                CurrentActLabel: "",
+                CurrentActSub: "",
+                NextSessionLabel: "",
+                NextSessionSub: "",
+                TotalSessionsLabel: "",
+                TotalSessionsSub: "",
                 ActiveBeatId: activeBeat.Id,
                 ActiveBeatTitle: activeBeat.Title.Contains(' ') && char.IsDigit(activeBeat.Title[0])
                     ? activeBeat.Title[(activeBeat.Title.IndexOf(' ') + 1)..]
@@ -163,31 +172,14 @@ public static class ConnectedStoryEngine
                 .Select(c => isGm ? c : c with { GmCanonicalTruth = null })
                 .ToList();
 
-            var steps = new List<ConnectedChainStepDto>
-            {
-                new("step-session", "Session", "1:Session:session-15", "Session 15", "The Ruined Chapel · Live Session",
-                    "What are we preparing to play?", "plans ->", null, "/campaigns?session=session-15", "players", new[] { "All Party" }),
-                new("step-scene", "Scene", "1:Scene:scene-crypt-descent", "Investigate the Crypt", "Scene 3 · Beneath the Altar",
-                    "What scene is planned?", "occurs at ->", null, "/campaigns?session=session-15", "players", new[] { "All Party" }),
-                new("step-room", "Room", "1:Room:room-c3-crypt", "Crypt C3", "Sealed Altar Crypt · Resonance Vault",
-                    "Where does it happen?", "contains ->", null, "/maps?scene=scene-mountain-prison", "players", new[] { "Dal", "Kildrid", "Kycius" }),
-                new("step-clue", "Clue", "1:Clue:clue-chokrah-manifest", "Chokrah Manifest", "Signed Prior Siphon Ledger & Carvings",
-                    "What can the party find here?", "supports ->", "confirmed", "/world-lore?tab=lore&loreId=lore-priors-rituals", "players", new[] { "Dal", "Kildrid", "Kycius" }),
-                new("step-claim", "Claim", "1:Claim:claim-priors-rituals", "Claim about the Priors", "Priors siphon student magic via Chokrah",
-                    "What does the evidence suggest?", "documented in & implicates ->", claims.FirstOrDefault()?.TruthAssessment ?? "confirmed", "/world-lore?tab=lore&loreId=lore-priors-rituals", "players", new[] { "Dal", "Kildrid", "Kycius" }),
-                new("step-lore", "Lore", "1:Lore:lore-priors-rituals", "Lore: Priors' Rituals", "Codex Article · Corrupted Street-Schools",
-                    "Where is the supporting explanation?", "implicates ->", null, "/world-lore?tab=lore&loreId=lore-priors-rituals", "players", new[] { "All Party" }),
-                new("step-npc", "NPC", "1:NPC:npc-emrys", "NPC: Emrys Driothe", "Council of Magic Reformer",
-                    "Who is involved?", "discovered by ->", null, "/campaigns?inspect=npc-emrys", "players", new[] { "All Party" }),
-                new("step-discovery", "Discovery", "1:PlayerCharacter:pc-dal", "Discovery During Play", "Knowledge Grants: Dal, Kildrid & Kycius",
-                    "Who actually knows this?", "verified grant", "confirmed", "/characters?focus=pc-dal", "players", new[] { "Dal", "Kildrid", "Kycius" })
-            };
+            // Chain steps are derived from authored campaign records, not hardcoded story content.
+            var steps = new List<ConnectedChainStepDto>();
 
             return new ConnectedStoryChainDto(
-                ChainId: "chain-chapel-crypt-priors",
-                Title: "Connected Story & Evidence Chain — The Ruined Chapel",
+                ChainId: "chain-campaign-story",
+                Title: "Connected Story & Evidence Chain",
                 Subtitle: "SQL stores authored records & play events; Neo4j connects Session -> Scene -> Room -> Clue -> Claim -> Lore & NPC -> Character Discovery.",
-                ScopeNodeId: scopeNodeId ?? "session-15",
+                ScopeNodeId: scopeNodeId ?? string.Empty,
                 Steps: steps,
                 Claims: claims,
                 Relationships: rels,
@@ -204,8 +196,8 @@ public static class ConnectedStoryEngine
         LoomWeaverNeo4jService graph,
         CancellationToken ct = default)
     {
-        var fromKey = string.IsNullOrWhiteSpace(req.FromCompositeKey) ? "1:Clue:clue-chokrah-manifest" : req.FromCompositeKey.Trim();
-        var toKey = string.IsNullOrWhiteSpace(req.ToCompositeKey) ? "1:Claim:claim-priors-rituals" : req.ToCompositeKey.Trim();
+        var fromKey = string.IsNullOrWhiteSpace(req.FromCompositeKey) ? "" : req.FromCompositeKey.Trim();
+        var toKey = string.IsNullOrWhiteSpace(req.ToCompositeKey) ? "" : req.ToCompositeKey.Trim();
         var relType = string.IsNullOrWhiteSpace(req.RelationshipType) ? "SUPPORTS" : req.RelationshipType.Trim().ToUpperInvariant();
         var vis = string.Equals(req.Visibility, "gm", StringComparison.OrdinalIgnoreCase) ? "gm" : "players";
         var why = string.IsNullOrWhiteSpace(req.WhyIncludedLabel) ? $"{relType} link" : req.WhyIncludedLabel.Trim();
@@ -469,22 +461,5 @@ public static class ConnectedStoryEngine
     }
 
     private static IReadOnlyList<StoryConnectedGroupDto> BuildConnectedGroupsForBeat(StoryBeatItemDto beat, bool isGm) =>
-    [
-        new("Quests (2)", "compass", "gold", [
-            new("1:Quest:quest-missing-caravan", "The Missing Caravan", "Act I–II Investigation Thread", "/campaigns?beat=beat-1-1", "loc-ruined-chapel"),
-            new("1:Quest:quest-chokrah-ledger", "Secrets Beneath the Chapel", "Crypt C3 & Chokrah Manifest", "/world-lore?tab=lore&loreId=lore-priors-rituals", "loc-ruined-chapel")
-        ]),
-        new("Locations (2)", "map-pin", "emerald", [
-            new("1:Location:loc-ruined-chapel", "The Ruined Chapel", "Keyed Rooms C1–C3 · Whispering Woods", "/world-lore?location=loc-ruined-chapel", "loc-ruined-chapel"),
-            new("1:Location:loc-veldra-wood", "Whispering Woods", "Ancient Fey-Bordered Canopy", "/world-lore?location=loc-veldra-wood", "loc-veldra-wood")
-        ]),
-        new("NPCs (2)", "users", "gold", [
-            new("1:NPC:npc-malric", "Brother Malric", "Chapel Keeper · Currently in C1 (Was in C3)", "/campaigns?inspect=npc-malric", "loc-ruined-chapel"),
-            new("1:NPC:npc-emrys", "Emrys Driothe", "Implicated by Chokrah Manifest & Priors Claim", "/campaigns?inspect=npc-emrys", "loc-cinth")
-        ]),
-        new("Factions (2)", "shield", "emerald", [
-            new("1:Faction:fac-artificers", "Artificers Guild of Cinth", "Allied Brass & Skyship Collective", "/world-lore?tab=lore&loreId=lore-artificers-guild", "loc-artificers-skydock"),
-            new("1:Faction:fac-priors", "The Order of Priors", isGm ? "GM Truth: Siphons student magic via Chokrah" : "Street-Schools of Ekkos (Implicated in C3)", "/world-lore?tab=lore&loreId=lore-priors-rituals", "loc-cinth")
-        ])
-    ];
+        Array.Empty<StoryConnectedGroupDto>();
 }

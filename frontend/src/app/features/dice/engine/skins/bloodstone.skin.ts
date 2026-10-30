@@ -2,7 +2,7 @@ import { DiceSkinConfig } from './dice-skin.types';
 
 export const BLOODSTONE_SKIN: DiceSkinConfig = {
   id: 'skin-vampire-bloodstone',
-  name: 'Cinth Crimson Bloodstone',
+  name: 'Crimson Bloodstone',
   tagline: 'Polished noble bloodstone caged in tarnished court silver',
   materialFamily: 'Bloodstone & Silver',
   tier: 'Reward',
@@ -10,7 +10,7 @@ export const BLOODSTONE_SKIN: DiceSkinConfig = {
   unlockSource: 'reward',
   priceLabel: 'Campaign Reward',
   rewardMilestoneId: 'milestone-cinth-masquerade',
-  rewardRequirementText: 'Earned by surviving a Deadly Encounter or completing the Cinth Masquerade milestone.',
+  rewardRequirementText: 'Earned by surviving a Deadly Encounter or completing a campaign milestone.',
   isDefaultUnlocked: false,
   defaultModelId: 'model-caged-filigree',
   defaultSoundProfileId: 'sfx-stone-rattle',

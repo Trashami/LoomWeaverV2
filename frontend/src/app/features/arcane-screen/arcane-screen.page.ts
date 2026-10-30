@@ -121,7 +121,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   // Quick-Add Monster & NPC Form State
   readonly quickAddMonsterId = signal<string>('creat-goblin-scout-a');
   readonly quickAddNpcName = signal<string>('');
-  readonly quickAddNpcTitle = signal<string>('Cinth Artificer Scout');
+  readonly quickAddNpcTitle = signal<string>('');
   readonly quickAddNpcScope = signal<'Encounter' | 'Region'>('Encounter');
   readonly quickAddNpcDisposition = signal<'Friendly' | 'Neutral' | 'Deceptive' | 'Hostile'>('Friendly');
 

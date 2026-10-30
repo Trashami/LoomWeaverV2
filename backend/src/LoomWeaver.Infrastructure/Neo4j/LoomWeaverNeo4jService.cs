@@ -18,15 +18,7 @@ public sealed class LoomWeaverNeo4jService : IAsyncDisposable
     private readonly IDriver? _driver;
 
     private static readonly List<EntitySummaryDto> DynamicGraphNodes = new();
-    private static readonly List<GraphEdgeDto> DynamicGraphEdges = new()
-    {
-        new("1:Location:loc-ruined-chapel", "1:Location:room-c1-nave", "CONTAINS", "players", "Present in Ruined Chapel (C1)"),
-        new("1:Location:loc-ruined-chapel", "1:Location:room-c2-courtyard", "CONTAINS", "players", "Present in Ruined Chapel (C2)"),
-        new("1:Location:loc-ruined-chapel", "1:Location:room-c3-crypt", "CONTAINS", "gm", "Hidden Beneath Altar (C3)"),
-        new("1:Session:session-15", "1:Location:loc-ruined-chapel", "PLANS", "players", "Session 15 Primary Site"),
-        new("1:NPC:npc-malric", "1:Location:room-c1-nave", "CURRENTLY_IN", "players", "Present in C1"),
-        new("1:Encounter:enc-shadow-stalker", "1:Location:room-c2-courtyard", "OCCURS_AT", "players", "Triggered in C2 Courtyard"),
-    };
+    private static readonly List<GraphEdgeDto> DynamicGraphEdges = new();
 
     public LoomWeaverNeo4jService(LoomWeaverGraphOptions options)
     {
@@ -236,14 +228,7 @@ public sealed class LoomWeaverNeo4jService : IAsyncDisposable
         }
 
         var nodes = FallbackSeedData.FilterEntities(campaignId, isGm, null).ToList();
-        var fallbackEdges = new List<GraphEdgeDto>
-        {
-            new("1:Location:loc-vandia", "1:Location:loc-plains-red", "CONNECTED_TO", "players", "Northeast Cinth Road"),
-            new("1:Location:loc-plains-red", "1:Location:loc-cinth", "CONNECTED_TO", "players", "Plains of Vistagh Approach"),
-            new("1:PlayerCharacter:pc-dal", "1:Location:loc-cinth", "CURRENTLY_IN", "players", "In Cinth"),
-            new("1:PlayerCharacter:pc-kildrid", "1:Clue:clue-kildrid-tremor", "DISCOVERED", "players", "Stone Sense"),
-            new("1:Quest:quest-cinth-gala", "1:Location:loc-cinth", "TARGETS", "players", "Active Gala")
-        };
+        var fallbackEdges = new List<GraphEdgeDto>();
 
         lock (DynamicGraphNodes)
         {
@@ -257,13 +242,6 @@ public sealed class LoomWeaverNeo4jService : IAsyncDisposable
             fallbackEdges.AddRange(DynamicGraphEdges.Where(e => isGm || e.Visibility != "gm"));
         }
 
-        if (isGm)
-        {
-            fallbackEdges.Add(new("1:Clue:clue-kildrid-tremor", "1:Secret:sec-emrys-trap", "REVEALS", "gm", "Points to Dragon Trap"));
-            fallbackEdges.Add(new("1:Secret:sec-emrys-trap", "1:Monster:mon-bound-dragon", "ABOUT", "gm", "Life-Bound Tether"));
-            fallbackEdges.Add(new("1:NPC:npc-emrys", "1:Secret:sec-emrys-trap", "KNOWS_ABOUT", "gm", "Architect of Trap"));
-            fallbackEdges.Add(new("1:NPC:npc-emrys", "1:Faction:fac-priors", "CONTROLS", "gm", "Chokrah Siphon"));
-        }
         return new GraphSubgraphDto(campaignId, _options.Namespace, isGm ? "gm" : "players", nodes, fallbackEdges);
     }
 

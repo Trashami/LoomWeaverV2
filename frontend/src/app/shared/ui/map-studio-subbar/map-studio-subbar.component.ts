@@ -16,7 +16,7 @@ export type MapSceneScopeMode = 'battlemap' | 'world_overlay';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LwMapStudioSubbarComponent {
-  readonly mapTitle = input<string>('The Forgotten Crypt');
+  readonly mapTitle = input<string>('Untitled Map');
   readonly dimensionMode = input<LwMapDimensionMode>('3d');
   readonly gridCols = input<number>(50);
   readonly gridRows = input<number>(50);

@@ -2,9 +2,9 @@ import { DiceSkinConfig } from './dice-skin.types';
 
 export const ARCANE_GLYPH_SKIN: DiceSkinConfig = {
   id: 'skin-arcane-glyph',
-  name: 'Anelith Glyph Stone',
-  tagline: 'Dark slate polyhedron etched with concentric summoning circles and Luminary conduits',
-  materialFamily: 'Slate & Luminary Conduit',
+  name: 'Glyph Stone',
+  tagline: 'Dark slate polyhedron etched with concentric summoning circles and arcane conduits',
+  materialFamily: 'Slate & Arcane Conduit',
   tier: 'Vault',
   rarity: 'Epic',
   unlockSource: 'loommarks',

@@ -183,7 +183,7 @@ public sealed class EffectTimelineValidationEngine
             new EffectStudioDocumentDto(
                 Id: "fx-anelith-sun-spire",
                 CampaignId: 1,
-                Name: "Anelith Golden Rune Vortex",
+                Name: "Golden Rune Vortex",
                 Subtitle: "Sidhe Ard Creation Remnant · Radiant AoE",
                 StatusLabel: "Saved",
                 ActiveCameraPreset: "Isometric",

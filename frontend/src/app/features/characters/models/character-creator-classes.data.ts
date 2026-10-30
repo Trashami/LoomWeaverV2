@@ -78,8 +78,8 @@ export const CREATOR_CLASSES: readonly CreatorClassOptionVm[] = [
   {
     id: 'cleric',
     name: 'Cleric',
-    subclassDefault: 'Twilight Domain (Ekkos)',
-    subclasses: ['Life Domain', 'Light Domain', 'Twilight Domain (Ekkos)', 'Tempest Domain', 'War Domain', 'Knowledge Domain', 'Trickery Domain'],
+    subclassDefault: 'Twilight Domain',
+    subclasses: ['Life Domain', 'Light Domain', 'Twilight Domain', 'Tempest Domain', 'War Domain', 'Knowledge Domain', 'Trickery Domain'],
     tagline: 'Divine conduit of sacred light, healing, and protection.',
     hitDie: 8,
     primaryAbility: 'WIS',
@@ -332,8 +332,8 @@ export const CREATOR_CLASSES: readonly CreatorClassOptionVm[] = [
   {
     id: 'artificer',
     name: 'Artificer',
-    subclassDefault: 'Cinth Battle Smith',
-    subclasses: ['Alchemist', 'Armorer', 'Artillerist', 'Battle Smith (Cinth Guild)'],
+    subclassDefault: 'Battle Smith',
+    subclasses: ['Alchemist', 'Armorer', 'Artillerist', 'Battle Smith'],
     tagline: 'Mechanical and runic answers to unchecked magical power.',
     hitDie: 8,
     primaryAbility: 'INT',

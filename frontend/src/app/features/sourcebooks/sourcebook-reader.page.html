@@ -1,0 +1,67 @@
+<section class="reader">
+  <aside class="reader-toc">
+    <a class="back-link" [routerLink]="['/sources', code]">Back to {{ code }}</a>
+    <h2>{{ source()?.name ?? code }}</h2>
+    <nav aria-label="Book sections">
+      <ol>
+        @for (section of sections(); track section.id) {
+          <li>
+            <a
+              [routerLink]="['/sources', code, 'read']"
+              [queryParams]="{ section: section.id }"
+              [class.active]="section.id === selectedId()"
+              [attr.aria-current]="section.id === selectedId() ? 'page' : null">
+              {{ section.name }}
+            </a>
+            @if (section.page) {
+              <span class="meta">p. {{ section.page }}</span>
+            }
+          </li>
+        }
+      </ol>
+    </nav>
+  </aside>
+
+  <main class="reader-main">
+    @if (loading()) {
+      <p class="meta">Loading...</p>
+    }
+    @if (errorMessage()) {
+      <p class="error" role="alert">{{ errorMessage() }}</p>
+    }
+
+    @if (node(); as n) {
+      <header>
+        <p class="meta">{{ code }}@if (n.page) { · p. {{ n.page }} }</p>
+        <h1>{{ title() }}</h1>
+      </header>
+
+      <article class="book-body" [innerHTML]="bodyHtml()"></article>
+
+      @if (n.children.length) {
+        <section class="subsections">
+          <h2>In this section</h2>
+          <ul>
+            @for (child of n.children; track child.id) {
+              <li>
+                <a [routerLink]="['/sources', code, 'read']" [queryParams]="{ section: child.id }">{{ child.name }}</a>
+                @if (child.page) {
+                  <span class="meta">p. {{ child.page }}</span>
+                }
+              </li>
+            }
+          </ul>
+        </section>
+      }
+
+      <nav class="pager" aria-label="Section paging">
+        @if (prevSection(); as prev) {
+          <a [routerLink]="['/sources', code, 'read']" [queryParams]="{ section: prev.id }">Previous: {{ prev.name }}</a>
+        }
+        @if (nextSection(); as next) {
+          <a [routerLink]="['/sources', code, 'read']" [queryParams]="{ section: next.id }">Next: {{ next.name }}</a>
+        }
+      </nav>
+    }
+  </main>
+</section>

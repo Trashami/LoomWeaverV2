@@ -82,10 +82,10 @@ export class LwMapPngAssetBrowserComponent {
   readonly layers = input<readonly LwMapLayerStatusItem[]>([]);
   readonly themes = input<readonly string[]>([
     'Abandoned Crypt',
-    'Cinth Masquerade Ballroom',
-    'Gwaedhellain Poisoned Canopy',
-    'Plains of Red Battlefield',
-    'Vandia Cliff House',
+    'Ballroom',
+    'Poisoned Canopy',
+    'Battlefield',
+    'Cliff Keep',
   ]);
   readonly activeTheme = input<string>('Abandoned Crypt');
   readonly batchBusy = input<boolean>(false);

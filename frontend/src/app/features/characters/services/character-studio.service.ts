@@ -41,7 +41,7 @@ export class CharacterStudioService {
   readonly ancestrySearchQuery = signal<string>('');
 
   readonly creatorDraft = signal<CharacterCreatorDraftVm>({
-    name: 'Ciarán Fiachra', pronouns: 'He/Him', alignment: 'Neutral Good',
+    name: 'Aldric Vale', pronouns: 'He/Him', alignment: 'Neutral Good',
     quote: '"Knowledge preserves what time would otherwise forget."',
     portraitUrl: '/assets/5e-tools/races/PHB/Elf.webp', level: 1,
     ancestryId: 'elf', subraceId: 'high-elf', classId: 'wizard', subclass: 'School of Evocation',
@@ -229,7 +229,7 @@ export class CharacterStudioService {
     const cls = classes.find((c) => c.id === draft.classId) ?? classes[0];
     const bg = backgrounds.find((b) => b.id === draft.backgroundId) ?? backgrounds[0];
 
-    const cleanName = draft.name.trim() || 'Ciarán Fiachra';
+    const cleanName = draft.name.trim() || 'New Character';
     const slug = cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     const editingKey = this.editingCharacterKey();
     const existingSheet = editingKey ? this.sheets().find((s) => s.characterKey === editingKey) : undefined;
@@ -257,7 +257,7 @@ export class CharacterStudioService {
       quote: draft.quote || bg.defaultQuote, ancestryOrClan: ancestry.name,
       subrace: subrace?.name ?? ancestry.name, classOrArchetype: cls.name,
       subclass: draft.subclass || cls.subclassDefault, backgroundName: bg.name, backgroundSummary: bg.summary,
-      tags: ['Party Member', subrace?.name ?? ancestry.name, bg.name, cls.name, 'Cinth'],
+      tags: ['Party Member', subrace?.name ?? ancestry.name, bg.name, cls.name, 'Party Member'],
       systemCode: this.activeSystem(), level: draft.level ?? existingSheet?.level ?? 5,
       currentXp: existingSheet?.currentXp ?? 14250, nextLevelXp: existingSheet?.nextLevelXp ?? 15000,
       levelUpEligible: existingSheet?.levelUpEligible ?? true,
@@ -436,7 +436,7 @@ export class CharacterStudioService {
   }
 
   createCharacter(name: string, ancestry: string, archetype: string): void {
-    this.updateCreatorDraft({ name: name.trim() || 'Vandia Vanguard', subclass: archetype });
+    this.updateCreatorDraft({ name: name.trim() || 'New Character', subclass: archetype });
     const created = this.finalizeWizardCharacter();
     this.sheets.update((list) =>
       list.map((s) => (s.characterKey === created.characterKey ? this.recalculate({ ...s, ancestryOrClan: ancestry, classOrArchetype: archetype, level: 7 }, this.activeSystem()) : s)),

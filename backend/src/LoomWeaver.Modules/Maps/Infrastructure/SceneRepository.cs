@@ -84,7 +84,7 @@ public static class SceneRepository
             ["scene-cinth-ballroom"] = new(
                 SceneKey: "scene-cinth-ballroom",
                 CampaignId: 1,
-                Title: "Cinth Grand Masquerade Ballroom",
+                Title: "Grand Masquerade Ballroom",
                 Revision: 14,
                 ActiveLevelIndex: 1,
                 GhostLowerFloors: true,
@@ -114,30 +114,30 @@ public static class SceneRepository
 
     private static IReadOnlyList<MapPresetTemplateDto> SeedPresets() =>
     [
-        new("preset-cinth-ballroom", "Cinth Grand Masquerade Ballroom", "city", "battlemap",
+        new("preset-cinth-ballroom", "Grand Masquerade Ballroom", "city", "battlemap",
             "Obsidian and gold gothic cathedral ballroom with reflective canal splines, upper balcony dais, and hidden crypt vaults.",
-            "castle", 36, 28, "Cinth Marble Ballroom Courtyard", "2.5D Chandelier & Sconce Shadows", 840, "3-Level Interior"),
-        new("preset-gwaedhellain-canopy", "Shadow of the Mountain · Poisoned Forest", "wilderness", "battlemap",
-            "Twisted ancient canopy above the rune-bound mountain cavern where dragon blood seeps into roots and stone.",
-            "trees", 44, 34, "Gwaedhellain Poisoned Canopy", "Bioluminescent Spore & Dusk Mist", 928, "Canopy Occlusion"),
-        new("preset-plains-of-red", "Plains of Red · Ancient Fey Battlefield", "wilderness", "battlemap",
-            "Crimson clay escarpments, shattered fey monoliths, and limestone cliffs along the northeast road to Cinth.",
-            "mountain", 48, 36, "Plains of Red Clay & Ruin", "High Sun & Long 4PM Cliff Shadows", 640, "Multi-Tier Cliffs"),
+            "castle", 36, 28, "Marble Ballroom Courtyard", "2.5D Chandelier & Sconce Shadows", 840, "3-Level Interior"),
+        new("preset-gwaedhellain-canopy", "Poisoned Forest", "wilderness", "battlemap",
+            "Twisted ancient canopy above a rune-bound mountain cavern where corrupted sap seeps into roots and stone.",
+            "trees", 44, 34, "Poisoned Canopy", "Bioluminescent Spore & Dusk Mist", 928, "Canopy Occlusion"),
+        new("preset-plains-of-red", "Ancient Fey Battlefield", "wilderness", "battlemap",
+            "Crimson clay escarpments, shattered fey monoliths, and limestone cliffs along an old frontier road.",
+            "mountain", 48, 36, "Red Clay & Ruin", "High Sun & Long 4PM Cliff Shadows", 640, "Multi-Tier Cliffs"),
         new("preset-runic-prison", "Subterranean Dragon Rune Chamber", "dungeon", "battlemap",
             "Basalt cavern carved with hundred-year containment sigils, claw-scored runes, and molten fissures.",
             "flame", 40, 40, "Runic Subterranean Basalt", "Arcane Sigil Glow & Deep Darkness", 510, "Boss Arena"),
-        new("preset-icrandor-atlas", "Icrandor Continental World Atlas", "world", "world_map",
-            "Top-right North cartography canvas spanning Vandia, the Bay of Forgotten Treasures, Cinth, and Edhellain.",
+        new("preset-icrandor-atlas", "Continental World Atlas", "world", "world_map",
+            "Continental cartography canvas spanning coastlines, kingdoms, and mountain ranges.",
             "compass", 80, 60, "Aged Parchment & Coastal Waterlines", "Celestial Astrolabe Daylight", 2150, "World Cartography")
     ];
 
     private static IReadOnlyList<MapCatalogAssetItemDto> SeedCatalogAssets() =>
     [
-        new("cat-gothic-pillar", "Cinth Gothic Obsidian Pillar", "walls", "castle-timber", "3d-linked-stamp", true, false, 1.25, 18, "/map-assets/models-3d/Meshy_AI_Ancient_Pillars_Hal_1023202628_texture.glb"),
+        new("cat-gothic-pillar", "Gothic Obsidian Pillar", "walls", "castle-timber", "3d-linked-stamp", true, false, 1.25, 18, "/map-assets/models-3d/Meshy_AI_Ancient_Pillars_Hal_1023202628_texture.glb"),
         new("cat-clockwork-organ", "Artificer Brass Pipe Organ", "furniture", "room-furnishings-v1", "3d-linked-stamp", true, false, 1.4, 14, "/map-assets/stamps-2d/room-furnishings-v1"),
         new("cat-banquet-table", "Masquerade Velvet Banquet Table", "furniture", "table-room-decor-v1", "2d-stamp", true, false, 1.15, 4, "/map-assets/stamps-2d/table-room-decor-v1"),
         new("cat-limestone-cliff", "Stackable Limestone Cliff Escarpment", "cliffs", "stackable-limestone-cliffs-v2", "3d-linked-stamp", true, true, 1.6, 20, "/map-assets/stamps/cliffs"),
-        new("cat-poisoned-oak", "Gwaedhellain Canopy Elder Tree", "trees", "models-3d", "3d-linked-stamp", true, true, 1.8, 28, "/map-assets/models-3d/Meshy_AI_tree_ancient_1023214424_texture.glb"),
+        new("cat-poisoned-oak", "Canopy Elder Tree", "trees", "models-3d", "3d-linked-stamp", true, true, 1.8, 28, "/map-assets/models-3d/Meshy_AI_tree_ancient_1023214424_texture.glb"),
         new("cat-glowing-fungi", "Bioluminescent Underdark Mushroom Cluster", "plants", "models-3d", "3d-linked-stamp", true, true, 0.9, 6, "/map-assets/models-3d/Meshy_AI_Whispering_Fungal_Pea_1023201247_texture.glb"),
         new("cat-runic-obelisk", "Azure Sidhe Ard Runic Obelisk", "ruins", "models-3d", "3d-linked-stamp", true, false, 1.35, 16, "/map-assets/models-3d/Meshy_AI_Azure_Runic_Obelisk_1023090809_texture.glb"),
         new("cat-sewer-wall", "Modular Sewer & Crypt Archway", "walls", "sewer-dungeon-wall-library-v1", "wall-segment", true, false, 1.0, 12, "/map-assets/terrain-textures/sewer-dungeon-wall-library-v1"),

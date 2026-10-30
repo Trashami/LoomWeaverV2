@@ -84,7 +84,7 @@
             <option [value]="act.id">{{ act.title }} — {{ act.subtitle }}</option>
           }
         </select>
-        <input type="text" class="lw-story-input" placeholder="e.g. 2.6 Unsealing the Chokrah Crypt..." [ngModel]="newBeatTitle()" (ngModelChange)="newBeatTitle.set($event)" />
+        <input type="text" class="lw-story-input" placeholder="e.g. 2.6 Opening the Sealed Gate..." [ngModel]="newBeatTitle()" (ngModelChange)="newBeatTitle.set($event)" />
         <select class="lw-story-select" [ngModel]="newBeatKind()" (ngModelChange)="newBeatKind.set($event)">
           <option value="scene">Scene</option>
           <option value="quest">Quest</option>
@@ -310,11 +310,11 @@
       <div class="lw-rel-builder">
         <div class="lw-rel-builder__head">
           <h4>Persist SQL Relationship &amp; Project to Neo4j Outbox</h4>
-          <p>Tracks current vs. historical relationships (e.g., "Malric WAS_IN Crypt C3" vs. "Malric CURRENTLY_IN C1").</p>
+          <p>Tracks current vs. historical relationships (e.g., "Character WAS_IN Room A" vs. "Character CURRENTLY_IN Room B").</p>
         </div>
         @if (store.viewerRole() === 'gm') {
           <div class="lw-add-beat-bar__row">
-            <input type="text" class="lw-story-input" [ngModel]="relFromKey()" (ngModelChange)="relFromKey.set($event)" placeholder="From (1:NPC:npc-malric)" />
+            <input type="text" class="lw-story-input" [ngModel]="relFromKey()" (ngModelChange)="relFromKey.set($event)" placeholder="From (1:NPC:npc-id)" />
             <select class="lw-story-select" [ngModel]="relType()" (ngModelChange)="relType.set($event)">
               <option value="CURRENTLY_IN">CURRENTLY_IN</option>
               <option value="SUPPORTS">SUPPORTS</option>

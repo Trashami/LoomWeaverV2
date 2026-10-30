@@ -55,7 +55,7 @@ export interface LwCreatorWizardStepVm {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LwCharacterCreatorWizardComponent {
-  readonly campaignName = input<string>('The Ashen Vale');
+  readonly campaignName = input<string>('Your Campaign');
   readonly isEditMode = input<boolean>(false);
   readonly draft = input.required<CharacterCreatorDraftVm>();
   readonly ancestryOptions = input<readonly CreatorAncestryOptionVm[]>(CREATOR_ANCESTRIES);

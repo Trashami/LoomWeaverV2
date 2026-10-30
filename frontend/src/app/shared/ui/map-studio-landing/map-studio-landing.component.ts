@@ -96,7 +96,7 @@ export class LwMapStudioLandingComponent {
   readonly showCreatePrompt = signal<boolean>(false);
   readonly showMarketplaceModal = signal<boolean>(false);
   readonly selectedDimension = signal<LwMapDimensionMode>('3d');
-  readonly draftMapName = signal<string>('The Forgotten Crypt');
+  readonly draftMapName = signal<string>('Untitled Map');
   readonly draftGridCols = signal<number>(50);
   readonly draftGridRows = signal<number>(50);
   readonly draftSessionId = signal<string>('session-15');

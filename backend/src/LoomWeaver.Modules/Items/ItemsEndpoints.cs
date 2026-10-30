@@ -16,7 +16,7 @@ public static class ItemsEndpoints
         {
             var user = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
             await using var db = await OpenAsync(repo, ct);
-            var items = ItemCatalog.Items.Select(x => x.DeepClone().AsObject()).ToList();
+            var items = await ItemDbCatalog.ListAsync(db, ct);
             items.AddRange(await ReadAsync(db, "item", user?.Id ?? -1, false, null, ct));
             return Results.Ok(items);
         });

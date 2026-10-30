@@ -48,7 +48,7 @@ const DEFAULT_STEMS: readonly LwAudioStemItem[] = [
 const DEFAULT_PRESETS: readonly LwAudioScenePresetItem[] = [
   {
     id: 'preset-cinth-ballroom',
-    name: 'Cinth Masquerade Ballroom',
+    name: 'Masquerade Ballroom',
     mood: 'Intrigue & Velvet Tension',
     bpm: 108,
     keySignature: 'C Minor',
@@ -64,12 +64,12 @@ const DEFAULT_PRESETS: readonly LwAudioScenePresetItem[] = [
   },
   {
     id: 'preset-shadow-mountain',
-    name: 'Shadow Beneath the Mountain',
+    name: 'Subterranean Dread',
     mood: 'Mythic Dread & Ancient Runes',
     bpm: 64,
     keySignature: 'D Phrygian',
     description:
-      'Deep tectonic sub-bass and scraping runic resonance echoing from the bound dragon cavern.',
+      'Deep tectonic sub-bass and scraping runic resonance echoing from a sealed cavern.',
     crossfadeSeconds: 3.2,
     stemGains: {
       'stem-drone': 0.92,
@@ -96,12 +96,12 @@ const DEFAULT_PRESETS: readonly LwAudioScenePresetItem[] = [
   },
   {
     id: 'preset-skyship-horizon',
-    name: "Kutler's Skyship Over Vandia",
+    name: 'Skyship Over the Coast',
     mood: 'High Adventure & Wind',
     bpm: 118,
     keySignature: 'G Dorian',
     description:
-      'Soaring artificer turbine hum and open-sky harmonic chords across the Bay of Forgotten Treasures.',
+      'Soaring artificer turbine hum and open-sky harmonic chords over the open water.',
     crossfadeSeconds: 2.8,
     stemGains: {
       'stem-drone': 0.48,

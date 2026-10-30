@@ -32,7 +32,7 @@ export class LwMapWallPathArchitectComponent {
   readonly paths = input<readonly MapPathRibbonNode[]>([]);
   readonly config = input<MapWallPathArchitectConfig>(DEFAULT_WALL_PATH_ARCHITECT_CONFIG);
 
-  readonly chamberName = signal<string>('Cinth Vault Annex');
+  readonly chamberName = signal<string>('Vault Annex');
   readonly selectedDrawMode = signal<WallDrawMode>('octagon');
   readonly selectedMaterial = signal<string>('Obsidian Ashlar & Gold Filigree');
   readonly chamberWidth = signal<number>(10);
@@ -67,7 +67,7 @@ export class LwMapWallPathArchitectComponent {
 
   readonly materials = [
     'Obsidian Ashlar & Gold Filigree',
-    'Cinth Gilded Marble',
+    'Gilded Marble',
     'Dwarven Runic Basalt',
     'Castle Timber & Mortar',
     'Sewer Brickwork',

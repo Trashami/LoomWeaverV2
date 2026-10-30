@@ -22,6 +22,7 @@ export * from './dice-roller-menu/dice-roller-menu.component';
 export * from './dice-roller-tray/dice-roller-tray.component';
 export * from './dice-tool-dock/dice-tool-dock.component';
 export * from './empty-state/empty-state.component';
+export * from './create-placeholder/create-placeholder.component';
 export * from './encounter-builder/encounter-builder.component';
 export * from './encounter-card/encounter-card.component';
 export * from './entity-card/entity-card.component';

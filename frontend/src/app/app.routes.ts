@@ -194,6 +194,12 @@ export const APP_ROUTES: Routes = [
       import('./features/sourcebooks/sourcebook.page').then((m) => m.SourceBookPageComponent),
   },
   {
+    path: 'sources/:code/read',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/sourcebooks/sourcebook-reader.page').then((m) => m.SourceBookReaderPageComponent),
+  },
+  {
     path: 'loom',
     canActivate: [authGuard],
     loadComponent: () =>

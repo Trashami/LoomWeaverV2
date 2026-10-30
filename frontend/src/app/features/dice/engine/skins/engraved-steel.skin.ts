@@ -2,7 +2,7 @@ import { DiceSkinConfig } from './dice-skin.types';
 
 export const ENGRAVED_STEEL_SKIN: DiceSkinConfig = {
   id: 'skin-engraved-steel',
-  name: 'Vandia Damascus Steel',
+  name: 'Damascus Steel',
   tagline: 'Heavy forged chrome-steel edges framing recessed plates and emerald numerals',
   materialFamily: 'Brushed Damascus Steel',
   tier: 'Free',

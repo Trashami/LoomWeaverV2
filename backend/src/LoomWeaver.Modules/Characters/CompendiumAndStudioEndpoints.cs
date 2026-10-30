@@ -71,7 +71,7 @@ public static class CompendiumAndStudioEndpoints
     {
         new(
             "srd-spell-sunbeam-luminary",
-            "Luminary Sunbeam of the Anelith",
+            "Radiant Sunbeam of the Arcane",
             "Spell",
             "dnd5e",
             "6th-Level Evocation",
@@ -86,22 +86,22 @@ public static class CompendiumAndStudioEndpoints
             "dnd5e",
             "Wondrous Item (Very Rare)",
             "Passive / Reaction",
-            "Sewn by Kycius inside Dolly's mouth along the Cinth road; creatures swallowed enter a harmless pocket plane rather than suffering lethal bite damage.",
+            "Sewn into a bag of holding's lining; creatures swallowed enter a harmless pocket plane rather than suffering lethal bite damage.",
             "WIS Save DC 16 · Non-Lethal Extradimensional Containment"
         ),
         new(
             "srd-item-artificer-condenser",
-            "Cinth Phosphor-Bronze Arc Condenser",
+            "Phosphor-Bronze Arc Condenser",
             "Equipment",
             "dnd5e",
             "Artificer Guild Relic (Rare)",
             "1 Bonus Action",
-            "Post-Moonlight Wars non-magical defensive capacitor built by the Cinth Artificers Guild to counter unregistered wizardry and vampire thralls.",
+            "Post-war non-magical defensive capacitor built by artificers to counter unregistered wizardry and thralls.",
             "+2 AC vs. Spell Attacks · 3d8 Lightning Counter-Arc"
         ),
         new(
             "srd-feat-stone-sense-scholar",
-            "Kildrid's Deep-Mountain Stone Sense",
+            "Stone Sense Scholar",
             "Feat",
             "dnd5e",
             "Dwarven Heritage Feat",
@@ -110,18 +110,18 @@ public static class CompendiumAndStudioEndpoints
             "Advantage on History/Masonry · 60 ft Runic Tremorsense"
         ),
         new(
-            "srd-spell-laksis-ignition",
-            "Laksis Tandem Fire-Drake Volley",
+            "srd-spell-tandem-volley",
+            "Tandem Fire-Drake Volley",
             "Spell",
             "dnd5e",
             "3rd-Level Conjuration / Evocation",
             "1 Bonus Action (Familiar Command)",
-            "Kycius's fire drake familiar Laksis exhales a concentrated cinder arc that ignites targets and illuminates fog-of-war tiles.",
+            "A familiar exhales a concentrated cinder arc that ignites targets and illuminates fog-of-war tiles.",
             "4d6 Fire · DEX Save DC 16 · 15 ft Cone"
         ),
         new(
             "srd-feat-slingshot-tooth-crit",
-            "Fivi's Improvised Fey Slingshot Mastery",
+            "Improvised Slingshot Mastery",
             "Feat",
             "dnd5e",
             "Feywild Outcast Trick",
@@ -135,7 +135,7 @@ public static class CompendiumAndStudioEndpoints
     {
         new(
             "emit-solar-supernova",
-            "Anelith Luminary Supernova",
+            "Radiant Luminary Supernova",
             420,
             1150,
             -1.2,
@@ -148,7 +148,7 @@ public static class CompendiumAndStudioEndpoints
         ),
         new(
             "emit-crimson-mist",
-            "Cinth Vampire Blood-Mist",
+            "Vampire Blood-Mist",
             280,
             1600,
             0.4,
@@ -389,7 +389,7 @@ public static class CompendiumAndStudioEndpoints
             string sceneId,
             HeightmapSculptRequest req) =>
         {
-            var biome = string.IsNullOrWhiteSpace(req.BiomePreset) ? "Gwaedhellain Poisoned Canopy" : req.BiomePreset.Trim();
+            var biome = string.IsNullOrWhiteSpace(req.BiomePreset) ? "Default Biome" : req.BiomePreset.Trim();
             var radius = Math.Clamp(req.BrushRadiusMeters <= 0 ? 12.0 : req.BrushRadiusMeters, 2.0, 48.0);
             var delta = Math.Clamp(req.ElevationDelta, -15.0, 25.0);
             var water = Math.Clamp(req.WaterLevelMeters, -5.0, 12.0);

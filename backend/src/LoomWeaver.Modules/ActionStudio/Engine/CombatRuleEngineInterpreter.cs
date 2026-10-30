@@ -10,7 +10,7 @@ public sealed class CombatRuleEngineInterpreter
     public EvaluateRuleLogicResponse Evaluate(EvaluateRuleLogicRequest req)
     {
         var attacker = string.IsNullOrWhiteSpace(req.AttackerName) ? "Vaelkorath (Boss)" : req.AttackerName.Trim();
-        var defender = string.IsNullOrWhiteSpace(req.DefenderName) ? "Kycius" : req.DefenderName.Trim();
+        var defender = string.IsNullOrWhiteSpace(req.DefenderName) ? "Target" : req.DefenderName.Trim();
         var steps = new List<RuleClauseTraceStepDto>();
         var allConditionsPassed = true;
         var triggered = false;
@@ -362,7 +362,7 @@ public sealed class CombatRuleEngineInterpreter
                 token.Contains("Finesse", StringComparison.OrdinalIgnoreCase) ||
                 token.Contains("Ranged", StringComparison.OrdinalIgnoreCase) ||
                 token.Contains("Spell", StringComparison.OrdinalIgnoreCase) ||
-                token.Contains("Chokrah", StringComparison.OrdinalIgnoreCase))
+                token.Contains("Reagent", StringComparison.OrdinalIgnoreCase))
             {
                 return new TokenResult(token, TokenStatus.Passed, $"Tag/component verified ({token})");
             }

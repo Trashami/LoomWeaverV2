@@ -44,7 +44,7 @@ public static class ItemCollectionEndpoints
             foreach (var node in ids)
             {
                 var key = node?.GetValue<string>() ?? "";
-                var item = ItemCatalog.Find(key) ?? await FindAsync(db, key, user.Id, ct);
+                var item = ItemCatalog.Find(key) ?? await ItemDbCatalog.FindAsync(db, key, ct) ?? await FindAsync(db, key, user.Id, ct);
                 if (item is null || (publish && item["isHomebrew"]?.GetValue<bool>() == true && item["publishedToStore"]?.GetValue<bool>() != true))
                     return Results.BadRequest(new { error = "Collections may only contain accessible items. Publish each homebrew item before publishing its collection." });
             }

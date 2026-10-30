@@ -2,7 +2,7 @@ import { DiceSkinConfig } from './dice-skin.types';
 
 export const NORDIC_SKIN: DiceSkinConfig = {
   id: 'skin-nordic-stone',
-  name: 'Kildrid Runestone',
+  name: 'Runestone',
   tagline: 'Chiseled dark granite rock surface inscribed with glowing cyan futhark runes',
   materialFamily: 'Carved Mountain Basalt',
   tier: 'Free',

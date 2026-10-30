@@ -1,0 +1,7 @@
+<a class="lw-create-placeholder" [routerLink]="route()" [attr.aria-label]="'Create ' + title()">
+  <span class="lw-create-placeholder__title">{{ title() }}</span>
+  <span class="lw-create-placeholder__plus" aria-hidden="true">
+    <lw-icon name="plus" [size]="22" />
+  </span>
+  <span class="lw-create-placeholder__hint">{{ hint() }}</span>
+</a>

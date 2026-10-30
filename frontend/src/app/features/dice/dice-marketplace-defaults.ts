@@ -19,8 +19,8 @@ export function buildDefaultMarketplaceDicePresets(): MarketplaceDicePreset[] {
   return [
     {
       id: 'mkt-preset-shadow-mountain',
-      name: 'Shadow of the Mountain Runestone',
-      creatorHandle: 'Kildrid Stone-Delver',
+      name: 'Runestone Dice',
+      creatorHandle: 'Stone-Delver',
       tagline:
         'Deep carved basalt runes with crimson inner glow, heavy mass (2.4), and high spin for subterranean delves.',
       downloadsCount: 418,
@@ -28,7 +28,7 @@ export function buildDefaultMarketplaceDicePresets(): MarketplaceDicePreset[] {
       publishedAt: '2d ago',
       config: {
         ...obsidianBase,
-        customName: 'Shadow of the Mountain Runestone',
+        customName: 'Runestone Dice',
         modelId: 'model-dwarven-heavy',
         coreColorHex: '#161118',
         coreInnerGlowEnabled: true,
@@ -51,8 +51,8 @@ export function buildDefaultMarketplaceDicePresets(): MarketplaceDicePreset[] {
     },
     {
       id: 'mkt-preset-feywild-prism',
-      name: 'Fivi Feywild Scatter-Glass',
-      creatorHandle: 'Fivi Outcast',
+      name: 'Feywild Scatter-Glass',
+      creatorHandle: 'Feywild Studio',
       tagline:
         'Translucent emerald fey glass with floating raised numbers, low gravity float, and high bounce restitution.',
       downloadsCount: 329,
@@ -60,7 +60,7 @@ export function buildDefaultMarketplaceDicePresets(): MarketplaceDicePreset[] {
       publishedAt: '4d ago',
       config: {
         ...feyBase,
-        customName: 'Fivi Feywild Scatter-Glass',
+        customName: 'Feywild Scatter-Glass',
         modelId: 'model-sharp-gem',
         coreColorHex: '#0e3b28',
         coreOpacity: 0.72,
@@ -83,8 +83,8 @@ export function buildDefaultMarketplaceDicePresets(): MarketplaceDicePreset[] {
     },
     {
       id: 'mkt-preset-cinth-artificer',
-      name: 'Cinth Artificer Overclock Brass',
-      creatorHandle: 'Cinth Guildmaster',
+      name: 'Artificer Overclock Brass',
+      creatorHandle: 'Guildmaster Studio',
       tagline:
         'Precision-milled brass with cyan aether conduit numbers, raised relief numerals, and crisp metallic clatter.',
       downloadsCount: 276,
@@ -92,7 +92,7 @@ export function buildDefaultMarketplaceDicePresets(): MarketplaceDicePreset[] {
       publishedAt: '1w ago',
       config: {
         ...brassBase,
-        customName: 'Cinth Artificer Overclock Brass',
+        customName: 'Artificer Overclock Brass',
         coreColorHex: '#2d2112',
         reflectionMetallic: 0.94,
         surfaceRoughness: 0.2,
@@ -107,8 +107,8 @@ export function buildDefaultMarketplaceDicePresets(): MarketplaceDicePreset[] {
     },
     {
       id: 'mkt-preset-anelith-luminary',
-      name: 'Anelith Six-Luminary Singularity',
-      creatorHandle: 'Emrys of the Council',
+      name: 'Radiant Singularity',
+      creatorHandle: 'Guild Artisan',
       tagline:
         'Semi-transparent astral crystal with dual-tone void gradient, pulsing violet glyphs, and top-down arena bounds.',
       downloadsCount: 512,
@@ -116,7 +116,7 @@ export function buildDefaultMarketplaceDicePresets(): MarketplaceDicePreset[] {
       publishedAt: '1w ago',
       config: {
         ...astralBase,
-        customName: 'Anelith Six-Luminary Singularity',
+        customName: 'Radiant Singularity',
         modelId: 'model-sharp-gem',
         coreOpacity: 0.78,
         coreGradientEnabled: true,

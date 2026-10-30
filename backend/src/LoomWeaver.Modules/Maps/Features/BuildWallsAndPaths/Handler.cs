@@ -175,7 +175,7 @@ public static class BuildWallsAndPathsHandler
                 [
                     new(
                         Id: "wall-rotunda",
-                        Name: "Cinth Grand Rotunda Perimeter",
+                        Name: "Grand Rotunda Perimeter",
                         DrawMode: "octagon",
                         Material: "Obsidian Ashlar & Gold Filigree",
                         ThicknessMeters: 0.55,
@@ -199,7 +199,7 @@ public static class BuildWallsAndPathsHandler
                         Id: "wall-balcony-sanctum",
                         Name: "Lord Emrys Upper Balcony Chamber",
                         DrawMode: "room",
-                        Material: "Cinth Gilded Marble",
+                        Material: "Gilded Marble",
                         ThicknessMeters: 0.45,
                         HeightMeters: 2.8,
                         Perspective: "auto",

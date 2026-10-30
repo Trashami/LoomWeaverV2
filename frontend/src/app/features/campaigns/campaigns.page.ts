@@ -60,10 +60,10 @@ export class CampaignsPageComponent {
   readonly newBeatKind = signal<string>('scene');
   readonly newBeatLocationKey = signal<string>('loc-ruined-chapel');
 
-  readonly relFromKey = signal<string>('1:NPC:npc-malric');
+  readonly relFromKey = signal<string>('');
   readonly relType = signal<string>('CURRENTLY_IN');
-  readonly relToKey = signal<string>('1:Room:room-c3-crypt');
-  readonly relWhyLabel = signal<string>('Brother Malric descended into Crypt C3 with the party');
+  readonly relToKey = signal<string>('');
+  readonly relWhyLabel = signal<string>('');
   readonly relMarkHistorical = signal<boolean>(true);
 
   readonly selectedCategory = signal<string>('All');

@@ -23,7 +23,7 @@ export const CREATOR_BACKGROUNDS: readonly CreatorBackgroundOptionVm[] = [
   },
   {
     id: 'acolyte', name: 'Acolyte', tagline: 'Devoted temple initiate steeped in sacred rites and sanctuary vows.',
-    summary: 'Served in the moonlit temples of Ekkos or an ancient monastic sanctuary tending the abandoned.', source: 'PHB',
+    summary: 'Served in the moonlit temples of a forgotten faith or an ancient monastic sanctuary tending the abandoned.', source: 'PHB',
     recommendedClasses: ['cleric', 'paladin', 'monk', 'druid', 'warlock'],
     recommendedAncestries: ['aasimar', 'human', 'dwarf', 'elf', 'dragonborn', 'firbolg'],
     skillProficiencies: ['Insight', 'Religion'], toolProficiencies: ['Herbalism Kit'], featureName: 'Shelter of the Faithful',
@@ -32,7 +32,7 @@ export const CREATOR_BACKGROUNDS: readonly CreatorBackgroundOptionVm[] = [
   },
   {
     id: 'criminal', name: 'Criminal / Spy', tagline: 'Operative of shadow networks, cipher drops, and rooftop routes.',
-    summary: 'Navigated smugglers coves, black-market auctions, and whispered intelligence across Vandia and Cinth.', source: 'PHB',
+    summary: 'Navigated smugglers coves, black-market auctions, and whispered intelligence across the free cities and their docks.', source: 'PHB',
     recommendedClasses: ['rogue', 'bard', 'ranger', 'warlock', 'monk'],
     recommendedAncestries: ['tiefling', 'halfling', 'half-elf', 'changeling', 'human', 'tabaxi'],
     skillProficiencies: ['Deception', 'Stealth'], toolProficiencies: ['Thieves Tools', 'Gaming Set'], featureName: 'Criminal Contact',
@@ -67,13 +67,13 @@ export const CREATOR_BACKGROUNDS: readonly CreatorBackgroundOptionVm[] = [
     personality: { personality: 'Alert to tracks, silence, and shifts in the stone.', ideals: 'The wild remembers older truths than city charters.', bonds: 'The border roads and companions who travel them with me.', flaws: 'Restless inside walled courts and crowded halls.' },
   },
   {
-    id: 'guild-artisan', name: 'Guild Artisan (Cinth)', tagline: 'Sworn craftsperson of the Artificers Guild, smiths, or stonecutters.',
-    summary: 'Trained in Cinth or the dwarven holds to answer magical dominance with precision craft and metallurgy.', source: 'PHB',
+    id: 'guild-artisan', name: 'Guild Artisan', tagline: 'Sworn craftsperson of the Artificers Guild, smiths, or stonecutters.',
+    summary: 'Trained in a city workshop or the dwarven holds to answer magical dominance with precision craft and metallurgy.', source: 'PHB',
     recommendedClasses: ['artificer', 'fighter', 'wizard', 'bard', 'rogue', 'cleric'],
     recommendedAncestries: ['dwarf', 'gnome', 'human', 'half-elf', 'goliath'],
     skillProficiencies: ['Insight', 'Persuasion'], toolProficiencies: ['Tinker Tools', 'Smith Tools'], featureName: 'Guild Membership',
     defaultQuote: '"Good steel and honest gears never lie about their tolerances."',
-    personality: { personality: 'Inspects stonework, hinges, and mechanisms wherever they go.', ideals: 'Craft and intellect give ordinary folk an answer to tyrants.', bonds: 'The Guild hall in Cinth and the masters who shared their blueprints.', flaws: 'Cannot resist dismantling an unfamiliar mechanism.' },
+    personality: { personality: 'Inspects stonework, hinges, and mechanisms wherever they go.', ideals: 'Craft and intellect give ordinary folk an answer to tyrants.', bonds: 'The guild hall where I apprenticed and the masters who shared their blueprints.', flaws: 'Cannot resist dismantling an unfamiliar mechanism.' },
   },
   {
     id: 'charlatan', name: 'Charlatan', tagline: 'Master of assumed identities, forged seals, and silver-tongued Gambits.',
@@ -103,7 +103,7 @@ export const CREATOR_BACKGROUNDS: readonly CreatorBackgroundOptionVm[] = [
     personality: { personality: 'Thoughtful, measured, and speaks only when words matter.', ideals: 'Ancient power must be understood lest it consume the world again.', bonds: 'A secret discovery regarding the six Luminaries of creation.', flaws: 'Keeps dangerous knowledge to themselves too long.' },
   },
   {
-    id: 'urchin', name: 'Urchin', tagline: 'Street survivor of Vandia harbor alleys and Cinth rooftops.',
+    id: 'urchin', name: 'Urchin', tagline: 'Street survivor who knows every alley and rooftop in town.',
     summary: 'Grew up dodging harbor patrols and slipping through narrow passages unnoticed.', source: 'PHB',
     recommendedClasses: ['rogue', 'monk', 'ranger', 'bard', 'warlock'],
     recommendedAncestries: ['halfling', 'tiefling', 'goblin', 'tabaxi', 'human', 'half-elf'],
@@ -113,7 +113,7 @@ export const CREATOR_BACKGROUNDS: readonly CreatorBackgroundOptionVm[] = [
   },
   {
     id: 'sailor', name: 'Sailor / Skyship Crew', tagline: 'Corsair of the Bay of Forgotten Treasures and high skyship lanes.',
-    summary: 'Sailed coastal runners out of Vandia or crewed experimental aether-rigged skyships.', source: 'PHB',
+    summary: 'Sailed coastal runners out of a harbor town or crewed experimental aether-rigged skyships.', source: 'PHB',
     recommendedClasses: ['rogue', 'fighter', 'ranger', 'bard', 'artificer', 'sorcerer'],
     recommendedAncestries: ['human', 'half-orc', 'tabaxi', 'elf', 'halfling', 'dragonborn'],
     skillProficiencies: ['Athletics', 'Perception'], toolProficiencies: ['Navigator Tools', 'Water & Air Vehicles'], featureName: 'Ship Passage',
@@ -169,9 +169,9 @@ export const CREATOR_EQUIPMENT_DATABASE: readonly EquipmentLoadoutItemVm[] = [
   { id: 'db-warhammer', name: 'Dwarven Warhammer', slot: 'Main Hand', summary: 'Forged Runic Hammer', bonusLabel: '1d8 Bludgeoning (1d10 Versatile) · Push', acBonus: 0, attackBonus: 1, equipped: true, entitlement: 'free', icon: 'hammer', weightLb: 2, valueGp: 15, rarity: 'Common', source: 'PHB' },
   { id: 'db-quarterstaff', name: 'Arcane Quarterstaff', slot: 'Main Hand', summary: 'Runed Ash Staff & Focus', bonusLabel: '1d6 Bludgeoning · +1 Spell Attack', acBonus: 0, attackBonus: 1, equipped: true, entitlement: 'free', icon: 'wand', weightLb: 4, valueGp: 10, rarity: 'Common', source: 'PHB' },
   { id: 'db-dagger-silver', name: 'Silvered Dagger', slot: 'Off Hand', summary: 'Alchemically Silvered Blade', bonusLabel: '1d4 Piercing · Finesse, Light, Thrown 20/60', acBonus: 0, attackBonus: 0, equipped: true, entitlement: 'free', icon: 'swords', weightLb: 1, valueGp: 102, rarity: 'Uncommon', source: 'PHB' },
-  { id: 'db-longbow', name: 'Edhellain Recurve Longbow', slot: 'Main Hand', summary: 'Martial Ranged Weapon (150/600 ft)', bonusLabel: '1d8 Piercing · Slow', acBonus: 0, attackBonus: 1, equipped: true, entitlement: 'free', icon: 'target', weightLb: 2, valueGp: 50, rarity: 'Common', source: 'PHB' },
+  { id: 'db-longbow', name: 'Recurve Longbow', slot: 'Main Hand', summary: 'Martial Ranged Weapon (150/600 ft)', bonusLabel: '1d8 Piercing · Slow', acBonus: 0, attackBonus: 1, equipped: true, entitlement: 'free', icon: 'target', weightLb: 2, valueGp: 50, rarity: 'Common', source: 'PHB' },
   { id: 'db-shortbow', name: 'Shortbow & Quiver (20)', slot: 'Main Hand', summary: 'Simple Ranged Weapon (80/320 ft)', bonusLabel: '1d6 Piercing · Vex', acBonus: 0, attackBonus: 0, equipped: true, entitlement: 'free', icon: 'target', weightLb: 2, valueGp: 25, rarity: 'Common', source: 'PHB' },
-  { id: 'db-hand-crossbow', name: 'Cinth Brass Hand Crossbow', slot: 'Off Hand', summary: 'Artificer-Calibrated Sidearm', bonusLabel: '1d6 Piercing · Light, Vex (30/120 ft)', acBonus: 0, attackBonus: 1, equipped: true, entitlement: 'free', icon: 'target', weightLb: 3, valueGp: 75, rarity: 'Uncommon', source: 'Homebrew' },
+  { id: 'db-hand-crossbow', name: 'Brass Hand Crossbow', slot: 'Off Hand', summary: 'Artificer-Calibrated Sidearm', bonusLabel: '1d6 Piercing · Light, Vex (30/120 ft)', acBonus: 0, attackBonus: 1, equipped: true, entitlement: 'free', icon: 'target', weightLb: 3, valueGp: 75, rarity: 'Uncommon', source: 'Homebrew' },
   { id: 'db-studded-leather', name: 'Studded Leather Armor', slot: 'Armor', summary: 'Light Armor (AC 12 + DEX)', bonusLabel: '+2 AC Base · No Stealth Penalty', acBonus: 2, attackBonus: 0, equipped: true, entitlement: 'free', icon: 'shield', weightLb: 13, valueGp: 45, rarity: 'Common', source: 'PHB' },
   { id: 'db-mithral-breastplate', name: 'Mithral Breastplate', slot: 'Armor', summary: 'Medium Elven Cuirass', bonusLabel: '+4 AC · No Stealth Disadvantage', acBonus: 4, attackBonus: 0, equipped: true, entitlement: 'included', icon: 'shield', weightLb: 10, valueGp: 800, rarity: 'Uncommon', source: 'DMG' },
   { id: 'db-half-plate', name: 'Half Plate Armor', slot: 'Armor', summary: 'Medium Forged Plate (AC 15 + DEX max 2)', bonusLabel: '+5 AC Base · Steel Cuirass', acBonus: 5, attackBonus: 0, equipped: true, entitlement: 'free', icon: 'shield', weightLb: 40, valueGp: 750, rarity: 'Common', source: 'PHB' },
@@ -179,7 +179,7 @@ export const CREATOR_EQUIPMENT_DATABASE: readonly EquipmentLoadoutItemVm[] = [
   { id: 'db-plate-armor', name: 'Full Plate Harness', slot: 'Armor', summary: 'Masterwork Heavy Armor (AC 18)', bonusLabel: '+8 AC Base · Articulated Steel', acBonus: 8, attackBonus: 0, equipped: true, entitlement: 'included', icon: 'shield', weightLb: 65, valueGp: 1500, rarity: 'Rare', source: 'PHB' },
   { id: 'db-steel-shield', name: 'Runed Steel Shield', slot: 'Off Hand', summary: 'Emblazoned Vanguard Shield', bonusLabel: '+2 AC · Shield Wall', acBonus: 2, attackBonus: 0, equipped: true, entitlement: 'free', icon: 'shield', weightLb: 6, valueGp: 10, rarity: 'Common', source: 'PHB' },
   { id: 'db-arcane-grimoire', name: 'Arcane Grimoire (+1)', slot: 'Focus', summary: 'Gold-Leaf Wizard Spellbook', bonusLabel: '+1 Spell Attack & Spell Save DC', acBonus: 0, attackBonus: 1, equipped: true, entitlement: 'included', icon: 'book-open', weightLb: 3, valueGp: 450, rarity: 'Uncommon', source: 'TCE' },
-  { id: 'db-reliquary-symbol', name: 'Silver Reliquary of Ekkos', slot: 'Focus', summary: 'Sacred Moon-Goddess Reliquary', bonusLabel: '+1 Divine Spell Attack & Channel Focus', acBonus: 0, attackBonus: 1, equipped: true, entitlement: 'free', icon: 'compass', weightLb: 2, valueGp: 25, rarity: 'Common', source: 'PHB' },
+  { id: 'db-reliquary-symbol', name: 'Silver Reliquary', slot: 'Focus', summary: 'Sacred Moon-Goddess Reliquary', bonusLabel: '+1 Divine Spell Attack & Channel Focus', acBonus: 0, attackBonus: 1, equipped: true, entitlement: 'free', icon: 'compass', weightLb: 2, valueGp: 25, rarity: 'Common', source: 'PHB' },
   { id: 'db-cloak-protection', name: 'Cloak of Protection', slot: 'Gear', summary: 'Abjuration-Woven Mantle (Attuned) · +1 AC and Saving Throws', bonusLabel: '+1 AC · +1 All Saving Throws', acBonus: 1, attackBonus: 0, equipped: true, entitlement: 'included', icon: 'shield-check', weightLb: 1, valueGp: 600, rarity: 'Uncommon', source: 'DMG' },
   { id: 'db-ring-protection', name: 'Ring of Protection', slot: 'Gear', summary: 'Runed Mithral Band · +1 bonus to AC and all Saving Throws while worn.', bonusLabel: '+1 AC · +1 All Saves', acBonus: 1, attackBonus: 0, equipped: false, entitlement: 'included', icon: 'shield', weightLb: 0, valueGp: 1200, rarity: 'Rare', source: 'DMG' },
   { id: 'db-ring-spell-storing', name: 'Ring of Spell Storing', slot: 'Gear', summary: 'Arcane Signet Ring · Stores up to 5 levels worth of spells cast into it.', bonusLabel: 'Stores 5 Spell Levels', acBonus: 0, attackBonus: 0, equipped: false, entitlement: 'included', icon: 'wand', weightLb: 0, valueGp: 2400, rarity: 'Rare', source: 'DMG' },
@@ -188,8 +188,8 @@ export const CREATOR_EQUIPMENT_DATABASE: readonly EquipmentLoadoutItemVm[] = [
   { id: 'db-amulet-health', name: 'Amulet of Health', slot: 'Gear', summary: 'Ruby-Cored Talisman · Your Constitution score becomes 19 while you wear this amulet.', bonusLabel: 'Sets CON Score to 19', acBonus: 0, attackBonus: 0, equipped: false, entitlement: 'included', icon: 'heart', weightLb: 1, valueGp: 2000, rarity: 'Rare', source: 'DMG' },
   { id: 'db-cloak-displacement', name: 'Cloak of Displacement', slot: 'Gear', summary: 'Illusory Shadow Mantle · Projects a shifted image, imposing Disadvantage on attack rolls against you.', bonusLabel: 'Attackers have Disadvantage', acBonus: 1, attackBonus: 0, equipped: false, entitlement: 'included', icon: 'eye', weightLb: 1, valueGp: 2200, rarity: 'Rare', source: 'DMG' },
   { id: 'db-boots-elvenkind', name: 'Boots of Elvenkind', slot: 'Gear', summary: 'Silent Leaf-Stitched Boots · Your steps make no sound and you have Advantage on Stealth checks.', bonusLabel: 'Advantage on Stealth', acBonus: 0, attackBonus: 0, equipped: false, entitlement: 'free', icon: 'feather', weightLb: 1, valueGp: 500, rarity: 'Uncommon', source: 'DMG' },
-  { id: 'db-pearl-power', name: 'Pearl of Power', slot: 'Focus', summary: 'Iridescent Anelith Pearl · Speak its command word as an Action to regain one expended spell slot (up to 3rd level).', bonusLabel: 'Recover up to 3rd-Lv Slot', acBonus: 0, attackBonus: 1, equipped: false, entitlement: 'included', icon: 'wand', weightLb: 0, valueGp: 1000, rarity: 'Uncommon', source: 'DMG' },
-  { id: 'db-gauntlets-ogre', name: 'Gauntlets of Ogre Power', slot: 'Gear', summary: 'Brass-Riveted Cinth Gauntlets · Your Strength score is 19 while you wear these gauntlets.', bonusLabel: 'Sets STR Score to 19', acBonus: 0, attackBonus: 1, equipped: false, entitlement: 'included', icon: 'hammer', weightLb: 2, valueGp: 950, rarity: 'Uncommon', source: 'DMG' },
+  { id: 'db-pearl-power', name: 'Pearl of Power', slot: 'Focus', summary: 'Iridescent Pearl · Speak its command word as an Action to regain one expended spell slot (up to 3rd level).', bonusLabel: 'Recover up to 3rd-Lv Slot', acBonus: 0, attackBonus: 1, equipped: false, entitlement: 'included', icon: 'wand', weightLb: 0, valueGp: 1000, rarity: 'Uncommon', source: 'DMG' },
+  { id: 'db-gauntlets-ogre', name: 'Gauntlets of Ogre Power', slot: 'Gear', summary: 'Brass-Riveted Gauntlets · Your Strength score is 19 while you wear these gauntlets.', bonusLabel: 'Sets STR Score to 19', acBonus: 0, attackBonus: 1, equipped: false, entitlement: 'included', icon: 'hammer', weightLb: 2, valueGp: 950, rarity: 'Uncommon', source: 'DMG' },
   { id: 'db-bag-holding', name: 'Bag of Holding', slot: 'Gear', summary: 'Extradimensional Satchel (500 lb) · Holds up to 64 cubic feet while weighing only 15 lbs.', bonusLabel: '64 Cubic Ft Capacity · Weighs 15 lb', acBonus: 0, attackBonus: 0, equipped: false, entitlement: 'included', icon: 'layers', weightLb: 15, valueGp: 500, rarity: 'Uncommon', source: 'DMG' },
   { id: 'db-healing-potion', name: 'Potion of Greater Healing (x2)', slot: 'Gear', summary: 'Alchemical Crimson Phial · Drink as a Bonus Action to restore 4d4 + 4 Hit Points.', bonusLabel: 'Bonus Action · Restores 4d4 + 4 HP', acBonus: 0, attackBonus: 0, equipped: false, entitlement: 'free', icon: 'heart', weightLb: 1, valueGp: 150, rarity: 'Uncommon', source: 'DMG' },
   { id: 'db-potion-invisibility', name: 'Potion of Invisibility', slot: 'Gear', summary: 'Distilled Glass Vial · Become Invisible for 1 hour or until you attack or cast a spell.', bonusLabel: 'Invisible for 1 Hour', acBonus: 0, attackBonus: 0, equipped: false, entitlement: 'free', icon: 'eye', weightLb: 1, valueGp: 300, rarity: 'Rare', source: 'DMG' },
@@ -229,44 +229,11 @@ export const CREATOR_SPELL_DATABASE: readonly CharacterSpellVm[] = [
   { id: 'sp-dimension-door', name: 'Dimension Door', school: 'Conjuration', icon: 'compass', tone: 'emerald', actionCost: '1 Action', level: 4, prepared: true, range: '500 ft', duration: 'Instantaneous', summary: 'Teleport yourself and one willing ally up to 500 feet.' },
 ];
 
-export const DEFAULT_MET_ENTITIES: readonly CharacterMetEntityVm[] = [
-  { id: 'met-npc-emrys', compositeKey: '1:NPC:npc-emrys', name: 'Emrys of the Reformed Council', entityType: 'NPC', roleOrRegion: 'Council of Magic Envoy · Cinth Gala', dispositionOrStatus: 'Guarded / Suspicious', sessionMet: 'Session 6 — The Masque of Cinth', summary: 'Met at the Lord of Cinth gala presenting himself as an arcane reformer advocating open magical education.', details: 'Spoke warmly of reforming the old wizard-only Council of Magic and inquired casually about the party return route toward Vandia through the southern mountain pass.', playerNotesOrClues: 'His interest in our route past the southern mountain felt too specific; Kycius noticed his gaze linger on our packs.', routeLink: '/world-lore', connectedNames: ['Cinth', 'Council of Magic', 'The Priors', 'Southern Mountain Cave'] },
-  { id: 'met-npc-artificer-guildmaster', compositeKey: '1:NPC:npc-cinth-artificers', name: 'Guildmaster Bram & The Cinth Artificers Guild', entityType: 'NPC', roleOrRegion: 'Brass Foundry Quarter · Cinth', dispositionOrStatus: 'Trusted Ally', sessionMet: 'Session 5 — Forges of Cinth', summary: 'Non-magical engineers and craftspeople building mechanical and runic defenses after the Moonlight Wars.', details: 'Welcomed the party into their foundry workshops, proving that craft, risk, and intellect can answer unchecked mage authority without bowing to the Council.', playerNotesOrClues: 'Supplied calibrated brass components and warned us that several Priors students never returned with their magic intact.', routeLink: '/world-lore', connectedNames: ['Cinth', 'Artificers Guild', 'Captain Kutler'] },
-  { id: 'met-npc-kutler', compositeKey: '1:NPC:npc-captain-kutler', name: 'Captain Kutler', entityType: 'NPC', roleOrRegion: 'Skyship Commander · Lost Isles Investigator', dispositionOrStatus: 'Rival / Reluctant Ally', sessionMet: 'Session 1 & Session 8 — Return Above the Peaks', summary: 'Returned from the Lost Isles piloting an experimental flying skyship after abandoning the stolen sea vessel.', details: 'Brings urgent intelligence linking Chokrah shipments, the Council of Magic school, and what the Priors are secretly doing to gifted children.', playerNotesOrClues: 'Fivi immediately claimed his skyship as hers in compensation for losing "her" sea ship; Kutler refuses to hand over the helm.', routeLink: '/world-lore', connectedNames: ['Vandia', 'Lost Isles', 'Fivi', 'Chokrah Trade'] },
-  { id: 'met-npc-malric', compositeKey: '1:NPC:npc-brother-malric', name: 'Brother Malric', entityType: 'NPC', roleOrRegion: 'Ekkos Sanctuary · Vandia Cliffside', dispositionOrStatus: 'Friendly', sessionMet: 'Session 2 — The Well of Life', summary: 'Keeper of the old Ekkos shrine for the abandoned near the southwest coast.', details: 'Shared the earliest hymns of Ekkos as Mother of the Abandoned before the Priors co-opted her temples.', playerNotesOrClues: 'Confirmed the hexagon alignment of the six ancient Luminaries across Icrandor.', routeLink: '/world-lore', connectedNames: ['Vandia', 'Well of Life', 'Sister Elowen'] },
-  { id: 'met-place-cinth', compositeKey: '1:Location:loc-cinth', name: 'City of Cinth', entityType: 'Place', roleOrRegion: 'Inland Metropolis · Northeast of Vandia', dispositionOrStatus: 'Contested Court', sessionMet: 'Session 5 — Arrival from the Plains of Vistagh', summary: 'Inland seat of power where the Artificers Guild, the Reformed Council of Magic, and hidden vampire courts collide.', details: 'The party reputation preceded them here, earning an invitation to the Lord of Cinth gala where a vampire coup was thwarted.', playerNotesOrClues: 'High watchtowers, brass foundries, and Council recruitment halls.', routeLink: '/maps', connectedNames: ['Emrys', 'Artificers Guild', 'Plains of Vistagh'] },
-  { id: 'met-place-vandia', compositeKey: '1:Location:loc-vandia', name: 'Vandia & The Cliffside House', entityType: 'Place', roleOrRegion: 'Southwest Coast · Bay of Forgotten Treasures', dispositionOrStatus: 'Party Home Base', sessionMet: 'Session 1 — The Cliff Edge', summary: 'Coastal port city on the Bay of Forgotten Treasures where the party cliffside house stands.', details: 'Starting point of the northeast road toward Cinth and site of the triangle route leading to the Well of Life.', playerNotesOrClues: 'Safe harbor and repository for the party early records.', routeLink: '/maps', connectedNames: ['Well of Life', 'Bay of Forgotten Treasures', 'Captain Kutler'] },
-  { id: 'met-place-plains-of-red', compositeKey: '1:Location:loc-plains-of-red', name: 'The Plains of Red & Southern Mountain Pass', entityType: 'Place', roleOrRegion: 'Northeast Road Between Fey Forest & Southern Mountains', dispositionOrStatus: 'Ominous / Haunted', sessionMet: 'Session 4 — The Road to Cinth', summary: 'Blood-named plains where men slaughtered the fey a thousand years ago, bordering the poisoned forest above the trapped dragon mountain.', details: 'On the first journey to Cinth, Kildrid felt the rhythmic clawing of runes deep beneath the southern mountain stone from miles away.', playerNotesOrClues: 'The forest above the mountain is sickened by ancient dragon blood.', routeLink: '/maps', connectedNames: ['Cinth', 'Vandia', 'Shadow of the Mountain'] },
-];
+export const DEFAULT_MET_ENTITIES: readonly CharacterMetEntityVm[] = [];
 
-export const DEFAULT_CAMPAIGN_HISTORY: readonly CharacterCampaignHistoryEventVm[] = [
-  { id: 'hist-1', category: 'Session', title: 'Session 1 — The Cliffside House & The Well of Life', sessionLabel: 'Session 1 · Southwest Coast', locationName: 'Vandia & Northeast Triangle Route', summary: 'The party gathered at the cliffside house near Vandia and followed the northeast triangle route to the Well of Life, confronting the dragon-thing guardian.', outcomeOrReward: 'Recovered Luminary & Ancient Clues · +350 XP', routeLink: '/loom', compositeKey: '1:Session:ses-1' },
-  { id: 'hist-2', category: 'Encounter', title: 'Encounter — Guardian of the Well of Life', sessionLabel: 'Session 2 · Tactical Combat', locationName: 'The Well of Life (Northeast of Vandia)', summary: 'Coordinated party battle against the corrupted draconic guardian protecting the sunken wellspring.', outcomeOrReward: 'Combat Victory · Party Level Up to Lv. 4', routeLink: '/encounters', compositeKey: '1:Encounter:enc-well-of-life' },
-  { id: 'hist-3', category: 'Session', title: 'Session 4 — The Road to Cinth & Tremors in the Stone', sessionLabel: 'Session 4 · Overland Journey', locationName: 'Southern Mountain Road & Plains of Red', summary: 'Traveled northeast from Vandia toward Cinth. Passed the poisoned southern mountain where Kildrid sensed ancient runes being clawed deep underground, and Kycius stitched the containment pocket inside Dolly mouth.', outcomeOrReward: 'Safe Passage to Cinth · Laksis Joins the Party', routeLink: '/maps', compositeKey: '1:Session:ses-4' },
-  { id: 'hist-4', category: 'Quest', title: 'Quest Completed — Covenant with the Cinth Artificers Guild', sessionLabel: 'Session 5 · Cinth Foundry Quarter', locationName: 'City of Cinth', summary: 'Befriended the Artificers Guild in Cinth, uncovering how non-magical craft answers the Council of Magic monopoly and learning of the Priors Chokrah rituals.', outcomeOrReward: 'Quest Completed · Guild Alliance & Masterwork Gear', routeLink: '/world-lore', compositeKey: '1:Quest:qst-artificers-guild' },
-  { id: 'hist-5', category: 'Encounter', title: 'Encounter — Blood at the Lord of Cinth Gala', sessionLabel: 'Session 6 · Ballroom Ambush', locationName: 'Lord of Cinth Manor', summary: 'Invited to the high gala where vampires launched a coordinated strike to convert the nobility and seize Cinth. Met Emrys for the first time.', outcomeOrReward: 'Vampire Coven Routed · +900 XP', routeLink: '/encounters', compositeKey: '1:Encounter:enc-cinth-gala' },
-  { id: 'hist-6', category: 'Milestone', title: 'Campaign Milestone — Shadow Beneath the Mountain', sessionLabel: 'Session 8 · Return Toward Vandia', locationName: 'Runed Cavern Under the Southern Mountain', summary: 'Diverted into the mountain cavern by Emrys deception, fought the century-bound dragon, witnessed Fivi final slingshot tooth strike, and saw Captain Kutler descend in his skyship.', outcomeOrReward: 'Book One Climax · Level 7 Milestone', routeLink: '/loom', compositeKey: '1:Session:ses-8' },
-];
+export const DEFAULT_CAMPAIGN_HISTORY: readonly CharacterCampaignHistoryEventVm[] = [];
 
-export const DEFAULT_MENTIONABLE_ENTITIES: readonly LwNoteMentionTagVm[] = [
-  { compositeKey: '1:Character:char-dal', name: 'Dallas (Dal)', entityType: 'Character', routeLink: '/characters' },
-  { compositeKey: '1:Character:char-fivi', name: 'Fivi', entityType: 'Character', routeLink: '/characters' },
-  { compositeKey: '1:Character:char-kildrid', name: 'Kildrid', entityType: 'Character', routeLink: '/characters' },
-  { compositeKey: '1:Character:char-kycius', name: 'Kycius', entityType: 'Character', routeLink: '/characters' },
-  { compositeKey: '1:Character:char-munk', name: 'Munk', entityType: 'Character', routeLink: '/characters' },
-  { compositeKey: '1:Character:char-ciaran', name: 'Ciarán Fiachra', entityType: 'Character', routeLink: '/characters' },
-  { compositeKey: '1:NPC:npc-emrys', name: 'Emrys', entityType: 'NPC', routeLink: '/world-lore' },
-  { compositeKey: '1:NPC:npc-captain-kutler', name: 'Captain Kutler', entityType: 'NPC', routeLink: '/world-lore' },
-  { compositeKey: '1:NPC:npc-brother-malric', name: 'Brother Malric', entityType: 'NPC', routeLink: '/world-lore' },
-  { compositeKey: '1:NPC:npc-sister-elowen', name: 'Sister Elowen', entityType: 'NPC', routeLink: '/world-lore' },
-  { compositeKey: '1:Location:loc-cinth', name: 'Cinth', entityType: 'Location', routeLink: '/maps' },
-  { compositeKey: '1:Location:loc-vandia', name: 'Vandia', entityType: 'Location', routeLink: '/maps' },
-  { compositeKey: '1:Location:loc-plains-of-red', name: 'Plains of Red', entityType: 'Location', routeLink: '/maps' },
-  { compositeKey: '1:Location:loc-edhellain', name: 'Edhellain', entityType: 'Location', routeLink: '/maps' },
-  { compositeKey: '1:Faction:fac-cinth-artificers', name: 'Artificers Guild', entityType: 'Faction', routeLink: '/world-lore' },
-  { compositeKey: '1:Faction:fac-council-of-magic', name: 'Council of Magic', entityType: 'Faction', routeLink: '/world-lore' },
-  { compositeKey: '1:Faction:fac-the-priors', name: 'The Priors', entityType: 'Faction', routeLink: '/world-lore' },
-];
+export const DEFAULT_MENTIONABLE_ENTITIES: readonly LwNoteMentionTagVm[] = [];
 
 export const ALL_DND5E_SKILLS: readonly { id: string; label: string; abilityCode: AbilityScoreVm['code'] }[] = [
   { id: 'acrobatics', label: 'Acrobatics', abilityCode: 'DEX' },

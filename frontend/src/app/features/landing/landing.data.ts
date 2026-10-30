@@ -148,7 +148,7 @@ export const LANDING_STUDIO_ENGINES: readonly StudioEngineShowcaseVm[] = [
     title: 'The Loom Memory & Campaign Manager',
     subtitle: 'MySQL Canonical Ledger + Neo4j Relationship Web',
     description:
-      'Every NPC bloodline, faction rivalry, Luminary artifact, and session log is indexed by witness scope. Players query what their character has seen; Game Masters orchestrate hidden truths across the entire TTRPG campaign graph.',
+      'Every NPC bloodline, faction rivalry, magic item, and session log is indexed by witness scope. Players query what their character has seen; Game Masters orchestrate hidden truths across the entire TTRPG campaign graph.',
     image: LANDING_ASSET_PATHS.engineLoomWeaveGraph,
     metrics: ['Per-Player Isolation', '100% GM Review Gate', 'Deep-Linked Dossiers'],
     route: '/loom',
@@ -216,40 +216,40 @@ export const LANDING_STUDIO_ENGINES: readonly StudioEngineShowcaseVm[] = [
 
 export const LANDING_SESSION_INTEL_ITEMS: readonly SessionIntelItemVm[] = [
   {
-    id: 'cult-presence',
+    id: 'hidden-encounter',
     icon: 'check',
-    label: 'Reveal cult presence in the nave',
-    scope: 'GM Encounter Trigger · Act I',
+    label: 'Trigger a hidden encounter',
+    scope: 'GM Encounter Trigger · Example',
     detail:
-      'Three Priors acolytes are concealed behind the shattered pillars (Stealth DC 15). Triggering the ambush illuminates ritual braziers on the 2.5D VTT and rolls initiative for 5 combatants.',
-    citations: ['Encounter: Ruined Chapel Ambush', 'VTT Lighting Preset: Eldritch Brazier'],
+      'Conceal enemies behind scenery and reveal them when the party enters the area. Triggering the ambush lights the VTT scene and rolls initiative for the combatants.',
+    citations: ['Encounter Studio', 'VTT Lighting Preset'],
   },
   {
-    id: 'brother-malric',
+    id: 'secret-npc',
     icon: 'users',
-    label: 'Brother Malric nearby (Witness Scoped)',
-    scope: 'NPC Dossier · Known to Dal & Kycius',
+    label: 'Keep an NPC identity secret',
+    scope: 'NPC Dossier · Example',
     detail:
-      'Malric fled Cinth after discovering the Chokrah shipping ledgers. Only Dal and Kycius recognize his signet ring from Session 11; other players see "Hooded Chapel Keeper" until revealed.',
-    citations: ['NPC Dossier: Brother Malric', 'Session 11 Recap: Plains of Red'],
+      'Show players a placeholder name until the GM reveals who the character really is. Only the revealed identity is visible to the whole party.',
+    citations: ['NPC Dossier', 'Session Recap'],
   },
   {
-    id: 'hidden-crypt',
+    id: 'hidden-location',
     icon: 'lock',
-    label: 'Hidden crypt beneath the obsidian altar',
-    scope: 'GM Secret POI · Stone-Sense DC 16',
+    label: 'Reveal a hidden location',
+    scope: 'GM Secret POI · Example',
     detail:
-      'Kildrid’s stone-sense detects hollow runic masonry beneath the altar stairs leading to the subterranean containment vault.',
-    citations: ['LoomMaps Layer: Lower Crypt Cutaway', 'Quest Clue: Shadow of the Mountain'],
+      'Mark a location on the map as hidden and reveal it after a skill check or story beat. Players see the layer only after it is unlocked.',
+    citations: ['LoomMaps Layer', 'Quest Clue'],
   },
   {
     id: 'ask-the-loom',
     icon: 'book-open',
-    label: 'Ask The Loom: "What was promised at the Chapel?"',
-    scope: 'Instant Canon Synthesis · Zero Generation',
+    label: 'Ask The Loom about your campaign',
+    scope: 'Instant Canon Synthesis · Example',
     detail:
-      'The Loom synthesizes Session 8 and Session 14 notes: Captain Kutler swore to deliver the skyship manifest here if the Artificers Guild of Cinth verified the stolen magic.',
-    citations: ['Session 8 Log: Vandia Cliff House', 'Faction: Artificers Guild of Cinth'],
+      'The Loom answers from your recorded session notes and canon, and cites the entries it used. It does not invent facts that are not in your campaign.',
+    citations: ['Session Log', 'Campaign Canon'],
   },
 ];
 

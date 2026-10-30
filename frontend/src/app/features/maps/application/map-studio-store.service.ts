@@ -29,12 +29,12 @@ interface SavedMapSceneDocument extends MapSceneGraphState {
 export class MapStudioStoreService {
   private readonly http = inject(HttpClient);
 
-  readonly mapTitle = signal<string>('Cinth Grand Masquerade Ballroom');
+  readonly mapTitle = signal<string>('Untitled Map');
   readonly activeLevelIndex = signal<number>(1);
   readonly ghostLowerFloors = signal<boolean>(true);
   readonly testTokenSandbox = signal<boolean>(false);
   readonly activeLayerId = signal<string>('layer-objects');
-  readonly selectedStampId = signal<string>('st-emrys');
+  readonly selectedStampId = signal<string>('');
   readonly selectedOcclusionMode = signal<StampOcclusionMode>('fade');
   readonly savingRevision = signal<boolean>(false);
   readonly serverSceneRevision = signal<number>(0);
@@ -53,9 +53,9 @@ export class MapStudioStoreService {
   });
 
   readonly levels = signal<readonly MapLevelFloor[]>([
-    { id: 'lvl-0', levelIndex: 0, name: 'L0 · Subterranean Vampire Vaults', elevationMinFt: -20, elevationMaxFt: 0 },
-    { id: 'lvl-1', levelIndex: 1, name: 'L1 · Grand Ballroom & Canal Courtyard', elevationMinFt: 0, elevationMaxFt: 15 },
-    { id: 'lvl-2', levelIndex: 2, name: 'L2 · Crimson Balcony & Organ Loft', elevationMinFt: 15, elevationMaxFt: 35 },
+    { id: 'lvl-0', levelIndex: 0, name: 'L0 · Lower Level', elevationMinFt: -20, elevationMaxFt: 0 },
+    { id: 'lvl-1', levelIndex: 1, name: 'L1 · Ground Level', elevationMinFt: 0, elevationMaxFt: 15 },
+    { id: 'lvl-2', levelIndex: 2, name: 'L2 · Upper Level', elevationMinFt: 15, elevationMaxFt: 35 },
   ]);
 
   readonly layers = signal<readonly MapStudioLayer[]>([
@@ -69,74 +69,9 @@ export class MapStudioStoreService {
     { id: 'layer-overlays', name: 'Cartography & Weather FX', type: 'overlays', icon: 'Compass', visible: true, locked: false, opacityPercent: 85, blendMode: 'overlay', zIndex: 80 },
   ]);
 
-  readonly presets = signal<readonly MapPresetTemplate[]>([
-    {
-      id: 'preset-cinth-ballroom',
-      name: 'Cinth Grand Masquerade Ballroom',
-      category: 'city',
-      mapScope: 'battlemap',
-      description: 'Obsidian and gold gothic cathedral ballroom with reflective canal splines and upper balcony dais.',
-      icon: 'Castle',
-      gridCols: 36,
-      gridRows: 28,
-      baseBiome: 'Cinth Marble Ballroom Courtyard',
-      ambientLighting: '2.5D Chandelier & Sconce Shadows',
-      assetCount: 840,
-      previewBadge: '3-Level Interior',
-    },
-    {
-      id: 'preset-gwaedhellain-canopy',
-      name: 'Shadow of the Mountain · Poisoned Forest',
-      category: 'wilderness',
-      mapScope: 'battlemap',
-      description: 'Twisted ancient canopy above the rune-bound mountain cavern where dragon blood seeps into roots.',
-      icon: 'Map',
-      gridCols: 44,
-      gridRows: 34,
-      baseBiome: 'Gwaedhellain Poisoned Canopy',
-      ambientLighting: 'Bioluminescent Spore & Dusk Mist',
-      assetCount: 928,
-      previewBadge: 'Canopy Occlusion',
-    },
-    {
-      id: 'preset-plains-of-red',
-      name: 'Plains of Red · Ancient Fey Battlefield',
-      category: 'wilderness',
-      mapScope: 'battlemap',
-      description: 'Crimson clay escarpments, shattered fey monoliths, and limestone cliffs along the northeast road.',
-      icon: 'Compass',
-      gridCols: 48,
-      gridRows: 36,
-      baseBiome: 'Plains of Red Clay & Ruin',
-      ambientLighting: 'High Sun & Long 4PM Cliff Shadows',
-      assetCount: 640,
-      previewBadge: 'Multi-Tier Cliffs',
-    },
-    {
-      id: 'preset-icrandor-atlas',
-      name: 'Icrandor Continental World Atlas',
-      category: 'world',
-      mapScope: 'world_map',
-      description: 'Top-right North cartography canvas spanning Vandia, the Bay of Forgotten Treasures, Cinth, and Edhellain.',
-      icon: 'Globe',
-      gridCols: 80,
-      gridRows: 60,
-      baseBiome: 'Aged Parchment & Coastal Waterlines',
-      ambientLighting: 'Celestial Astrolabe Daylight',
-      assetCount: 2150,
-      previewBadge: 'World Cartography',
-    },
-  ]);
+  readonly presets = signal<readonly MapPresetTemplate[]>([]);
 
-  readonly catalogAssets = signal<readonly MapCatalogAssetItem[]>([
-    { id: 'cat-gothic-pillar', name: 'Cinth Gothic Obsidian Pillar', category: 'walls', subfolder: 'castle-timber', assetType: '3d-linked-stamp', isLightAware3D: true, isScatterReady: false, defaultScale: 1.25, defaultHeightFt: 18, previewPath: '/map-assets/models-3d/Meshy_AI_Ancient_Pillars_Hal_1023202628_texture.glb' },
-    { id: 'cat-clockwork-organ', name: 'Artificer Brass Pipe Organ', category: 'furniture', subfolder: 'room-furnishings-v1', assetType: '3d-linked-stamp', isLightAware3D: true, isScatterReady: false, defaultScale: 1.4, defaultHeightFt: 14, previewPath: '/map-assets/stamps-2d/room-furnishings-v1' },
-    { id: 'cat-limestone-cliff', name: 'Stackable Limestone Cliff Escarpment', category: 'cliffs', subfolder: 'stackable-limestone-cliffs-v2', assetType: '3d-linked-stamp', isLightAware3D: true, isScatterReady: true, defaultScale: 1.6, defaultHeightFt: 20, previewPath: '/map-assets/stamps/cliffs' },
-    { id: 'cat-poisoned-oak', name: 'Gwaedhellain Canopy Elder Tree', category: 'trees', subfolder: 'models-3d', assetType: '3d-linked-stamp', isLightAware3D: true, isScatterReady: true, defaultScale: 1.8, defaultHeightFt: 28, previewPath: '/map-assets/models-3d/Meshy_AI_tree_ancient_1023214424_texture.glb' },
-    { id: 'cat-glowing-fungi', name: 'Bioluminescent Underdark Mushroom Cluster', category: 'plants', subfolder: 'models-3d', assetType: '3d-linked-stamp', isLightAware3D: true, isScatterReady: true, defaultScale: 0.9, defaultHeightFt: 6, previewPath: '/map-assets/models-3d/Meshy_AI_Whispering_Fungal_Pea_1023201247_texture.glb' },
-    { id: 'cat-runic-obelisk', name: 'Azure Sidhe Ard Runic Obelisk', category: 'ruins', subfolder: 'models-3d', assetType: '3d-linked-stamp', isLightAware3D: true, isScatterReady: false, defaultScale: 1.35, defaultHeightFt: 16, previewPath: '/map-assets/models-3d/Meshy_AI_Azure_Runic_Obelisk_1023090809_texture.glb' },
-    { id: 'cat-mountain-dragon', name: 'Trapped Elder Dragon Monument', category: 'dungeon', subfolder: 'models-3d', assetType: '3d-linked-stamp', isLightAware3D: true, isScatterReady: false, defaultScale: 2.4, defaultHeightFt: 30, previewPath: '/map-assets/models-3d/mountain_dragon.glb' },
-  ]);
+  readonly catalogAssets = signal<readonly MapCatalogAssetItem[]>([]);
 
   constructor() {
     this.loadStudioResources();

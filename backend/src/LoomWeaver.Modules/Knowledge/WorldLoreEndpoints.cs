@@ -392,7 +392,8 @@ public static class WorldLoreEndpoints
 
     public static WorldLoreWorkspaceDto BuildWorkspace(int campaignId, bool isGm, string? requestedMapId)
     {
-        var campaign = FallbackSeedData.Campaigns.FirstOrDefault(c => c.Id == campaignId) ?? FallbackSeedData.Campaigns[0];
+        var campaign = FallbackSeedData.Campaigns.FirstOrDefault(c => c.Id == campaignId)
+            ?? new CampaignDto(campaignId, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, 0, string.Empty, false);
         var maps = GetCampaignList(WorldLoreStateStore.MapsByCampaign, campaignId)
             .Where(m => isGm || m.Visibility != "gm")
             .ToList();

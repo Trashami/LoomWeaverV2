@@ -18,7 +18,7 @@ public static class TableRealtimeEndpoints
             "evt-seed-303",
             1,
             "dice_rolled",
-            "Fivi",
+            "Player",
             "Rolled 1d20+8 (ADV) = 28 · Natural 20 Solar Supernova Burst triggered on Bound Dragon.",
             "{\"sides\":20,\"total\":28,\"isNat20\":true}",
             DateTimeOffset.UtcNow.AddMinutes(-3)
@@ -27,8 +27,8 @@ public static class TableRealtimeEndpoints
             "evt-seed-302",
             1,
             "token_moved",
-            "Munk",
-            "Moved frontline token 30 ft to Cinth Ballroom Upper Balcony (Grid 14, 8).",
+            "Player",
+            "Moved frontline token 30 ft to Upper Balcony (Grid 14, 8).",
             "{\"gridX\":14,\"gridZ\":8}",
             DateTimeOffset.UtcNow.AddMinutes(-6)
         ),

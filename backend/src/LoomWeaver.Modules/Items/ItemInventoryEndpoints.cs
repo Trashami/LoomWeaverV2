@@ -39,7 +39,7 @@ public static class ItemInventoryEndpoints
             var member = await MemberAsync(db, campaignId, user.Id, ct);
             // Always require an actual campaign character binding; never infer one from global account role.
             if (member is null || string.IsNullOrEmpty(member.Value.Character) || !ItemAccessPolicy.CanUseCharacter(member.Value.Character, characterKey)) return Results.Forbid();
-            var item = ItemCatalog.Find(Text(req, "itemId")) ?? await FindAsync(db, Text(req, "itemId"), user.Id, ct);
+            var item = ItemCatalog.Find(Text(req, "itemId")) ?? await ItemDbCatalog.FindAsync(db, Text(req, "itemId"), ct) ?? await FindAsync(db, Text(req, "itemId"), user.Id, ct);
             if (item is null || item["category"] is null) return Results.NotFound();
             var equipment = new JsonObject
             {

@@ -43,7 +43,7 @@ export class CharacterSheetInteractiveService {
   readonly activeEncounterId = signal<string>('enc-ruined-chapel');
   readonly activeEncounterTitle = signal<string>('Ruined Chapel Courtyard Ambush');
 
-  readonly selectedTargetName = signal<string>('Cinth Vampire Spawn');
+  readonly selectedTargetName = signal<string>('Training Dummy');
   readonly selectedTargetAc = signal<number>(15);
   readonly reactionOutcomeMode = signal<'none' | 'interrupted' | 'reduced'>('none');
   readonly damageReductionAmount = signal<number>(5);
@@ -68,12 +68,12 @@ export class CharacterSheetInteractiveService {
 
   readonly rollLogs = signal<readonly CharacterSheetRollLogVm[]>([
     {
-      id: 'cs-seed-1', characterKey: 'char-ciaran', characterName: 'Ciarán Fiachra',
+      id: 'cs-seed-1', characterKey: 'char-ciaran', characterName: 'Aldric Vale',
       category: 'spell-attack', itemName: 'Fire Bolt', formula: '1d20 + 7', rawRolls: [17],
       naturalDie: 17, modifier: 7, total: 24, isNat20: false, isCritFail: false, hit: true,
       damageDealt: 11, damageReduced: 0, wasInterrupted: false, wasDamageReduced: false,
       actionSlotConsumed: 'action', trackedInSession: true, trackedInEncounter: true,
-      summaryMessage: 'Ciarán Fiachra rolled Fire Bolt (1d20 + 7) = 24 [Natural 17] -> HIT Cinth Vampire Spawn (AC 15) for 11 Fire dmg! [Tracked: Live Session + Live Encounter]',
+      summaryMessage: 'Aldric Vale rolled Fire Bolt (1d20 + 7) = 24 [Natural 17] -> HIT Training Dummy (AC 15) for 11 Fire dmg! [Tracked: Live Session + Live Encounter]',
       sha256Digest: 'SHA256:8B1F4A92C03E771A', timestampLabel: '2m ago',
     },
   ]);

@@ -13,7 +13,7 @@ public interface IGameSystemRules
 public sealed class Dnd5eSystemRules : IGameSystemRules
 {
     public string SystemCode => "dnd5e";
-    public string DisplayName => "Dungeons & Dragons 5e (2024 / Custom Icrandor)";
+    public string DisplayName => "Dungeons & Dragons 5e (2024 / Custom)";
     public IReadOnlyList<string> CoreAbilities => ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
     public string CalculateAdvancementSummary(int currentLevel) =>
         $"Level {currentLevel} -> {currentLevel + 1}: Hit Die + CON, Proficiency +{2 + (currentLevel / 4)}, Subclass/Feat milestone check.";

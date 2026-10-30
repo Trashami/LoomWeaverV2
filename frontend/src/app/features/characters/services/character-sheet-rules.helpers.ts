@@ -54,7 +54,7 @@ export function buildCharacterSheetActionRows(
       damageType: isFocus ? 'Force' : isRanged ? 'Piercing' : 'Slashing',
       notes: w.summary,
       description: `Channel or strike with ${w.name} for ${sheet.name} (Lv.${sheet.level} ${sheet.classOrArchetype}). Attack Roll: 1d20 ${fmt(usedAtk)} (${isFocus ? 'Spell Mod' : 'Weapon Mod'} ${fmt(usedMod)} + Prof +${sheet.proficiencyBonus}). Damage: 1d${diceSides} ${fmt(usedMod)}.`,
-      campaignRuleNote: `Shadow of the Mountain Rule: ${sheet.name}'s ${w.name} channels Anelith resonance (+${sheet.proficiencyBonus} proficiency) and logs combat telemetry when an encounter is live.`,
+      campaignRuleNote: `Campaign Rule: ${sheet.name}'s ${w.name} channels arcane resonance (+${sheet.proficiencyBonus} proficiency) and logs combat telemetry when an encounter is live.`,
     });
   }
   rows.push(
@@ -64,7 +64,7 @@ export function buildCharacterSheetActionRows(
       attackBonus: spellAtkBonus, damageFormula: '2d10', damageDiceCount: 2, damageDiceSides: 10, damageBonus: 0,
       damageType: 'Fire', notes: `V/S · Lv.${sheet.level} Scaling (2d10)`,
       description: `${sheet.name} hurls a mote of arcane fire at a creature or object within 120 ft. Spell Attack: 1d20 ${fmt(spellAtkBonus)}. At Level ${sheet.level}, damage scales to 2d10 Fire.`,
-      campaignRuleNote: 'Campaign Rule: Ignites flammable Cinth oil barrels and illuminates 10 ft of VTT dynamic fog of war for 1 round.',
+      campaignRuleNote: 'Campaign Rule: Ignites flammable oil barrels and illuminates 10 ft of VTT dynamic fog of war for 1 round.',
     },
     {
       id: 'act-unarmed', name: 'Unarmed Strike', subtitle: 'Melee Weapon Attack',
@@ -79,8 +79,8 @@ export function buildCharacterSheetActionRows(
       filterCategory: 'BONUS ACTION', actionSlotCost: 'bonus', rangeLabel: '30 ft. Self', hitOrDcLabel: fmt(spellAtkBonus),
       attackBonus: spellAtkBonus, damageFormula: `1d20+${spellMod}`, damageDiceCount: 1, damageDiceSides: 20, damageBonus: spellMod,
       damageType: 'Teleport', notes: 'Bonus Action · No OA',
-      description: `${sheet.name} is briefly surrounded by silvery Anelith mist and teleports up to 30 feet to an unoccupied visible space.`,
-      campaignRuleNote: 'Campaign Rule: Does not provoke Opportunity Attacks and bypasses Cinth vampire grapples.',
+      description: `${sheet.name} is briefly surrounded by silvery arcane mist and teleports up to 30 feet to an unoccupied visible space.`,
+      campaignRuleNote: 'Campaign Rule: Does not provoke Opportunity Attacks and bypasses grapples.',
       limitedUseId: 'lu-fey-step', limitedUseMax: 2, resetOn: 'Short Rest',
     },
     {
@@ -88,8 +88,8 @@ export function buildCharacterSheetActionRows(
       filterCategory: 'BONUS ACTION', actionSlotCost: 'bonus', rangeLabel: 'Self (5 ft.)', hitOrDcLabel: fmt(sheet.proficiencyBonus),
       attackBonus: sheet.proficiencyBonus, damageFormula: `2d4+${sheet.proficiencyBonus}`, damageDiceCount: 2, damageDiceSides: 4,
       damageBonus: sheet.proficiencyBonus, damageType: 'Healing', notes: 'Bonus Action · Restores HP',
-      description: `${sheet.name} draws on reserve stamina or consumes a Cinth alchemical draught as a Bonus Action to restore 2d4 + ${sheet.proficiencyBonus} HP.`,
-      campaignRuleNote: 'Shadow of the Mountain House Rule: Drinking a potion yourself is a Bonus Action; administering to a downed ally is 1 Action.',
+      description: `${sheet.name} draws on reserve stamina or consumes a healing potion as a Bonus Action to restore 2d4 + ${sheet.proficiencyBonus} HP.`,
+      campaignRuleNote: 'House Rule: Drinking a potion yourself is a Bonus Action; administering to a downed ally is 1 Action.',
       limitedUseId: 'lu-tactical-surge', limitedUseMax: 2, resetOn: 'Short Rest',
     },
     {
@@ -110,12 +110,12 @@ export function buildCharacterSheetActionRows(
       campaignRuleNote: 'Warcaster feat allows casting a 1-Action single-target spell in place of a melee weapon Opportunity Attack.',
     },
     {
-      id: 'act-lu-arcane-recovery', name: 'Arcane / Anelith Recovery', subtitle: 'Class Feature · Limited Use',
+      id: 'act-lu-arcane-recovery', name: 'Arcane Recovery', subtitle: 'Class Feature · Limited Use',
       filterCategory: 'LIMITED USE', actionSlotCost: 'action', rangeLabel: 'Self', hitOrDcLabel: `DC ${spellDc}`,
       attackBonus: spellAtkBonus, damageFormula: `1d20+${spellMod}`, damageDiceCount: 1, damageDiceSides: 20, damageBonus: spellMod,
       damageType: 'Slot Recovery', notes: `Recover up to ${Math.ceil(sheet.level / 2)} Spell Slot Levels`,
       description: `${sheet.name} (Level ${sheet.level} ${sheet.classOrArchetype}) can recover expended spell slots with a combined level up to ${Math.ceil(sheet.level / 2)} once per day during a Short Rest.`,
-      campaignRuleNote: 'Near a Luminary or Anelith leyline node, also grants +1d4 temporary HP per slot level recovered.',
+      campaignRuleNote: 'Near a magical leyline node, also grants +1d4 temporary HP per slot level recovered.',
       limitedUseId: 'lu-anelith-recovery', limitedUseMax: 1, resetOn: 'Long Rest',
     },
   );
@@ -134,7 +134,7 @@ export function buildAbilityRuleVm(ab: AbilityScoreVm, sheet: CharacterSheetVm):
     durationLabel: `Save: ${save ? (save.bonus >= 0 ? '+' + save.bonus : save.bonus) : modStr}`,
     sourceLabel: 'Character Breakdown', damageOrBonusBadge: `1d20 ${modStr}`,
     standardRuleText: `${sheet.name}'s ${ab.label} score is ${ab.score}, granting a ${modStr} modifier on raw ${ab.code} checks. Governed Skills for ${sheet.name}: ${govSkills}.`,
-    campaignAdjustedRuleTitle: 'Shadow of the Mountain Campaign Rule',
+    campaignAdjustedRuleTitle: 'Campaign Rule',
     campaignAdjustedRuleText: `Natural 20 on a ${ab.label} Check during a Live Session unlocks bonus lore citations in The Loom and records a Critical Success for ${sheet.name}.`,
     campaignClauseFormula: `ROLL(1d20 ${modStr}) -> GovernedSkills(${govSkills})`,
     tags: [ab.code, `Score ${ab.score}`, `Mod ${modStr}`, sheet.classOrArchetype],
@@ -154,8 +154,8 @@ export function buildSaveRuleVm(sv: SavingThrowVm, sheet: CharacterSheetVm): Cam
     castingOrActionTime: 'Free / Triggered', rangeOrArea: 'Self', componentsOrSlot: breakdown,
     durationLabel: 'Instantaneous', sourceLabel: 'Character Rule', damageOrBonusBadge: `1d20 ${modStr}`,
     standardRuleText: `${sheet.name}'s ${sv.label} Saving Throw bonus is ${modStr} (${breakdown}). Roll 1d20 ${modStr} against enemy Spell Save DCs, traps, or hazards.`,
-    campaignAdjustedRuleTitle: 'Adjusted Campaign Rule (Anelith Ward)',
-    campaignAdjustedRuleText: `In Shadow of the Mountain, rolling a Natural 20 on a Saving Throw reduces incoming AoE damage to 0 and logs a Mitigated Damage event for ${sheet.name}.`,
+    campaignAdjustedRuleTitle: 'Adjusted Campaign Rule (Arcane Ward)',
+    campaignAdjustedRuleText: `In this campaign, rolling a Natural 20 on a Saving Throw reduces incoming AoE damage to 0 and logs a Mitigated Damage event for ${sheet.name}.`,
     campaignClauseFormula: `WHEN Save(${sv.code}) = 1d20 ${modStr} >= TargetDC THEN ResistEffect()`,
     tags: [`${sv.code} Save`, sv.proficient ? 'Proficient' : 'Standard', breakdown],
     rollConfig: { category: 'save', actionSlotCost: 'none', diceSides: 20, diceCount: 1, modifier: sv.bonus },
@@ -175,10 +175,10 @@ export function buildSkillRuleVm(sk: CharacterSkillVm, sheet: CharacterSheetVm):
     componentsOrSlot: breakdown, durationLabel: `Passive ${10 + sk.bonus}`,
     sourceLabel: 'Campaign Lore Rules', damageOrBonusBadge: `1d20 ${modStr}`,
     standardRuleText: `${sheet.name}'s ${sk.label} modifier is ${modStr} (${breakdown}). Passive ${sk.label} is ${10 + sk.bonus}.`,
-    campaignAdjustedRuleTitle: 'Campaign Adjustment (Shadow of the Mountain)',
+    campaignAdjustedRuleTitle: 'Campaign Adjustment',
     campaignAdjustedRuleText:
       sk.label === 'History' || sk.label === 'Arcana' || sk.label === 'Perception'
-        ? `${sheet.name} gains automatic Advantage when inspecting dwarven runes, Priors Chokrah ledgers, or Anelith leyline stonework.`
+        ? `${sheet.name} gains automatic Advantage when inspecting ancient runes, historical ledgers, or leyline stonework.`
         : `During active combat encounters, using ${sk.label} via Study, Search, or Influence consumes 1 Action unless granted as a Bonus Action.`,
     campaignClauseFormula: `ROLL(1d20 ${modStr}) · PASSIVE(${10 + sk.bonus})`,
     tags: [sk.abilityCode, sk.proficient ? 'Proficient' : 'Standard', `Passive ${10 + sk.bonus}`],
@@ -223,13 +223,13 @@ export function buildCharacterContextRuleVm(
     sense: {
       sub: `${sheet.name}'s Passive Awareness & Vision`,
       std: `${detail}. Passive score equals 10 + ${sheet.name}'s corresponding skill modifier (+5 with Advantage, -5 with Disadvantage).`,
-      camp: `Used automatically by the VTT lighting engine to detect hidden Gwaedhellain ambushers, traps, and secret doors without rolling.`,
+      camp: `Used automatically by the VTT lighting engine to detect hidden ambushers, traps, and secret doors without rolling.`,
       badge: title,
     },
     training: {
       sub: `${sheet.classOrArchetype} & ${sheet.backgroundName} Proficiencies`,
       std: `${sheet.name} is trained in: ${detail}. Wearing armor without proficiency imposes Disadvantage on STR/DEX D20 tests and blocks spellcasting.`,
-      camp: `Tool & Language proficiencies unlock translated inscriptions and Artificer crafting options in Cinth.`,
+      camp: `Tool & Language proficiencies unlock translated inscriptions and Artificer crafting options in your home city.`,
       badge: 'Trained',
     },
     defense: {
@@ -333,7 +333,7 @@ export function buildFeatureOrItemRuleVm(
     subtitle: isFeat ? f.category.toUpperCase() : e.equipped ? 'Equipped on Character' : 'Stowed in Backpack',
     castingOrActionTime: '1 Action / Passive', rangeOrArea: 'Self / Reach',
     componentsOrSlot: isFeat ? 'Class / Ancestry Trait' : `${e.weightLb ?? 2} lbs · ${e.rarity ?? 'Common'}`,
-    durationLabel: 'Continuous / Instant', sourceLabel: 'Shadow of the Mountain Catalog',
+    durationLabel: 'Continuous / Instant', sourceLabel: 'Campaign Catalog',
     damageOrBonusBadge: isFeat ? 'Trait Check' : (e.bonusLabel || e.slot),
     standardRuleText: isFeat ? f.summary : `${e.summary} (${e.bonusLabel}).`,
     campaignAdjustedRuleTitle: 'Campaign Integration & Lore Rule',

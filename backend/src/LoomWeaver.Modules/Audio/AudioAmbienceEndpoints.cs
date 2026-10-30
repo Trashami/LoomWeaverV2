@@ -7,7 +7,7 @@ namespace LoomWeaver.Modules.Audio;
 
 public static class AudioAmbienceEndpoints
 {
-    private static string _activePresetId = "preset-cinth-ballroom";
+    private static string _activePresetId = "preset-ballroom";
 
     private static readonly IReadOnlyList<AudioStemContract> CuratedStems = new[]
     {
@@ -20,8 +20,8 @@ public static class AudioAmbienceEndpoints
     private static readonly IReadOnlyList<AudioScenePresetContract> CuratedPresets = new[]
     {
         new AudioScenePresetContract(
-            "preset-cinth-ballroom",
-            "Cinth Masquerade Ballroom",
+            "preset-ballroom",
+            "Masquerade Ballroom",
             "Intrigue & Velvet Tension",
             108,
             "C Minor",
@@ -69,7 +69,7 @@ public static class AudioAmbienceEndpoints
         ),
         new AudioScenePresetContract(
             "preset-skyship-horizon",
-            "Kutler's Skyship Over Vandia",
+            "Skyship Over the Harbor",
             "High Adventure & Wind",
             118,
             "G Dorian",

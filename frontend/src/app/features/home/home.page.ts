@@ -10,6 +10,7 @@ import { AuthSessionService } from '../../core/services/auth-session.service';
 import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
 import {
   LwCampaignResumeCardComponent,
+  LwCreatePlaceholderComponent,
   LwDashboardAlertsCardComponent,
   LwIconComponent,
   LwPartyMemberStatusVm,
@@ -35,6 +36,7 @@ import {
     LwQuestTrackerCardComponent,
     LwPartyRosterCardComponent,
     LwDashboardAlertsCardComponent,
+    LwCreatePlaceholderComponent,
   ],
   templateUrl: './home.page.html',
   styleUrl: './home.page.scss',

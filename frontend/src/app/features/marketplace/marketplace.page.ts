@@ -14,71 +14,7 @@ import {
   LwPanelComponent,
 } from '../../shared/ui/public-api';
 
-const DEFAULT_CREATOR_MODULES: readonly LwCreatorModuleItem[] = [
-  {
-    id: 'mod-cinth-masquerade-pack',
-    title: 'Cinth Masquerade & Artificer District Campaign Module',
-    creatorHandle: '@TrashamiChronicles',
-    category: 'Adventure Module',
-    priceUsd: 24.0,
-    creatorShareUsd: 20.4,
-    platformShareUsd: 3.6,
-    royaltySplitLabel: '85% Creator ($20.40) / 15% Platform ($3.60)',
-    popularityImports: 1420,
-    rating: 4.9,
-    summary:
-      'Complete Book One Cinth act with 3D ballroom maps, vampire coven statblocks, Artificer Guild NPCs, and 4-stem waltz audio.',
-    includedItems: [
-      '3 Babylon.js Battlemaps',
-      '9 Custom NPCs & Vampires',
-      '4 Adaptive Audio Stems',
-      '12 Graph Nodes',
-    ],
-    installed: true,
-  },
-  {
-    id: 'mod-shadow-mountain-raid',
-    title: 'Shadow of the Mountain — Runic Cavern & Dragon Boss Pack',
-    creatorHandle: '@TrashamiChronicles',
-    category: 'Boss Encounter',
-    priceUsd: 18.0,
-    creatorShareUsd: 15.3,
-    platformShareUsd: 2.7,
-    royaltySplitLabel: '85% Creator ($15.30) / 15% Platform ($2.70)',
-    popularityImports: 1185,
-    rating: 5.0,
-    summary:
-      'Multi-phase ancient bound dragon encounter with glowing containment runes, poisoned canopy scatter assets, and custom EffectBuilder timelines.',
-    includedItems: [
-      'Runic Cavern 3D Map',
-      'Ancient Bound Dragon Boss',
-      '5 Spell FX Timelines',
-      'Runed Obsidian Dice Skin',
-    ],
-    installed: true,
-  },
-  {
-    id: 'mod-skyship-lost-isles',
-    title: "Kutler's Skyship & Lost Isles Chokrah Investigation",
-    creatorHandle: '@IcrandorCartography',
-    category: 'Expansion Pack',
-    priceUsd: 16.0,
-    creatorShareUsd: 13.6,
-    platformShareUsd: 2.4,
-    royaltySplitLabel: '85% Creator ($13.60) / 15% Platform ($2.40)',
-    popularityImports: 890,
-    rating: 4.8,
-    summary:
-      'Steampunk-adjacent artificer skyship deck plans, Chokrah cargo manifests, and Book Two borderland village siege encounters.',
-    includedItems: [
-      'Multi-Deck Skyship Map',
-      'Artificer Clockwork Brass Dice',
-      '6 Homebrew Actions',
-      'Skyship Wind Audio Preset',
-    ],
-    installed: false,
-  },
-];
+const DEFAULT_CREATOR_MODULES: readonly LwCreatorModuleItem[] = [];
 
 @Component({
   selector: 'lw-marketplace-page',

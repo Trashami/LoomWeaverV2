@@ -27,7 +27,7 @@ export const DICE_MODEL_CATALOG: DiceModelDefinition[] = [
   },
   {
     id: 'model-dwarven-heavy',
-    name: 'Kildrid Deep-Forged Ingot',
+    name: 'Deep-Forged Ingot',
     description: 'Deep stone-and-iron bevels with broad armored edges.',
     geometryMode: 'procedural-chamfer',
     chamferFactor: 0.82,
@@ -41,7 +41,7 @@ export const DICE_MODEL_CATALOG: DiceModelDefinition[] = [
   },
   {
     id: 'model-caged-filigree',
-    name: 'Cinth Hollow Filigree Cage',
+    name: 'Hollow Filigree Cage',
     description: 'Open polyhedral edge cage with inset numbered panels.',
     geometryMode: 'procedural-chamfer',
     chamferFactor: 0.76,

@@ -1,0 +1,46 @@
+import { CampaignDashboardVm } from '../models/dashboard.models';
+
+export function buildEmptyDashboard(campaignId: number, campaignName = ''): CampaignDashboardVm {
+  return {
+    campaignId,
+    campaignName,
+    sessionState: 'no_sessions',
+    actTitle: '',
+    actSubtitle: '',
+    sessionBadgeLabel: '',
+    sessionBadgeSubtitle: '',
+    lastActivityLabel: '',
+    narrativeSummary: '',
+    heroArtworkUrl: '/combat-caves.jpg',
+    upcomingSession: {
+      sessionId: '',
+      sessionNumber: 0,
+      title: '',
+      artworkUrl: '/combat-caves.jpg',
+      scheduledDateLabel: '',
+      scheduledTimeLabel: '',
+      locationTitle: '',
+      locationRegion: '',
+      prepStatusLabel: '',
+      completedPrepCount: 0,
+      totalPrepCount: 0,
+      checklist: [],
+    },
+    recentActivity: [],
+    recentNotes: [],
+    activeQuests: [],
+    partyMembers: [],
+    partyHealthTitle: '',
+    partyHealthSubtitle: '',
+    alerts: [],
+    sessionGuide: {
+      headerTitle: '',
+      artworkUrl: '/combat-caves.jpg',
+      epigraph: '',
+      summary: '',
+      beats: [],
+      keyNpcs: [],
+      secrets: [],
+    },
+  };
+}

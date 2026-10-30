@@ -99,10 +99,10 @@ public static class LoomWeaverEndpoints
                     subtitle = desc,
                     description = desc,
                     systemCode = match?.SystemCode ?? "dnd5e",
-                    worldName = match?.WorldName ?? "Icrandor",
+                    worldName = match?.WorldName ?? "Your World",
                     currentAct = match?.CurrentAct ?? "ACT I",
                     currentSessionNumber = match?.CurrentSessionNumber ?? 1,
-                    currentLocationName = match?.CurrentLocationName ?? "Cinth",
+                    currentLocationName = match?.CurrentLocationName ?? "Starting Location",
                     weaveEnabled = match?.WeaveEnabled ?? true,
                     my_role = m.IsGm ? "dm" : "player",
                     my_character_key = m.CharacterKey
@@ -127,10 +127,10 @@ public static class LoomWeaverEndpoints
                 subtitle = c?.Subtitle ?? string.Empty,
                 description = c?.Subtitle ?? string.Empty,
                 systemCode = c?.SystemCode ?? "dnd5e",
-                worldName = c?.WorldName ?? "Icrandor",
+                worldName = c?.WorldName ?? "Your World",
                 currentAct = c?.CurrentAct ?? "ACT I",
                 currentSessionNumber = c?.CurrentSessionNumber ?? 1,
-                currentLocationName = c?.CurrentLocationName ?? "Cinth",
+                currentLocationName = c?.CurrentLocationName ?? "Starting Location",
                 weaveEnabled = c?.WeaveEnabled ?? true,
                 my_role = isGm ? "dm" : "player",
                 my_character_key = membership?.CharacterKey
@@ -183,7 +183,7 @@ public static class LoomWeaverEndpoints
             CancellationToken ct) =>
         {
             var viewerRole = CampaignAccessResolver.Resolve(ctx, campaignId, role).EffectiveViewerRole;
-            var queryText = string.IsNullOrWhiteSpace(q) ? "What is happening in Cinth?" : q.Trim();
+            var queryText = string.IsNullOrWhiteSpace(q) ? "What is happening in my campaign?" : q.Trim();
             var entities = await repo.GetAuthorizedEntitiesAsync(campaignId, viewerRole, null, ct);
             var matches = entities
                 .Where(e =>

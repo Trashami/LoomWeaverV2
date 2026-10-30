@@ -374,7 +374,7 @@
                       <small class="lw-inspector__entity-sub">Known by: {{ claim.knownByCharacters.join(', ') }}</small>
                       <div class="lw-inspector__npc-links">
                         <lw-button variant="guide-action" size="xs" [label]="claim.documentedLoreTitle || 'Lore Article'" (pressed)="connectedStory.navigateConnectedElement('1:Lore:' + (claim.documentedLoreId || 'lore-priors-rituals'), '/world-lore?tab=lore&loreId=lore-priors-rituals')" />
-                        <lw-button variant="guide-chip" size="xs" [label]="'Implicates: ' + (claim.implicatedEntityName || 'Emrys')" (pressed)="connectedStory.navigateConnectedElement(claim.implicatedEntityKey || '1:NPC:npc-emrys', '/campaigns?inspect=npc-emrys')" />
+                        <lw-button variant="guide-chip" size="xs" [label]="'Implicates: ' + (claim.implicatedEntityName || 'Unknown')" (pressed)="connectedStory.navigateConnectedElement(claim.implicatedEntityKey || '', '/campaigns')" />
                       </div>
                     </div>
                   }

@@ -58,7 +58,7 @@ public sealed class EffectStudioMySqlRepository(
                 CREATE TABLE IF NOT EXISTS lw_campaign_effect_assignments (
                     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                     campaign_id INT NOT NULL,
-                    campaign_name VARCHAR(120) NOT NULL DEFAULT 'Shadow of the Mountain',
+                    campaign_name VARCHAR(120) NOT NULL DEFAULT 'Test Campaign',
                     character_key VARCHAR(80) NOT NULL,
                     character_name VARCHAR(120) NOT NULL,
                     spell_key VARCHAR(120) NOT NULL,
@@ -292,7 +292,7 @@ public sealed class EffectStudioMySqlRepository(
         };
 
         var campaigns = await mysql.GetCampaignsAsync(ct);
-        var campName = campaigns.FirstOrDefault(c => c.Id == cid)?.Name ?? "Shadow of the Mountain";
+        var campName = campaigns.FirstOrDefault(c => c.Id == cid)?.Name ?? "Test Campaign";
         var docJson = JsonSerializer.Serialize(savedEffect, JsonOpts);
         long assignmentId = MemoryAssignments.Count + 1;
 
@@ -434,20 +434,20 @@ public sealed class EffectStudioMySqlRepository(
 
     private static List<CampaignEffectCharacterOptionDto> BuildSeedCharacters() =>
     [
-        // Campaign 1: Shadow of the Mountain
-        new("pc-kildrid", 1, "Kildrid", "Dwarven Cleric · Stone & Rune Scholar", "RyanIssak", "player",
-            ["Rune Vortex", "Luminary Pillar of Ekkos", "Anelith Hexagonal Binding Pulse", "Spirit Guardians", "Healing Aura", "Flame Strike"]),
-        new("pc-kycius", 1, "Kycius & Laksis", "Tabaxi Thread-Seer Warlock & Fire Drake", "StickHazen", "player",
-            ["Chokrah Overchannel Surge", "Anelith Magic Missile", "Fireball", "Laksis Fire-Drake Cinder Breath", "Arms of Hadar"]),
-        new("pc-fivi", 1, "Fivi", "Feywild Outcast Rogue / Warlock", "DallasCrow", "player",
-            ["Slingshot Loaded with a Tooth", "Fey Gold Ricochet Arc", "Eldritch Fey Blast", "Misty Step", "Dolly Pocket-Maw Ward"]),
-        new("pc-dal", 1, "Dal Riata", "Elf Horizon Ranger · Heir of Edhellain", "ScottBrogan", "player",
-            ["Edhellain Starlight Volley", "Hunter's Mark Bolt", "Zephyr Strike", "Conjure Barrage", "Rune Vortex"]),
-        new("pc-munk", 1, "Munk", "Half-Orc Vanguard Fighter", "PeteHigano", "player",
+        // Campaign 1: test seed
+        new("pc-kildrid", 1, "Brenna", "Dwarven Cleric · Stone & Rune Scholar", "RyanIssak", "player",
+            ["Rune Vortex", "Luminary Pillar", "Hexagonal Binding Pulse", "Spirit Guardians", "Healing Aura", "Flame Strike"]),
+        new("pc-kycius", 1, "Sera", "Tabaxi Thread-Seer Warlock & Fire Drake", "StickHazen", "player",
+            ["Overchannel Surge", "Arcane Magic Missile", "Fireball", "Fire-Drake Cinder Breath", "Arms of Hadar"]),
+        new("pc-fivi", 1, "Tomas", "Feywild Outcast Rogue / Warlock", "DallasCrow", "player",
+            ["Slingshot Loaded with a Tooth", "Fey Gold Ricochet Arc", "Eldritch Fey Blast", "Misty Step", "Pocket-Maw Ward"]),
+        new("pc-dal", 1, "Aldric", "Elf Horizon Ranger · Heir of the Realm", "ScottBrogan", "player",
+            ["Starlight Volley", "Hunter's Mark Bolt", "Zephyr Strike", "Conjure Barrage", "Rune Vortex"]),
+        new("pc-munk", 1, "Osric", "Half-Orc Vanguard Fighter", "PeteHigano", "player",
             ["Homestead Sky-Breaker Cleave", "Heavy Weapon Strike", "Action Surge Shockwave", "Indomitable Warcry"]),
-        new("npc-emrys", 1, "Emrys Driothe (GM / NPC)", "Reformer of the Council of Magic", "GeoJason", "gm",
-            ["Rune Vortex", "Anelith Prism Lance", "Moonlight War Containment Seal", "Chain Lightning", "Meteor Swarm"]),
-        new("mon-vaelkorath", 1, "Vaelkorath (GM / Boss)", "The Bound Dragon Beneath the Mountain", "GeoJason", "gm",
+        new("npc-emrys", 1, "Sample NPC (GM)", "Reformer of the Council of Magic", "GeoJason", "gm",
+            ["Rune Vortex", "Prism Lance", "Moonlight War Containment Seal", "Chain Lightning", "Meteor Swarm"]),
+        new("mon-vaelkorath", 1, "Ancient Dragon (GM / Boss)", "The Bound Dragon Beneath the Mountain", "GeoJason", "gm",
             ["Corrupted Mountain Breath", "Runic Life-Tether Eruption", "Poisoned Canopy Shockwave"]),
 
         // Campaign 2: Echoes of the Starstone

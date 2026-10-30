@@ -39,15 +39,31 @@
         (prepItemToggled)="store.togglePrepChecklistItem($event)"
       />
 
-      <lw-recent-activity-feed
-        [items]="dash.recentActivity"
-        (activitySelected)="onActivitySelected($event)"
-      />
+      @if (dash.recentActivity.length > 0) {
+        <lw-recent-activity-feed
+          [items]="dash.recentActivity"
+          (activitySelected)="onActivitySelected($event)"
+        />
+      } @else {
+        <lw-create-placeholder
+          title="Recent Activity"
+          hint="Activity appears here once your table starts playing."
+          route="/arcane-screen"
+        />
+      }
 
-      <lw-recent-notes-card
-        [notes]="dash.recentNotes"
-        (noteSelected)="onNoteSelected($event)"
-      />
+      @if (dash.recentNotes.length > 0) {
+        <lw-recent-notes-card
+          [notes]="dash.recentNotes"
+          (noteSelected)="onNoteSelected($event)"
+        />
+      } @else {
+        <lw-create-placeholder
+          title="Recent Notes"
+          hint="Write a note in the Loom to see it here."
+          route="/loom"
+        />
+      }
     </section>
 
     <!-- Bottom 3-Column Row: Open Threads / Active Quests | Party Snapshot | Alerts -->
@@ -79,19 +95,33 @@
               [selected]="selectedQuestId() === quest.id"
               (questSelected)="onQuestSelected($event)"
             />
+          } @empty {
+            <lw-create-placeholder
+              title="Open Threads"
+              hint="Add a quest to start tracking active threads."
+              route="/campaigns"
+            />
           }
         </div>
       </article>
 
-      <lw-party-roster-card
-        title="PARTY SNAPSHOT"
-        [members]="dash.partyMembers"
-        [selectedKey]="store.inspectedEntityKey() ?? ''"
-        [healthTitle]="dash.partyHealthTitle"
-        [healthSubtitle]="dash.partyHealthSubtitle"
-        (memberSelected)="onMemberSelected($event)"
-        (addMemberRequested)="openCharacterStudio()"
-      />
+      @if (dash.partyMembers.length > 0) {
+        <lw-party-roster-card
+          title="PARTY SNAPSHOT"
+          [members]="dash.partyMembers"
+          [selectedKey]="store.inspectedEntityKey() ?? ''"
+          [healthTitle]="dash.partyHealthTitle"
+          [healthSubtitle]="dash.partyHealthSubtitle"
+          (memberSelected)="onMemberSelected($event)"
+          (addMemberRequested)="openCharacterStudio()"
+        />
+      } @else {
+        <lw-create-placeholder
+          title="Party Snapshot"
+          hint="Add a character to build your party."
+          route="/characters"
+        />
+      }
 
       <lw-dashboard-alerts-card
         [alerts]="dash.alerts"

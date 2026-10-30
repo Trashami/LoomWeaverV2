@@ -2,6 +2,7 @@ using LoomWeaver.Infrastructure.MySql;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using System.Text.Json;
 using MySqlConnector;
 
 namespace LoomWeaver.Modules.Characters;
@@ -61,7 +62,73 @@ public static class SourceBookEndpoints
             }
         });
 
+        api.MapGet("/sources/{code}/nodes/{nodeId:long}", async (string code, long nodeId, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
+        {
+            try
+            {
+                await using var db = await mysql.OpenConnectionAsync(ct);
+                var node = await LoadNodeAsync(db, code, nodeId, ct);
+                return node is null
+                    ? Results.NotFound(new { message = $"Section {nodeId} was not found in {code}." })
+                    : Results.Ok(node);
+            }
+            catch (Exception ex)
+            {
+                return Results.Problem(ex.Message);
+            }
+        });
+
         return api;
+    }
+
+    // One book section with its parsed 5etools entries (data_json) and direct child sections.
+    private static async Task<Dictionary<string, object?>?> LoadNodeAsync(MySqlConnection db, string code, long nodeId, CancellationToken ct)
+    {
+        Dictionary<string, object?>? node = null;
+        await using (var cmd = db.CreateCommand())
+        {
+            cmd.CommandText = @"
+                SELECT `id`, `source_id`, `parent_id`, `seq`, `node_type`, `name`, `page`, `text`, `data_json`
+                FROM `dnd_book_nodes`
+                WHERE `id` = @nodeId AND `source_id` = @code
+                LIMIT 1;";
+            cmd.Parameters.AddWithValue("@nodeId", nodeId);
+            cmd.Parameters.AddWithValue("@code", code.Trim());
+            await using var r = await cmd.ExecuteReaderAsync(ct);
+            if (await r.ReadAsync(ct))
+            {
+                node = ReadRow(r);
+            }
+        }
+        if (node is null)
+        {
+            return null;
+        }
+
+        var rawJson = node["data_json"]?.ToString();
+        node["data_json"] = string.IsNullOrWhiteSpace(rawJson)
+            ? null
+            : JsonSerializer.Deserialize<JsonElement>(rawJson);
+
+        var children = new List<Dictionary<string, object?>>();
+        await using (var cmd = db.CreateCommand())
+        {
+            cmd.CommandText = @"
+                SELECT `id`, `name`, `node_type`, `page`, `seq`
+                FROM `dnd_book_nodes`
+                WHERE `parent_id` = @nodeId
+                ORDER BY `seq`, `id`
+                LIMIT 300;";
+            cmd.Parameters.AddWithValue("@nodeId", nodeId);
+            await using var r = await cmd.ExecuteReaderAsync(ct);
+            while (await r.ReadAsync(ct))
+            {
+                children.Add(ReadRow(r));
+            }
+        }
+
+        node["children"] = children;
+        return node;
     }
 
     // Top-level book sections (parent_id IS NULL) plus the decks published for the same source code.

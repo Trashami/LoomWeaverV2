@@ -33,6 +33,26 @@ export interface LwSourceDetailVm extends Omit<LwSourceSummaryVm, 'deck_count'> 
   readonly decks: readonly LwSourceDeckVm[];
 }
 
+export interface LwBookNodeVm {
+  readonly id: number;
+  readonly source_id: string;
+  readonly parent_id: number | null;
+  readonly seq: number;
+  readonly node_type: string | null;
+  readonly name: string | null;
+  readonly page: number | null;
+  readonly text: string | null;
+  readonly data_json: BookEntryNode | null;
+  readonly children: readonly LwSourceSectionVm[];
+}
+
+export interface BookEntryNode {
+  readonly name?: string;
+  readonly page?: number;
+  readonly entries?: unknown[];
+  readonly [key: string]: unknown;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SourceBookApiService {
   private readonly http = inject(HttpClient);
@@ -46,5 +66,9 @@ export class SourceBookApiService {
 
   getSource(code: string): Observable<LwSourceDetailVm> {
     return this.http.get<LwSourceDetailVm>(`${this.base}/${encodeURIComponent(code)}`);
+  }
+
+  getNode(code: string, nodeId: number): Observable<LwBookNodeVm> {
+    return this.http.get<LwBookNodeVm>(`${this.base}/${encodeURIComponent(code)}/nodes/${nodeId}`);
   }
 }

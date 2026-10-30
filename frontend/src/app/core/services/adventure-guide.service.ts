@@ -32,22 +32,7 @@ export class AdventureGuideService {
   private readonly localNpcs = signal<readonly AdventureGuideNpcItemVm[]>(SEED_ADVENTURE_NPCS);
   private readonly localBeats = signal<readonly AdventureSessionBeatItemVm[]>(SEED_ADVENTURE_BEATS);
   private readonly localAssignedMap = signal<AdventureAssignedBattlemapVm>(SEED_ASSIGNED_BATTLEMAP);
-  private readonly localEvents = signal<readonly AdventurePlayEventVm[]>([
-    {
-      id: 'evt-1',
-      eventKind: 'beat_checked',
-      actorLabel: 'GM',
-      summary: 'Completed Beat: Speaking with Brother Malric in C1 Shattered Nave',
-      relativeTime: '12m ago',
-    },
-    {
-      id: 'evt-2',
-      eventKind: 'clue_discovered',
-      actorLabel: 'Kildrid',
-      summary: 'Discovered Clue: Scratched Basalt & Dragged Satchel Tracks in C2',
-      relativeTime: '28m ago',
-    },
-  ]);
+  private readonly localEvents = signal<readonly AdventurePlayEventVm[]>([]);
 
   readonly guide = signal<ContextualAdventureGuideVm>(
     buildSeedAdventureGuide(1, 'gm', 'session', 'session-15'),
@@ -343,7 +328,7 @@ export class AdventureGuideService {
           : params.locationNodeId === 'node-room-c3-crypt'
             ? 'C3: Sealed Altar Crypt'
             : params.locationNodeId === 'node-loc-cinth-gala'
-              ? 'City of Cinth & Gala Rotunda'
+              ? 'Town Square'
               : 'The Ruined Chapel (C1–C3)';
 
     const updatedMap: AdventureAssignedBattlemapVm = {

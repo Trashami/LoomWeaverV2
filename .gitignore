@@ -28,3 +28,6 @@ __pycache__/
 *.py[cod]
 
 effectbuilder-studio/public/models-3d/*.glb
+
+/data
+/5etools-img-main

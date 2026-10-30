@@ -51,7 +51,7 @@
                 <div class="lw-eb-row-3">
                   <label class="lw-eb-field"><span>Session #</span><input type="number" [ngModel]="newSessionNumber()" (ngModelChange)="newSessionNumber.set(+$event)" /></label>
                   <label class="lw-eb-field"><span>Act</span><input type="text" [ngModel]="newSessionAct()" (ngModelChange)="newSessionAct.set($event)" /></label>
-                  <label class="lw-eb-field"><span>Session Title</span><input type="text" placeholder="e.g. Gates of Edhellain" [ngModel]="newSessionTitle()" (ngModelChange)="newSessionTitle.set($event)" /></label>
+                  <label class="lw-eb-field"><span>Session Title</span><input type="text" placeholder="e.g. Gates of the Lost City" [ngModel]="newSessionTitle()" (ngModelChange)="newSessionTitle.set($event)" /></label>
                 </div>
                 <lw-button variant="gold" size="sm" (pressed)="createInlineSession()">Attach New Session to {{ campaignName() }}</lw-button>
               </div>

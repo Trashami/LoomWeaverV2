@@ -52,8 +52,8 @@ public static class DiceForgeEndpoints
 
     private static readonly List<DiceForgeMilestoneRewardContract> Milestones = new()
     {
-        new("milestone-character-studio", "Hero of Icrandor", "Complete a full character build in the Character Studio.", "skin", "skin-fey-emerald", "Edhellain Moonwood", true, false, 150),
-        new("milestone-cinth-masquerade", "Velvet & Fangs Survivor", "Survive the Lord of Cinth's masquerade ambush.", "skin", "skin-vampire-bloodstone", "Cinth Crimson Bloodstone", true, false, 200),
+        new("milestone-character-studio", "Hero of the Realm", "Complete a full character build in the Character Studio.", "skin", "skin-fey-emerald", "Moonwood Grove", true, false, 150),
+        new("milestone-cinth-masquerade", "Velvet & Fangs Survivor", "Survive the court masquerade ambush.", "skin", "skin-vampire-bloodstone", "Crimson Bloodstone", true, false, 200),
         new("milestone-dwarven-delve", "Stone-Sense Delver", "Clear a subterranean encounter using Dwarven Stone-Sense.", "model", "model-dwarven-heavy", "Dwarven Heavy Forge-Cut 3D Model", true, false, 175),
         new("milestone-celtic-warden", "Highland Oathkeeper", "Complete 3 sessions as a party without a fallen companion.", "skin", "skin-celtic-knot", "Highland Relic Bronze", true, false, 150)
     };
@@ -64,12 +64,12 @@ public static class DiceForgeEndpoints
     private static readonly ConcurrentQueue<DiceRollResponseContract> RecentCampaignRolls = new(new[]
     {
         new DiceRollResponseContract(
-            "roll-seed-201", "1d20 + 8 (ADV)", "Fivi Slingshot Tooth Strike", 20, 1, "advantage",
+            "roll-seed-201", "1d20 + 8 (ADV)", "Slingshot Tooth Strike", 20, 1, "advantage",
             new[] { 14, 20 }, new[] { 20 }, 8, 28, true, false,
             "skin-obsidian-gold", "Solar Supernova", "SHA256:9F4A2C8E1B77D03E", DateTimeOffset.UtcNow.AddMinutes(-12)
         ),
         new DiceRollResponseContract(
-            "roll-seed-200", "2d6 + 5", "Munk Runed Greatsword Cleave", 6, 2, "normal",
+            "roll-seed-200", "2d6 + 5", "Runed Greatsword Cleave", 6, 2, "normal",
             new[] { 6, 5 }, new[] { 6, 5 }, 5, 16, false, false,
             "skin-nordic-stone", "Standard Impact", "SHA256:3D81B60A44E91C20", DateTimeOffset.UtcNow.AddMinutes(-18)
         ),
@@ -88,15 +88,15 @@ public static class DiceForgeEndpoints
         new DiceSkinPresetContract("skin-obsidian-gold", "Runed Obsidian & Molten Gold", "Volcanic Glass + Gold Inlay", "#14131a", "#e5b85c", 0.35, 0.22, "Solar Supernova", "Basalt Fault Fracture", "Free"),
         new DiceSkinPresetContract("skin-hollow-dragon", "Hollow Dragon Silver", "Sculpted Silver", "#707780", "#ecc56c", 1.0, 0.27, "Solar Supernova", "Artificer Overload Spark", "Free"),
         new DiceSkinPresetContract("skin-dragon-eye", "Emerald Dragon Eye", "Dragon Scale Steel", "#434b50", "#38eb88", 0.95, 0.33, "Solar Supernova", "Artificer Overload Spark", "Free"),
-        new DiceSkinPresetContract("skin-nordic-stone", "Kildrid Runestone", "Carved Mountain Basalt", "#2b2f36", "#63d2ff", 0.12, 0.78, "Astral Singularity", "Basalt Fault Fracture", "Free"),
+        new DiceSkinPresetContract("skin-nordic-stone", "Runestone", "Carved Mountain Basalt", "#2b2f36", "#63d2ff", 0.12, 0.78, "Astral Singularity", "Basalt Fault Fracture", "Free"),
         new DiceSkinPresetContract("skin-gloss-resin", "Loom Emerald Resin", "Polished Tournament Resin", "#0f3828", "#49e892", 0.06, 0.18, "Solar Supernova", "Ashen Smolder", "Free"),
-        new DiceSkinPresetContract("skin-engraved-steel", "Vandia Damascus Steel", "Brushed Damascus Steel", "#303640", "#49e892", 0.92, 0.26, "Solar Supernova", "Artificer Overload Spark", "Free"),
+        new DiceSkinPresetContract("skin-engraved-steel", "Damascus Steel", "Brushed Damascus Steel", "#303640", "#49e892", 0.92, 0.26, "Solar Supernova", "Artificer Overload Spark", "Free"),
         new DiceSkinPresetContract("skin-astral-glass", "Astral Prism Glass", "Refractive Aether Crystal", "#1b3f5e", "#56e6ff", 0.14, 0.08, "Astral Singularity", "Void Rift Collapse", "Adventurer"),
         new DiceSkinPresetContract("skin-celtic-knot", "Highland Relic Bronze", "Cast Bronze + Filigree", "#1c261e", "#d9a74a", 0.74, 0.38, "Feywild Sylvan Bloom", "Ashen Smolder", "Campaign Reward"),
-        new DiceSkinPresetContract("skin-arcane-glyph", "Anelith Glyph Stone", "Slate + Luminary Conduit", "#181326", "#38e8ff", 0.28, 0.42, "Astral Singularity", "Void Rift Collapse", "450 Loommarks"),
-        new DiceSkinPresetContract("skin-fey-emerald", "Edhellain Moonwood", "Moonwood & Fey Sap", "#241710", "#2ee66b", 0.08, 0.56, "Feywild Sylvan Bloom", "Withered Bramble Blight", "Milestone Reward"),
-        new DiceSkinPresetContract("skin-vampire-bloodstone", "Cinth Crimson Bloodstone", "Bloodstone & Court Silver", "#1f090d", "#ff3b5c", 0.42, 0.28, "Cinth Crimson Ascension", "Basalt Fault Fracture", "Campaign Reward"),
-        new DiceSkinPresetContract("skin-clockwork-brass", "Cinth Artificer Brass", "Artificer Brass & Aether", "#2d2112", "#ffb340", 0.90, 0.24, "Aether Overclock", "Artificer Overload Spark", "Store / 600 Marks"),
+        new DiceSkinPresetContract("skin-arcane-glyph", "Glyph Stone", "Slate + Luminary Conduit", "#181326", "#38e8ff", 0.28, 0.42, "Astral Singularity", "Void Rift Collapse", "450 Loommarks"),
+        new DiceSkinPresetContract("skin-fey-emerald", "Moonwood", "Moonwood & Fey Sap", "#241710", "#2ee66b", 0.08, 0.56, "Feywild Sylvan Bloom", "Withered Bramble Blight", "Milestone Reward"),
+        new DiceSkinPresetContract("skin-vampire-bloodstone", "Crimson Bloodstone", "Bloodstone & Court Silver", "#1f090d", "#ff3b5c", 0.42, 0.28, "Crimson Ascension", "Basalt Fault Fracture", "Campaign Reward"),
+        new DiceSkinPresetContract("skin-clockwork-brass", "Artificer Brass", "Artificer Brass & Aether", "#2d2112", "#ffb340", 0.90, 0.24, "Aether Overclock", "Artificer Overload Spark", "Store / 600 Marks"),
         new DiceSkinPresetContract("skin-astral-void", "Astral Singularity", "Void Nebula Crystal", "#0b0718", "#c06cff", 0.32, 0.14, "Astral Singularity", "Void Rift Collapse", "750 Loommarks")
     };
 

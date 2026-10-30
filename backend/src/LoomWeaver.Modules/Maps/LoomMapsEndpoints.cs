@@ -104,7 +104,7 @@ public static class LoomMapsEndpoints
             ["scene-cinth-ballroom"] = new(
                 SceneKey: "scene-cinth-ballroom",
                 CampaignId: 1,
-                Name: "Cinth Grand Masquerade Ballroom",
+                Name: "Grand Masquerade Ballroom",
                 Biome: "Obsidian & Gold Cathedral",
                 WeatherPreset: "Crimson Nocturne Mist",
                 LightingProfile: "2.5D Candlelight & Chandelier Shadows",
@@ -116,12 +116,12 @@ public static class LoomMapsEndpoints
                 Stamps:
                 [
                     new("st-1", "Lord Emrys Balcony Dais", "POI", -6, 4, 1.4, 0, "#d4a853", "players"),
-                    new("st-2", "Cinth Artificer Clockwork Organ", "Prop", 5, 6, 1.2, 0.5, "#2ed39a", "players"),
+                    new("st-2", "Clockwork Organ", "Prop", 5, 6, 1.2, 0.5, "#2ed39a", "players"),
                     new("st-3", "Hidden Vampire Coffin Vault", "Secret", 8, -5, 1.1, 0, "#ef5d72", "gm"),
                 ],
                 WaterSplines:
                 [
-                    new("ws-1", "Cinth Reflective Canal & Fountain Channel", 2.8, "#1e6b7b",
+                    new("ws-1", "Reflective Canal & Fountain Channel", 2.8, "#1e6b7b",
                         [[-14, 0.12, -8], [-5, 0.12, -2], [4, 0.12, 2], [14, 0.12, 7]])
                 ],
                 Lights:

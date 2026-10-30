@@ -7,7 +7,7 @@ import {
 import {
   FALLBACK_BUMP_HEIGHT_ITEMS,
   FALLBACK_PNG_ASSET_ITEMS,
-} from '../engine/map-studio-presets';
+} from '../engine/map-asset-fallbacks';
 import { toBaseGlbUrl } from '../engine/rendering/glb-lod';
 
 interface RawManifestAsset {

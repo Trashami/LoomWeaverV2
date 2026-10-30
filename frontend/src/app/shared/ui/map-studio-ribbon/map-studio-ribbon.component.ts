@@ -15,7 +15,7 @@ import { LwIconComponent } from '../icon/icon.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LwMapStudioRibbonComponent {
-  readonly mapTitle = input<string>('Cinth Grand Masquerade Ballroom');
+  readonly mapTitle = input<string>('Untitled Map');
   readonly mapScope = input<MapScopeMode>('battlemap');
   readonly renderMode = input<MapRenderMode>('Linked 2D <-> 3D');
   readonly levels = input<readonly MapLevelFloor[]>([]);

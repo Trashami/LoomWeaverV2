@@ -32,7 +32,7 @@ public static class ActionEngineSymbolCatalog
                 "Combat Encounter Starts",
                 "Turn Starts",
                 "Ranged Or Finesse Weapon Attack Hits",
-                "Chokrah Ritual Overchannel Declared",
+                "Ritual Overchannel Declared",
                 "Ranged Slingshot Attack Declared"
             ],
             ["If"] =
@@ -56,7 +56,7 @@ public static class ActionEngineSymbolCatalog
                 "Damage.Types Contains 'Force'",
                 "Spell.Components Contains 'Somatic'",
                 "Target.Conditions Contains 'Hexed'",
-                "Inventory.Reagents Contains 'Chokrah'"
+                "Inventory.Reagents Contains 'Reagent'"
             ],
             ["Has"] =
             [
@@ -114,7 +114,7 @@ public static class ActionEngineSymbolCatalog
                 "Pause Movement & Execute 1 Melee Attack",
                 "Maintain Active Concentration Effects",
                 "Add Sneak Attack Dice To Damage Roll",
-                "Apply Chokrah +2d8 Necrotic/Radiant Surge",
+                "Apply Arcane +2d8 Necrotic/Radiant Surge",
                 "Deal 3d8+5 Piercing & Trigger Ricochet Arc"
             ],
             ["Else"] =

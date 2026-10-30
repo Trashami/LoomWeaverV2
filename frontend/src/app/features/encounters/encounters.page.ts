@@ -10,6 +10,7 @@ import {
   LwButtonComponent,
   LwEncounterBuilderComponent,
   LwIconComponent,
+  LwPageHeaderComponent,
   LwScrollAreaComponent,
 } from '../../shared/ui/public-api';
 import { VttCombatService } from '../arcane-screen/services/vtt-combat.service';
@@ -35,6 +36,7 @@ import {
     LwButtonComponent,
     LwEncounterBuilderComponent,
     LwIconComponent,
+    LwPageHeaderComponent,
     LwScrollAreaComponent,
   ],
   templateUrl: './encounters.page.html',

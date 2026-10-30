@@ -1,4 +1,6 @@
 <div class="lw-page">
+  <lw-page-header title="Characters" subtitle="Create, level, and manage the characters in your campaign." icon="users" />
+
   @if (studio.viewMode() === 'creator') {
     <lw-character-creator-wizard
       [campaignName]="store.activeCampaign().name"

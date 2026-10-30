@@ -16,8 +16,8 @@
       (savedAndLaunch)="onEncounterSavedAndLaunched($event)"
       (sessionCreated)="onSessionCreated($event)" />
   } @else {
-    <header class="lw-enc-topbar">
-      <div ngpTabset class="lw-enc-topbar__filters">
+    <lw-page-header title="Encounters" subtitle="Build, sequence, and launch encounters for your sessions." icon="swords">
+      <div pageTabs ngpTabset class="lw-enc-topbar__filters">
         <div ngpTabList class="lw-enc-filter-list">
           @for (ft of filterTabs; track ft.id) {
             <button ngpTabButton ngpButton type="button" class="lw-enc-filter-pill" [class.lw-enc-filter-pill--active]="activeFilterTab() === ft.id" [ngpTabButtonValue]="ft.id" (click)="activeFilterTab.set(ft.id)">
@@ -27,7 +27,7 @@
         </div>
       </div>
 
-      <div class="lw-enc-topbar__right">
+      <div pageActions class="lw-enc-topbar__right">
         <label class="lw-enc-session-select" aria-label="Filter Encounters by Campaign Session">
           <span>Session ({{ store.activeCampaign().name }}):</span>
           <select [ngModel]="activeSessionFilter()" (ngModelChange)="activeSessionFilter.set($event)">
@@ -40,7 +40,7 @@
         <a class="lw-enc-vtt-switch" routerLink="/arcane-screen">Open Live VTT Screen</a>
         <button ngpButton type="button" class="lw-enc-new-btn" (click)="openCreateEncounterPage()">+ New Encounter</button>
       </div>
-    </header>
+    </lw-page-header>
 
     @if (selectedEncounter(); as enc) {
       <div class="lw-enc-workspace" [class.lw-enc-workspace--collapsed]="leftSubmenuCollapsed()">

@@ -141,11 +141,18 @@ export class VttBattleStateService {
   // Active observer token (the selected player token whose Line of Sight is evaluated)
   readonly activeObserverToken = computed<VttTokenVm>(() => {
     const selected = this.vtt.selectedAttacker();
-    if (selected && selected.faction === 'party') {
+    if (selected && selected.faction === 'party' && this.canControlToken(selected)) {
       return selected;
     }
-    return this.vtt.partyTokensInScene()[0] ?? this.vtt.tokens()[0];
+    const party = this.vtt.partyTokensInScene();
+    return party.find((t) => this.canControlToken(t)) ?? party[0] ?? this.vtt.tokens()[0];
   });
+
+  /** GM controls every token. Players control only the token their character owns. */
+  canControlToken(token: VttTokenVm): boolean {
+    if (this.store.viewerRole() === 'gm') return true;
+    return token.canControl === true;
+  }
 
   readonly remainingMovementFeet = computed<number>(() => {
     const observer = this.activeObserverToken();
@@ -164,8 +171,8 @@ export class VttBattleStateService {
     if (this.store.viewerRole() === 'gm') {
       return { allowed: true, reason: 'DM can move any token at any time.' };
     }
-    if (token.faction !== 'party') {
-      return { allowed: false, reason: 'Players can only move their own party token.' };
+    if (!this.canControlToken(token)) {
+      return { allowed: false, reason: 'Players can only move their own token.' };
     }
     const currentTurnToken = this.activeInitiativeToken();
     if (!currentTurnToken || currentTurnToken.key !== token.key) {
@@ -432,7 +439,17 @@ export class VttBattleStateService {
     }
   }
 
+  /** Players measure only when it is not their turn. Measurements stay local and are never relayed. */
+  canMeasure(): boolean {
+    if (this.store.viewerRole() === 'gm') return true;
+    return !this.canControlToken(this.activeInitiativeToken());
+  }
+
   toggleMeasureTool(subMode?: VttMeasureSubMode): void {
+    if (!this.canMeasure()) {
+      this.measureEnabled.set(false);
+      return;
+    }
     if (subMode) {
       if (this.measureEnabled() && this.measureSubMode() === subMode) {
         this.measureEnabled.set(false);

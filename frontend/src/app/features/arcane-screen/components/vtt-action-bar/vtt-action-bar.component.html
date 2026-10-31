@@ -1,6 +1,7 @@
 <ng-template #slotTpl let-ab let-idx="idx">
   <button ngpButton type="button" role="listitem" class="slot"
-          [class.slot--pending]="battle.pendingAbility()?.id === ab.id"
+        [disabled]="!canAct()"
+        [class.slot--pending]="battle.pendingAbility()?.id === ab.id"
           [class.slot--spent]="!battle.isAbilityAvailableOnTurn(ab)"
           [attr.data-cost]="costKind(ab)"
           [attr.data-category]="ab.turnCategory"
@@ -36,11 +37,11 @@
     </div>
 
     <div class="art__quick">
-      <button ngpButton type="button" class="art__gem art__gem--action" [class.is-spent]="hero().actionUsed" title="Action"
+      <button ngpButton type="button" class="art__gem art__gem--action" [class.is-spent]="hero().actionUsed" title="Action" [disabled]="!canAct()"
               (click)="vtt.toggleEconomySlot(hero().key, 'actionUsed')"><span class="sr-only">Action</span></button>
-      <button ngpButton type="button" class="art__gem art__gem--bonus" [class.is-spent]="hero().bonusUsed" title="Bonus action"
+      <button ngpButton type="button" class="art__gem art__gem--bonus" [class.is-spent]="hero().bonusUsed" title="Bonus action" [disabled]="!canAct()"
               (click)="vtt.toggleEconomySlot(hero().key, 'bonusUsed')"><span class="sr-only">Bonus action</span></button>
-      <button ngpButton type="button" class="art__gem art__gem--reaction" [class.is-spent]="hero().reactionUsed" title="Reaction"
+      <button ngpButton type="button" class="art__gem art__gem--reaction" [class.is-spent]="hero().reactionUsed" title="Reaction" [disabled]="!canAct()"
               (click)="vtt.toggleEconomySlot(hero().key, 'reactionUsed')"><span class="sr-only">Reaction</span></button>
       <button ngpButton type="button" class="art__bar-btn" title="Action bar settings" (click)="settingsRequested.emit()">Bar</button>
     </div>
@@ -58,7 +59,7 @@
       }
     </div>
 
-    <button ngpButton type="button" class="art__end" [disabled]="!isActiveTurn() && store.viewerRole() !== 'gm'"
+    <button ngpButton type="button" class="art__end" [disabled]="!canAct()"
             title="End turn" (click)="endTurn.emit()">
       <span class="sr-only">End turn</span>
     </button>
@@ -85,11 +86,11 @@
   </div>
 
   <div class="economy" aria-label="Turn resources">
-    <button ngpButton type="button" class="gem gem--action" [class.is-spent]="hero().actionUsed" title="Action"
+    <button ngpButton type="button" class="gem gem--action" [class.is-spent]="hero().actionUsed" title="Action" [disabled]="!canAct()"
             (click)="vtt.toggleEconomySlot(hero().key, 'actionUsed')"><span class="sr-only">Action</span></button>
-    <button ngpButton type="button" class="gem gem--bonus" [class.is-spent]="hero().bonusUsed" title="Bonus action"
+    <button ngpButton type="button" class="gem gem--bonus" [class.is-spent]="hero().bonusUsed" title="Bonus action" [disabled]="!canAct()"
             (click)="vtt.toggleEconomySlot(hero().key, 'bonusUsed')"><span class="sr-only">Bonus action</span></button>
-    <button ngpButton type="button" class="gem gem--reaction" [class.is-spent]="hero().reactionUsed" title="Reaction"
+    <button ngpButton type="button" class="gem gem--reaction" [class.is-spent]="hero().reactionUsed" title="Reaction" [disabled]="!canAct()"
             (click)="vtt.toggleEconomySlot(hero().key, 'reactionUsed')"><span class="sr-only">Reaction</span></button>
   </div>
 
@@ -114,7 +115,7 @@
     </nav>
   </div>
 
-  <button ngpButton type="button" class="end-turn" [disabled]="!isActiveTurn() && store.viewerRole() !== 'gm'"
+  <button ngpButton type="button" class="end-turn" [disabled]="!canAct()"
           title="End turn" (click)="endTurn.emit()">
     <span class="end-turn__round">Round {{ vtt.activeRound() }}</span>
     <span class="end-turn__label">End Turn</span>

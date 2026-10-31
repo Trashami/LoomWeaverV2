@@ -36,7 +36,7 @@ public static class CombatEncounterEndpoints
             int campaignId, HttpContext ctx, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
         {
             var access = await CampaignAccessResolver.ResolveAsync(ctx, campaignId, null, ct);
-            return access.IsMember ? Results.Ok(await CombatTokenStore.ListAsync(repo, campaignId, ct)) : Results.StatusCode(403);
+            return access.IsMember ? Results.Ok(await CombatTokenStore.ListForViewerAsync(repo, campaignId, access, ct)) : Results.StatusCode(403);
         });
 
         group.MapPost("/campaigns/{campaignId:int}/combat/start", async (

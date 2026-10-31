@@ -42,6 +42,7 @@ export interface ServerVttToken {
   readonly bonusUsed: boolean;
   readonly reactionUsed: boolean;
   readonly movementRemainingFeet: number;
+  readonly canControl?: boolean;
 }
 
 /** Server-authoritative combat responses; the API rolls dice and applies damage. */

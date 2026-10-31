@@ -19,6 +19,12 @@ public sealed class TableRealtimeHub(LoomWeaverMySqlRepository repo) : Hub
     private static readonly ConcurrentDictionary<string, LiveConnection> Seats = new();
     private const int MaxVttPayloadChars = 16_000;
     private static readonly HashSet<string> PersistedVttEventTypes = new(StringComparer.Ordinal) { "turn_changed", "effect_cast" };
+    private static readonly HashSet<string> GmSentVttEventTypes = new(StringComparer.Ordinal) { "handout_revealed" };
+
+    /// <summary>Measure and fake-movement previews are local to the sender and are never relayed.</summary>
+    private static bool IsPrivateMeasureType(string type) =>
+        type.StartsWith("measure", StringComparison.OrdinalIgnoreCase) ||
+        type.StartsWith("fake_", StringComparison.OrdinalIgnoreCase);
 
     public static string GroupName(int campaignId) => $"campaign-{campaignId}";
     public static string GmGroupName(int campaignId) => $"campaign-{campaignId}-gm";
@@ -114,6 +120,16 @@ public sealed class TableRealtimeHub(LoomWeaverMySqlRepository repo) : Hub
         if (gmOnly && !seat.Membership.IsGm)
         {
             throw new HubException("Only the GM can send GM-only table events.");
+        }
+
+        if (GmSentVttEventTypes.Contains(type) && !seat.Membership.IsGm)
+        {
+            throw new HubException("Only the GM can reveal handouts to the table.");
+        }
+
+        if (IsPrivateMeasureType(type))
+        {
+            throw new HubException("Measurements stay on your screen and are never shared with the table.");
         }
 
         if (PersistedVttEventTypes.Contains(type))

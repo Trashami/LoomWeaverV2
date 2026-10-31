@@ -68,6 +68,10 @@ export class VttActionBarComponent {
   protected readonly isActiveTurn = computed(
     () => this.battle.activeInitiativeToken()?.key === this.hero().key,
   );
+  /** The GM acts with any token. A player acts only with their own token on their turn. */
+  protected readonly canAct = computed(
+    () => this.store.viewerRole() === 'gm' || (this.isActiveTurn() && this.battle.canControlToken(this.hero())),
+  );
   protected readonly hpPercent = computed(() => {
     const t = this.hero();
     return t.maxHp > 0 ? Math.max(0, Math.min(100, (t.currentHp / t.maxHp) * 100)) : 0;

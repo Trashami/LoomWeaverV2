@@ -15,7 +15,8 @@ public sealed record VttTokenDto(
     bool ActionUsed,
     bool BonusUsed,
     bool ReactionUsed,
-    int MovementRemainingFeet
+    int MovementRemainingFeet,
+    bool CanControl = false
 );
 
 public sealed record CombatResolutionRequest(

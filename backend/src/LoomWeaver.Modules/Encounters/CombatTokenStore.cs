@@ -28,6 +28,20 @@ public static class CombatTokenStore
         return await ReadAsync(db, null, campaignId, null, false, ct);
     }
 
+    /// <summary>Lists tokens with CanControl set for the viewer: the GM controls every token, a player only their own character.</summary>
+    public static async Task<IReadOnlyList<VttTokenDto>> ListForViewerAsync(
+        LoomWeaverMySqlRepository repo, int campaignId, ResolvedCampaignAccess access, CancellationToken ct)
+    {
+        var tokens = await ListAsync(repo, campaignId, ct);
+        if (access.IsAccountGm) return tokens.Select(t => t with { CanControl = true }).ToList();
+
+        var owned = (await CharacterStore.ListAsync(repo, campaignId, ct))
+            .Where(c => CharacterStudioEndpoints.IsOwnerOrBound(c, access))
+            .Select(c => $"{campaignId}:Character:{c.Sheet.CharacterKey}")
+            .ToHashSet(StringComparer.Ordinal);
+        return tokens.Select(t => t with { CanControl = owned.Contains(t.Key) }).ToList();
+    }
+
     public static async Task<int> SeedPartyAsync(
         LoomWeaverMySqlRepository repo, int campaignId, CancellationToken ct)
     {

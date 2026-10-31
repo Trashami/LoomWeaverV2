@@ -50,6 +50,8 @@ export interface VttTokenVm {
   readonly sightFeet?: number;
   /** Darkvision range in feet. Extends vision when it exceeds sight. */
   readonly darkvisionFeet?: number;
+  /** True when the signed-in viewer may move or act with this token. The GM controls every token. */
+  readonly canControl?: boolean;
 }
 
 export interface CombatResolutionLogVm {

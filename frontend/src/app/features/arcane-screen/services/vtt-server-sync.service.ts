@@ -119,7 +119,7 @@ export class VttServerSyncService {
       ]);
       if (tokens.length === 0) return;
       const mapped = [...tokens]
-        .map((t) => ({ ...t, movementFeet: t.movementRemainingFeet }))
+        .map((t) => ({ ...t, movementFeet: t.movementRemainingFeet, canControl: t.canControl === true }))
         .sort((a, b) => b.initiative - a.initiative);
       this.vtt.tokens.set(mapped);
       this.vtt.activeRound.set(state.round);

@@ -22,12 +22,22 @@
 
         <button ngpButton type="button" class="btn-top-action" (click)="toggleMapMode()" title="Toggle 2D / 3D View"> <lw-icon [name]="battle.mapMode3D() ? 'layers' : 'view_in_ar'" [size]="12" /> <span>{{ battle.mapMode3D() ? '3D View' : '2D Map' }}</span></button>
         <button ngpButton type="button" class="btn-top-action" (click)="store.toggleLoomDrawer()" title="The Loom Campaign Memory"><lw-icon name="history_edu" [size]="12" /> <span>The Loom</span></button>
-        <button ngpButton type="button" class="btn-top-action" (click)="openHandoutModal()" title="Present Handout to Players"> <lw-icon name="scroll" [size]="12" /> <span>Handout</span></button>
 
         @if (store.viewerRole() === 'gm') {
           <button ngpButton type="button" class="btn-top-action" (click)="vtt.concludeEncounterAndAwardXp(vtt.activeEncounterId())" title="Conclude Encounter & Award XP"> <lw-icon name="crown" [size]="12" /> <span>Award XP</span></button>
         }
       </div>
+    </div>
+
+    <div class="top-bar-center" role="toolbar" aria-label="Table controls">
+      @if (store.viewerRole() === 'gm') {
+        <button ngpButton type="button" class="btn-top-action btn-top-handout" (click)="openHandoutModal()" title="Reveal a handout to every player"><lw-icon name="scroll" [size]="12" /> <span>Reveal Handout</span></button>
+      }
+      <button ngpButton type="button" class="btn-top-action" [class.active]="battle.measureEnabled()" [disabled]="!battle.canMeasure()" (click)="battle.toggleMeasureTool()" [title]="battle.canMeasure() ? 'Measure privately (only you see it)' : 'Measuring is locked during your turn'"><lw-icon name="target" [size]="12" /> <span>Measure</span></button>
+      <button ngpButton type="button" class="btn-top-action" (click)="changeZoom(-10)" title="Zoom out"><lw-icon name="minus" [size]="12" /></button>
+      <span class="top-bar-zoom">{{ zoomLevel() }}%</span>
+      <button ngpButton type="button" class="btn-top-action" (click)="changeZoom(10)" title="Zoom in"><lw-icon name="plus" [size]="12" /></button>
+      <button ngpButton type="button" class="btn-top-action" (click)="resetZoom()" title="Reset zoom">Reset</button>
     </div>
 
     <div class="top-bar-right">

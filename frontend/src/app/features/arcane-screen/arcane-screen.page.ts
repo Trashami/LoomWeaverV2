@@ -1,18 +1,5 @@
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import {
-  AfterViewInit,
-  ChangeDetectionStrategy,
-  Component,
-  ElementRef,
-  HostListener,
-  OnDestroy,
-  ViewChild,
-  computed,
-  effect,
-  inject,
-  signal,
-  untracked,
-} from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, HostListener, OnDestroy, ViewChild, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { VttReturnRouteService } from '../../core/services/vtt-return-route.service';
@@ -23,23 +10,17 @@ import { WebAudioAmbienceService } from '../assets/engine/web-audio-ambience.ser
 import { FullscreenDiceOverlayService } from '../dice/engine/fullscreen-dice-overlay.service';
 import { BabylonEffectStageService } from '../effects/engine/babylon-effect-stage.service';
 import { VttTokenVm } from '../effects/engine/effect-timeline.contract';
-import {
-  feetToSvgPx,
-  svgToWorldPoint,
-  worldToSvgX,
-  worldToSvgY,
-} from './engine/vtt-los-and-grid.engine';
-import { VttTacticalAbilityVm } from './models/vtt-battle.models';
+import { feetToSvgPx, svgToWorldPoint, worldToSvgX, worldToSvgY } from './engine/vtt-los-and-grid.engine';
+import { VttRightTabId, VttTacticalAbilityVm } from './models/vtt-battle.models';
+import { VttHandoutService } from './services/vtt-handout.service';
+import { LwIconComponent } from '../../shared/ui/icon/icon.component';
 import { VttSettingsModalComponent } from './components/vtt-settings-modal/vtt-settings-modal.component';
 import { VttDmDrawersComponent } from './components/vtt-dm-drawers/vtt-dm-drawers.component';
 import { VttActionDockComponent } from './components/vtt-action-dock/vtt-action-dock.component';
 import { VttGmRailComponent } from './components/vtt-gm/vtt-gm-rail.component';
 import { VttGmGuidePanelComponent } from './components/vtt-gm/vtt-gm-guide-panel.component';
 import { VttGmTrackersPanelComponent } from './components/vtt-gm/vtt-gm-trackers-panel.component';
-import {
-  toDockAction,
-  toDockToken,
-} from './components/vtt-action-dock/vtt-action-dock.adapter';
+import { toDockAction, toDockToken } from './components/vtt-action-dock/vtt-action-dock.adapter';
 import type { DockAction, DockToken } from './components/vtt-action-dock/vtt-action-dock.models';
 import { VttBattleStateService } from './services/vtt-battle-state.service';
 import { VttCombatService } from './services/vtt-combat.service';
@@ -56,18 +37,10 @@ import { VttHandoutModalComponent } from './components/vtt-handout-modal/vtt-han
   selector: 'lw-arcane-screen-page',
   standalone: true,
   imports: [
-    FormsModule,
-    NgpButton,
-    LwButtonComponent,
-    VttActionDockComponent,
-    VttGmRailComponent,
-    VttGmGuidePanelComponent,
-    VttGmTrackersPanelComponent,
-    VttSettingsModalComponent,
-    VttDmDrawersComponent,
-    VttMapToolsComponent,
-    VttBattleStatusBarComponent,
-    VttSettingsPanelComponent,
+    FormsModule, NgpButton, LwButtonComponent, LwIconComponent,
+    VttActionDockComponent, VttGmRailComponent, VttGmGuidePanelComponent,
+    VttGmTrackersPanelComponent, VttSettingsModalComponent, VttDmDrawersComponent,
+    VttMapToolsComponent, VttSettingsPanelComponent,
     VttHandoutModalComponent,
   ],
   templateUrl: './arcane-screen.page.html',
@@ -90,6 +63,8 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   readonly vttReturn = inject(VttReturnRouteService);
   readonly vttDisplay = inject(VttDisplaySettingsService);
   readonly timer = inject(VttEncounterTimerService);
+  readonly handouts = inject(VttHandoutService);
+  readonly showShortcuts = signal<boolean>(false);
 
   constructor() {
     effect(() => {
@@ -487,4 +462,27 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     });
   }
 
+  selectRightTab(tab: VttRightTabId): void {
+    this.battle.activeRightTab.set(tab);
+    this.battle.rightPanelCollapsed.set(false);
+  }
+
+  readonly rightTabTitle = computed(() => {
+    switch (this.battle.activeRightTab()) {
+      case 'combat-log': return 'Combat Roll Log';
+      case 'chat': return 'Campaign Table Chat';
+      case 'initiative': return 'Initiative Order';
+      case 'quests': return 'Active Quests & Missions';
+      case 'npcs': return 'Session NPCs';
+      case 'guide': return 'Adventure Scene Guide';
+      case 'trackers': return 'Traps & Trackers';
+      case 'lore': return 'World Lore';
+      case 'settings': return 'VTT Display Settings';
+      default: return 'Encounter Drawer';
+    }
+  });
+
+  openHandoutModal(): void {
+    this.handouts.composeOpen.set(true);
+  }
 }

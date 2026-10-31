@@ -1,31 +1,56 @@
 <div class="lw-vtt-screen" [class.lw-vtt-screen--right-collapsed]="battle.rightPanelCollapsed()">
-  <div class="lw-vtt-brand-block">
-    <button type="button" class="lw-vtt-brand" aria-label="Return to LoomWeaver" title="Back to previous page" (click)="vttReturn.returnToPreviousPage()">
-      <img src="/landing-assets/brand/raven-emblem.png" alt="LoomWeaver" width="150" height="150" />
-    </button>
-    <button ngpButton type="button" class="lw-vtt-back-btn" (click)="vttReturn.returnToPreviousPage()">Back</button>
-    <lw-vtt-map-tools
-      [(gridEnabled)]="gridEnabled"
-      [(railOpen)]="gmRailOpen"
-      (rollDice)="rollSelectedDice()"
-    />
-    <button ngpButton type="button" class="lw-vtt-panel-toggle" (click)="battle.rightPanelCollapsed.set(!battle.rightPanelCollapsed())">
-      {{ battle.rightPanelCollapsed() ? 'Open Panel' : 'Hide Panel' }}
-    </button>
-  </div>
+  <!-- Minimal Top Header Bar (Foundry VTT / MythWeaver Style) -->
+  <header class="lw-vtt-top-bar">
+    <div class="top-bar-left">
+      <button type="button" class="brand-pill" (click)="vttReturn.returnToPreviousPage()" title="Return to previous page">
+        <img src="/landing-assets/brand/raven-emblem.png" alt="LoomWeaver" class="brand-emblem-mini" />
+        <span class="brand-name">LoomWeaver</span>
+        <span class="brand-crumb">/ Arcane Screen</span>
+      </button>
+
+      <span class="connection live" title="Tabletop Session Active">
+        <span class="live-dot"></span> Live
+      </span>
+
+      <div class="top-bar-session-status">
+        <span class="session-status-pill live" [title]="'Battle Encounter is LIVE for all players'">
+          <span class="live-pulse"></span>
+          <span>{{ vtt.activeLiveEncounter()?.name || 'Battlefield' }} · Rnd {{ vtt.activeRound() }}</span>
+        </span>
+
+        <button ngpButton type="button" class="btn-top-action" (click)="timer.toggle()" [title]="timer.running() ? 'Pause Stopwatch' : 'Resume Stopwatch'"> <lw-icon [name]="timer.running() ? 'pause' : 'play'" [size]="12" /> <span>{{ timer.formatted() }}</span></button>
+
+        <button ngpButton type="button" class="btn-top-action" (click)="battle.mapMode3D.set(!battle.mapMode3D())" title="Toggle 2D / 3D View"> <lw-icon [name]="battle.mapMode3D() ? 'layers' : 'view_in_ar'" [size]="12" /> <span>{{ battle.mapMode3D() ? '3D View' : '2D Map' }}</span></button>
+
+        <button ngpButton type="button" class="btn-top-action" (click)="openHandoutModal()" title="Present Handout to Players"> <lw-icon name="scroll" [size]="12" /> <span>Handout</span></button>
+
+        @if (store.viewerRole() === 'gm') {
+          <button ngpButton type="button" class="btn-top-action" (click)="vtt.concludeEncounterAndAwardXp(vtt.activeEncounterId())" title="Conclude Encounter & Award XP"> <lw-icon name="crown" [size]="12" /> <span>Award XP</span></button>
+        }
+      </div>
+    </div>
+
+    <div class="top-bar-right">
+      <button ngpButton type="button" class="top-menu-btn" (click)="showShortcuts.set(!showShortcuts())" title="Tabletop Hotkeys & Controls"><lw-icon name="note" [size]="16" /></button>
+      <button ngpButton type="button" class="top-menu-btn" (click)="battle.rightPanelCollapsed.set(!battle.rightPanelCollapsed())" [title]="battle.rightPanelCollapsed() ? 'Open Right Sidebar' : 'Collapse Right Sidebar'"><lw-icon [name]="battle.rightPanelCollapsed() ? 'panel-right-open' : 'panel-right-close'" [size]="16" /></button>
+    </div>
+  </header>
+
+  <!-- Floating Left Expandable Toolbar ("Map Tools") -->
+  <lw-vtt-map-tools
+    [(gridEnabled)]="gridEnabled"
+    [(railOpen)]="gmRailOpen"
+    (rollDice)="rollSelectedDice()"
+    (openShortcuts)="showShortcuts.set(true)"
+  />
 
   <div class="lw-vtt-body" [class.lw-vtt-body--rail]="gmRailOpen()">
     @if (gmRailOpen()) {
       <lw-vtt-gm-rail (nextTurn)="nextTurn()" (collapse)="gmRailOpen.set(false)" />
     }
+
+    <!-- Edge-to-Edge Battlefield Viewport -->
     <section class="lw-vtt-map-stage" [class.lw-vtt-map-stage--3d]="battle.mapMode3D()" aria-label="Interactive Encounter Battle Map">
-      <div class="lw-vtt-stage-top">
-        <lw-vtt-battle-status-bar
-          (encounterChange)="switchLiveEncounter($event)"
-          (nextTurn)="nextTurn()"
-          (modeChange)="setMapMode($event)"
-        />
-      </div>
       <canvas #vttCanvas class="lw-vtt-babylon-canvas" [class.lw-vtt-babylon-canvas--active]="battle.mapMode3D()"></canvas>
       <div class="lw-vtt-map-backdrop" [class.lw-vtt-map-backdrop--dimmed]="battle.mapMode3D()" [style.backgroundImage]="'url(' + vttDisplay.backdropUrl(vtt.activeLiveEncounter()?.thumbnailUrl) + ')'"></div>
 
@@ -153,16 +178,16 @@
 
         @if (battle.measureEnabled()) {
           <div class="lw-vtt-measure-bar">
-            <button ngpButton type="button" class="lw-vtt-subpill" [class.active]="battle.measureSubMode() === 'spell'" (click)="battle.toggleMeasureTool('spell')">Spell Range & AoE Measure</button>
-            <button ngpButton type="button" class="lw-vtt-subpill" [class.active]="battle.measureSubMode() === 'movement'" (click)="battle.toggleMeasureTool('movement')">Private Grid Movement ({{ battle.remainingMovementFeet() }}ft left)</button>
+            <button ngpButton type="button" class="lw-vtt-subpill" [class.active]="battle.measureSubMode() === 'spell'" (click)="battle.toggleMeasureTool('spell')">Spell Range & AoE</button>
+            <button ngpButton type="button" class="lw-vtt-subpill" [class.active]="battle.measureSubMode() === 'movement'" (click)="battle.toggleMeasureTool('movement')">Private Movement ({{ battle.remainingMovementFeet() }}ft left)</button>
             @if (battle.measureSubMode() === 'spell') {
               <select class="lw-vtt-measure-select" aria-label="Select Spell to Measure" [ngModel]="battle.measuredAbilityId()" (ngModelChange)="battle.measuredAbilityId.set($event)">
                 @for (ab of battle.tacticalAbilities(); track ab.id) {
-                  <option [value]="ab.id">{{ ab.name }} (Max {{ ab.rangeFeet }}ft · {{ battle.isSingleOrMultiTargetAbility(ab) ? (ab.maxTargets > 1 ? ab.maxTargets + ' Targets' : 'Single Target') : 'AoE ' + ab.aoeRadiusFeet + 'ft' }})</option>
+                  <option [value]="ab.id">{{ ab.name }} (Max {{ ab.rangeFeet }}ft)</option>
                 }
               </select>
             } @else {
-              <button ngpButton type="button" class="lw-vtt-subpill lw-vtt-subpill--gold" (click)="commitMovePreview()">Commit Grid Move</button>
+              <button ngpButton type="button" class="lw-vtt-subpill lw-vtt-subpill--gold" (click)="commitMovePreview()">Commit Move</button>
             }
             <button ngpButton type="button" class="lw-vtt-subpill" (click)="battle.cancelAllInteractiveModes()">Close [Esc]</button>
           </div>
@@ -174,7 +199,7 @@
       @if (battle.openDmDrawer() === 'quick-add') {
         <div class="lw-vtt-floating-drawer">
           <div class="lw-vtt-drawer-head">
-            <h4>Quick Add Monster or Session NPC to Encounter</h4>
+            <h4>Quick Add Monster or NPC</h4>
             <button ngpButton type="button" (click)="battle.openDmDrawer.set('none')">Close</button>
           </div>
           <div class="lw-vtt-drawer-grid">
@@ -190,9 +215,9 @@
               </div>
             </div>
             <div class="lw-vtt-field">
-              <span>Quick Add New NPC to Encounter & Region</span>
+              <span>Quick Add New NPC to Encounter</span>
               <div class="lw-vtt-inline-row">
-                <input type="text" placeholder="NPC Name (e.g. Artificer Venn)" [ngModel]="quickAddNpcName()" (ngModelChange)="quickAddNpcName.set($event)" />
+                <input type="text" placeholder="NPC Name" [ngModel]="quickAddNpcName()" (ngModelChange)="quickAddNpcName.set($event)" />
                 <select [ngModel]="quickAddNpcDisposition()" (ngModelChange)="quickAddNpcDisposition.set($event)">
                   <option value="Friendly">Friendly</option>
                   <option value="Neutral">Neutral</option>
@@ -230,16 +255,15 @@
               <button ngpButton type="button" class="lw-vtt-subpill lw-vtt-subpill--gold" (click)="rollSelectedDice()">Roll Dice</button>
               <button ngpButton type="button" class="lw-vtt-subpill" (click)="timer.toggle()">{{ timer.running() ? 'Pause Timer' : 'Resume Timer' }}</button>
               <button ngpButton type="button" class="lw-vtt-subpill" (click)="vtt.concludeEncounterAndAwardXp(vtt.activeEncounterId())">Award XP</button>
-              <button ngpButton type="button" class="lw-vtt-subpill" (click)="openEditCurrentEncounter()">Edit Encounter</button>
             </div>
           </div>
         </div>
       }
 
-
       @if (battle.settingsModalOpen()) { <lw-vtt-settings-modal /> }
       <lw-vtt-handout-modal />
 
+      <!-- Centered Bottom Action Dock -->
       <lw-vtt-action-dock
         [activeDisplayToken]="dockActiveToken()"
         [activeInitiativeTokenId]="dockInitiativeTokenId()"
@@ -270,23 +294,40 @@
         (endActionTest)="battle.pendingAbility.set(null)"
         (editToken)="dmToolReadout.set('Editing ' + $event.name + '.')"
       />
-
     </section>
 
-    @if (!battle.rightPanelCollapsed()) {
+    <!-- RIGHTMOST MENU (Foundry VTT / MythWeaver Style) -->
+    @if (battle.rightPanelCollapsed()) {
+      <aside class="lw-vtt-station-rail" aria-label="Quick Access Panels">
+        <button ngpButton type="button" class="lw-vtt-rail-btn" (click)="battle.rightPanelCollapsed.set(false)" title="Expand Right Panel"><lw-icon name="chevron-left" [size]="16" /></button>
+        <div class="lw-vtt-rail-divider"></div>
+        <button ngpButton type="button" class="lw-vtt-rail-tab-btn" [class.active]="battle.activeRightTab() === 'combat-log'" (click)="selectRightTab('combat-log')" title="Combat Roll Log"><lw-icon name="swords" [size]="18" /></button>
+        <button ngpButton type="button" class="lw-vtt-rail-tab-btn" [class.active]="battle.activeRightTab() === 'chat'" (click)="selectRightTab('chat')" title="Campaign Chat"><lw-icon name="note" [size]="18" /></button>
+        <button ngpButton type="button" class="lw-vtt-rail-tab-btn" [class.active]="battle.activeRightTab() === 'initiative'" (click)="selectRightTab('initiative')" title="Initiative Tracker"><lw-icon name="layers" [size]="18" /></button>
+        <button ngpButton type="button" class="lw-vtt-rail-tab-btn" [class.active]="battle.activeRightTab() === 'quests'" (click)="selectRightTab('quests')" title="Active Quests"><lw-icon name="bookmark" [size]="18" /></button>
+        <button ngpButton type="button" class="lw-vtt-rail-tab-btn" [class.active]="battle.activeRightTab() === 'npcs'" (click)="selectRightTab('npcs')" title="Session NPCs"><lw-icon name="users" [size]="18" /></button>
+        <button ngpButton type="button" class="lw-vtt-rail-tab-btn" [class.active]="battle.activeRightTab() === 'guide'" (click)="selectRightTab('guide')" title="Adventure Guide & Prep"><lw-icon name="book-open" [size]="18" /></button>
+        <button ngpButton type="button" class="lw-vtt-rail-tab-btn" [class.active]="battle.activeRightTab() === 'trackers'" (click)="selectRightTab('trackers')" title="Traps & Trackers"><lw-icon name="shield" [size]="18" /></button>
+        <button ngpButton type="button" class="lw-vtt-rail-tab-btn" [class.active]="battle.activeRightTab() === 'settings'" (click)="selectRightTab('settings')" title="VTT Settings"><lw-icon name="settings" [size]="18" /></button>
+      </aside>
+    } @else {
       <aside class="lw-vtt-right-panel" aria-label="Encounter Information & Role-Scoped Drawer">
+        <header class="lw-vtt-right-panel__header">
+          <div class="lw-vtt-station-title">
+            <strong>{{ rightTabTitle() }}</strong>
+          </div>
+          <button ngpButton type="button" class="lw-vtt-collapse-btn" (click)="battle.rightPanelCollapsed.set(true)" title="Collapse to Rail"><lw-icon name="chevron-right" [size]="16" /></button>
+        </header>
+
         <nav class="lw-vtt-right-tabs" aria-label="Encounter Drawer Tabs">
           <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'combat-log'" (click)="battle.activeRightTab.set('combat-log')">Roll Log</button>
-          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'chat'" (click)="battle.activeRightTab.set('chat')">Campaign Chat</button>
+          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'chat'" (click)="battle.activeRightTab.set('chat')">Chat</button>
+          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'initiative'" (click)="battle.activeRightTab.set('initiative')">Init</button>
           <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'quests'" (click)="battle.activeRightTab.set('quests')">Quests</button>
-          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'settings'" (click)="battle.activeRightTab.set('settings')">Settings</button>
-        </nav>
-        <nav class="lw-vtt-right-tabs lw-vtt-right-tabs--secondary" aria-label="Encounter Tools">
-          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'initiative'" (click)="battle.activeRightTab.set('initiative')">Initiative</button>
           <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'npcs'" (click)="battle.activeRightTab.set('npcs')">NPCs</button>
           <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'guide'" (click)="battle.activeRightTab.set('guide')">Guide</button>
-          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'trackers'" (click)="battle.activeRightTab.set('trackers')">Trackers</button>
-          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'lore'" (click)="battle.activeRightTab.set('lore')">Lore</button>
+          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'trackers'" (click)="battle.activeRightTab.set('trackers')">Track</button>
+          <button ngpButton type="button" [class.active]="battle.activeRightTab() === 'settings'" (click)="battle.activeRightTab.set('settings')">Config</button>
         </nav>
 
         <div class="lw-vtt-dice-row" aria-label="Dice roller">
@@ -339,6 +380,10 @@
 
           @if (battle.activeRightTab() === 'initiative') {
             <div class="lw-vtt-tab-list">
+              <div class="lw-vtt-turn-toolbar">
+                <span>Round {{ vtt.activeRound() }}</span>
+                <button ngpButton type="button" class="lw-vtt-turn-btn" (click)="nextTurn()">Next Turn &rarr;</button>
+              </div>
               @for (row of battle.visibleMapTokens(); track row.key) {
                 <div class="lw-vtt-init-row" [class.active]="row.key === battle.activeInitiativeToken().key" [class.targeted]="battle.isTokenTargetedWithReticle(row.key)" (click)="onTokenClicked($event, row)">
                   <div class="lw-vtt-init-row__badge" [class.hostile]="row.faction === 'hostile'">{{ row.initiative }}</div>
@@ -363,7 +408,7 @@
                   @if (store.viewerRole() === 'gm') {
                     <p class="lw-vtt-gm-secret">{{ q.gmSecret }}</p>
                     <button ngpButton type="button" class="lw-vtt-reveal-btn" (click)="battle.toggleQuestRevealed(q.id)">
-                      {{ q.revealedToPlayers ? 'Revealed to Players' : 'Hidden (Click to Reveal)' }}
+                      {{ q.revealedToPlayers ? 'Revealed' : 'Hidden (Click to Reveal)' }}
                     </button>
                   }
                 </article>
@@ -381,7 +426,7 @@
                   @if (store.viewerRole() === 'gm') {
                     <p class="lw-vtt-gm-secret">GM Secret: {{ npc.gmSecret }}</p>
                     <button ngpButton type="button" class="lw-vtt-reveal-btn" (click)="battle.toggleNpcRevealed(npc.id)">
-                      {{ npc.revealedToPlayers ? 'Revealed to Players' : 'Hidden (Click to Reveal)' }}
+                      {{ npc.revealedToPlayers ? 'Revealed' : 'Hidden (Click to Reveal)' }}
                     </button>
                   }
                 </article>
@@ -410,7 +455,7 @@
                   @if (store.viewerRole() === 'gm') {
                     <p class="lw-vtt-gm-secret">{{ lore.gmNotes }}</p>
                     <button ngpButton type="button" class="lw-vtt-reveal-btn" (click)="battle.toggleLoreRevealed(lore.id)">
-                      {{ lore.revealedToPlayers ? 'Revealed to Players' : 'Hidden (Click to Reveal)' }}
+                      {{ lore.revealedToPlayers ? 'Revealed' : 'Hidden (Click to Reveal)' }}
                     </button>
                   }
                 </article>
@@ -421,4 +466,27 @@
       </aside>
     }
   </div>
+
+  <!-- Centered Hotkeys Dialog Modal (Over Center of Map) -->
+  @if (showShortcuts()) {
+    <div class="shortcuts-backdrop" (click)="showShortcuts.set(false)" role="dialog" aria-modal="true" aria-label="Tabletop Hotkeys">
+      <div class="shortcuts-card floating-shortcuts" (click)="$event.stopPropagation()">
+        <div class="shortcuts-header">
+          <div class="shortcuts-title-row">
+            <span class="shortcuts-icon"><lw-icon name="note" [size]="16" /></span>
+            <h4>Tabletop Hotkeys & Controls</h4>
+          </div>
+          <button ngpButton type="button" class="close-shortcuts-btn" (click)="showShortcuts.set(false)" title="Close (Esc)" aria-label="Close hotkeys"><lw-icon name="close" [size]="14" /></button>
+        </div>
+        <ul class="shortcuts-list">
+          <li><span>Lock / Unlock Target</span><div><kbd>T</kbd> / <kbd>Click</kbd></div></li>
+          <li><span>Confirm Cast / Attack</span> <div><kbd>Enter</kbd></div></li>
+          <li><span>Toggle Grid</span> <div><kbd>G</kbd></div></li>
+          <li><span>Toggle Sidebar</span> <div><kbd>M</kbd></div></li>
+          <li><span>Pan base map</span> <div><kbd>Click & Drag</kbd></div></li>
+          <li><span>Deselect / Cancel</span> <div><kbd>Esc</kbd></div></li>
+        </ul>
+      </div>
+    </div>
+  }
 </div>

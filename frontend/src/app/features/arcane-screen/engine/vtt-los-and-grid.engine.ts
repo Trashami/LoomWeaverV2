@@ -1,9 +1,9 @@
-import { VttTokenVm } from '../../effects/engine/effect-timeline.contract';
+import { VttTokenVm } from "../../effects/engine/effect-timeline.contract";
 import {
   VttClampedLineResult,
   VttPoint2D,
   VttWallSegmentVm,
-} from '../models/vtt-battle.models';
+} from "../models/vtt-battle.models";
 
 export const FEET_PER_WORLD_UNIT = 2.5;
 export const WORLD_UNITS_PER_GRID_CELL = 2; // 2 * 2.5ft = 5ft grid cell
@@ -19,7 +19,10 @@ export function worldToSvgY(z: number): number {
 }
 
 export function svgToWorldPoint(svgX: number, svgY: number): VttPoint2D {
-  const x = Math.max(-11.5, Math.min(11.5, (svgX / SVG_VIEWBOX_WIDTH) * 24 - 12));
+  const x = Math.max(
+    -11.5,
+    Math.min(11.5, (svgX / SVG_VIEWBOX_WIDTH) * 24 - 12),
+  );
   const z = Math.max(-7.5, Math.min(7.5, (svgY / SVG_VIEWBOX_HEIGHT) * 16 - 8));
   return {
     x: Math.round(x * 100) / 100,
@@ -35,7 +38,9 @@ export function feetToSvgPx(feet: number): number {
 }
 
 export function distanceInFeet(a: VttPoint2D, b: VttPoint2D): number {
-  return Math.round(Math.hypot(b.x - a.x, b.z - a.z) * FEET_PER_WORLD_UNIT * 10) / 10;
+  return (
+    Math.round(Math.hypot(b.x - a.x, b.z - a.z) * FEET_PER_WORLD_UNIT * 10) / 10
+  );
 }
 
 export function snapToFiveFootGrid(pt: VttPoint2D): VttPoint2D {
@@ -196,7 +201,7 @@ export function computeVisibilityPolygonSvgPoints(
     pts.push(`${worldToSvgX(clamped.end.x)},${worldToSvgY(clamped.end.z)}`);
   }
 
-  return pts.join(' ');
+  return pts.join(" ");
 }
 
 /**
@@ -247,9 +252,13 @@ export function computeClampedGridMovePath(
   return {
     waypoints,
     destination: finalDest,
-    distanceFeet: Math.min(maxMoveFeet, Math.round(distanceInFeet(start, finalDest) / 5) * 5),
+    distanceFeet: Math.min(
+      maxMoveFeet,
+      Math.round(distanceInFeet(start, finalDest) / 5) * 5,
+    ),
     blockedByWall: clampedLine.blockedByWall || snappedCheck.blockedByWall,
-    blockingWallLabel: clampedLine.blockingWallLabel ?? snappedCheck.blockingWallLabel,
+    blockingWallLabel:
+      clampedLine.blockingWallLabel ?? snappedCheck.blockingWallLabel,
   };
 }
 

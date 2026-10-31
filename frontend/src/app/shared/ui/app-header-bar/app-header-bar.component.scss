@@ -135,6 +135,7 @@
 }
 
 .lw-campaign-tile {
+  position: relative;
   display: flex;
   align-items: center;
   height: 100%;
@@ -152,17 +153,34 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
+  pointer-events: none;
 }
 
-.lw-campaign-tile__select {
-  border: none;
-  background: transparent;
-  color: #f3e7cb;
+.lw-campaign-tile__name {
   font-family: var(--lw-font-display, Georgia, serif);
   font-size: 0.85rem;
   font-weight: 700;
+  color: #f3e7cb;
+  white-space: nowrap;
+}
+
+.lw-campaign-tile__chev {
+  margin-left: 0.3rem;
+  color: #d9b77a;
+}
+
+// Invisible native select stretched over the whole tile so any click opens it.
+.lw-campaign-tile__select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
   cursor: pointer;
-  padding: 0;
+  border: none;
+  background: transparent;
+  color: #f3e7cb;
   outline: none;
 
   option {

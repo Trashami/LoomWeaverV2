@@ -34,9 +34,9 @@
       <label class="lw-create__field">
         <span>Visibility</span>
         <select [ngModel]="visibility()" (ngModelChange)="visibility.set($event)">
-          <option value="gm">GM only</option>
-          <option value="players">Players</option>
-          <option value="public">Public</option>
+          <option value="private">Private (only me)</option>
+          <option value="gm">GM (me and the GM)</option>
+          <option value="global">Global (whole campaign)</option>
         </select>
       </label>
 

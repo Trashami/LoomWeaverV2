@@ -47,7 +47,7 @@ public static class GraphRelations
 
 public static class ContentCaptureEndpoints
 {
-    private static readonly HashSet<string> AllowedVisibility = new(StringComparer.OrdinalIgnoreCase) { "gm", "players", "public" };
+    private static readonly HashSet<string> AllowedVisibility = new(StringComparer.OrdinalIgnoreCase) { "private", "gm", "global" };
 
     public static RouteGroupBuilder MapContentCaptureEndpoints(this RouteGroupBuilder api)
     {
@@ -76,9 +76,7 @@ public static class ContentCaptureEndpoints
         if (intent.Length is < 1 or > 40)
             return Results.BadRequest(new { error = "An intent is required." });
         if (!AllowedVisibility.Contains(visibility))
-            return Results.BadRequest(new { error = "Visibility must be gm, players, or public." });
-        if (visibility == "gm" && !access.IsEffectiveGm)
-            return Results.Forbid();
+            return Results.BadRequest(new { error = "Visibility must be private, gm, or global." });
 
         var bodyHtml = req.BodyHtml ?? string.Empty;
         var bodyText = req.BodyText ?? string.Empty;
@@ -87,7 +85,12 @@ public static class ContentCaptureEndpoints
 
         var captureKey = $"cap-{Guid.NewGuid():N}";
         var compositeKey = $"{campaignId}:Capture:{captureKey}";
-        var neoVis = visibility == "gm" ? "gm" : "players";
+        var neoVis = visibility switch
+        {
+            "private" => "private",
+            "gm" => "gm",
+            _ => "players"
+        };
         var sourceRoute = string.IsNullOrWhiteSpace(req.SourceRoute) ? "/create" : req.SourceRoute.Trim();
         var targetKey = req.TargetKey?.Trim() ?? string.Empty;
         var links = (req.LinkedCompositeKeys ?? [])
@@ -225,11 +228,16 @@ public static class ContentCaptureEndpoints
                    visibility, author_username, source_route, created_at
             FROM lw_content_captures
             WHERE campaign_id = @cid
-              AND (@isGm = 1 OR visibility <> 'gm')
+              AND (
+                author_username = @me
+                OR visibility IN ('global', 'players', 'public')
+                OR (visibility = 'gm' AND @isGm = 1)
+              )
             ORDER BY created_at DESC
             LIMIT @take;
             """, db);
         cmd.Parameters.AddWithValue("@cid", campaignId);
+        cmd.Parameters.AddWithValue("@me", access.Username);
         cmd.Parameters.AddWithValue("@isGm", access.IsEffectiveGm ? 1 : 0);
         cmd.Parameters.AddWithValue("@take", take);
         await using var reader = await cmd.ExecuteReaderAsync(ct);

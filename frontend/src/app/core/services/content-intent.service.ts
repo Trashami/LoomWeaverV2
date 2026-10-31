@@ -4,7 +4,7 @@ import { Observable, map, switchMap } from 'rxjs';
 import { EncounterDetailVm } from '../../features/encounters/models/encounter-studio.models';
 import { LoomWeaverStoreService } from './loomweaver-store.service';
 
-export type ContentVisibility = 'gm' | 'players' | 'public';
+export type ContentVisibility = 'private' | 'gm' | 'global';
 
 export interface ContentIntentField {
   readonly key: string;
@@ -89,7 +89,7 @@ export class ContentIntentService {
         label: 'Lore entry',
         summary: 'A piece of world history, place, faction, or myth.',
         destination: 'World Lore: lore entries, with the lore graph node.',
-        defaultVisibility: 'players',
+        defaultVisibility: 'global',
         templateHtml: '<h2>Overview</h2><p></p><h2>What players know</h2><p></p><h2>What only the GM knows</h2><p></p>',
         prompts: ['What is this thing or place?', 'What do players already know?', 'What is hidden?'],
         fields: [{ key: 'category', label: 'Category', hint: 'Examples: Lore, Faction, Location, Myth', defaultValue: 'Lore', locked: true }],
@@ -112,7 +112,7 @@ export class ContentIntentService {
         label: 'World event',
         summary: 'A dated event on the world timeline.',
         destination: 'Timeline: world history events.',
-        defaultVisibility: 'players',
+        defaultVisibility: 'global',
         templateHtml: '<h2>What happened</h2><p></p><h2>Consequences</h2><p></p>',
         prompts: ['When did it happen in world time?', 'Who or what was affected?', 'What changed afterwards?'],
         fields: [
@@ -140,7 +140,7 @@ export class ContentIntentService {
         label: 'Session recap',
         summary: 'What happened at the table, with highlights and XP.',
         destination: 'Sessions & Chronicles: session recap.',
-        defaultVisibility: 'players',
+        defaultVisibility: 'global',
         templateHtml: '<h2>Summary</h2><p></p><h2>Highlights</h2><ul><li></li></ul>',
         prompts: ['What was the session about?', 'What were the three best moments?', 'What is the hook for next time?'],
         fields: [
@@ -245,7 +245,7 @@ export class ContentIntentService {
         label: 'Story link',
         summary: 'Connect two entities in the connected story chain.',
         destination: 'Story: connected chain relationships.',
-        defaultVisibility: 'players',
+        defaultVisibility: 'global',
         templateHtml: '<p></p>',
         prompts: ['Why are these two connected?'],
         fields: [

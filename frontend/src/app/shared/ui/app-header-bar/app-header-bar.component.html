@@ -56,6 +56,10 @@
 
     <div class="lw-campaign-tile">
       <div class="lw-campaign-tile__body">
+        <span class="lw-campaign-tile__name">
+          {{ activeCampaign()?.name }}
+          <span class="lw-campaign-tile__chev" aria-hidden="true">▾</span>
+        </span>
         <select
           class="lw-campaign-tile__select"
           [ngModel]="activeCampaignId()"

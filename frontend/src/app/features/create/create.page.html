@@ -84,10 +84,44 @@
           <button type="button" class="lw-create__tool" (click)="insertCheck(editor, 'skill-check')">Skill check</button>
           <button type="button" class="lw-create__tool" (click)="insertCheck(editor, 'saving-throw')">Saving throw</button>
         </div>
+        <div class="lw-create__tool-group">
+          <button type="button" class="lw-create__tool" (click)="openMenuFromToolbar(editor, '@')" aria-label="Insert reference">Reference @</button>
+          <button type="button" class="lw-create__tool" (click)="openMenuFromToolbar(editor, '/')" aria-label="Insert action">Action /</button>
+        </div>
         <button type="button" class="lw-create__tool" (click)="useTemplate(editor)">Use template</button>
       </div>
 
-      <div #editor class="lw-create__editor" contenteditable="true" role="textbox" aria-label="Body"></div>
+      <div
+        #editor
+        class="lw-create__editor"
+        contenteditable="true"
+        role="textbox"
+        aria-label="Body"
+        (input)="onEditorInput(editor)"
+        (keydown)="onEditorKeydown($event, editor)"
+      ></div>
+
+      @if (menu(); as m) {
+        <ul class="lw-create__menu" role="listbox" [attr.aria-label]="menuTitle()" [style.top.px]="menuPos().top" [style.left.px]="menuPos().left">
+          <li class="lw-create__menu-head">{{ menuTitle() }}</li>
+          @for (row of menuRows(); track row.key; let i = $index) {
+            <li
+              role="option"
+              class="lw-create__menu-row"
+              [class.is-active]="i === menuIndex()"
+              [attr.aria-selected]="i === menuIndex()"
+              (mousedown)="$event.preventDefault()"
+              (mouseenter)="menuIndex.set(i)"
+              (click)="pickRow(row, editor)"
+            >
+              <span>{{ row.label }}</span>
+              <small>{{ row.detail }}</small>
+            </li>
+          } @empty {
+            <li class="lw-create__menu-empty">{{ m.trigger === '@' && m.step === 'categories' ? 'No categories yet.' : 'Nothing matches.' }}</li>
+          }
+        </ul>
+      }
 
       <div class="lw-create__actions">
         @if (filed(); as done) {

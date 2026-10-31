@@ -114,7 +114,62 @@
   &:focus { border-color: #d9b77a; }
 }
 
+:host ::ng-deep .lw-create__editor .lw-ref {
+  display: inline-block;
+  padding: 0 8px;
+  margin: 0 2px;
+  border: 1px solid rgba(217, 183, 122, 0.6);
+  border-radius: 999px;
+  background: rgba(217, 183, 122, 0.12);
+  color: #d9b77a;
+  font-size: 0.92em;
+  user-select: all;
+}
+
+.lw-create__menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 240px;
+  max-width: 320px;
+  max-height: 280px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: rgba(5, 16, 12, 0.96);
+  border: 1px solid rgba(217, 183, 122, 0.55);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+.lw-create__menu-head {
+  padding: 6px 10px;
+  color: #d9b77a;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lw-create__menu-row {
+  display: flex;
+  flex-direction: column;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #f2ead8;
+
+  small { color: rgba(242, 234, 216, 0.6); }
+
+  &.is-active { background: rgba(217, 183, 122, 0.18); }
+}
+
+.lw-create__menu-empty {
+  padding: 8px 10px;
+  color: rgba(242, 234, 216, 0.6);
+}
+
 .lw-create__actions { display: flex; justify-content: flex-end; }
+
 
 .lw-create__filed {
   display: flex;

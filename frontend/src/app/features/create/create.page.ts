@@ -12,6 +12,22 @@ import { LwPanelComponent } from '../../shared/ui/panel/panel.component';
 
 const LAST_INTENT_KEY = 'lw.create.lastIntent';
 
+export type CreateBlockKind = 'read-aloud' | 'dm-only' | 'trap' | 'encounter-note';
+export type CreateCheckKind = 'passive-perception' | 'skill-check' | 'saving-throw';
+
+const CREATE_BLOCKS: Record<CreateBlockKind, { heading: string }> = {
+  'read-aloud': { heading: 'Read-aloud' },
+  'dm-only': { heading: 'DM only' },
+  trap: { heading: 'Trap' },
+  'encounter-note': { heading: 'Encounter note' },
+};
+
+const CREATE_CHECKS: Record<CreateCheckKind, string> = {
+  'passive-perception': 'Passive Perception',
+  'skill-check': 'Skill check',
+  'saving-throw': 'Saving throw',
+};
+
 interface FiledEntry {
   readonly title: string;
   readonly label: string;
@@ -92,6 +108,19 @@ export class CreatePageComponent {
   useTemplate(editor: HTMLElement): void {
     const intent = this.intent();
     if (intent) editor.innerHTML = intent.templateHtml;
+  }
+
+  insertBlock(editor: HTMLElement, kind: CreateBlockKind): void {
+    const block = CREATE_BLOCKS[kind];
+    editor.focus();
+    const html = `<section data-block="${kind}" class="lw-block lw-block--${kind}"><h3>${block.heading}</h3><p></p></section>`;
+    document.execCommand('insertHTML', false, html);
+  }
+
+  insertCheck(editor: HTMLElement, check: CreateCheckKind): void {
+    editor.focus();
+    const label = CREATE_CHECKS[check];
+    document.execCommand('insertHTML', false, `<span data-check="${check}" class="lw-check">[${label} DC ]</span>&nbsp;`);
   }
 
   save(editor: HTMLElement): void {

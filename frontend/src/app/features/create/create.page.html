@@ -41,13 +41,15 @@
       </label>
 
       @for (field of active.fields; track field.key) {
-        <label class="lw-create__field">
-          <span>{{ field.label }}</span>
+        <label class="lw-create__field" [class.lw-create__field--locked]="field.locked">
+          <span>{{ field.label }}@if (field.locked) { <em> (locked for this type)</em> }</span>
           <input
             type="text"
             [value]="fieldValue(field.key)"
             (input)="setField(field.key, $any($event.target).value)"
             [attr.placeholder]="field.hint ?? null"
+            [readOnly]="!!field.locked"
+            [attr.aria-disabled]="field.locked ? 'true' : null"
           />
         </label>
       }
@@ -63,13 +65,26 @@
         }
       </div>
 
-      <div class="lw-create__toolbar" role="toolbar" aria-label="Formatting">
-        <button type="button" (click)="format('bold')"><b>B</b></button>
-        <button type="button" (click)="format('italic')"><i>I</i></button>
-        <button type="button" (click)="format('underline')"><u>U</u></button>
-        <button type="button" (click)="format('insertUnorderedList')">List</button>
-        <button type="button" (click)="format('formatBlock', 'h2')">Heading</button>
-        <button type="button" (click)="useTemplate(editor)">Use template</button>
+      <div class="lw-create__toolbar" role="toolbar" aria-label="Formatting and sections">
+        <div class="lw-create__tool-group">
+          <button type="button" class="lw-create__tool" (click)="format('bold')" aria-label="Bold"><b>B</b></button>
+          <button type="button" class="lw-create__tool" (click)="format('italic')" aria-label="Italic"><i>I</i></button>
+          <button type="button" class="lw-create__tool" (click)="format('underline')" aria-label="Underline"><u>U</u></button>
+          <button type="button" class="lw-create__tool" (click)="format('insertUnorderedList')">List</button>
+          <button type="button" class="lw-create__tool" (click)="format('formatBlock', 'h2')">Heading</button>
+        </div>
+        <div class="lw-create__tool-group">
+          <button type="button" class="lw-create__tool" (click)="insertBlock(editor, 'read-aloud')">Read-aloud</button>
+          <button type="button" class="lw-create__tool" (click)="insertBlock(editor, 'dm-only')">DM only</button>
+          <button type="button" class="lw-create__tool" (click)="insertBlock(editor, 'trap')">Trap</button>
+          <button type="button" class="lw-create__tool" (click)="insertBlock(editor, 'encounter-note')">Encounter note</button>
+        </div>
+        <div class="lw-create__tool-group">
+          <button type="button" class="lw-create__tool" (click)="insertCheck(editor, 'passive-perception')">Passive Perception</button>
+          <button type="button" class="lw-create__tool" (click)="insertCheck(editor, 'skill-check')">Skill check</button>
+          <button type="button" class="lw-create__tool" (click)="insertCheck(editor, 'saving-throw')">Saving throw</button>
+        </div>
+        <button type="button" class="lw-create__tool" (click)="useTemplate(editor)">Use template</button>
       </div>
 
       <div #editor class="lw-create__editor" contenteditable="true" role="textbox" aria-label="Body"></div>

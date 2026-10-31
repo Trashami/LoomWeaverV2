@@ -11,6 +11,7 @@ export interface ContentIntentField {
   readonly label: string;
   readonly hint?: string;
   readonly defaultValue?: string;
+  readonly locked?: boolean;
 }
 
 export interface ContentDraft {
@@ -91,7 +92,7 @@ export class ContentIntentService {
         defaultVisibility: 'players',
         templateHtml: '<h2>Overview</h2><p></p><h2>What players know</h2><p></p><h2>What only the GM knows</h2><p></p>',
         prompts: ['What is this thing or place?', 'What do players already know?', 'What is hidden?'],
-        fields: [{ key: 'category', label: 'Category', hint: 'Examples: Lore, Faction, Location, Myth', defaultValue: 'Lore' }],
+        fields: [{ key: 'category', label: 'Category', hint: 'Examples: Lore, Faction, Location, Myth', defaultValue: 'Lore', locked: true }],
         save: (draft) =>
           this.http
             .post<{ id?: string; compositeKey?: string }>(`/api/v2/campaigns/${cid()}/world-lore/lore${role}`, {

@@ -69,7 +69,38 @@
 .lw-create__toolbar {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.lw-create__tool-group {
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
+  padding-right: 14px;
+  border-right: 1px solid rgba(217, 183, 122, 0.25);
+}
+
+.lw-create__tool {
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  color: #d9b77a;
+  background: rgba(5, 16, 12, 0.35);
+  border: 1px solid rgba(217, 183, 122, 0.4);
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:hover { border-color: #d9b77a; }
+}
+
+.lw-create__field--locked input {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.lw-create__field em {
+  font-style: normal;
+  color: rgba(217, 183, 122, 0.7);
 }
 
 .lw-create__editor {

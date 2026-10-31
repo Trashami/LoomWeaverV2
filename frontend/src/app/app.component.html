@@ -5,6 +5,9 @@
   <div class="lw-vtt-fullscreen">
     <router-outlet />
   </div>
+  <lw-loom-launcher [generativeAiEnabled]="store.weaveEnabled()" />
+  <lw-fullscreen-dice-overlay />
+  <lw-alertify-toast-stack />
 } @else {
   <div class="lw-shell">
     <lw-app-header-bar

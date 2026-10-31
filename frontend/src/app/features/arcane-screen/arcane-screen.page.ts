@@ -29,19 +29,16 @@ import { VttDisplaySettingsService } from './services/vtt-display-settings.servi
 import { VttEncounterTimerService } from './services/vtt-encounter-timer.service';
 import { VttServerSyncService } from './services/vtt-server-sync.service';
 import { VttMapToolsComponent } from './components/vtt-map-tools/vtt-map-tools.component';
-import { VttBattleStatusBarComponent } from './components/vtt-battle-status-bar/vtt-battle-status-bar.component';
 import { VttSettingsPanelComponent } from './components/vtt-settings-panel/vtt-settings-panel.component';
 import { VttHandoutModalComponent } from './components/vtt-handout-modal/vtt-handout-modal.component';
-
 @Component({
   selector: 'lw-arcane-screen-page',
   standalone: true,
   imports: [
-    FormsModule, NgpButton, LwButtonComponent, LwIconComponent,
-    VttActionDockComponent, VttGmRailComponent, VttGmGuidePanelComponent,
-    VttGmTrackersPanelComponent, VttSettingsModalComponent, VttDmDrawersComponent,
-    VttMapToolsComponent, VttSettingsPanelComponent,
-    VttHandoutModalComponent,
+    FormsModule, NgpButton, LwButtonComponent, LwIconComponent, VttActionDockComponent,
+    VttGmRailComponent, VttGmGuidePanelComponent, VttGmTrackersPanelComponent,
+    VttSettingsModalComponent, VttDmDrawersComponent, VttMapToolsComponent,
+    VttSettingsPanelComponent, VttHandoutModalComponent,
   ],
   templateUrl: './arcane-screen.page.html',
   styleUrl: './arcane-screen.page.scss',
@@ -51,27 +48,16 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   @ViewChild('vttCanvas') private vttCanvasRef?: ElementRef<HTMLCanvasElement>;
   @ViewChild('battleSvg') private battleSvgRef?: ElementRef<SVGSVGElement>;
 
-  readonly store = inject(LoomWeaverStoreService);
-  readonly vtt = inject(VttCombatService);
-  readonly battle = inject(VttBattleStateService);
-  readonly fog = inject(VttFogService);
-  readonly stage = inject(BabylonEffectStageService);
-  readonly audio = inject(WebAudioAmbienceService);
-  readonly fullscreenDice = inject(FullscreenDiceOverlayService);
-  private readonly router = inject(Router);
-  readonly serverSync = inject(VttServerSyncService);
-  readonly vttReturn = inject(VttReturnRouteService);
-  readonly vttDisplay = inject(VttDisplaySettingsService);
-  readonly timer = inject(VttEncounterTimerService);
-  readonly handouts = inject(VttHandoutService);
-  readonly showShortcuts = signal<boolean>(false);
+  readonly store = inject(LoomWeaverStoreService); readonly vtt = inject(VttCombatService);
+  readonly battle = inject(VttBattleStateService); readonly fog = inject(VttFogService);
+  readonly stage = inject(BabylonEffectStageService); readonly audio = inject(WebAudioAmbienceService);
+  readonly fullscreenDice = inject(FullscreenDiceOverlayService); private readonly router = inject(Router);
+  readonly serverSync = inject(VttServerSyncService); readonly vttReturn = inject(VttReturnRouteService);
+  readonly vttDisplay = inject(VttDisplaySettingsService); readonly timer = inject(VttEncounterTimerService);
+  readonly handouts = inject(VttHandoutService); readonly showShortcuts = signal<boolean>(false);
 
   constructor() {
-    effect(() => {
-      this.vtt.tokens();
-      this.fog.layer();
-      untracked(() => this.sync3dStage());
-    });
+    effect(() => { this.vtt.tokens(); this.fog.layer(); untracked(() => this.sync3dStage()); });
     this.stage.tokenDropped.pipe(takeUntilDestroyed()).subscribe((p) => {
       this.vtt.applyRemoteTokenMove(p.key, p.x, p.z);
       this.sync3dStage();
@@ -79,8 +65,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     });
     effect(() => {
       const cue = this.vtt.remoteEffectCue();
-      if (!cue) return;
-      untracked(() => this.stage.playTrajectoryEffect(cue.preset, cue.startPos, cue.endPos));
+      if (cue) untracked(() => this.stage.playTrajectoryEffect(cue.preset, cue.startPos, cue.endPos));
     });
   }
 
@@ -88,9 +73,21 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   private dragMoved = false;
 
   readonly selectedDiceFormula = signal<string>('1d20');
-  readonly dmToolReadout = signal<string>(
-    'Session Ready: DM can drag any token; Players move on their Initiative turn. Click an ability below to aim & cast.',
-  );
+  readonly zoomLevel = signal<number>(100);
+  readonly dmToolReadout = signal<string>('');
+
+  onMapWheel(event: WheelEvent): void {
+    event.preventDefault();
+    if (this.battle.mapMode3D()) {
+      this.stage.zoomCamera(event.deltaY * 0.05);
+      return;
+    }
+    const delta = event.deltaY < 0 ? 10 : -10;
+    this.zoomLevel.update((z) => Math.max(50, Math.min(250, z + delta)));
+  }
+
+  changeZoom(amount: number): void { this.zoomLevel.update((z) => Math.max(50, Math.min(250, z + amount))); }
+  resetZoom(): void { this.zoomLevel.set(100); }
   readonly gmRailOpen = signal<boolean>(false);
 
   // Quick-Add Monster & NPC Form State
@@ -112,39 +109,21 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   readonly gridVerticalLines = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100];
   readonly gridHorizontalLines = [100, 200, 300, 400, 500, 600, 700];
 
-  readonly isObserverActiveTurn = computed(
-    () => this.battle.activeInitiativeToken()?.key === this.battle.activeObserverToken()?.key,
-  );
-
+  readonly isObserverActiveTurn = computed(() => this.battle.activeInitiativeToken()?.key === this.battle.activeObserverToken()?.key);
   readonly dockHp = (token: DockToken): number => token.hp ?? 0;
   readonly dockAc = (token: DockToken): number => token.armorClass ?? 10;
-
-  readonly dockActiveToken = computed<DockToken>(() =>
-    toDockToken(this.battle.activeObserverToken(), this.vtt.tokens()),
-  );
+  readonly dockActiveToken = computed<DockToken>(() => toDockToken(this.battle.activeObserverToken(), this.vtt.tokens()));
   readonly dockActiveTokenId = computed<number>(() => this.dockActiveToken().id);
-  readonly dockTokenActions = computed<readonly DockAction[]>(() =>
-    this.battle.tacticalAbilities().map(toDockAction),
-  );
-  readonly dockInitiativeTokenId = computed<number>(() =>
-    toDockToken(this.battle.activeInitiativeToken(), this.vtt.tokens()).id,
-  );
+  readonly dockTokenActions = computed<readonly DockAction[]>(() => this.battle.tacticalAbilities().map(toDockAction));
+  readonly dockInitiativeTokenId = computed<number>(() => toDockToken(this.battle.activeInitiativeToken(), this.vtt.tokens()).id);
 
   ngAfterViewInit(): void {
     const canvas = this.vttCanvasRef?.nativeElement;
     if (canvas) {
-      this.stage.mountStage(
-        canvas,
-        this.vtt.tokens(),
-        this.vtt.selectedAttackerKey(),
-        this.vtt.selectedTargetKey(),
-        (clickedKey) => {
-          const tok = this.vtt.tokens().find((t) => t.key === clickedKey);
-          if (tok) {
-            this.handleTokenSelectionOrCast(tok, false);
-          }
-        },
-      );
+      this.stage.mountStage(canvas, this.vtt.tokens(), this.vtt.selectedAttackerKey(), this.vtt.selectedTargetKey(), (k) => {
+        const tok = this.vtt.tokens().find((t) => t.key === k);
+        if (tok) this.handleTokenSelectionOrCast(tok, false);
+      });
       this.sync3dStage();
     }
     this.timer.start();
@@ -157,7 +136,16 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
 
   setMapMode(is3d: boolean): void {
     this.battle.mapMode3D.set(is3d);
-    this.sync3dStage();
+    if (is3d) {
+      setTimeout(() => {
+        this.stage.resize();
+        this.sync3dStage();
+      }, 50);
+    }
+  }
+
+  toggleMapMode(): void {
+    this.setMapMode(!this.battle.mapMode3D());
   }
 
   sync3dStage(): void {
@@ -378,9 +366,6 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       const active = this.vtt.selectedAttacker();
       if (active) this.battle.resetTurnMovement(active.key);
       this.sync3dStage();
-      this.dmToolReadout.set(
-        `Round ${this.vtt.activeRound()} · Active Initiative Turn: ${this.battle.activeInitiativeToken().name}`,
-      );
     });
   }
 
@@ -407,25 +392,12 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     this.dmToolReadout.set('Added NPC to Encounter & Battle Map.');
   }
 
-  rollQuickDcCheck(dc: number, label: string): void {
-    const d20 = Math.floor(Math.random() * 20) + 1;
-    const total = d20 + 4;
-    this.dmToolReadout.set(
-      `Quick DC ${dc} (${label}): Rolled ${d20} + 4 = ${total} -> ${total >= dc ? 'SUCCESS' : 'FAILURE'}`,
-    );
-    this.fullscreenDice.triggerFullScreenRoll({
-      label: `DC ${dc} ${label} Check`,
-      actorName: this.vtt.selectedAttacker().name,
-      expression: '1d20 + 4',
-      diceValues: [d20],
-      modifier: 4,
-      total,
-      outcomeBadge: total >= dc ? 'SUCCESS' : 'FAILURE',
-      isNat20: d20 === 20,
-      isCritFail: d20 === 1,
-    });
-  }
-
+  rollQuickDcCheck(dc: number, label: string): void {
+    const d20 = Math.floor(Math.random() * 20) + 1;
+    const total = d20 + 4;
+    this.fullscreenDice.triggerFullScreenRoll({ label: `DC ${dc} ${label} Check`, actorName: this.vtt.selectedAttacker()?.name ?? "Combatant", expression: '1d20 + 4', diceValues: [d20], modifier: 4, total, outcomeBadge: total >= dc ? 'SUCCESS' : 'FAILURE', isNat20: d20 === 20, isCritFail: d20 === 1 });
+  }
+
   rollSelectedDice(): void {
     const f = this.selectedDiceFormula();
     const [countStr, sidesStr] = f.toLowerCase().split('d');
@@ -438,16 +410,44 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       rolls.push(r);
       sum += r;
     }
-    this.dmToolReadout.set(`Rolled ${f}: [${rolls.join(', ')}] = ${sum}`);
+    const actor = this.vtt.selectedAttacker()?.name ?? 'Combatant';
+    const isNat20 = sides === 20 && rolls.includes(20);
+    const isCritFail = sides === 20 && rolls.includes(1);
+    this.vtt.combatLogs.update((logs) => [
+      {
+        id: `dice-${Date.now()}`,
+        round: this.vtt.activeRound(),
+        attackerName: actor,
+        targetName: 'Battlefield',
+        actionName: `Dice Roll (${f})`,
+        distanceFeet: 0,
+        hit: isNat20 ? true : isCritFail ? false : !rolls.includes(1),
+        isCritical: isNat20,
+        damageDealt: 0,
+        message: `${actor} rolled ${f}: [${rolls.join(', ')}] = ${sum}${isNat20 ? ' (CRITICAL HIT!)' : isCritFail ? ' (CRITICAL FAIL!)' : ''}`,
+      },
+      ...logs,
+    ]);
+    this.battle.chatMessages.update((msgs) => [
+      ...msgs,
+      {
+        id: `dice-chat-${Date.now()}`,
+        senderName: actor,
+        senderRole: 'player',
+        text: `Rolled ${f}: [${rolls.join(', ')}] = ${sum}${isNat20 ? ' (Natural 20!)' : isCritFail ? ' (Natural 1!)' : ''}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        revealedToPlayers: true,
+      },
+    ]);
     this.fullscreenDice.triggerFullScreenRoll({
       label: 'Battlefield Roll',
-      actorName: this.vtt.selectedAttacker().name,
+      actorName: actor,
       expression: f,
       diceValues: rolls,
       modifier: 0,
       total: sum,
-      isNat20: sides === 20 && rolls.includes(20),
-      isCritFail: sides === 20 && rolls.includes(1),
+      isNat20,
+      isCritFail,
     });
   }
 
@@ -455,13 +455,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     this.battle.sendChatMessage(this.chatDraft(), this.chatWhisperGmOnly());
     this.chatDraft.set('');
   }
-
-  openEditCurrentEncounter(): void {
-    void this.router.navigate(['/encounters'], {
-      queryParams: { edit: this.vtt.activeEncounterId() },
-    });
-  }
-
+  openEditCurrentEncounter(): void { void this.router.navigate(['/encounters'], { queryParams: { edit: this.vtt.activeEncounterId() } }); }
   selectRightTab(tab: VttRightTabId): void {
     this.battle.activeRightTab.set(tab);
     this.battle.rightPanelCollapsed.set(false);

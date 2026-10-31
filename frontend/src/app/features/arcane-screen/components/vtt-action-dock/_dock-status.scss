@@ -1,12 +1,15 @@
 .console-end-turn-wrap {
   display: flex;
+  align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .console-end-turn-btn {
+  flex-shrink: 0;
   position: relative;
-  width: 4.6rem;
-  height: 4.6rem;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 0;
   border-radius: 50%;

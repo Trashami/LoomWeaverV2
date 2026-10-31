@@ -89,18 +89,24 @@
   position: relative; width: 100%; height: 100%; min-height: 0;
   overflow: hidden; background: #040b08;
   display: flex; flex-direction: column; justify-content: space-between;
+  overscroll-behavior: none; touch-action: none;
 }
 
 .lw-vtt-babylon-canvas {
   position: absolute; inset: 0; width: 100%; height: 100%;
-  opacity: 0.36; pointer-events: none; z-index: 1;
-  &--active { opacity: 1; pointer-events: auto; z-index: 5; }
+  display: none; pointer-events: none; z-index: 1;
+  &--active { display: block; pointer-events: auto; z-index: 5; }
+}
+
+.lw-vtt-2d-viewport {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  transition: transform 0.08s ease-out;
+  &--hidden { display: none !important; pointer-events: none !important; }
 }
 
 .lw-vtt-map-backdrop {
   position: absolute; inset: 0; background-size: cover; background-position: center;
   filter: brightness(0.76) contrast(1.08); pointer-events: none; z-index: 2;
-  &--dimmed { opacity: 0.15; }
 }
 
 .lw-vtt-svg {
@@ -158,8 +164,9 @@
 }
 
 .lw-vtt-hud-overlay {
-  position: relative; z-index: 10; padding: 0.55rem 0.75rem;
-  display: flex; flex-direction: column; gap: 0.45rem; pointer-events: none;
+  position: absolute; top: 0.6rem; left: 50%; transform: translateX(-50%);
+  z-index: 10; padding: 0.55rem 0.75rem;
+  display: flex; flex-direction: column; align-items: center; gap: 0.45rem; pointer-events: none;
 }
 
 .lw-vtt-hud-pills, .lw-vtt-measure-bar {

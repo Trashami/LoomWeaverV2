@@ -20,8 +20,8 @@
 
         <button ngpButton type="button" class="btn-top-action" (click)="timer.toggle()" [title]="timer.running() ? 'Pause Stopwatch' : 'Resume Stopwatch'"> <lw-icon [name]="timer.running() ? 'pause' : 'play'" [size]="12" /> <span>{{ timer.formatted() }}</span></button>
 
-        <button ngpButton type="button" class="btn-top-action" (click)="battle.mapMode3D.set(!battle.mapMode3D())" title="Toggle 2D / 3D View"> <lw-icon [name]="battle.mapMode3D() ? 'layers' : 'view_in_ar'" [size]="12" /> <span>{{ battle.mapMode3D() ? '3D View' : '2D Map' }}</span></button>
-
+        <button ngpButton type="button" class="btn-top-action" (click)="toggleMapMode()" title="Toggle 2D / 3D View"> <lw-icon [name]="battle.mapMode3D() ? 'layers' : 'view_in_ar'" [size]="12" /> <span>{{ battle.mapMode3D() ? '3D View' : '2D Map' }}</span></button>
+        <button ngpButton type="button" class="btn-top-action" (click)="store.toggleLoomDrawer()" title="The Loom Campaign Memory"><lw-icon name="history_edu" [size]="12" /> <span>The Loom</span></button>
         <button ngpButton type="button" class="btn-top-action" (click)="openHandoutModal()" title="Present Handout to Players"> <lw-icon name="scroll" [size]="12" /> <span>Handout</span></button>
 
         @if (store.viewerRole() === 'gm') {
@@ -50,11 +50,13 @@
     }
 
     <!-- Edge-to-Edge Battlefield Viewport -->
-    <section class="lw-vtt-map-stage" [class.lw-vtt-map-stage--3d]="battle.mapMode3D()" aria-label="Interactive Encounter Battle Map">
+    <section class="lw-vtt-map-stage" [class.lw-vtt-map-stage--3d]="battle.mapMode3D()" (wheel)="onMapWheel($event)" aria-label="Interactive Encounter Battle Map">
       <canvas #vttCanvas class="lw-vtt-babylon-canvas" [class.lw-vtt-babylon-canvas--active]="battle.mapMode3D()"></canvas>
-      <div class="lw-vtt-map-backdrop" [class.lw-vtt-map-backdrop--dimmed]="battle.mapMode3D()" [style.backgroundImage]="'url(' + vttDisplay.backdropUrl(vtt.activeLiveEncounter()?.thumbnailUrl) + ')'"></div>
 
-      <svg #battleSvg class="lw-vtt-svg" [class.lw-vtt-svg--3d-overlay]="battle.mapMode3D()" viewBox="0 0 1200 800" preserveAspectRatio="none" (mousemove)="onBattleMapPointerMove($event)" (mouseup)="onBattleMapMouseUp()" (click)="onBattleMapClick($event)">
+      <div class="lw-vtt-2d-viewport" [class.lw-vtt-2d-viewport--hidden]="battle.mapMode3D()" [style.transform]="'scale(' + (zoomLevel() / 100) + ')'" [style.transformOrigin]="'center center'">
+        <div class="lw-vtt-map-backdrop" [style.backgroundImage]="'url(' + vttDisplay.backdropUrl(vtt.activeLiveEncounter()?.thumbnailUrl) + ')'"></div>
+
+        <svg #battleSvg class="lw-vtt-svg" viewBox="0 0 1200 800" preserveAspectRatio="none" (mousemove)="onBattleMapPointerMove($event)" (mouseup)="onBattleMapMouseUp()" (click)="onBattleMapClick($event)">
         @if (gridEnabled()) {
           <g class="lw-vtt-svg__grid">
             @for (gx of gridVerticalLines; track gx) {
@@ -162,37 +164,38 @@
           </g>
         }
       </svg>
+      </div>
 
-      <div class="lw-vtt-hud-overlay">
-        <div class="lw-vtt-hud-pills">
-          <span class="lw-vtt-status-readout">{{ dmToolReadout() }}</span>
+      @if (battle.pendingAbility() || battle.measureEnabled()) {
+        <div class="lw-vtt-hud-overlay">
           @if (battle.pendingAbility(); as pending) {
-            @if (battle.queuedTargetSequence().length > 0) {
-              <button ngpButton type="button" class="lw-vtt-subpill lw-vtt-subpill--gold" (click)="executePendingAbilityCast()">
-                Cast {{ pending.name }} Now ({{ battle.queuedTargetSequence().length }}/{{ pending.maxTargets }})
-              </button>
-            }
-            <button ngpButton type="button" class="lw-vtt-subpill" (click)="battle.cancelAllInteractiveModes()">Cancel [Esc]</button>
+            <div class="lw-vtt-hud-pills">
+              @if (battle.queuedTargetSequence().length > 0) {
+                <button ngpButton type="button" class="lw-vtt-subpill lw-vtt-subpill--gold" (click)="executePendingAbilityCast()">
+                  Cast {{ pending.name }} Now ({{ battle.queuedTargetSequence().length }}/{{ pending.maxTargets }})
+                </button>
+              }
+              <button ngpButton type="button" class="lw-vtt-subpill" (click)="battle.cancelAllInteractiveModes()">Cancel [Esc]</button>
+            </div>
+          }
+          @if (battle.measureEnabled()) {
+            <div class="lw-vtt-measure-bar">
+              <button ngpButton type="button" class="lw-vtt-subpill" [class.active]="battle.measureSubMode() === 'spell'" (click)="battle.toggleMeasureTool('spell')">Spell Range & AoE</button>
+              <button ngpButton type="button" class="lw-vtt-subpill" [class.active]="battle.measureSubMode() === 'movement'" (click)="battle.toggleMeasureTool('movement')">Private Movement ({{ battle.remainingMovementFeet() }}ft left)</button>
+              @if (battle.measureSubMode() === 'spell') {
+                <select class="lw-vtt-measure-select" aria-label="Select Spell to Measure" [ngModel]="battle.measuredAbilityId()" (ngModelChange)="battle.measuredAbilityId.set($event)">
+                  @for (ab of battle.tacticalAbilities(); track ab.id) {
+                    <option [value]="ab.id">{{ ab.name }} (Max {{ ab.rangeFeet }}ft)</option>
+                  }
+                </select>
+              } @else {
+                <button ngpButton type="button" class="lw-vtt-subpill lw-vtt-subpill--gold" (click)="commitMovePreview()">Commit Move</button>
+              }
+              <button ngpButton type="button" class="lw-vtt-subpill" (click)="battle.cancelAllInteractiveModes()">Close [Esc]</button>
+            </div>
           }
         </div>
-
-        @if (battle.measureEnabled()) {
-          <div class="lw-vtt-measure-bar">
-            <button ngpButton type="button" class="lw-vtt-subpill" [class.active]="battle.measureSubMode() === 'spell'" (click)="battle.toggleMeasureTool('spell')">Spell Range & AoE</button>
-            <button ngpButton type="button" class="lw-vtt-subpill" [class.active]="battle.measureSubMode() === 'movement'" (click)="battle.toggleMeasureTool('movement')">Private Movement ({{ battle.remainingMovementFeet() }}ft left)</button>
-            @if (battle.measureSubMode() === 'spell') {
-              <select class="lw-vtt-measure-select" aria-label="Select Spell to Measure" [ngModel]="battle.measuredAbilityId()" (ngModelChange)="battle.measuredAbilityId.set($event)">
-                @for (ab of battle.tacticalAbilities(); track ab.id) {
-                  <option [value]="ab.id">{{ ab.name }} (Max {{ ab.rangeFeet }}ft)</option>
-                }
-              </select>
-            } @else {
-              <button ngpButton type="button" class="lw-vtt-subpill lw-vtt-subpill--gold" (click)="commitMovePreview()">Commit Move</button>
-            }
-            <button ngpButton type="button" class="lw-vtt-subpill" (click)="battle.cancelAllInteractiveModes()">Close [Esc]</button>
-          </div>
-        }
-      </div>
+      }
 
       <lw-vtt-dm-drawers />
 
@@ -259,7 +262,6 @@
           </div>
         </div>
       }
-
       @if (battle.settingsModalOpen()) { <lw-vtt-settings-modal /> }
       <lw-vtt-handout-modal />
 
@@ -278,7 +280,7 @@
         [pendingAction]="battle.pendingAbility()?.name ?? null"
         [tokenActions]="dockTokenActions()"
         [skin]="battle.actionBarSettings().skin"
-        [zoom]="100"
+        [zoom]="zoomLevel()"
         [getTokenHp]="dockHp"
         [getTokenAc]="dockAc"
         (chooseAction)="selectDockAction($event)"
@@ -293,14 +295,16 @@
         (cancelPendingAction)="battle.pendingAbility.set(null)"
         (endActionTest)="battle.pendingAbility.set(null)"
         (editToken)="dmToolReadout.set('Editing ' + $event.name + '.')"
+        (changeZoom)="changeZoom($event)"
+        (resetZoom)="resetZoom()"
       />
     </section>
-
     <!-- RIGHTMOST MENU (Foundry VTT / MythWeaver Style) -->
     @if (battle.rightPanelCollapsed()) {
       <aside class="lw-vtt-station-rail" aria-label="Quick Access Panels">
         <button ngpButton type="button" class="lw-vtt-rail-btn" (click)="battle.rightPanelCollapsed.set(false)" title="Expand Right Panel"><lw-icon name="chevron-left" [size]="16" /></button>
         <div class="lw-vtt-rail-divider"></div>
+        <button ngpButton type="button" class="lw-vtt-rail-tab-btn" (click)="store.toggleLoomDrawer()" title="The Loom (Campaign Memory)"><lw-icon name="history_edu" [size]="18" /></button>
         <button ngpButton type="button" class="lw-vtt-rail-tab-btn" [class.active]="battle.activeRightTab() === 'combat-log'" (click)="selectRightTab('combat-log')" title="Combat Roll Log"><lw-icon name="swords" [size]="18" /></button>
         <button ngpButton type="button" class="lw-vtt-rail-tab-btn" [class.active]="battle.activeRightTab() === 'chat'" (click)="selectRightTab('chat')" title="Campaign Chat"><lw-icon name="note" [size]="18" /></button>
         <button ngpButton type="button" class="lw-vtt-rail-tab-btn" [class.active]="battle.activeRightTab() === 'initiative'" (click)="selectRightTab('initiative')" title="Initiative Tracker"><lw-icon name="layers" [size]="18" /></button>

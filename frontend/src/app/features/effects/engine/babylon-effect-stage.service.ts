@@ -29,6 +29,18 @@ export class BabylonEffectStageService {
   private fogPlane: BabylonFogPlane | null = null;
   private readonly draggedSubject = new Subject<TokenPlacement>();
   private readonly droppedSubject = new Subject<TokenPlacement>();
+  private cleanupHandlers: (() => void)[] = [];
+  camera: ArcRotateCamera | null = null;
+
+  resize(): void {
+    this.engine?.resize();
+  }
+
+  zoomCamera(delta: number): void {
+    if (this.camera) {
+      this.camera.radius = Math.max(5, Math.min(100, this.camera.radius + delta));
+    }
+  }
 
   readonly activeKeyframeLabel = signal<string>('Ready');
   readonly reducedMotion = signal<boolean>(false);
@@ -61,6 +73,7 @@ export class BabylonEffectStageService {
       );
       camera.lowerRadiusLimit = 10;
       camera.upperRadiusLimit = 44;
+      this.camera = camera;
       camera.attachControl(canvas, true);
 
       const hemi = new HemisphericLight('lw-vtt-hemi', new Vector3(0, 1, 0), this.scene);
@@ -349,7 +362,9 @@ export class BabylonEffectStageService {
     this.animHandle = requestAnimationFrame(step);
   }
 
-  dispose(): void {
+  dispose(): void {
+    for (const h of this.cleanupHandlers) h();
+    this.cleanupHandlers = [];
     if (this.animHandle !== null) {
       cancelAnimationFrame(this.animHandle);
       this.animHandle = null;
@@ -362,5 +377,6 @@ export class BabylonEffectStageService {
     this.engine?.dispose();
     this.scene = null;
     this.engine = null;
+    this.camera = null;
   }
 }

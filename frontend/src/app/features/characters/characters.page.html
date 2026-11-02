@@ -1,11 +1,26 @@
 <div class="lw-page">
-  <lw-page-header title="Characters" subtitle="Create, level, and manage the characters in your campaign." icon="users" />
+  <lw-page-header title="Characters" subtitle="Create, level, and manage the characters in your campaign." icon="users">
+    <div pageActions class="lw-panel-action-row">
+      <lw-badge tone="neutral">{{ studio.accountTierLimitLabel() }}</lw-badge>
+      <lw-badge [tone]="store.activeCampaignAbilityRule() === 'roll_stats' ? 'gold' : 'emerald'">
+        Rule: {{ store.activeCampaignAbilityRule() === 'roll_stats' ? 'Dice Rolls (4d6 · 1 Reroll)' : 'Point Buy (27 Pts)' }}
+      </lw-badge>
+      @if (studio.viewMode() === 'creator') {
+        <lw-button variant="secondary" size="sm" (pressed)="studio.openSheetViewer()">Back to Character Sheet</lw-button>
+      } @else {
+        <lw-button variant="primary" size="sm" (pressed)="studio.startNewCharacterCreation()">Create Character</lw-button>
+      }
+    </div>
+  </lw-page-header>
 
   @if (studio.viewMode() === 'creator') {
     <lw-character-creator-wizard
       [campaignName]="store.activeCampaign().name"
       [isEditMode]="studio.isEditingCharacter()"
       [draft]="studio.creatorDraft()"
+      [abilityScoreRule]="store.activeCampaignAbilityRule()"
+      [campaignPlayers]="store.activeCampaignPlayers()"
+      [isGm]="store.isGmForActiveCampaign() && store.viewerRole() === 'gm'"
       [ancestryOptions]="studio.catalog.ancestries()"
       [classOptions]="studio.catalog.classes()"
       [backgroundOptions]="studio.catalog.backgrounds()"
@@ -16,6 +31,9 @@
       [(searchQuery)]="studio.ancestrySearchQuery"
       (draftPatched)="studio.updateCreatorDraft($event)"
       (abilityAdjusted)="studio.updateCreatorAbility($event.code, $event.delta)"
+      (rollStatSetRequested)="studio.rollCreatorAbilityStatSet()"
+      (keptRollSetSelected)="studio.selectKeptAbilityRollSet($event)"
+      (rolledAbilitiesSwapped)="studio.swapCreatorRolledAbilities($event.codeA, $event.codeB)"
       (skillToggled)="studio.toggleCreatorSkill($event)"
       (completed)="studio.finalizeWizardCharacter()"
       (closed)="studio.openSheetViewer()"
@@ -30,7 +48,7 @@
         [mentionableEntities]="studio.catalog.mentionableEntities()"
         [(activeTab)]="studio.activeSheetTab"
         (characterSelected)="studio.selectCharacter($event, true)"
-        (createCharacterRequested)="studio.openCreatorWizard()"
+        (createCharacterRequested)="studio.startNewCharacterCreation()"
         (editCharacterRequested)="studio.openCreatorWizard($event)"
         (levelUpRequested)="studio.executeLevelUp($event.featureName, $event.abilityCode)"
         (portraitChangeRequested)="studio.cyclePortrait()"
@@ -46,7 +64,11 @@
         (richNoteAdded)="studio.addRichCharacterNote($event)"
       />
     } @else {
-      <p>No character is available for this campaign.</p>
+      <div class="lw-radar-card">
+        <h3>No character assigned to you in this campaign yet.</h3>
+        <p>Click Create Character to launch the 8-step D&amp;D Beyond-style character creator.</p>
+        <lw-button variant="primary" (pressed)="studio.startNewCharacterCreation()">Create Character</lw-button>
+      </div>
     }
   }
 </div>

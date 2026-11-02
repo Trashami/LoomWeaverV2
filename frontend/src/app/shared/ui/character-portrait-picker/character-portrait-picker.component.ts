@@ -145,6 +145,14 @@ export class LwCharacterPortraitPickerComponent {
     const inputEl = event.target as HTMLInputElement | null;
     const file = inputEl?.files?.[0];
     if (!file) return;
+    const lowerName = file.name.toLowerCase();
+    if (lowerName.endsWith('.glb') || lowerName.endsWith('.gltf')) {
+      const objectUrl = `${URL.createObjectURL(file)}#custom.glb`;
+      this.portraitSelected.emit(objectUrl);
+      this.pickerOpen.set(false);
+      inputEl.value = '';
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string' && reader.result.length > 0) {

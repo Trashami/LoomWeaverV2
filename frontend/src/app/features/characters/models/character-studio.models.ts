@@ -171,6 +171,7 @@ export interface CharacterSheetVm {
   readonly characterKey: string;
   readonly ownerAccountId: string;
   readonly ownerUsername?: string;
+  readonly ownerDisplayName?: string;
   readonly campaignId: number;
   readonly name: string;
   readonly roleBadge: string;
@@ -304,6 +305,13 @@ export interface CharacterCreatorDraftVm {
   readonly bond?: string;
   readonly flaw?: string;
   readonly abilities: Readonly<Record<AbilityScoreVm['code'], number>>;
+  readonly assignedPlayerAccountId?: string;
+  readonly assignedPlayerUsername?: string;
+  readonly assignedPlayerDisplayName?: string;
+  readonly abilityRollSet1?: readonly [number, number, number, number, number, number];
+  readonly abilityRollSet2?: readonly [number, number, number, number, number, number];
+  readonly activeRollSetIndex?: 1 | 2;
+  readonly rerollUsed?: boolean;
 }
 
 export interface CampaignAdjustedRuleVm {

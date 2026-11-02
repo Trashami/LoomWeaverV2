@@ -3,6 +3,18 @@ export type AudienceVisibility = 'public' | 'players' | 'gm';
 export type CanonStatus = 'approved' | 'draft';
 export type AssetEntitlement = 'free' | 'included' | 'purchased' | 'locked';
 export type QualityProfile = 'Auto' | 'Cinematic' | 'Balanced' | 'Performance 3D' | 'Classic 2D';
+export type CampaignAbilityScoreRule = 'point_buy' | 'roll_stats';
+
+export interface CampaignPlayerMemberVm {
+  readonly accountId: string;
+  readonly username: string;
+  readonly displayName: string;
+  readonly email: string;
+  readonly role: 'gm' | 'players';
+  readonly joinedViaInvite: boolean;
+  readonly joinedAtLabel: string;
+  readonly assignedCharacterKey?: string;
+}
 
 export interface CampaignVm {
   readonly id: number;

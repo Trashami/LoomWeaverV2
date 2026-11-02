@@ -1,160 +1,407 @@
 <lw-page-header
-  [title]="dashboard().campaignName"
-  [subtitle]="dashboard().actTitle + ' · ' + dashboard().sessionBadgeLabel"
-  icon="map"
+  [title]="store.activeCampaign().name || dashboard().campaignName"
+  [subtitle]="(store.activeCampaign().currentAct || dashboard().actTitle) + ' · Session ' + (store.activeCampaign().currentSessionNumber || 3) + ' · ' + (isGm() ? 'Dungeon Master Campaign Console' : 'Player Campaign Hub')"
+  icon="landmark"
 >
   <div pageActions class="lw-home__actions">
-    <a routerLink="/loom" class="lw-link-reset lw-home__action">Plan next session</a>
-    <a routerLink="/weave" class="lw-link-reset lw-home__action">Open lore</a>
+    <lw-badge [tone]="abilityRule() === 'roll_stats' ? 'gold' : 'emerald'">
+      Ability Rule: {{ abilityRule() === 'roll_stats' ? 'Dice Rolls (4d6 Drop Lowest · 1 Reroll)' : 'Point Buy (27 Pts)' }}
+    </lw-badge>
+    <lw-badge tone="neutral">{{ studio.accountTierLimitLabel() }}</lw-badge>
+    <lw-button variant="primary" size="sm" (pressed)="createCharacterAndAssign()">
+      Create Character
+    </lw-button>
   </div>
 </lw-page-header>
 
-<div class="lw-home__columns">
-  <lw-panel title="Where you left off" [subtitle]="dashboard().lastActivityLabel">
-    @if (dashboard().narrativeSummary) {
-      <p class="lw-home__summary">{{ dashboard().narrativeSummary }}</p>
-    }
-    @if (dashboard().recentActivity.length) {
-      <ul class="lw-home__list">
-        @for (item of dashboard().recentActivity.slice(0, 5); track item.id) {
-          <li>
-            <button type="button" class="lw-home__row" (click)="openItem(item.routeLink, item.compositeKey)">
-              <strong>{{ item.title }}</strong>
-              <span>{{ item.description }}</span>
-              <span class="lw-home__meta">{{ item.entityType }} · {{ item.relativeTime }}</span>
-            </button>
-          </li>
-        }
-      </ul>
-    } @else {
-      <lw-create-placeholder
-        title="No activity yet"
-        hint="Recent changes to your world will appear here."
-        route="/create"
-      />
-    }
-  </lw-panel>
-
-  <lw-panel title="Next steps" [subtitle]="hasSessions() ? dashboard().upcomingSession.prepStatusLabel : 'No session scheduled'">
-    @if (hasSessions()) {
-      <div class="lw-home__session">
-        <strong>Session {{ dashboard().upcomingSession.sessionNumber }}: {{ dashboard().upcomingSession.title }}</strong>
-        <span class="lw-home__meta">
-          {{ dashboard().upcomingSession.scheduledDateLabel }}
-          @if (dashboard().upcomingSession.locationTitle) {
-            · {{ dashboard().upcomingSession.locationTitle }}
-          }
-        </span>
+<!-- SECTION 1: CAMPAIGN MANAGEMENT, INVITE URL, RULES & PARTY ROSTER -->
+<lw-panel
+  title="Campaign Management & Options"
+  [subtitle]="campaignPlayers().length + ' Players in Campaign · ' + campaignCharacters().length + ' Active Characters · Role-Scoped Table Management'"
+>
+  <!-- Invite URL & Campaign Rules Bar -->
+  <div class="lw-home__mgmt-grid">
+    <!-- Left: Working URL Invite & Add Player -->
+    <div class="lw-home__mgmt-card">
+      <div class="lw-home__mgmt-head">
+        <div>
+          <span class="lw-home__kicker">PLAYER INVITE LINK</span>
+          <h3 class="lw-home__card-title">Invite Players to Join via URL</h3>
+        </div>
+        <lw-badge tone="emerald">Active Invite Link</lw-badge>
       </div>
-      @if (openPrepItems().length) {
-        <h3 class="lw-home__heading">Prep to do</h3>
-        <ul class="lw-home__list">
-          @for (item of openPrepItems(); track item.id) {
-            <li>
-              <button type="button" class="lw-home__row" (click)="openItem(item.routeLink)">
-                <span>{{ item.label }}</span>
-              </button>
-            </li>
+      <p class="lw-home__card-copy">
+        Share this URL with your players. Anyone opening this link joins the campaign roster so the DM can assign or reassign their character.
+      </p>
+      <div class="lw-home__invite-row">
+        <input
+          type="text"
+          class="lw-home__invite-input"
+          [value]="store.activeCampaignInviteUrl()"
+          readonly
+          aria-label="Campaign Invite URL"
+        />
+        <lw-button variant="primary" size="sm" (pressed)="copyInviteUrl()">
+          {{ inviteCopied() ? 'Copied Link' : 'Copy Invite URL' }}
+        </lw-button>
+        @if (isGm()) {
+          <lw-button variant="secondary" size="sm" (pressed)="regenerateInviteUrl()">
+            New Link
+          </lw-button>
+        }
+      </div>
+
+      <!-- Add / Simulate Player Joined via Link -->
+      <div class="lw-home__add-player-bar">
+        <input
+          type="text"
+          class="lw-home__text-input"
+          placeholder="Player username (e.g. AlexVance)"
+          [ngModel]="newPlayerUsername()"
+          (ngModelChange)="newPlayerUsername.set($event)"
+        />
+        <input
+          type="text"
+          class="lw-home__text-input"
+          placeholder="Display name (optional)"
+          [ngModel]="newPlayerDisplayName()"
+          (ngModelChange)="newPlayerDisplayName.set($event)"
+        />
+        <lw-button variant="secondary" size="sm" (pressed)="addPlayerViaDashboard()">
+          Add Player to Campaign
+        </lw-button>
+      </div>
+    </div>
+
+    <!-- Right: GM Campaign Rules & Character Creation Options -->
+    <div class="lw-home__mgmt-card">
+      <div class="lw-home__mgmt-head">
+        <div>
+          <span class="lw-home__kicker">CAMPAIGN CHARACTER CREATION RULES</span>
+          <h3 class="lw-home__card-title">Ability Score Generation Method</h3>
+        </div>
+        <lw-badge [tone]="isGm() ? 'gold' : 'neutral'">{{ isGm() ? 'GM Rule Control' : 'Set by GM' }}</lw-badge>
+      </div>
+      <p class="lw-home__card-copy">
+        Configure how ability scores are generated in the Character Creation step process. When Dice Rolls is active, players roll a full set of 6 stats, may reroll once, and must keep one complete roll set.
+      </p>
+      <div class="lw-home__rules-toggle">
+        <button
+          type="button"
+          class="lw-home__rule-option"
+          [class.lw-home__rule-option--active]="abilityRule() === 'point_buy'"
+          [disabled]="!isGm()"
+          (click)="setAbilityScoreRule('point_buy')"
+        >
+          <div class="lw-home__rule-option-top">
+            <strong>Point Buy (27 Points)</strong>
+            <lw-badge [tone]="abilityRule() === 'point_buy' ? 'emerald' : 'neutral'">
+              {{ abilityRule() === 'point_buy' ? 'Active' : 'Select' }}
+            </lw-badge>
+          </div>
+          <span>Allocate 27 points across STR, DEX, CON, INT, WIS, and CHA (scores 8 to 15 before ancestry bonuses).</span>
+        </button>
+
+        <button
+          type="button"
+          class="lw-home__rule-option"
+          [class.lw-home__rule-option--active]="abilityRule() === 'roll_stats'"
+          [disabled]="!isGm()"
+          (click)="setAbilityScoreRule('roll_stats')"
+        >
+          <div class="lw-home__rule-option-top">
+            <strong>Dice Rolls (4d6 Drop Lowest · 1 Reroll)</strong>
+            <lw-badge [tone]="abilityRule() === 'roll_stats' ? 'gold' : 'neutral'">
+              {{ abilityRule() === 'roll_stats' ? 'Active' : 'Select' }}
+            </lw-badge>
+          </div>
+          <span>Roll 6 stats, reroll at most once, and choose which complete 6-stat roll set to keep (no mixing individual dice).</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Players Joined in Campaign Bar -->
+  <div class="lw-home__section-head">
+    <div>
+      <span class="lw-home__kicker">JOINED PLAYERS ({{ campaignPlayers().length }})</span>
+      <h3 class="lw-home__section-title">Players in Campaign & Character Assignments</h3>
+    </div>
+    <lw-button variant="primary" size="sm" (pressed)="createCharacterAndAssign()">
+      Create Character for Campaign
+    </lw-button>
+  </div>
+
+  <div class="lw-home__players-strip">
+    @for (player of campaignPlayers(); track player.accountId) {
+      @let assignedChar = assignedCharacterForPlayer(player);
+      <div class="lw-home__player-pill">
+        <div class="lw-home__player-info">
+          <div class="lw-home__player-name-row">
+            <strong>{{ player.displayName }}</strong>
+            <span class="lw-home__player-handle">@{{ player.username }}</span>
+            <lw-badge [tone]="player.role === 'gm' ? 'gold' : 'emerald'">
+              {{ player.role === 'gm' ? 'DM / GM' : 'Player' }}
+            </lw-badge>
+          </div>
+          <span class="lw-home__player-meta">
+            {{ player.joinedAtLabel }} ·
+            @if (assignedChar) {
+              Assigned: <strong>{{ assignedChar.name }}</strong>
+            } @else {
+              No character assigned yet
+            }
+          </span>
+        </div>
+        <div class="lw-home__player-actions">
+          @if (assignedChar) {
+            <a
+              class="lw-home__mini-link lw-link-reset"
+              [routerLink]="['/characters']"
+              [queryParams]="{ focus: assignedChar.characterKey }"
+            >
+              Sheet
+            </a>
+            <a
+              class="lw-home__mini-link lw-link-reset"
+              [routerLink]="['/statistics']"
+              [queryParams]="{ character: assignedChar.characterKey }"
+            >
+              Stats
+            </a>
           }
-        </ul>
-      }
-    } @else {
-      <lw-create-placeholder
-        title="Plan your first session"
-        hint="Sessions drive your prep list, timeline, and beats."
-        route="/create?intent=session-recap"
-      />
-    }
-
-    @if (unreadAlerts().length) {
-      <h3 class="lw-home__heading">Alerts</h3>
-      <ul class="lw-home__list">
-        @for (alert of unreadAlerts(); track alert.id) {
-          <li>
-            <div class="lw-home__alert">
-              <button type="button" class="lw-home__row" (click)="openItem(alert.routeLink)">
-                <strong>{{ alert.title }}</strong>
-                <span>{{ alert.description }}</span>
+          @if (isGm()) {
+            <button
+              type="button"
+              class="lw-home__mini-btn"
+              (click)="createCharacterAndAssign(player)"
+              title="Create a new character and assign to this player"
+            >
+              + Create & Assign
+            </button>
+            @if (player.role !== 'gm') {
+              <button
+                type="button"
+                class="lw-home__mini-btn lw-home__mini-btn--danger"
+                (click)="removePlayerFromCampaign(player)"
+                title="Remove player from campaign"
+              >
+                Remove
               </button>
-              <button type="button" class="lw-home__dismiss" (click)="acknowledgeAlert(alert)">Dismiss</button>
-            </div>
-          </li>
-        }
-      </ul>
-    }
-
-    @if (dashboard().activeQuests.length) {
-      <h3 class="lw-home__heading">Active quests</h3>
-      <ul class="lw-home__list">
-        @for (quest of dashboard().activeQuests; track quest.id) {
-          <li>
-            <button type="button" class="lw-home__row" (click)="openItem(quest.routeLink, quest.compositeKey)">
-              <strong>{{ quest.title }}</strong>
-              <span>{{ quest.summary }}</span>
-            </button>
-          </li>
-        }
-      </ul>
-    }
-
-    @if (openBeats().length) {
-      <h3 class="lw-home__heading">Open beats</h3>
-      <ul class="lw-home__checks">
-        @for (beat of openBeats(); track beat.id) {
-          <li>{{ beat.label }}</li>
-        }
-      </ul>
-    }
-  </lw-panel>
-
-  <lw-panel title="Completed work" [subtitle]="doneBeats().length + ' beats · ' + donePrepItems().length + ' prep items'">
-    @if (donePrepItems().length) {
-      <h3 class="lw-home__heading">Prep finished</h3>
-      <ul class="lw-home__checks">
-        @for (item of donePrepItems(); track item.id) {
-          <li>{{ item.label }}</li>
-        }
-      </ul>
-    }
-    @if (doneBeats().length) {
-      <h3 class="lw-home__heading">Beats played</h3>
-      <ul class="lw-home__checks">
-        @for (beat of doneBeats(); track beat.id) {
-          <li>{{ beat.label }}</li>
-        }
-      </ul>
-    }
-    @if (dashboard().recentNotes.length) {
-      <h3 class="lw-home__heading">Recent notes</h3>
-      <ul class="lw-home__list">
-        @for (note of dashboard().recentNotes.slice(0, 5); track note.id) {
-          <li>
-            <button type="button" class="lw-home__row" (click)="openItem(note.routeLink, note.compositeKey)">
-              <strong>{{ note.title }}</strong>
-              <span>{{ note.excerpt }}</span>
-              <span class="lw-home__meta">{{ note.relativeTime }}</span>
-            </button>
-          </li>
-        }
-      </ul>
-    }
-    @if (!donePrepItems().length && !doneBeats().length && !dashboard().recentNotes.length) {
-      <lw-create-placeholder
-        title="Nothing completed yet"
-        hint="Finish prep items and play beats to see your progress here."
-        route="/create"
-      />
-    }
-  </lw-panel>
-</div>
-
-<lw-panel title="World map" subtitle="Every area of your campaign. Start anywhere.">
-  <div class="lw-home__map">
-    @for (tile of worldMapTiles; track tile.route) {
-      <a class="lw-home__tile lw-link-reset" [routerLink]="tile.route">
-        <strong>{{ tile.label }}</strong>
-        <span>{{ tile.hint }}</span>
-      </a>
+            }
+          }
+        </div>
+      </div>
     }
   </div>
+
+  <!-- Campaign Characters Roster Grid (Assign Player, Sheet Link, Stats Link, Remove Character) -->
+  <div class="lw-home__section-head">
+    <div>
+      <span class="lw-home__kicker">CAMPAIGN CHARACTER ROSTER ({{ campaignCharacters().length }})</span>
+      <h3 class="lw-home__section-title">Active Characters, Player Assignments & Telemetry Links</h3>
+    </div>
+    <a routerLink="/characters" class="lw-home__action lw-link-reset">Open Character Studio</a>
+  </div>
+
+  @if (campaignCharacters().length > 0) {
+    <div class="lw-home__char-grid">
+      @for (char of campaignCharacters(); track char.characterKey) {
+        <article class="lw-home__char-card">
+          <div class="lw-home__char-top">
+            <img
+              [src]="char.portraitUrl"
+              [alt]="char.name"
+              class="lw-home__char-avatar"
+              onerror="this.src='/assets/5e-tools/races/PHB/Human.webp'"
+            />
+            <div class="lw-home__char-identity">
+              <div class="lw-home__char-title-row">
+                <h4>{{ char.name }}</h4>
+                <lw-badge tone="gold">Lv.{{ char.level }}</lw-badge>
+              </div>
+              <p class="lw-home__char-sub">{{ char.subrace || char.ancestryOrClan }} · {{ char.classOrArchetype }}</p>
+              <div class="lw-home__char-vitals">
+                <span>HP {{ char.currentHp }}/{{ char.maxHp }}</span>
+                <span>AC {{ char.armorClass }}</span>
+                <span>Init {{ char.initiativeBonus >= 0 ? '+' + char.initiativeBonus : char.initiativeBonus }}</span>
+                <span>Spd {{ char.speedFeet }} ft</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- DM Player Assignment Dropdown -->
+          <div class="lw-home__assign-row">
+            <label class="lw-home__assign-label" [for]="'assign-' + char.characterKey">Assigned Player:</label>
+            @if (isGm()) {
+              <select
+                [id]="'assign-' + char.characterKey"
+                class="lw-home__assign-select"
+                [ngModel]="char.ownerUsername || ''"
+                (ngModelChange)="onAssignCharacterToPlayer(char, $event)"
+              >
+                <option value="">Unassigned (GM Pool)</option>
+                @for (p of campaignPlayers(); track p.accountId) {
+                  <option [value]="p.username">{{ p.displayName }} (@{{ p.username }})</option>
+                }
+              </select>
+            } @else {
+              <span class="lw-home__assigned-Readonly">
+                {{ char.ownerDisplayName || char.ownerUsername || 'Party Member' }}
+              </span>
+            }
+          </div>
+
+          <!-- Character Sheet, Stats Page, Edit, and Remove Actions -->
+          <div class="lw-home__char-actions">
+            <a
+              class="lw-home__char-link lw-home__char-link--primary lw-link-reset"
+              [routerLink]="['/characters']"
+              [queryParams]="{ focus: char.characterKey }"
+            >
+              Character Sheet
+            </a>
+            <a
+              class="lw-home__char-link lw-link-reset"
+              [routerLink]="['/statistics']"
+              [queryParams]="{ character: char.characterKey }"
+            >
+              Character Stats
+            </a>
+            <button
+              type="button"
+              class="lw-home__char-btn"
+              (click)="editCharacterInWizard(char)"
+            >
+              Edit
+            </button>
+            @if (isGm()) {
+              <button
+                type="button"
+                class="lw-home__char-btn lw-home__char-btn--danger"
+                (click)="removeCharacterFromCampaign(char)"
+              >
+                Remove
+              </button>
+            }
+          </div>
+        </article>
+      }
+    </div>
+  } @else {
+    <div class="lw-home__empty-roster">
+      <p>No characters are assigned to this campaign yet.</p>
+      <lw-button variant="primary" size="md" (pressed)="createCharacterAndAssign()">
+        Create First Campaign Character
+      </lw-button>
+    </div>
+  }
 </lw-panel>
+
+<!-- SECTION 2: SESSIONS, ENCOUNTERS, AND QUESTS CONTAINERS -->
+<div class="lw-home__containers">
+  <!-- Container 1: Sessions -->
+  <lw-panel
+    title="Sessions"
+    [subtitle]="campaignSessions().length + ' Campaign Sessions · Chronicle & Live Prep'"
+  >
+    <div class="lw-home__container-head-links">
+      <a routerLink="/sessions" class="lw-home__container-link lw-link-reset">All Sessions</a>
+      <a routerLink="/loom" class="lw-home__container-link lw-link-reset">Open in The Loom</a>
+    </div>
+    <ul class="lw-home__container-list">
+      @for (session of campaignSessions(); track session.sessionId) {
+        <li class="lw-home__container-card">
+          <div class="lw-home__container-card-top">
+            <strong>Session {{ session.sessionNumber }}: {{ session.title }}</strong>
+            <lw-badge [tone]="session.status === 'upcoming' ? 'gold' : session.status === 'active' ? 'emerald' : 'neutral'">
+              {{ session.statusLabel }}
+            </lw-badge>
+          </div>
+          <span class="lw-home__container-meta">{{ session.locationLabel }}</span>
+          @if (session.summary) {
+            <p class="lw-home__container-summary">{{ session.summary }}</p>
+          }
+          <div class="lw-home__container-actions">
+            <a
+              routerLink="/sessions"
+              class="lw-home__mini-link lw-link-reset"
+              (click)="store.setActiveSession(session.sessionId)"
+            >
+              Open Session
+            </a>
+            <a
+              routerLink="/loom"
+              class="lw-home__mini-link lw-link-reset"
+              (click)="store.setActiveSession(session.sessionId)"
+            >
+              Session Memory
+            </a>
+          </div>
+        </li>
+      }
+    </ul>
+  </lw-panel>
+
+  <!-- Container 2: Encounters -->
+  <lw-panel
+    title="Encounters"
+    [subtitle]="campaignEncounters().length + ' Tactical Encounters · Builder & Live VTT'"
+  >
+    <div class="lw-home__container-head-links">
+      <a routerLink="/encounters" class="lw-home__container-link lw-link-reset">Encounter Builder</a>
+      <a routerLink="/arcane-screen" class="lw-home__container-link lw-link-reset">Arcane Screen VTT</a>
+    </div>
+    <ul class="lw-home__container-list">
+      @for (enc of campaignEncounters(); track enc.id) {
+        <li class="lw-home__container-card">
+          <div class="lw-home__container-card-top">
+            <strong>{{ enc.title }}</strong>
+            <lw-badge tone="crimson">{{ enc.difficultyLabel }}</lw-badge>
+          </div>
+          <span class="lw-home__container-meta">{{ enc.locationLabel }} · {{ enc.statusLabel }}</span>
+          <p class="lw-home__container-summary">{{ enc.combatantsSummary }}</p>
+          <div class="lw-home__container-actions">
+            <a [routerLink]="enc.builderRoute" class="lw-home__mini-link lw-link-reset">
+              Edit Encounter
+            </a>
+            <a [routerLink]="enc.vttRoute" class="lw-home__mini-link lw-home__mini-link--emerald lw-link-reset">
+              Launch VTT
+            </a>
+          </div>
+        </li>
+      }
+    </ul>
+  </lw-panel>
+
+  <!-- Container 3: Quests -->
+  <lw-panel
+    title="Quests"
+    [subtitle]="campaignQuests().length + ' Active Threads · Objectives & Lore Clues'"
+  >
+    <div class="lw-home__container-head-links">
+      <a routerLink="/campaigns" class="lw-home__container-link lw-link-reset">Quests & Story</a>
+      <a routerLink="/world-lore" class="lw-home__container-link lw-link-reset">World & Lore</a>
+    </div>
+    <ul class="lw-home__container-list">
+      @for (quest of campaignQuests(); track quest.id) {
+        <li class="lw-home__container-card">
+          <div class="lw-home__container-card-top">
+            <strong>{{ quest.title }}</strong>
+            <lw-badge tone="gold">{{ quest.categoryLabel }}</lw-badge>
+          </div>
+          <span class="lw-home__container-meta">Status: {{ quest.statusLabel }}</span>
+          <p class="lw-home__container-summary">{{ quest.summary }}</p>
+          <div class="lw-home__container-actions">
+            <a [routerLink]="quest.routeLink" class="lw-home__mini-link lw-link-reset">
+              Open Quest Thread
+            </a>
+            <a routerLink="/handouts" class="lw-home__mini-link lw-link-reset">
+              Clues & Handouts
+            </a>
+          </div>
+        </li>
+      }
+    </ul>
+  </lw-panel>
+</div>

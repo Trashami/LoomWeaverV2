@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
 import {
+  LwBadgeComponent,
+  LwButtonComponent,
   LwCharacterCreatorWizardComponent,
   LwCharacterSheetViewComponent,
   LwPageHeaderComponent,
@@ -12,7 +14,13 @@ import { CharacterStudioService } from './services/character-studio.service';
 @Component({
   selector: 'lw-characters-page',
   standalone: true,
-  imports: [LwCharacterCreatorWizardComponent, LwCharacterSheetViewComponent, LwPageHeaderComponent],
+  imports: [
+    LwBadgeComponent,
+    LwButtonComponent,
+    LwCharacterCreatorWizardComponent,
+    LwCharacterSheetViewComponent,
+    LwPageHeaderComponent,
+  ],
   templateUrl: './characters.page.html',
   styleUrl: './characters.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

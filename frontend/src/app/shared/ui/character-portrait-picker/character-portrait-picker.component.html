@@ -112,18 +112,18 @@
     >
       <div class="lw-portrait-stage__overlay-head">
         <div>
-          <h3>Character Image</h3>
-          <p>Upload your own portrait or select from 5e-Tools and 3D character models.</p>
+          <h3>Character Portrait, Token &amp; 3D Model</h3>
+          <p>Upload an image, token, or .glb 3D file, or select from 5e-Tools and 3D character libraries.</p>
         </div>
         <label class="lw-portrait-stage__upload-btn">
           <input
             type="file"
-            accept="image/*"
+            accept="image/*,.glb,.gltf"
             class="lw-portrait-stage__file-input"
             (change)="onFileSelected($event)"
           />
           <lw-icon name="upload" [size]="13" />
-          <span>Upload Image</span>
+          <span>Upload Image / Token / .GLB</span>
         </label>
       </div>
 

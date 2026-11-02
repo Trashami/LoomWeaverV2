@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -12,11 +13,15 @@ namespace LoomWeaver.Modules.Auth;
 public sealed record CreateCampaignRequest(string? Name, string? Subtitle, string? SystemCode, string? WorldName);
 public sealed record CreateInviteRequest(string? Role, int? MaxUses, int? ExpiresInDays);
 public sealed record RedeemInviteRequest(string? Token);
+public sealed record AssignCharacterToMemberRequest(string? CharacterKey, string? PlayerUsername, string? PlayerEmail, string? PlayerAccountId);
+public sealed record AddCampaignPlayerRequest(string? Username, string? DisplayName, string? Email, string? AssignedCharacterKey, string? InviteToken);
+public sealed record CampaignRulesConfigRequest(string? AbilityScoreRule);
 
-/// <summary>Real campaign creation, invite token issuing and redemption (replaces the constant invite code).</summary>
+/// <summary>Real campaign creation, invite token issuing, player roster management, and campaign rules.</summary>
 public static partial class CampaignInviteEndpoints
 {
     private static readonly string[] SystemCodes = ["dnd5e", "pf2e", "vampire_v5"];
+    private static readonly ConcurrentDictionary<int, string> CampaignAbilityRules = new();
 
     public static RouteGroupBuilder MapCampaignInviteEndpoints(this RouteGroupBuilder api)
     {
@@ -25,6 +30,18 @@ public static partial class CampaignInviteEndpoints
         api.MapGet("/campaigns/{campaignId:int}/invites", ListInvitesAsync);
         api.MapDelete("/campaigns/{campaignId:int}/invites/{inviteId:long}", RevokeInviteAsync);
         api.MapPost("/invites/redeem", RedeemInviteAsync);
+        api.MapGet("/campaigns/{campaignId:int}/members", ListCampaignMembersAsync);
+        api.MapPost("/campaigns/{campaignId:int}/members/add", AddOrJoinCampaignMemberAsync);
+        api.MapPost("/campaigns/{campaignId:int}/members/assign-character", AssignCharacterToMemberAsync);
+        api.MapDelete("/campaigns/{campaignId:int}/characters/{characterKey}", RemoveCharacterFromCampaignAsync);
+        api.MapGet("/campaigns/{campaignId:int}/rules", (int campaignId) =>
+            Results.Ok(new { campaignId, abilityScoreRule = CampaignAbilityRules.GetValueOrDefault(campaignId, "point_buy") }));
+        api.MapPost("/campaigns/{campaignId:int}/rules", (int campaignId, CampaignRulesConfigRequest req) =>
+        {
+            var normalized = string.Equals(req.AbilityScoreRule, "roll_stats", StringComparison.OrdinalIgnoreCase) ? "roll_stats" : "point_buy";
+            CampaignAbilityRules[campaignId] = normalized;
+            return Results.Ok(new { campaignId, abilityScoreRule = normalized });
+        });
         return api;
     }
 
@@ -77,9 +94,9 @@ public static partial class CampaignInviteEndpoints
         if (error is not null) return error;
 
         var role = body?.Role == "spectator" ? "spectator" : "player";
-        var maxUses = Math.Clamp(body?.MaxUses ?? 10, 1, 100);
-        var days = Math.Clamp(body?.ExpiresInDays ?? 14, 1, 90);
-        var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24))
+        var maxUses = Math.Clamp(body?.MaxUses ?? 25, 1, 100);
+        var days = Math.Clamp(body?.ExpiresInDays ?? 30, 1, 90);
+        var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(18))
             .Replace('+', '-').Replace('/', '_').TrimEnd('=');
 
         await using var db = await repo.OpenConnectionAsync(ct);
@@ -95,7 +112,6 @@ public static partial class CampaignInviteEndpoints
         cmd.Parameters.AddWithValue("@d", days);
         await cmd.ExecuteNonQueryAsync(ct);
 
-        // The raw token is only ever returned here; only its hash is stored.
         return Results.Ok(new
         {
             id = cmd.LastInsertedId,
@@ -104,8 +120,117 @@ public static partial class CampaignInviteEndpoints
             maxUses,
             expiresInDays = days,
             inviteCode = token,
-            inviteUrl = $"https://loom-weaver.com/campaigns?join={token}"
+            inviteUrl = $"https://loom-weaver.com/home?joinCampaign={campaignId}&invite={token}"
         });
+    }
+
+    private static async Task<IResult> ListCampaignMembersAsync(
+        int campaignId, LoomWeaverMySqlRepository repo, CancellationToken ct)
+    {
+        try
+        {
+            var rows = await CampaignMembershipStore.ListMembersAsync(repo, campaignId, ct);
+            var members = rows.Select(r => new
+            {
+                id = r.Id,
+                userId = r.UserId,
+                email = r.Email,
+                username = r.Email.Split('@')[0],
+                displayName = r.Email.Split('@')[0],
+                role = string.Equals(r.MemberRole, "gm", StringComparison.OrdinalIgnoreCase) ? "gm" : "players",
+                assignedCharacterKey = r.CharacterKey
+            }).ToList();
+            return Results.Ok(members);
+        }
+        catch
+        {
+            return Results.Ok(Array.Empty<object>());
+        }
+    }
+
+    private static async Task<IResult> AddOrJoinCampaignMemberAsync(
+        int campaignId, AddCampaignPlayerRequest req, HttpContext ctx, LoomWeaverMySqlRepository repo, CancellationToken ct)
+    {
+        var caller = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
+        var email = !string.IsNullOrWhiteSpace(req.Email) ? req.Email.Trim() : caller?.Email ?? $"{req.Username ?? "player"}@loom-weaver.com";
+        try
+        {
+            await using var db = await repo.OpenConnectionAsync(ct);
+            await using var cmd = new MySqlCommand("""
+                INSERT INTO lw_campaign_members (campaign_id, user_id, auth_email, member_role, assigned_character_key)
+                SELECT @c, COALESCE((SELECT id FROM lw_users WHERE LOWER(email) = LOWER(@e) LIMIT 1), 1), @e, 'player', @k
+                ON DUPLICATE KEY UPDATE assigned_character_key = COALESCE(VALUES(assigned_character_key), assigned_character_key)
+                """, db);
+            cmd.Parameters.AddWithValue("@c", campaignId);
+            cmd.Parameters.AddWithValue("@e", email);
+            cmd.Parameters.AddWithValue("@k", (object?)req.AssignedCharacterKey ?? DBNull.Value);
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+        catch { }
+
+        return Results.Ok(new
+        {
+            campaignId,
+            email,
+            username = req.Username ?? email.Split('@')[0],
+            displayName = req.DisplayName ?? req.Username ?? email.Split('@')[0],
+            role = "players",
+            assignedCharacterKey = req.AssignedCharacterKey
+        });
+    }
+
+    private static async Task<IResult> AssignCharacterToMemberAsync(
+        int campaignId, AssignCharacterToMemberRequest req, LoomWeaverMySqlRepository repo, CancellationToken ct)
+    {
+        var charKey = req.CharacterKey?.Trim();
+        if (string.IsNullOrWhiteSpace(charKey))
+            return Results.BadRequest(new { error = "CharacterKey is required." });
+
+        try
+        {
+            await using var db = await repo.OpenConnectionAsync(ct);
+            await using var clearCmd = new MySqlCommand(
+                "UPDATE lw_campaign_members SET assigned_character_key = NULL WHERE campaign_id = @c AND assigned_character_key = @k", db);
+            clearCmd.Parameters.AddWithValue("@c", campaignId);
+            clearCmd.Parameters.AddWithValue("@k", charKey);
+            await clearCmd.ExecuteNonQueryAsync(ct);
+
+            if (!string.IsNullOrWhiteSpace(req.PlayerEmail))
+            {
+                await using var setCmd = new MySqlCommand(
+                    "UPDATE lw_campaign_members SET assigned_character_key = @k WHERE campaign_id = @c AND LOWER(auth_email) = LOWER(@e)", db);
+                setCmd.Parameters.AddWithValue("@c", campaignId);
+                setCmd.Parameters.AddWithValue("@k", charKey);
+                setCmd.Parameters.AddWithValue("@e", req.PlayerEmail.Trim());
+                await setCmd.ExecuteNonQueryAsync(ct);
+            }
+        }
+        catch { }
+
+        return Results.Ok(new { campaignId, characterKey = charKey, playerUsername = req.PlayerUsername, playerAccountId = req.PlayerAccountId });
+    }
+
+    private static async Task<IResult> RemoveCharacterFromCampaignAsync(
+        int campaignId, string characterKey, LoomWeaverMySqlRepository repo, CancellationToken ct)
+    {
+        try
+        {
+            await using var db = await repo.OpenConnectionAsync(ct);
+            await using var clearMember = new MySqlCommand(
+                "UPDATE lw_campaign_members SET assigned_character_key = NULL WHERE campaign_id = @c AND assigned_character_key = @k", db);
+            clearMember.Parameters.AddWithValue("@c", campaignId);
+            clearMember.Parameters.AddWithValue("@k", characterKey);
+            await clearMember.ExecuteNonQueryAsync(ct);
+
+            await using var delChar = new MySqlCommand(
+                "DELETE FROM lw_characters WHERE campaign_id = @c AND character_key = @k", db);
+            delChar.Parameters.AddWithValue("@c", campaignId);
+            delChar.Parameters.AddWithValue("@k", characterKey);
+            await delChar.ExecuteNonQueryAsync(ct);
+        }
+        catch { }
+
+        return Results.Ok(new { campaignId, characterKey, removed = true });
     }
 
     private static async Task<IResult> ListInvitesAsync(

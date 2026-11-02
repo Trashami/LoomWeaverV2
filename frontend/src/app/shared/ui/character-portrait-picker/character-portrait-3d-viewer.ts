@@ -143,12 +143,14 @@ export class LwCharacterPortrait3dViewer {
 
     this.clearCharacterMeshes();
 
-    const lastSlash = glbUrl.lastIndexOf('/');
-    const rootUrl = lastSlash >= 0 ? glbUrl.slice(0, lastSlash + 1) : '';
-    const fileName = lastSlash >= 0 ? glbUrl.slice(lastSlash + 1) : glbUrl;
+    const cleanGlbUrl = glbUrl.replace(/#custom\.(glb|gltf)$/i, '');
+    const isBlobOrData = cleanGlbUrl.startsWith('blob:') || cleanGlbUrl.startsWith('data:');
+    const lastSlash = isBlobOrData ? -1 : cleanGlbUrl.lastIndexOf('/');
+    const rootUrl = lastSlash >= 0 ? cleanGlbUrl.slice(0, lastSlash + 1) : '';
+    const fileName = lastSlash >= 0 ? cleanGlbUrl.slice(lastSlash + 1) : cleanGlbUrl;
 
     try {
-      const result = await SceneLoader.ImportMeshAsync('', rootUrl, fileName, this.scene);
+      const result = await SceneLoader.ImportMeshAsync('', rootUrl, fileName, this.scene, undefined, '.glb');
       if (seq !== this.loadSeq || !this.scene) {
         result.meshes.forEach((m) => m.dispose());
         return;

@@ -10,6 +10,10 @@ import {
 import { FormsModule } from '@angular/forms';
 import { NgpButton } from 'ng-primitives/button';
 import {
+  CampaignAbilityScoreRule,
+  CampaignPlayerMemberVm,
+} from '../../../core/models/loomweaver.models';
+import {
   ALL_DND5E_SKILLS,
   CREATOR_ANCESTRIES,
   CREATOR_BACKGROUNDS,
@@ -58,6 +62,9 @@ export class LwCharacterCreatorWizardComponent {
   readonly campaignName = input<string>('Your Campaign');
   readonly isEditMode = input<boolean>(false);
   readonly draft = input.required<CharacterCreatorDraftVm>();
+  readonly abilityScoreRule = input<CampaignAbilityScoreRule>('point_buy');
+  readonly campaignPlayers = input<readonly CampaignPlayerMemberVm[]>([]);
+  readonly isGm = input<boolean>(false);
   readonly ancestryOptions = input<readonly CreatorAncestryOptionVm[]>(CREATOR_ANCESTRIES);
   readonly classOptions = input<readonly CreatorClassOptionVm[]>(CREATOR_CLASSES);
   readonly backgroundOptions = input<readonly CreatorBackgroundOptionVm[]>(CREATOR_BACKGROUNDS);
@@ -70,6 +77,12 @@ export class LwCharacterCreatorWizardComponent {
 
   readonly draftPatched = output<Partial<CharacterCreatorDraftVm>>();
   readonly abilityAdjusted = output<{ code: AbilityScoreVm['code']; delta: number }>();
+  readonly rollStatSetRequested = output<void>();
+  readonly keptRollSetSelected = output<1 | 2>();
+  readonly rolledAbilitiesSwapped = output<{
+    codeA: AbilityScoreVm['code'];
+    codeB: AbilityScoreVm['code'];
+  }>();
   readonly skillToggled = output<string>();
   readonly completed = output<void>();
   readonly closed = output<void>();
@@ -81,9 +94,10 @@ export class LwCharacterCreatorWizardComponent {
   readonly featSearchQuery = signal<string>('');
   readonly equipmentSearchQuery = signal<string>('');
   readonly equipmentCategoryFilter = signal<'All' | 'Weapon' | 'Armor' | 'Focus' | 'Gear'>('All');
+  readonly swapSourceAbility = signal<AbilityScoreVm['code'] | null>(null);
 
   readonly steps: readonly LwCreatorWizardStepVm[] = [
-    { stepNumber: 1, id: 'ancestry', label: 'Ancestry' },
+    { stepNumber: 1, id: 'ancestry', label: 'Identity & Ancestry' },
     { stepNumber: 2, id: 'class', label: 'Class' },
     { stepNumber: 3, id: 'background', label: 'Background' },
     { stepNumber: 4, id: 'abilities', label: 'Abilities' },
@@ -193,7 +207,9 @@ export class LwCharacterCreatorWizardComponent {
 
   readonly selectedFeat = computed<CreatorFeatOptionVm>(
     () =>
-      this.featOptions().find((f) => f.id === this.draft().selectedFeatId || f.name === this.draft().selectedFeatId) ??
+      this.featOptions().find(
+        (f) => f.id === this.draft().selectedFeatId || f.name === this.draft().selectedFeatId,
+      ) ??
       this.featOptions()[0] ??
       CREATOR_FEATS[0],
   );
@@ -229,12 +245,16 @@ export class LwCharacterCreatorWizardComponent {
   });
 
   readonly characterLevel = computed<number>(() => Math.max(1, this.draft().level ?? 1));
-  readonly proficiencyBonus = computed<number>(() => 2 + Math.floor((this.characterLevel() - 1) / 4));
+  readonly proficiencyBonus = computed<number>(
+    () => 2 + Math.floor((this.characterLevel() - 1) / 4),
+  );
   readonly basePointBuyBudget = 27;
   readonly levelUpAsiPoints = computed<number>(() =>
     calculateLevelUpAsiPoints(this.characterLevel(), this.selectedClass().id),
   );
-  readonly totalPointBudget = computed<number>(() => this.basePointBuyBudget + this.levelUpAsiPoints());
+  readonly totalPointBudget = computed<number>(
+    () => this.basePointBuyBudget + this.levelUpAsiPoints(),
+  );
   readonly pointsUsed = computed<number>(() => calculatePointBuySpent(this.draft().abilities));
   readonly pointsRemaining = computed<number>(() => this.totalPointBudget() - this.pointsUsed());
 
@@ -299,6 +319,50 @@ export class LwCharacterCreatorWizardComponent {
     return mod + prof;
   }
 
+  assignDraftToPlayer(username: string): void {
+    const p = this.campaignPlayers().find(
+      (m) => m.username.toLowerCase() === username.toLowerCase(),
+    );
+    this.draftPatched.emit({
+      assignedPlayerAccountId: p?.accountId,
+      assignedPlayerUsername: p?.username,
+      assignedPlayerDisplayName: p?.displayName,
+    });
+  }
+
+  onQuickFileUpload(event: Event): void {
+    const inputEl = event.target as HTMLInputElement;
+    const file = inputEl.files?.[0];
+    if (!file) return;
+    const is3d = /\.(glb|gltf)$/i.test(file.name);
+    if (is3d) {
+      const objectUrl = URL.createObjectURL(file);
+      this.selectPortrait(`${objectUrl}#.glb`);
+      inputEl.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        this.selectPortrait(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+    inputEl.value = '';
+  }
+
+  onSwapAbilityClicked(code: AbilityScoreVm['code']): void {
+    const current = this.swapSourceAbility();
+    if (!current) {
+      this.swapSourceAbility.set(code);
+      return;
+    }
+    if (current !== code) {
+      this.rolledAbilitiesSwapped.emit({ codeA: current, codeB: code });
+    }
+    this.swapSourceAbility.set(null);
+  }
+
   selectAncestry(ancestry: CreatorAncestryOptionVm): void {
     const defaultSub = ancestry.subraces[0];
     this.draftPatched.emit({
@@ -327,7 +391,9 @@ export class LwCharacterCreatorWizardComponent {
   }
 
   selectBackground(bg: CreatorBackgroundOptionVm): void {
-    const mergedSkills = Array.from(new Set([...this.draft().selectedSkills, ...bg.skillProficiencies]));
+    const mergedSkills = Array.from(
+      new Set([...this.draft().selectedSkills, ...bg.skillProficiencies]),
+    );
     this.draftPatched.emit({
       backgroundId: bg.id,
       quote: bg.defaultQuote,

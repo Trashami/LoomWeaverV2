@@ -11,18 +11,18 @@ import {
   MeshBuilder,
   MeshoptCompression,
   PointLight,
-  PointerEventTypes,
   Scene,
   StandardMaterial,
   Texture,
   Vector3,
 } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
+import { EffectTimelinePresetVm, VttTokenVm } from './effect-timeline.contract';
 import {
-  EffectTimelinePresetVm,
-  VttTokenVm,
-} from './effect-timeline.contract';
-import { TokenDragController, TokenPlacement } from './token-drag-controller';
+  TokenDragController,
+  TokenPlacement,
+  TokenRightClickEvent,
+} from './token-drag-controller';
 import { BabylonFogPlane } from './babylon-fog-plane';
 import {
   BabylonVttMapSceneBuilder,
@@ -31,21 +31,21 @@ import {
 import { BabylonTokenMeshBuilder } from './babylon-token-mesh.builder';
 import { BabylonFxTrajectoryPlayer } from './babylon-fx-trajectory.player';
 import { MapSceneGraphState } from '../../maps/engine/map-scene-contract';
-import { GlbModelCache } from '../../maps/engine/rendering/glb-model-cache';
-import { TerrainMeshBuilder } from '../../maps/engine/terrain/terrain-mesh.builder';
-import { WaterChannelTerrain } from '../../maps/engine/water/water-channel-terrain';
-import { WaterSplineBuilder } from '../../maps/engine/water/water-spline.builder';
 import { SceneLightingController } from '../../maps/engine/lighting/scene-lighting.controller';
-import { SeededScatterEngine } from '../../maps/engine/scatter/seeded-scatter.engine';
 import { WallMeshBuilder } from '../../maps/engine/walls/wall-mesh.builder';
-import { PathRibbonEngine } from '../../maps/engine/paths/path-ribbon.engine';
 import { StampSceneBuilder } from '../../maps/engine/rendering/stamp-scene.builder';
+import {
+  attach2dTopDownPanningObserver,
+  clear3dMapSceneGraph,
+  createFlatGridLineSystem,
+  isMapSceneGraphStatePayload,
+  restoreCameraAfterTokenDrag,
+  sync3dMapSceneGraph,
+} from './babylon-vtt-3d-scene-graph.helper';
 
 if (typeof window !== 'undefined') {
   MeshoptCompression.Configuration = {
-    decoder: {
-      url: '/assets/object-library/meshopt_decoder.js',
-    },
+    decoder: { url: '/assets/object-library/meshopt_decoder.js' },
   };
 }
 
@@ -57,6 +57,7 @@ export class BabylonEffectStageService {
   private fogPlane: BabylonFogPlane | null = null;
   private readonly draggedSubject = new Subject<TokenPlacement>();
   private readonly droppedSubject = new Subject<TokenPlacement>();
+  private readonly rightClickedSubject = new Subject<TokenRightClickEvent>();
   private cleanupHandlers: (() => void)[] = [];
   private ground: Mesh | null = null;
   private groundMat: StandardMaterial | null = null;
@@ -79,8 +80,6 @@ export class BabylonEffectStageService {
   private readonly mapSceneBuilder = new BabylonVttMapSceneBuilder();
   private readonly tokenBuilder = new BabylonTokenMeshBuilder();
   private readonly fxPlayer = new BabylonFxTrajectoryPlayer();
-
-  /** Defaults to true so the battlemap always opens in 2D top-down mode unless switched to 3D. */
   private isForcedTopDown = true;
 
   camera: ArcRotateCamera | null = null;
@@ -90,6 +89,7 @@ export class BabylonEffectStageService {
   readonly reducedMotion = signal<boolean>(false);
   readonly tokenDragged: Observable<TokenPlacement> = this.draggedSubject.asObservable();
   readonly tokenDropped: Observable<TokenPlacement> = this.droppedSubject.asObservable();
+  readonly tokenRightClicked: Observable<TokenRightClickEvent> = this.rightClickedSubject.asObservable();
 
   resize(): void {
     this.engine?.resize();
@@ -140,28 +140,11 @@ export class BabylonEffectStageService {
     this.groundMat.emissiveColor = new Color3(0.24, 0.24, 0.24);
   }
 
-  private isMapSceneGraphState(obj: unknown): obj is MapSceneGraphState {
-    if (!obj || typeof obj !== 'object') return false;
-    const rec = obj as Record<string, unknown>;
-    if (typeof rec['biome'] === 'string' && typeof rec['terrainRelief'] === 'number') return true;
-    if (Array.isArray(rec['waterSplines']) || Array.isArray(rec['customElevations'])) return true;
-    if (typeof rec['floorAlbedoUrl'] === 'string') return true;
-    if (
-      Array.isArray(rec['walls']) &&
-      rec['walls'].some((w) => w && typeof w === 'object' && Array.isArray((w as Record<string, unknown>)['points']))
-    ) {
-      return true;
-    }
-    return false;
-  }
-
   private schedule3dSceneResync(): void {
     if (this.resyncTimer !== null) return;
     this.resyncTimer = setTimeout(() => {
       this.resyncTimer = null;
-      if (this.scene && this.last3dSceneState) {
-        this.sync3dSceneGraph(this.last3dSceneState);
-      }
+      if (this.scene && this.last3dSceneState) this.sync3dSceneGraph(this.last3dSceneState);
     }, 150);
   }
 
@@ -169,110 +152,16 @@ export class BabylonEffectStageService {
     if (!this.scene) return;
     this.last3dSceneState = state;
     this.has3dSceneLoaded.set(true);
-
-    if (this.ground) {
-      this.ground.isVisible = false;
-      this.ground.isPickable = false;
-    }
-
-    this.scene.getLightByName('lw-vtt-hemi')?.setEnabled(false);
-    this.scene.getLightByName('lw-vtt-pt')?.setEnabled(false);
-
-    GlbModelCache.ensureScene(this.scene);
-    TerrainMeshBuilder.importElevations(state.customElevations ?? null);
-    TerrainMeshBuilder.setPaintDabs(this.scene, state.floorPaintDabs ?? []);
-    WaterChannelTerrain.configure(this.scene, state.waterSplines ?? []);
-
-    const terrainGround = TerrainMeshBuilder.buildTerrainAndGrid(
-      this.scene,
-      state.biome || 'Abandoned Crypt',
-      state.terrainRelief ?? 0.35,
+    sync3dMapSceneGraph(this.scene, state, this.ground, this.latestGridVisible, () =>
+      this.schedule3dSceneResync(),
     );
-    if (state.floorAlbedoUrl && state.floorNormalUrl) {
-      TerrainMeshBuilder.applyFloorBumpTexture(
-        this.scene,
-        state.floorAlbedoUrl,
-        state.floorNormalUrl,
-        state.floorTilingScale ?? 10,
-        state.floorHeightUrl,
-      );
-    }
-    TerrainMeshBuilder.configureFloorProperties(this.scene, {
-      albedoUrl: state.floorAlbedoUrl,
-      normalUrl: state.floorNormalUrl,
-      heightUrl: state.floorHeightUrl,
-      tilingScale: state.floorTilingScale,
-      bumpIntensity: state.floorBumpIntensity,
-      heightScale: state.floorHeightScale,
-      colorHex: state.floorColorHex,
-      colorStrength: state.floorColorStrength,
-      colorBlendMode: state.floorColorBlendMode,
-    });
-    TerrainMeshBuilder.syncReliefAndGridIfChanged(
-      this.scene,
-      terrainGround,
-      state.terrainRelief ?? 0.35,
-      state.waterSplines?.length ?? 0,
-    );
-
-    const terrainGrid = this.scene.getMeshByName('lw-terrain-grid');
-    if (terrainGrid) {
-      terrainGrid.isVisible = this.latestGridVisible;
-      terrainGrid.isPickable = false;
-    }
-
-    WaterSplineBuilder.rebuildWaterSplines(this.scene, state.waterSplines ?? []);
-    SceneLightingController.syncLights(this.scene, state.lights ?? []);
-    SeededScatterEngine.rebuildScatterInstances(
-      this.scene,
-      state.scatterSeed ?? 104729,
-      state.scatterDensity ?? 0,
-      state.scatterClusters,
-      () => this.schedule3dSceneResync(),
-    );
-    WallMeshBuilder.rebuildWallMeshes(
-      this.scene,
-      state.walls,
-      false,
-      () => this.schedule3dSceneResync(),
-    );
-    PathRibbonEngine.rebuildPathRibbonMeshes(this.scene, state.pathRibbons);
-    StampSceneBuilder.rebuild(
-      this.scene,
-      state.stamps ?? [],
-      false,
-      () => this.schedule3dSceneResync(),
-    );
-    SceneLightingController.refreshShadowCasters(this.scene);
-
-    if (this.latestTokens.length > 0) {
-      this.refreshTokens();
-    }
+    if (this.latestTokens.length > 0) this.refreshTokens();
   }
 
   private clear3dSceneGraph(): void {
     this.last3dSceneState = null;
     this.has3dSceneLoaded.set(false);
-    TerrainMeshBuilder.resetElevations();
-    if (!this.scene) return;
-    StampSceneBuilder.evictScene(this.scene);
-    WallMeshBuilder.evictScene(this.scene);
-    this.scene.transformNodes
-      .filter((n) => /^lw-(stamp-node|wall-node|door-node|scatter-node)-/.test(n.name))
-      .forEach((n) => n.dispose(false, false));
-    this.scene.meshes
-      .filter((m) =>
-        /^lw-(terrain-ground|terrain-grid|water-|stamp-|wall-|portal-|door-|scatter-|path-)/.test(
-          m.name,
-        ),
-      )
-      .forEach((m) => m.dispose(false, false));
-    if (this.ground) {
-      this.ground.isVisible = true;
-      this.ground.isPickable = true;
-    }
-    this.scene.getLightByName('lw-vtt-hemi')?.setEnabled(true);
-    this.scene.getLightByName('lw-vtt-pt')?.setEnabled(true);
+    clear3dMapSceneGraph(this.scene, this.ground);
   }
 
   loadMapScene(
@@ -280,23 +169,19 @@ export class BabylonEffectStageService {
     backdropUrl?: string,
   ): void {
     this.latestSceneData = sceneData ?? null;
-    if (backdropUrl !== undefined) {
-      this.latestBackdropUrl = backdropUrl;
-    }
+    if (backdropUrl !== undefined) this.latestBackdropUrl = backdropUrl;
     if (!this.scene) return;
 
     let parsed: VttMapSceneDataPayload | MapSceneGraphState | null = null;
     if (sceneData) {
       if (typeof sceneData === 'string') {
-        try {
-          parsed = JSON.parse(sceneData);
-        } catch {}
+        try { parsed = JSON.parse(sceneData); } catch {}
       } else {
         parsed = sceneData;
       }
     }
 
-    if (parsed && this.isMapSceneGraphState(parsed)) {
+    if (parsed && isMapSceneGraphStatePayload(parsed)) {
       this.mapSceneBuilder.clear(this.scene);
       if (this.gridLines) {
         this.gridLines.dispose();
@@ -306,12 +191,8 @@ export class BabylonEffectStageService {
       return;
     }
 
-    if (this.has3dSceneLoaded()) {
-      this.clear3dSceneGraph();
-    }
-    if (this.latestBackdropUrl) {
-      this.setBackdrop(this.latestBackdropUrl);
-    }
+    if (this.has3dSceneLoaded()) this.clear3dSceneGraph();
+    if (this.latestBackdropUrl) this.setBackdrop(this.latestBackdropUrl);
     if (parsed) {
       this.mapSceneBuilder.buildScene(this.scene, parsed as VttMapSceneDataPayload);
     } else {
@@ -327,10 +208,6 @@ export class BabylonEffectStageService {
     SceneLightingController.refreshShadowCasters(this.scene);
   }
 
-  /**
-   * Switches between forced top-down 2D camera (default) and free 3D perspective orbit camera.
-   * Both modes render the real 3D map scene when a 3D map is loaded.
-   */
   setForcedTopDown(forced: boolean): void {
     const modeChanged = this.isForcedTopDown !== forced;
     this.isForcedTopDown = forced;
@@ -360,9 +237,7 @@ export class BabylonEffectStageService {
       this.camera.panningAxis = new Vector3(1, 1, 0);
       (this.camera as unknown as { _panningMouseButton: number })._panningMouseButton = 2;
     }
-    if (modeChanged && this.scene && this.latestTokens.length > 0) {
-      this.refreshTokens();
-    }
+    if (modeChanged && this.scene && this.latestTokens.length > 0) this.refreshTokens();
   }
 
   setGridVisible(
@@ -386,23 +261,9 @@ export class BabylonEffectStageService {
       }
       return;
     }
-    if (!visible) return;
-    const step = Math.max(0.25, 1.0 * gridScale);
-    const offsetXWorld = ((gridOffsetX / 50) % step + step) % step;
-    const offsetZWorld = ((gridOffsetY / 50) % step + step) % step;
-
-    const lines: Vector3[][] = [];
-    for (let x = -12 + offsetXWorld; x <= 12.001; x += step) {
-      lines.push([new Vector3(x, 0.025, -8), new Vector3(x, 0.025, 8)]);
+    if (visible) {
+      this.gridLines = createFlatGridLineSystem(this.scene, gridScale, gridOffsetX, gridOffsetY);
     }
-    for (let z = -8 - offsetZWorld; z <= 8.001; z += step) {
-      lines.push([new Vector3(-12, 0.025, z), new Vector3(12, 0.025, z)]);
-    }
-    const grid = MeshBuilder.CreateLineSystem('lw-vtt-grid', { lines }, this.scene);
-    grid.color = Color3.FromHexString('#1e3d2f');
-    grid.isVisible = true;
-    grid.isPickable = false;
-    this.gridLines = grid;
   }
 
   setRotateHeld(_held: boolean): void {}
@@ -412,17 +273,12 @@ export class BabylonEffectStageService {
     const canvas = this.engine.getRenderingCanvas();
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
     const pick = this.scene.pick(
-      x,
-      y,
+      clientX - rect.left,
+      clientY - rect.top,
       (m) => m === this.ground || m.name === 'lw-terrain-ground',
     );
-    if (pick?.hit && pick.pickedPoint) {
-      return { x: pick.pickedPoint.x, z: pick.pickedPoint.z };
-    }
-    return null;
+    return pick?.hit && pick.pickedPoint ? { x: pick.pickedPoint.x, z: pick.pickedPoint.z } : null;
   }
 
   mountStage(
@@ -431,9 +287,9 @@ export class BabylonEffectStageService {
     attackerKey?: string,
     targetKey?: string,
     onTokenClicked?: (tokenKey: string, shiftKey?: boolean) => void,
+    onTokenRightClicked?: (event: TokenRightClickEvent) => void,
   ): void {
     this.dispose();
-
     try {
       this.engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
       this.scene = new Scene(this.engine);
@@ -444,14 +300,7 @@ export class BabylonEffectStageService {
       canvas.addEventListener('contextmenu', preventContextMenu);
       this.cleanupHandlers.push(() => canvas.removeEventListener('contextmenu', preventContextMenu));
 
-      const camera = new ArcRotateCamera(
-        'lw-vtt-cam',
-        -Math.PI / 2,
-        0.0001,
-        24,
-        new Vector3(0, 0, 0),
-        this.scene,
-      );
+      const camera = new ArcRotateCamera('lw-vtt-cam', -Math.PI / 2, 0.0001, 24, new Vector3(0, 0, 0), this.scene);
       camera.lowerRadiusLimit = 5;
       camera.upperRadiusLimit = 58;
       camera.panningSensibility = 65;
@@ -462,7 +311,6 @@ export class BabylonEffectStageService {
 
       const pointers = camera.inputs.attached['pointers'] as ArcRotateCameraPointersInput | undefined;
       if (pointers) pointers.buttons = [0, 1, 2];
-
       camera.inputs.removeByType('ArcRotateCameraMouseWheelInput');
       this.setForcedTopDown(this.isForcedTopDown);
       this.updateZoomPercent();
@@ -476,11 +324,7 @@ export class BabylonEffectStageService {
       pt.intensity = 0.65;
       pt.diffuse = Color3.FromHexString('#e4c283');
 
-      const ground = MeshBuilder.CreateGround(
-        'lw-vtt-ground',
-        { width: 24, height: 16, subdivisions: 16 },
-        this.scene,
-      );
+      const ground = MeshBuilder.CreateGround('lw-vtt-ground', { width: 24, height: 16, subdivisions: 16 }, this.scene);
       ground.receiveShadows = true;
       const gMat = new StandardMaterial('lw-vtt-gmat', this.scene);
       gMat.maxSimultaneousLights = 8;
@@ -502,8 +346,6 @@ export class BabylonEffectStageService {
           savedBeta = camera.beta;
           camera.inertialAlphaOffset = 0;
           camera.inertialBetaOffset = 0;
-          camera.inertialPanningX = 0;
-          camera.inertialPanningY = 0;
           camera.lowerAlphaLimit = savedAlpha;
           camera.upperAlphaLimit = savedAlpha;
           camera.lowerBetaLimit = savedBeta;
@@ -511,87 +353,36 @@ export class BabylonEffectStageService {
           camera.detachControl();
         },
         onDragEnd: () => {
-          camera.inertialAlphaOffset = 0;
-          camera.inertialBetaOffset = 0;
-          camera.inertialPanningX = 0;
-          camera.inertialPanningY = 0;
           camera.alpha = savedAlpha;
           camera.beta = savedBeta;
           setTimeout(() => {
-            if (!this.camera || this.camera !== camera) return;
-            camera.inertialAlphaOffset = 0;
-            camera.inertialBetaOffset = 0;
-            camera.alpha = savedAlpha;
-            camera.beta = savedBeta;
-            if (this.isForcedTopDown) {
-              camera.lowerAlphaLimit = -Math.PI / 2;
-              camera.upperAlphaLimit = -Math.PI / 2;
-              camera.lowerBetaLimit = 0.0001;
-              camera.upperBetaLimit = 0.0001;
-            } else {
-              camera.lowerAlphaLimit = null;
-              camera.upperAlphaLimit = null;
-              camera.lowerBetaLimit = 0.1;
-              camera.upperBetaLimit = Math.PI / 2.05;
+            if (this.camera === camera) {
+              restoreCameraAfterTokenDrag(camera, canvas, savedAlpha, savedBeta, this.isForcedTopDown);
             }
-            camera.attachControl(canvas, true);
-            const p = camera.inputs.attached['pointers'] as ArcRotateCameraPointersInput | undefined;
-            if (p) p.buttons = [0, 1, 2];
           }, 0);
         },
-        onTokenSelected: (key, shiftKey) => {
-          onTokenClicked?.(key, shiftKey);
+        onTokenSelected: (key, shiftKey) => onTokenClicked?.(key, shiftKey),
+        onTokenRightClicked: (event) => {
+          this.rightClickedSubject.next(event);
+          onTokenRightClicked?.(event);
         },
         onDragged: (placement) => this.draggedSubject.next(placement),
         onDropped: (placement) => this.droppedSubject.next(placement),
       });
       this.dragController.attach();
 
-      let pan2dActive = false;
-      let panLastClientX = 0;
-      let panLastClientY = 0;
-      const panObserver = this.scene.onPointerObservable.add((info) => {
-        if (!this.isForcedTopDown || !this.camera || !this.engine) return;
-        const evt = info.event as PointerEvent;
-        if (info.type === PointerEventTypes.POINTERDOWN) {
-          if (evt.button !== 0 || this.dragController?.isDragging()) {
-            pan2dActive = false;
-            return;
-          }
-          pan2dActive = true;
-          panLastClientX = evt.clientX;
-          panLastClientY = evt.clientY;
-        } else if (info.type === PointerEventTypes.POINTERMOVE) {
-          if (!pan2dActive || this.dragController?.isDragging()) {
-            pan2dActive = false;
-            return;
-          }
-          if ((evt.buttons & 1) === 0) {
-            pan2dActive = false;
-            return;
-          }
-          const dx = evt.clientX - panLastClientX;
-          const dy = evt.clientY - panLastClientY;
-          panLastClientX = evt.clientX;
-          panLastClientY = evt.clientY;
-          const renderH = Math.max(240, this.engine.getRenderHeight());
-          const worldPerPx = (2 * this.camera.radius * Math.tan(this.camera.fov / 2)) / renderH;
-          this.camera.target.x -= dx * worldPerPx;
-          this.camera.target.z += dy * worldPerPx;
-          this.camera.inertialPanningX = 0;
-          this.camera.inertialPanningY = 0;
-        } else if (info.type === PointerEventTypes.POINTERUP) {
-          pan2dActive = false;
-        }
-      });
-      this.cleanupHandlers.push(() => {
-        if (panObserver) this.scene?.onPointerObservable.remove(panObserver);
-      });
+      this.cleanupHandlers.push(
+        attach2dTopDownPanningObserver(this.scene, () => ({
+          isForcedTopDown: this.isForcedTopDown,
+          camera: this.camera,
+          engine: this.engine,
+          dragController: this.dragController,
+        })),
+      );
 
       if (this.latestSceneData || this.latestBackdropUrl) {
         this.loadMapScene(this.latestSceneData, this.latestBackdropUrl);
       }
-
       this.syncTokens(tokens, attackerKey, targetKey, targetKey ? [targetKey] : []);
 
       this.scene.registerBeforeRender(() => {
@@ -607,17 +398,12 @@ export class BabylonEffectStageService {
         this.mapSceneBuilder.updateLightFlicker(performance.now(), this.reducedMotion());
         if (this.reducedMotion()) return;
         for (const m of this.scene.meshes) {
-          if (m.name.startsWith('lw-target-reticle-root-')) {
-            m.rotation.y += 0.022;
-          }
+          if (m.name.startsWith('lw-target-reticle-root-')) m.rotation.y += 0.022;
         }
       });
-
-      this.engine.runRenderLoop(() => {
-        this.scene?.render();
-      });
+      this.engine.runRenderLoop(() => this.scene?.render());
     } catch {
-      // Fallback for non-WebGL headless environments
+      // Headless fallback
     }
   }
 
@@ -664,14 +450,7 @@ export class BabylonEffectStageService {
     endPos: { x: number; z: number } = { x: 5, z: 0 },
   ): void {
     if (!this.scene) return;
-    this.fxPlayer.play(
-      this.scene,
-      preset,
-      startPos,
-      endPos,
-      this.reducedMotion(),
-      this.activeKeyframeLabel,
-    );
+    this.fxPlayer.play(this.scene, preset, startPos, endPos, this.reducedMotion(), this.activeKeyframeLabel);
   }
 
   dispose(): void {

@@ -24,8 +24,37 @@ public static class CombatTokenStore
     public static async Task<IReadOnlyList<VttTokenDto>> ListAsync(
         LoomWeaverMySqlRepository repo, int campaignId, CancellationToken ct)
     {
+        await EnsurePartyPresenceAsync(repo, campaignId, ct);
         await using var db = await repo.OpenConnectionAsync(ct);
         return await ReadAsync(db, null, campaignId, null, false, ct);
+    }
+
+    private static async Task EnsurePartyPresenceAsync(
+        LoomWeaverMySqlRepository repo, int campaignId, CancellationToken ct)
+    {
+        try
+        {
+            var characters = await CharacterStore.ListAsync(repo, campaignId, ct);
+            if (characters.Count == 0) return;
+            await using var db = await repo.OpenConnectionAsync(ct);
+            var existing = await ReadAsync(db, null, campaignId, null, false, ct);
+            var existingKeys = existing.Select(t => t.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var slot = existing.Count(t => t.Faction == "party");
+            foreach (var c in characters.Select(x => x.Sheet))
+            {
+                var key = $"{campaignId}:Character:{c.CharacterKey}";
+                if (existingKeys.Contains(key)) continue;
+                var token = new VttTokenDto(key, c.Name, $"{c.ClassOrArchetype} · Party", "party",
+                    Roll(20) + c.InitiativeBonus, c.CurrentHp, c.MaxHp, c.ArmorClass, -6 + (slot % 6) * 2.5, 2 + (slot / 6) * 2, "#1b5e3a",
+                    false, false, false, c.SpeedFeet);
+                await InsertAsync(db, null, campaignId, token, ct);
+                slot++;
+            }
+        }
+        catch
+        {
+            // Non-fatal if DB is read-only or initializing
+        }
     }
 
     /// <summary>Lists tokens with CanControl set for the viewer: the GM controls every token, a player only their own character.</summary>

@@ -21,24 +21,26 @@ public static class ItemInventoryEndpoints
             if (member is null) return Results.Forbid();
             return Results.Ok(new { characterKey = CharacterKey(member.Value.Character), isGm = member.Value.Role == "gm" });
         });
+
         api.MapGet("/campaigns/{campaignId:int}/characters/{characterKey}/items", async (int campaignId, string characterKey, HttpContext ctx, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
         {
             var user = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
             if (user is null) return Results.Unauthorized();
             await using var db = await OpenAsync(repo, ct);
             var member = await MemberAsync(db, campaignId, user.Id, ct);
-            if (member is null || !ItemAccessPolicy.CanUseCharacter(member.Value.Character, characterKey)) return Results.Forbid();
-            var rows = await ReadAsync(db, "inventory", user.Id, false, campaignId, ct);
+            if (member is null || !ItemAccessPolicy.CanManageCharacter(member.Value.Role, member.Value.Character, characterKey)) return Results.Forbid();
+            var rows = await ReadCampaignAsync(db, "inventory", campaignId, ct);
+            if (rows.Count == 0) rows = await ReadAsync(db, "inventory", user.Id, false, campaignId, ct);
             return Results.Ok(rows.Where(x => Text(x, "characterKey") == CharacterKey(characterKey)).Select(x => x["equipment"]));
         });
+
         api.MapPost("/campaigns/{campaignId:int}/characters/{characterKey}/items", async (int campaignId, string characterKey, JsonObject req, HttpContext ctx, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
         {
             var user = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
             if (user is null) return Results.Unauthorized();
             await using var db = await OpenAsync(repo, ct);
             var member = await MemberAsync(db, campaignId, user.Id, ct);
-            // Always require an actual campaign character binding; never infer one from global account role.
-            if (member is null || string.IsNullOrEmpty(member.Value.Character) || !ItemAccessPolicy.CanUseCharacter(member.Value.Character, characterKey)) return Results.Forbid();
+            if (member is null || !ItemAccessPolicy.CanManageCharacter(member.Value.Role, member.Value.Character, characterKey)) return Results.Forbid();
             var item = ItemCatalog.Find(Text(req, "itemId")) ?? await ItemDbCatalog.FindAsync(db, Text(req, "itemId"), ct) ?? await FindAsync(db, Text(req, "itemId"), user.Id, ct);
             if (item is null || item["category"] is null) return Results.NotFound();
             var equipment = new JsonObject
@@ -53,6 +55,46 @@ public static class ItemInventoryEndpoints
             var row = new JsonObject { ["id"] = Text(equipment, "id"), ["characterKey"] = CharacterKey(characterKey), ["equipment"] = equipment };
             await SaveAsync(db, "inventory", user.Id, campaignId, row, ct);
             return Results.Ok(equipment);
+        });
+
+        api.MapPost("/campaigns/{campaignId:int}/characters/{characterKey}/items/grant", async (int campaignId, string characterKey, JsonObject req, HttpContext ctx, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
+        {
+            var user = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
+            if (user is null) return Results.Unauthorized();
+            await using var db = await OpenAsync(repo, ct);
+            var member = await MemberAsync(db, campaignId, user.Id, ct);
+            if (member is null || !ItemAccessPolicy.CanManageCharacter(member.Value.Role, member.Value.Character, characterKey)) return Results.Forbid();
+            var name = Text(req, "name");
+            if (string.IsNullOrWhiteSpace(name)) return Results.BadRequest(new { error = "Item name required." });
+            var equipment = new JsonObject
+            {
+                ["id"] = $"inv-{Guid.NewGuid():N}",
+                ["name"] = name,
+                ["slot"] = string.IsNullOrWhiteSpace(Text(req, "slot")) ? "Gear" : Text(req, "slot"),
+                ["summary"] = Text(req, "summary"),
+                ["bonusLabel"] = Text(req, "bonusLabel"),
+                ["equipped"] = false,
+                ["entitlement"] = "free",
+                ["icon"] = string.IsNullOrWhiteSpace(Text(req, "icon")) ? "inventory_2" : Text(req, "icon"),
+                ["weightLb"] = req["weightLb"]?.DeepClone() ?? (JsonNode)0.5,
+                ["valueGp"] = req["valueGp"]?.DeepClone() ?? (JsonNode)1.0,
+                ["rarity"] = string.IsNullOrWhiteSpace(Text(req, "rarity")) ? "Common" : Text(req, "rarity"),
+                ["source"] = string.IsNullOrWhiteSpace(Text(req, "source")) ? "Harvested / Crafted" : Text(req, "source")
+            };
+            var row = new JsonObject { ["id"] = Text(equipment, "id"), ["characterKey"] = CharacterKey(characterKey), ["equipment"] = equipment };
+            await SaveAsync(db, "inventory", user.Id, campaignId, row, ct);
+            return Results.Ok(equipment);
+        });
+
+        api.MapDelete("/campaigns/{campaignId:int}/characters/{characterKey}/items/{itemId}", async (int campaignId, string characterKey, string itemId, HttpContext ctx, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
+        {
+            var user = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
+            if (user is null) return Results.Unauthorized();
+            await using var db = await OpenAsync(repo, ct);
+            var member = await MemberAsync(db, campaignId, user.Id, ct);
+            if (member is null || !ItemAccessPolicy.CanManageCharacter(member.Value.Role, member.Value.Character, characterKey)) return Results.Forbid();
+            var deleted = await DeleteAsync(db, itemId, "inventory", ct);
+            return Results.Ok(new { success = deleted, id = itemId });
         });
     }
 }

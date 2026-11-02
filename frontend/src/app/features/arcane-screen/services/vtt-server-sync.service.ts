@@ -11,6 +11,7 @@ import { TableRealtimeSyncService, VttRealtimeEvent } from '../../../core/servic
 import { CombatStateResponse, ServerVttToken, VttSceneListItem, VttSceneResponse } from '../models/vtt-server.models';
 import { VttBattleStateService } from './vtt-battle-state.service';
 import { VttCombatService } from './vtt-combat.service';
+import { VttPartyAndActionsService } from './vtt-party-and-actions.service';
 import { parseVttEvent } from './vtt-realtime-events';
 
 /** Loads combat tokens and turn state from the API and sends movement and turn requests; the server decides what is allowed. */
@@ -20,6 +21,7 @@ export class VttServerSyncService {
   private readonly store = inject(LoomWeaverStoreService);
   private readonly vtt = inject(VttCombatService);
   private readonly battle = inject(VttBattleStateService);
+  private readonly partyAndActions = inject(VttPartyAndActionsService);
   private readonly characterStudio = inject(CharacterStudioService);
   private readonly realtime = inject(TableRealtimeSyncService);
   private readonly alertify = inject(LwAlertifyService);
@@ -127,48 +129,57 @@ export class VttServerSyncService {
   async refresh(): Promise<void> {
     const base = this.base();
     if (!base) return;
+    const campaignId = this.store.activeCampaignId() || 1;
     try {
       const [tokens, state] = await Promise.all([
         firstValueFrom(this.http.get<readonly ServerVttToken[]>(`${base}/vtt-tokens`)),
         firstValueFrom(this.http.get<CombatStateResponse>(`${base}/combat/state`)),
       ]);
-      if (tokens.length === 0) return;
       const sheets = this.characterStudio.sheets();
-      const mapped = [...tokens]
-        .map((t) => {
-          const lowerName = (t.name || '').trim().toLowerCase();
-          const matchedSheet = sheets.find(
-            (s) =>
-              t.key.toLowerCase().includes(s.characterKey.toLowerCase()) ||
-              s.name.trim().toLowerCase() === lowerName,
-          );
-          const sheetPortrait =
-            matchedSheet?.portraitUrl && !is3dPreviewThumbnailUrl(matchedSheet.portraitUrl)
-              ? matchedSheet.portraitUrl
-              : undefined;
-          const preferred2dAvatar =
-            sheetPortrait ||
-            (t.avatarUrl && !is3dPreviewThumbnailUrl(t.avatarUrl) ? t.avatarUrl : undefined);
-          const def = resolveDefaultTokenFromLibrary({
-            ...t,
-            avatarUrl: preferred2dAvatar || t.avatarUrl,
-          });
-          return {
-            ...t,
-            movementFeet: t.movementRemainingFeet,
-            canControl: t.canControl === true,
-            avatarUrl: def.avatarUrl,
-            glbUrl: t.glbUrl || def.glbUrl,
-          };
-        })
+      const prevByKey = new Map(this.vtt.tokens().map((t) => [t.key, t]));
+      const mapped = [...tokens].map((t) => {
+        const prev = prevByKey.get(t.key);
+        const lowerName = (t.name || '').trim().toLowerCase();
+        const matchedSheet = sheets.find(
+          (s) =>
+            t.key.toLowerCase().includes(s.characterKey.toLowerCase()) ||
+            s.name.trim().toLowerCase() === lowerName,
+        );
+        const sheetPortrait =
+          matchedSheet?.portraitUrl && !is3dPreviewThumbnailUrl(matchedSheet.portraitUrl)
+            ? matchedSheet.portraitUrl
+            : undefined;
+        const preferred2dAvatar =
+          sheetPortrait ||
+          (t.avatarUrl && !is3dPreviewThumbnailUrl(t.avatarUrl) ? t.avatarUrl : undefined);
+        const def = resolveDefaultTokenFromLibrary({
+          ...t,
+          avatarUrl: preferred2dAvatar || t.avatarUrl,
+        });
+        return {
+          ...prev,
+          ...t,
+          movementFeet: t.movementRemainingFeet,
+          canControl: t.canControl === true,
+          avatarUrl: prev?.avatarUrl || def.avatarUrl,
+          glbUrl: prev?.glbUrl || t.glbUrl || def.glbUrl,
+        };
+      });
+      const mergedWithParty = this.partyAndActions
+        .mergeCampaignPartyIntoTokens(mapped, campaignId)
         .sort((a, b) => b.initiative - a.initiative);
-      this.vtt.tokens.set(mapped);
+      if (mergedWithParty.length === 0) return;
+      this.vtt.tokens.set(mergedWithParty);
       this.vtt.activeRound.set(state.round);
-      const index = Math.max(0, mapped.findIndex((t) => t.key === state.activeTokenKey));
+      const index = Math.max(0, mergedWithParty.findIndex((t) => t.key === state.activeTokenKey));
       this.vtt.activeTurnIndex.set(index);
-      this.vtt.selectedAttackerKey.set(mapped[index].key);
+      this.vtt.selectedAttackerKey.set(mergedWithParty[index].key);
     } catch {
-      // Not a campaign member or offline: keep the local scene untouched.
+      // Not a campaign member or offline: ensure local campaign party is still present.
+      const merged = this.partyAndActions.mergeCampaignPartyIntoTokens(this.vtt.tokens(), campaignId);
+      if (merged.length > 0 && this.vtt.tokens().length === 0) {
+        this.vtt.tokens.set(merged);
+      }
     }
   }
 

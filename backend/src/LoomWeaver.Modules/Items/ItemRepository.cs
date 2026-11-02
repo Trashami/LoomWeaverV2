@@ -39,6 +39,19 @@ public static class ItemRepository
         return list;
     }
 
+    public static async Task<List<JsonObject>> ReadCampaignAsync(MySqlConnection db, string kind, int campaignId, CancellationToken ct)
+    {
+        await using var cmd = new MySqlCommand("""
+            SELECT payload FROM lw_item_library WHERE kind=@kind AND campaign_id=@campaign
+            """, db);
+        cmd.Parameters.AddWithValue("@kind", kind);
+        cmd.Parameters.AddWithValue("@campaign", campaignId);
+        var list = new List<JsonObject>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct)) list.Add(JsonNode.Parse(reader.GetString(0))!.AsObject());
+        return list;
+    }
+
     public static async Task<JsonObject?> FindAsync(MySqlConnection db, string id, long owner, CancellationToken ct, string kind = "item")
     {
         await using var cmd = new MySqlCommand("SELECT payload FROM lw_item_library WHERE id=@id AND kind=@kind AND (owner_id=@owner OR published=1)", db);
@@ -60,6 +73,13 @@ public static class ItemRepository
         cmd.Parameters.AddWithValue("@published", value["publishedToStore"]?.GetValue<bool>() ?? false);
         cmd.Parameters.AddWithValue("@payload", value.ToJsonString());
         await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    public static async Task<bool> DeleteAsync(MySqlConnection db, string id, string kind, CancellationToken ct)
+    {
+        await using var cmd = new MySqlCommand("DELETE FROM lw_item_library WHERE id=@id AND kind=@kind", db);
+        cmd.Parameters.AddWithValue("@id", id); cmd.Parameters.AddWithValue("@kind", kind);
+        return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
     public static async Task<(string Role, string Character)?> MemberAsync(MySqlConnection db, int campaign, long user, CancellationToken ct)

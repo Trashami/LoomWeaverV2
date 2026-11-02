@@ -78,5 +78,6 @@ public static class ItemsEndpoints
         });
         api.MapItemCollectionEndpoints();
         api.MapItemInventoryEndpoints();
+        api.MapCraftingEndpoints();
     }
 }

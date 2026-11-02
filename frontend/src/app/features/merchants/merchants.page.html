@@ -1,0 +1,344 @@
+<section class="lw-merchants-view">
+  <lw-page-header
+    title="Campaign Merchants & Outposts"
+    eyebrow="Living World Commerce"
+    description="Explore market stalls, specialized artificers, and trade caravans across your campaign world."
+  >
+    <div actions class="header-actions">
+      <div class="location-chip">
+        <lw-icon name="map-pin" [size]="14" tone="emerald" />
+        <span class="loc-label">Current Party Location:</span>
+        <strong class="loc-val">{{ currentLocation() }}</strong>
+      </div>
+
+      @if (isGm()) {
+        <button
+          ngpButton
+          type="button"
+          class="lw-btn lw-btn--secondary"
+          (click)="isGmMode.set(!isGmMode())"
+        >
+          <lw-icon [name]="isGmMode() ? 'eye' : 'settings'" [size]="14" />
+          <span>{{ isGmMode() ? 'Player Preview' : 'DM Mode' }}</span>
+        </button>
+
+        <button
+          ngpButton
+          type="button"
+          class="lw-btn lw-btn--primary"
+          (click)="openCreateModal()"
+        >
+          <lw-icon name="plus" [size]="14" />
+          <span>New Merchant</span>
+        </button>
+      }
+
+      <a
+        ngpButton
+        routerLink="/roll-tables"
+        class="lw-btn lw-btn--subtle"
+        title="Browse and roll all 5e roll tables"
+      >
+        <lw-icon name="table-chart" [size]="14" />
+        <span>Roll Tables</span>
+      </a>
+    </div>
+  </lw-page-header>
+
+  <div class="toolbar">
+    <div class="filter-tabs">
+      <button
+        ngpButton
+        type="button"
+        class="tab-btn"
+        [class.active]="activeTab() === 'all'"
+        (click)="setTab('all')"
+      >
+        <span>All Merchants</span>
+        <span class="count-pill">{{ merchants().length }}</span>
+      </button>
+
+      <button
+        ngpButton
+        type="button"
+        class="tab-btn"
+        [class.active]="activeTab() === 'near'"
+        (click)="setTab('near')"
+      >
+        <span>Near Current Location</span>
+        <span class="count-pill highlight">{{ nearCount() }}</span>
+      </button>
+
+      <button
+        ngpButton
+        type="button"
+        class="tab-btn"
+        [class.active]="activeTab() === 'visited'"
+        (click)="setTab('visited')"
+      >
+        <span>Visited / Known</span>
+        <span class="count-pill">{{ visitedCount() }}</span>
+      </button>
+    </div>
+
+    <div class="search-box">
+      <lw-icon name="search" [size]="14" tone="muted" />
+      <input
+        type="text"
+        placeholder="Filter by store, shopkeeper, or town..."
+        [ngModel]="searchQuery()"
+        (ngModelChange)="searchQuery.set($event)"
+      />
+    </div>
+  </div>
+
+  @if (errorMessage()) {
+    <div class="error-banner">
+      <lw-icon name="alert-circle" [size]="16" tone="crimson" />
+      <span>{{ errorMessage() }}</span>
+    </div>
+  }
+
+  @if (loading()) {
+    <div class="loading-state">
+      <div class="spinner"></div>
+      <p>Consulting local quartermasters and trade guilds...</p>
+    </div>
+  } @else if (filteredMerchants().length === 0) {
+    <div class="empty-state">
+      <lw-icon name="storefront" [size]="48" tone="muted" />
+      <h3>No Merchants Found</h3>
+      <p>No registered stores match the active filter for this region.</p>
+      @if (isGm()) {
+        <button ngpButton class="lw-btn lw-btn--primary" (click)="openCreateModal()">
+          Create Merchant
+        </button>
+      }
+    </div>
+  } @else {
+    <div class="merchant-grid">
+      @for (m of filteredMerchants(); track m.id) {
+        <article
+          class="merchant-card"
+          [class.merchant-card--near]="m.isAtCurrentLocation"
+          [class.merchant-card--far]="!m.isAtCurrentLocation"
+          (click)="openMerchantStore(m)"
+        >
+          <div class="card-banner">
+            <div class="banner-gradient"></div>
+            <div class="badge-cluster">
+              @if (m.isAtCurrentLocation) {
+                <span class="status-badge status-badge--near">
+                  <lw-icon name="check" [size]="12" />
+                  <span>At Party Location</span>
+                </span>
+              } @else {
+                <span class="status-badge status-badge--far">
+                  <lw-icon name="lock" [size]="12" />
+                  <span>Far Away</span>
+                </span>
+              }
+
+              @if (m.hasVisited) {
+                <span class="status-badge status-badge--visited">
+                  <lw-icon name="bookmark" [size]="12" />
+                  <span>Visited ({{ m.pastPurchasesCount }})</span>
+                </span>
+              }
+            </div>
+
+            @if (isGm() && isGmMode()) {
+              <div class="gm-card-actions">
+                <button
+                  type="button"
+                  class="card-action-btn delete"
+                  title="Delete Merchant"
+                  (click)="deleteMerchant(m, $event)"
+                >
+                  <lw-icon name="trash" [size]="14" tone="crimson" />
+                </button>
+              </div>
+            }
+          </div>
+
+          <div class="card-content">
+            <div class="shopkeeper-row">
+              <div class="avatar-ring" [class.avatar-ring--near]="m.isAtCurrentLocation">
+                <lw-icon name="storefront" [size]="20" [tone]="m.isAtCurrentLocation ? 'emerald' : 'muted'" />
+              </div>
+              <div class="shop-ident">
+                <h3 class="store-name">{{ m.storeName }}</h3>
+                <p class="merchant-name">{{ m.merchantName }}</p>
+              </div>
+            </div>
+
+            <p class="tagline">{{ m.tagline }}</p>
+
+            <div class="location-tag">
+              <lw-icon name="map-pin" [size]="13" tone="muted" />
+              <span>{{ m.locationName }}</span>
+            </div>
+
+            <div class="card-meta">
+              <div class="meta-item">
+                <span class="meta-label">Inventory</span>
+                <span class="meta-val">{{ m.inventoryCount }} items</span>
+              </div>
+              @if (m.rollTableName) {
+                <div class="meta-item">
+                  <span class="meta-label">Loot Table</span>
+                  <span class="meta-val roll-table-pill">{{ m.rollTableName }}</span>
+                </div>
+              }
+            </div>
+
+            <div class="card-footer">
+              <button
+                ngpButton
+                type="button"
+                class="enter-store-btn"
+                [class.enter-store-btn--near]="m.isAtCurrentLocation"
+              >
+                <span>{{ m.isAtCurrentLocation ? 'Enter Store' : 'Browse Wares (Preview)' }}</span>
+                <lw-icon name="arrow-right" [size]="14" />
+              </button>
+            </div>
+          </div>
+        </article>
+      }
+    </div>
+  }
+
+  @if (createModalOpen()) {
+    <lw-modal
+      title="Establish New Campaign Merchant"
+      [open]="true"
+      (closed)="createModalOpen.set(false)"
+    >
+      <form class="merchant-form" (ngSubmit)="submitCreateMerchant()">
+        <div class="form-row">
+          <label>
+            <span>Store Name *</span>
+            <input
+              type="text"
+              required
+              placeholder="e.g. The Gilded Rose Emporium"
+              [ngModel]="newStoreName()"
+              (ngModelChange)="newStoreName.set($event)"
+              name="storeName"
+            />
+          </label>
+          <label>
+            <span>Shopkeeper / NPC Name</span>
+            <input
+              type="text"
+              placeholder="e.g. Master Brom Ironhand"
+              [ngModel]="newMerchantName()"
+              (ngModelChange)="newMerchantName.set($event)"
+              name="merchantName"
+            />
+          </label>
+        </div>
+
+        <div class="form-row">
+          <label>
+            <span>City or Location *</span>
+            <input
+              type="text"
+              placeholder="e.g. Vandia, Cinth, Whispering Grove"
+              [ngModel]="newLocationName()"
+              (ngModelChange)="newLocationName.set($event)"
+              name="locationName"
+            />
+          </label>
+          <label>
+            <span>Tagline / Specialty</span>
+            <input
+              type="text"
+              placeholder="e.g. Rare coastal blades and climbing gear"
+              [ngModel]="newTagline()"
+              (ngModelChange)="newTagline.set($event)"
+              name="tagline"
+            />
+          </label>
+        </div>
+
+        <label>
+          <span>Store Description & Atmosphere</span>
+          <textarea
+            rows="2"
+            placeholder="Describe the sight, smells, and atmosphere of the store..."
+            [ngModel]="newDescription()"
+            (ngModelChange)="newDescription.set($event)"
+            name="description"
+          ></textarea>
+        </label>
+
+        <label>
+          <span>Spoken Greeting to Players</span>
+          <input
+            type="text"
+            placeholder="Quote spoken when entering..."
+            [ngModel]="newGreeting()"
+            (ngModelChange)="newGreeting.set($event)"
+            name="greeting"
+          />
+        </label>
+
+        <div class="form-row">
+          <label>
+            <span>Attached Roll / Loot Table</span>
+            <input
+              type="text"
+              placeholder="e.g. Magic Item Table A, Trinkets"
+              [ngModel]="newRollTableName()"
+              (ngModelChange)="newRollTableName.set($event)"
+              name="rollTableName"
+            />
+          </label>
+          <label>
+            <span>Price Markup (%)</span>
+            <input
+              type="number"
+              min="50"
+              max="300"
+              [ngModel]="newMarkup()"
+              (ngModelChange)="newMarkup.set($event)"
+              name="markup"
+            />
+          </label>
+          <label>
+            <span>Player Buyback Rate (%)</span>
+            <input
+              type="number"
+              min="10"
+              max="100"
+              [ngModel]="newBuyRate()"
+              (ngModelChange)="newBuyRate.set($event)"
+              name="buyRate"
+            />
+          </label>
+        </div>
+
+        <div class="modal-actions">
+          <button
+            ngpButton
+            type="button"
+            class="lw-btn lw-btn--subtle"
+            (click)="createModalOpen.set(false)"
+          >
+            Cancel
+          </button>
+          <button
+            ngpButton
+            type="submit"
+            class="lw-btn lw-btn--primary"
+            [disabled]="!newStoreName().trim()"
+          >
+            Create Merchant
+          </button>
+        </div>
+      </form>
+    </lw-modal>
+  }
+</section>

@@ -1,52 +1,311 @@
 <section class="roll-tables-page">
-  <lw-page-header title="Roll Tables" subtitle="Browse every roll table and roll the dice for an outcome">
+  <lw-page-header
+    title="Roll Tables & Loot Generators"
+    eyebrow="5e Tools & Campaign Integration"
+    description="Browse every official 5e roll table, roll dice outcomes, or attach loot tables to campaigns, sessions, and merchant stores."
+  >
+    <div actions class="header-actions">
+      <a ngpButton routerLink="/merchants" class="lw-btn lw-btn--secondary">
+        <lw-icon name="storefront" [size]="14" tone="emerald" />
+        <span>Campaign Merchants</span>
+      </a>
+    </div>
   </lw-page-header>
 
-  <div class="toolbar">
-    <input
-      type="search"
-      placeholder="Search tables"
-      aria-label="Search roll tables"
-      [ngModel]="search()"
-      (ngModelChange)="onSearchChange($event)"
-    />
-    <input
-      type="search"
-      placeholder="Source (e.g. PHB)"
-      aria-label="Filter by source"
-      [ngModel]="source()"
-      (ngModelChange)="onSourceChange($event)"
-    />
+  <div class="tabs-toolbar">
+    <div class="filter-tabs">
+      <button
+        ngpButton
+        type="button"
+        class="tab-btn"
+        [class.active]="activeTab() === 'all'"
+        (click)="setTab('all')"
+      >
+        <span>All 5e Tables</span>
+      </button>
+
+      <button
+        ngpButton
+        type="button"
+        class="tab-btn"
+        [class.active]="activeTab() === 'campaign'"
+        (click)="setTab('campaign')"
+      >
+        <span>Campaign Pinned ({{ campaignTables().length }})</span>
+      </button>
+
+      <button
+        ngpButton
+        type="button"
+        class="tab-btn"
+        [class.active]="activeTab() === 'sessions'"
+        (click)="setTab('sessions')"
+      >
+        <span>Session Loot Tables</span>
+      </button>
+
+      <button
+        ngpButton
+        type="button"
+        class="tab-btn"
+        [class.active]="activeTab() === 'merchants'"
+        (click)="setTab('merchants')"
+      >
+        <span>Merchant Tables</span>
+      </button>
+    </div>
+
+    @if (activeTab() === 'all') {
+      <div class="search-group">
+        <input
+          type="search"
+          placeholder="Search tables (e.g. Magic Item, Trinkets, Gems)..."
+          aria-label="Search roll tables"
+          [ngModel]="search()"
+          (ngModelChange)="onSearchChange($event)"
+        />
+        <input
+          type="search"
+          placeholder="Source (e.g. DMG, PHB)"
+          aria-label="Filter by source"
+          [ngModel]="source()"
+          (ngModelChange)="onSourceChange($event)"
+        />
+      </div>
+    }
   </div>
 
+  @if (successMessage()) {
+    <div class="alert-box success">
+      <lw-icon name="check" [size]="15" tone="emerald" />
+      <span>{{ successMessage() }}</span>
+    </div>
+  }
   @if (errorMessage()) {
-    <p class="error">{{ errorMessage() }}</p>
+    <div class="alert-box error">
+      <lw-icon name="alert-circle" [size]="15" tone="crimson" />
+      <span>{{ errorMessage() }}</span>
+    </div>
   }
 
-  <ul class="card-grid">
-    @for (table of tables(); track table.id) {
-      <li>
-        <a class="table-card" [routerLink]="['/roll-tables', table.id]">
-          <span class="table-name">{{ table.name }}</span>
-          <span class="meta">
-            {{ table.sourceBook ?? 'Unknown source' }}@if (table.page) { · p.{{ table.page }} }
-          </span>
-          <span class="meta">{{ dieLabel(table) }} · {{ table.rowCount }} rows</span>
-          @if (table.category) {
-            <span class="tag">{{ table.category }}</span>
-          }
-        </a>
-      </li>
+  <!-- TAB: ALL TABLES -->
+  @if (activeTab() === 'all') {
+    <ul class="card-grid">
+      @for (table of tables(); track table.id) {
+        <li>
+          <div class="table-card">
+            <a class="card-clickable" [routerLink]="['/roll-tables', table.id]">
+              <span class="table-name">{{ table.name }}</span>
+              <span class="meta">
+                {{ table.sourceBook ?? 'Unknown source' }}@if (table.page) { · p.{{ table.page }} }
+              </span>
+              <span class="meta die-info">{{ dieLabel(table) }} · {{ table.rowCount }} rows</span>
+              @if (table.category) {
+                <span class="tag">{{ table.category }}</span>
+              }
+            </a>
+
+            <div class="card-bottom">
+              <a [routerLink]="['/roll-tables', table.id]" class="card-btn roll">
+                <lw-icon name="casino" [size]="13" />
+                <span>Roll Table</span>
+              </a>
+              @if (isGm()) {
+                <button
+                  type="button"
+                  class="card-btn attach"
+                  title="Attach to Campaign, Session, or Merchant"
+                  (click)="openAttachModal(table, $event)"
+                >
+                  <lw-icon name="link" [size]="13" />
+                  <span>Attach</span>
+                </button>
+              }
+            </div>
+          </div>
+        </li>
+      }
+    </ul>
+
+    @if (!loading() && tables().length === 0 && !errorMessage()) {
+      <p class="empty">No roll tables match this search.</p>
     }
-  </ul>
 
-  @if (!loading() && tables().length === 0 && !errorMessage()) {
-    <p class="empty">No roll tables match this search.</p>
+    @if (hasMore()) {
+      <button type="button" class="load-more" [disabled]="loading()" (click)="load(false)">
+        {{ loading() ? 'Loading…' : 'Load more tables' }}
+      </button>
+    }
   }
 
-  @if (hasMore()) {
-    <button type="button" class="load-more" [disabled]="loading()" (click)="load(false)">
-      {{ loading() ? 'Loading…' : 'Load more' }}
-    </button>
+  <!-- TAB: CAMPAIGN PINNED OR SESSIONS OR MERCHANTS -->
+  @if (activeTab() !== 'all') {
+    <div class="pinned-section">
+      @if (campaignTables().length === 0) {
+        <div class="empty-state">
+          <lw-icon name="table-chart" [size]="40" tone="muted" />
+          <p>No roll tables attached to this campaign view yet.</p>
+          <button ngpButton class="lw-btn lw-btn--primary" (click)="setTab('all')">
+            Browse All Tables to Attach
+          </button>
+        </div>
+      } @else {
+        <div class="attached-grid">
+          @for (att of campaignTables(); track att.id) {
+            @if (
+              activeTab() === 'campaign' ||
+              (activeTab() === 'sessions' && att.sessionId) ||
+              (activeTab() === 'merchants' && att.merchantId)
+            ) {
+              <article class="attached-card">
+                <div class="att-header">
+                  <span class="att-name">{{ att.tableName }}</span>
+                  <span class="att-src">{{ att.sourceBook }}</span>
+                </div>
+
+                @if (att.sessionTitle) {
+                  <div class="att-badge session">
+                    <lw-icon name="calendar-days" [size]="12" />
+                    <span>Session: {{ att.sessionTitle }}</span>
+                  </div>
+                }
+                @if (att.merchantName) {
+                  <div class="att-badge merchant">
+                    <lw-icon name="storefront" [size]="12" />
+                    <span>Merchant: {{ att.merchantName }}</span>
+                  </div>
+                }
+                @if (att.notes) {
+                  <p class="att-notes">{{ att.notes }}</p>
+                }
+
+                <div class="att-footer">
+                  <a [routerLink]="['/roll-tables', att.rollTableId]" class="card-btn roll">
+                    <lw-icon name="casino" [size]="13" />
+                    <span>Roll on Table</span>
+                  </a>
+
+                  @if (att.merchantId) {
+                    <a [routerLink]="['/merchants', att.merchantId]" class="card-btn merchant-link">
+                      <lw-icon name="storefront" [size]="13" />
+                      <span>Open Shop</span>
+                    </a>
+                  }
+
+                  @if (isGm()) {
+                    <button
+                      type="button"
+                      class="card-btn remove"
+                      title="Remove Attachment"
+                      (click)="removeAttachment(att, $event)"
+                    >
+                      <lw-icon name="trash" [size]="13" tone="crimson" />
+                    </button>
+                  }
+                </div>
+              </article>
+            }
+          }
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ATTACH MODAL -->
+  @if (attachModalOpen() && selectedTableForAttach(); as t) {
+    <lw-modal
+      title="Attach Loot & Roll Table"
+      [open]="true"
+      (closed)="attachModalOpen.set(false)"
+    >
+      <div class="attach-dialog">
+        <div class="table-target-preview">
+          <h3>{{ t.name }}</h3>
+          <span class="meta">{{ t.sourceBook }} · {{ dieLabel(t) }}</span>
+        </div>
+
+        <div class="attach-form">
+          <label class="form-label">
+            <span>Attachment Target:</span>
+            <div class="target-options">
+              <label class="target-choice" [class.active]="attachTargetType() === 'campaign'">
+                <input
+                  type="radio"
+                  name="targetType"
+                  [checked]="attachTargetType() === 'campaign'"
+                  (change)="attachTargetType.set('campaign')"
+                />
+                <span>Campaign Pinned (Quick Loot)</span>
+              </label>
+
+              <label class="target-choice" [class.active]="attachTargetType() === 'session'">
+                <input
+                  type="radio"
+                  name="targetType"
+                  [checked]="attachTargetType() === 'session'"
+                  (change)="attachTargetType.set('session')"
+                />
+                <span>Assign to Specific Session</span>
+              </label>
+
+              <label class="target-choice" [class.active]="attachTargetType() === 'merchant'">
+                <input
+                  type="radio"
+                  name="targetType"
+                  [checked]="attachTargetType() === 'merchant'"
+                  (change)="attachTargetType.set('merchant')"
+                />
+                <span>Attach to Merchant Store</span>
+              </label>
+            </div>
+          </label>
+
+          @if (attachTargetType() === 'session') {
+            <label class="form-label">
+              <span>Select Campaign Session:</span>
+              <select
+                [ngModel]="selectedSessionId()"
+                (ngModelChange)="selectedSessionId.set($event)"
+              >
+                @for (s of campaignSessions(); track s.sessionId) {
+                  <option [value]="s.sessionId">Session {{ s.sessionNumber }}: {{ s.title }}</option>
+                }
+              </select>
+            </label>
+          }
+
+          @if (attachTargetType() === 'merchant') {
+            <label class="form-label">
+              <span>Select Merchant Store:</span>
+              <select
+                [ngModel]="selectedMerchantId()"
+                (ngModelChange)="selectedMerchantId.set($event)"
+              >
+                @for (m of merchants(); track m.id) {
+                  <option [value]="m.id">{{ m.storeName }} ({{ m.locationName }})</option>
+                }
+              </select>
+            </label>
+          }
+
+          <label class="form-label">
+            <span>GM Notes (Optional):</span>
+            <input
+              type="text"
+              placeholder="e.g. Loot chest in dungeon crypt, coastal stock source"
+              [ngModel]="attachNotes()"
+              (ngModelChange)="attachNotes.set($event)"
+            />
+          </label>
+        </div>
+
+        <div class="modal-actions">
+          <button ngpButton class="lw-btn lw-btn--subtle" (click)="attachModalOpen.set(false)">Cancel</button>
+          <button ngpButton class="lw-btn lw-btn--primary" (click)="confirmAttach()">
+            Confirm Attachment
+          </button>
+        </div>
+      </div>
+    </lw-modal>
   }
 </section>

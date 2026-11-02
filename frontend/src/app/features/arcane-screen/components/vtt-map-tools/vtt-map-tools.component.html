@@ -1,5 +1,4 @@
 <aside class="floating-left-tools" [class.collapsed]="!showMapTools()">
-  <!-- Header Toggle Button: Map tools -->
   <button
     ngpButton
     type="button"
@@ -15,97 +14,27 @@
 
   @if (showMapTools()) {
     <div class="vertical-tool-palette" role="toolbar" aria-label="Tabletop Tools">
-      <!-- 1. Select Tool -->
-      <button
-        ngpButton
-        type="button"
-        class="palette-tool-btn"
-        [class.active]="activeLeftTool() === 'select'"
-        (click)="toggleLeftTool('select')"
-        title="Selection & Controls"
-      >
-        <span class="tool-icon"><lw-icon name="cursor" [size]="18" /></span>
-        <span class="tool-label">Select</span>
-        @if (activeLeftTool() === 'select') { <span class="active-arrow"></span> }
-      </button>
-
-      <!-- 2. Draw Tool -->
-      <button
-        ngpButton
-        type="button"
-        class="palette-tool-btn"
-        [class.active]="activeLeftTool() === 'draw'"
-        (click)="toggleLeftTool('draw')"
-        title="Drawing & Walls"
-      >
-        <span class="tool-icon"><lw-icon name="pen" [size]="18" /></span>
-        <span class="tool-label">Draw</span>
-        @if (activeLeftTool() === 'draw') { <span class="active-arrow"></span> }
-      </button>
-
-      <!-- 3. Light Tool -->
-      <button
-        ngpButton
-        type="button"
-        class="palette-tool-btn"
-        [class.active]="activeLeftTool() === 'light'"
-        (click)="toggleLeftTool('light')"
-        title="Lighting & Fog"
-      >
-        <span class="tool-icon"><lw-icon name="zap" [size]="18" /></span>
-        <span class="tool-label">Light</span>
-        @if (activeLeftTool() === 'light') { <span class="active-arrow"></span> }
-      </button>
-
-      <!-- 4. Tokens Tool -->
-      <button
-        ngpButton
-        type="button"
-        class="palette-tool-btn"
-        [class.active]="activeLeftTool() === 'tokens'"
-        (click)="toggleLeftTool('tokens')"
-        title="Tokens & Combatants"
-      >
-        <span class="tool-icon"><lw-icon name="users" [size]="18" /></span>
-        <span class="tool-label">Tokens</span>
-        @if (activeLeftTool() === 'tokens') { <span class="active-arrow"></span> }
-      </button>
-
-      <!-- 5. View Tool -->
-      <button
-        ngpButton
-        type="button"
-        class="palette-tool-btn"
-        [class.active]="activeLeftTool() === 'view' || vttDisplay.calibratingGrid()"
-        (click)="toggleLeftTool('view')"
-        title="View & Grid Controls"
-      >
-        <span class="tool-icon"><lw-icon name="eye" [size]="18" /></span>
-        <span class="tool-label">View</span>
-        @if (activeLeftTool() === 'view' || vttDisplay.calibratingGrid()) { <span class="active-arrow"></span> }
-      </button>
-
-      <!-- 6. Measure Tool -->
-      <button
-        ngpButton
-        type="button"
-        class="palette-tool-btn"
-        [class.active]="activeLeftTool() === 'measure' || battle.measureEnabled()"
-        (click)="toggleLeftTool('measure')"
-        title="Measure Distance & AoE"
-      >
-        <span class="tool-icon"><lw-icon name="ruler" [size]="18" /></span>
-        <span class="tool-label">Measure</span>
-        @if (activeLeftTool() === 'measure' || battle.measureEnabled()) { <span class="active-arrow"></span> }
-      </button>
+      @for (tool of paletteTools; track tool.id) {
+        <button
+          ngpButton
+          type="button"
+          class="palette-tool-btn"
+          [class.active]="isPaletteToolActive(tool.id)"
+          (click)="toggleLeftTool(tool.id)"
+          [title]="tool.title"
+        >
+          <span class="tool-icon"><lw-icon [name]="tool.icon" [size]="18" /></span>
+          <span class="tool-label">{{ tool.label }}</span>
+          @if (isPaletteToolActive(tool.id)) {
+            <span class="active-arrow"></span>
+          }
+        </button>
+      }
     </div>
 
-    <!-- FLYOUT SUBMENUS ATTACHED TO ACTIVE TOOL -->
     @if (activeLeftTool() === 'select') {
       <div class="tool-flyout-popover select-flyout" (click)="$event.stopPropagation()">
-        <div class="flyout-popover-header">
-          <h3>Select Mode</h3>
-        </div>
+        <div class="flyout-popover-header"><h3>Select Mode</h3></div>
         <div class="flyout-actions-list">
           <button ngpButton type="button" class="flyout-item-btn" (click)="deselectAll()">
             <lw-icon name="x" [size]="14" />
@@ -125,9 +54,7 @@
 
     @if (activeLeftTool() === 'draw') {
       <div class="tool-flyout-popover draw-flyout" (click)="$event.stopPropagation()">
-        <div class="flyout-popover-header">
-          <h3>Drawing & Walls</h3>
-        </div>
+        <div class="flyout-popover-header"><h3>Drawing & Walls</h3></div>
         <div class="flyout-actions-list">
           <button ngpButton type="button" class="flyout-item-btn" (click)="resetDefaultWalls()">
             <lw-icon name="shield" [size]="14" />
@@ -142,44 +69,260 @@
     }
 
     @if (activeLeftTool() === 'light') {
-      <div class="tool-flyout-popover light-flyout" (click)="$event.stopPropagation()">
-        <div class="flyout-popover-header">
-          <h3>Lighting & Fog</h3>
+      <div class="tool-flyout-popover light-flyout is-wide" (click)="$event.stopPropagation()">
+        <div class="flyout-popover-header"><h3>Fog of War, Vision & Lighting</h3></div>
+
+        <div class="flyout-sub-section">
+          <span class="flyout-sub-label">Fog of War Mode</span>
+          <div class="flyout-chip-grid-2">
+            @for (fm of fogModeOptions; track fm.id) {
+              <button
+                ngpButton
+                type="button"
+                class="flyout-mode-chip"
+                [class.active]="battle.fogMode() === fm.id"
+                (click)="setFogMode(fm.id)"
+              >
+                {{ fm.label }}
+              </button>
+            }
+          </div>
         </div>
-        <div class="flyout-actions-list">
-          <button ngpButton type="button" class="flyout-item-btn" [class.active]="battle.fogMode() !== 'no-fog'" (click)="toggleFogMode()">
-            <lw-icon name="eye" [size]="14" />
-            <span class="flyout-item-text">{{ fogTitle() }}</span>
-          </button>
-          <button ngpButton type="button" class="flyout-item-btn" (click)="battle.toggleDmDrawer('fog-settings')">
-            <lw-icon name="settings" [size]="14" />
-            <span class="flyout-item-text">Fog & Lighting Settings</span>
-          </button>
-        </div>
+
+        @if (isGm()) {
+          <div class="flyout-divider"></div>
+          <div class="flyout-sub-section">
+            <div class="flyout-row-between">
+              <span class="flyout-sub-label">Manual Fog Brush</span>
+              <span class="flyout-badge">{{ battle.fogBrushMode() === 'none' ? 'OFF' : battle.fogBrushMode().toUpperCase() }}</span>
+            </div>
+            <div class="flyout-chip-grid-3">
+              <button ngpButton type="button" class="flyout-mode-chip" [class.active]="battle.fogBrushMode() === 'reveal'" (click)="setFogBrushMode('reveal')">
+                Clear Fog
+              </button>
+              <button ngpButton type="button" class="flyout-mode-chip" [class.active]="battle.fogBrushMode() === 'cover'" (click)="setFogBrushMode('cover')">
+                Reapply Fog
+              </button>
+              <button ngpButton type="button" class="flyout-mode-chip" [class.active]="battle.fogBrushMode() === 'none'" (click)="battle.fogBrushMode.set('none')">
+                Brush Off
+              </button>
+            </div>
+
+            <div class="flyout-row-between">
+              <span class="flyout-mini-label">Brush Size: {{ battle.fogBrushRadiusFeet() }} ft</span>
+              <div class="flyout-shape-pills">
+                <button type="button" class="flyout-shape-pill" [class.active]="battle.fogBrushShape() === 'circle'" (click)="setFogBrushShape('circle')">Circle</button>
+                <button type="button" class="flyout-shape-pill" [class.active]="battle.fogBrushShape() === 'square'" (click)="setFogBrushShape('square')">Square</button>
+              </div>
+            </div>
+            <input
+              type="range"
+              min="5"
+              max="60"
+              step="5"
+              class="flyout-range"
+              [value]="battle.fogBrushRadiusFeet()"
+              (input)="onFogBrushRadiusInput($any($event.target).value)"
+            />
+
+            <div class="flyout-chip-grid-2">
+              <button ngpButton type="button" class="flyout-mode-chip" (click)="battle.clearAllFog()">Clear Entire Map</button>
+              <button ngpButton type="button" class="flyout-mode-chip" (click)="battle.reapplyAllFog()">Reapply All Fog</button>
+            </div>
+          </div>
+
+          <div class="flyout-divider"></div>
+          <div class="flyout-sub-section">
+            <span class="flyout-sub-label">Vision & Fog Opacity</span>
+            <label class="flyout-check-line">
+              <input type="checkbox" [ngModel]="battle.applyTokenVision()" (ngModelChange)="battle.applyTokenVision.set($event)" />
+              <span>Apply Character / Token Vision Settings</span>
+            </label>
+            <label class="flyout-check-line">
+              <input type="checkbox" [ngModel]="battle.showMonstersBeyondVision()" (ngModelChange)="battle.setShowMonstersBeyondVision($event)" />
+              <span>Monsters Visible Beyond Vision Range</span>
+            </label>
+            <label class="flyout-check-line">
+              <input type="checkbox" [ngModel]="battle.showCharactersBeyondVision()" (ngModelChange)="battle.showCharactersBeyondVision.set($event)" />
+              <span>Characters Visible Beyond Vision Range</span>
+            </label>
+            <label class="flyout-check-line">
+              <input type="checkbox" [ngModel]="battle.gmPreviewPlayerVision()" (ngModelChange)="battle.gmPreviewPlayerVision.set($event)" />
+              <span>Preview Player Vision on GM Map</span>
+            </label>
+
+            <div class="flyout-row-between">
+              <span class="flyout-mini-label">Traveled Fog Opacity</span>
+              <strong class="flyout-mini-val">{{ (battle.traveledFogOpacity() * 100).toFixed(0) }}%</strong>
+            </div>
+            <input
+              type="range"
+              min="5"
+              max="90"
+              step="5"
+              class="flyout-range"
+              [value]="battle.traveledFogOpacity() * 100"
+              (input)="onTraveledFogOpacityInput($any($event.target).value)"
+            />
+
+            <div class="flyout-row-between">
+              <span class="flyout-mini-label">GM Fog Overlay Opacity</span>
+              <strong class="flyout-mini-val">{{ (battle.gmFogOpacity() * 100).toFixed(0) }}%</strong>
+            </div>
+            <input
+              type="range"
+              min="10"
+              max="85"
+              step="5"
+              class="flyout-range"
+              [value]="battle.gmFogOpacity() * 100"
+              (input)="onGmFogOpacityInput($any($event.target).value)"
+            />
+          </div>
+        }
       </div>
     }
 
     @if (activeLeftTool() === 'tokens') {
-      <div class="tool-flyout-popover tokens-flyout" (click)="$event.stopPropagation()">
-        <div class="flyout-popover-header">
-          <h3>Tokens & Combatants</h3>
+      <div class="tool-flyout-popover tokens-flyout is-wide" (click)="$event.stopPropagation()">
+        <div class="flyout-popover-header"><h3>Tokens & Combatants</h3></div>
+
+        <div class="flyout-tab-bar" role="tablist">
+          <button type="button" class="flyout-tab-btn" [class.active]="activeTokenAddTab() === 'characters'" (click)="selectTokenAddTab('characters')">
+            Characters ({{ campaignCharacters().length }})
+          </button>
+          <button type="button" class="flyout-tab-btn" [class.active]="activeTokenAddTab() === 'npcs'" (click)="selectTokenAddTab('npcs')">
+            NPCs ({{ campaignNpcs().length }})
+          </button>
+          <button type="button" class="flyout-tab-btn" [class.active]="activeTokenAddTab() === 'monsters'" (click)="selectTokenAddTab('monsters')">
+            Monsters
+          </button>
         </div>
+
+        @if (activeTokenAddTab() === 'characters') {
+          <div class="flyout-sub-section">
+            <div class="flyout-row-between">
+              <span class="flyout-sub-label">Campaign Party</span>
+              <button type="button" class="flyout-link-btn" (click)="ensureAllCampaignCharactersOnMap()">Deploy All Party</button>
+            </div>
+            <div class="flyout-catalog-list">
+              @for (sheet of campaignCharacters(); track sheet.characterKey) {
+                <div class="flyout-catalog-item">
+                  <div class="flyout-catalog-meta">
+                    <strong>{{ sheet.name }}</strong>
+                    <small>{{ sheet.ancestryOrClan }} {{ sheet.classOrArchetype }} {{ sheet.level }} · HP {{ sheet.currentHp }}/{{ sheet.maxHp }} · AC {{ sheet.armorClass }}</small>
+                  </div>
+                  <button ngpButton type="button" class="flyout-spawn-btn" (click)="addOrFocusCampaignCharacter(sheet.characterKey)">
+                    {{ isCharacterOnMap(sheet.characterKey, sheet.name) ? 'Focus' : '+ Add' }}
+                  </button>
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        @if (activeTokenAddTab() === 'npcs') {
+          <div class="flyout-sub-section">
+            <span class="flyout-sub-label">Campaign & Session NPCs</span>
+            <div class="flyout-catalog-list">
+              @for (npc of campaignNpcs(); track npc.id) {
+                <div class="flyout-catalog-item">
+                  <div class="flyout-catalog-meta">
+                    <strong>{{ npc.name }}</strong>
+                    <small>{{ npc.role }} · {{ npc.disposition }}</small>
+                  </div>
+                  @if (isGm()) {
+                    <button ngpButton type="button" class="flyout-spawn-btn" (click)="addNpcToMap(npc.id, npc.name, npc.role, npc.disposition)">+ Add</button>
+                  }
+                </div>
+              }
+            </div>
+            @if (isGm()) {
+              <div class="flyout-inline-form">
+                <input
+                  type="text"
+                  class="flyout-search-input"
+                  placeholder="Quick custom NPC name..."
+                  [ngModel]="customNpcName()"
+                  (ngModelChange)="customNpcName.set($event)"
+                />
+                <div class="flyout-inline-row">
+                  <select class="flyout-mini-select" [ngModel]="customNpcDisposition()" (ngModelChange)="customNpcDisposition.set($event)">
+                    <option value="Friendly">Friendly</option>
+                    <option value="Neutral">Neutral</option>
+                    <option value="Hostile">Hostile</option>
+                  </select>
+                  <button ngpButton type="button" class="flyout-spawn-btn" (click)="createAndAddCustomNpc()">+ Spawn NPC</button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+
+        @if (activeTokenAddTab() === 'monsters') {
+          <div class="flyout-sub-section">
+            <div class="flyout-row-between">
+              <span class="flyout-sub-label">Monster Library ({{ bestiary.total() || filteredMonsterLibrary().length }})</span>
+              <div class="flyout-shape-pills">
+                @for (cnt of [1, 2, 3, 4]; track cnt) {
+                  <button type="button" class="flyout-shape-pill" [class.active]="monsterSpawnCount() === cnt" (click)="monsterSpawnCount.set(cnt)">
+                    {{ cnt }}x
+                  </button>
+                }
+              </div>
+            </div>
+
+            <input
+              type="search"
+              class="flyout-search-input"
+              placeholder="Filter monsters by name, type, or CR..."
+              [ngModel]="bestiary.searchQuery()"
+              (ngModelChange)="onMonsterSearchInput($event)"
+            />
+
+            <div class="flyout-inline-row">
+              <select class="flyout-mini-select" [ngModel]="bestiary.typeFilter()" (ngModelChange)="onMonsterTypeChange($event)">
+                @for (mt of monsterTypes; track mt) {
+                  <option [value]="mt">{{ mt === 'all' ? 'All Creature Types' : mt }}</option>
+                }
+              </select>
+              <select class="flyout-mini-select" [ngModel]="bestiary.crBandId()" (ngModelChange)="onMonsterCrBandChange($event)">
+                @for (b of crBands; track b.id) {
+                  <option [value]="b.id">{{ b.label }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="flyout-catalog-list is-tall">
+              @for (mon of filteredMonsterLibrary(); track mon.key) {
+                <div class="flyout-catalog-item">
+                  <div class="flyout-catalog-meta">
+                    <strong>{{ mon.name }}</strong>
+                    <small>CR {{ mon.challengeRating }} · {{ mon.size }} {{ mon.creatureType }} · HP {{ mon.hitPoints }} · AC {{ mon.armorClass }}</small>
+                  </div>
+                  @if (isGm()) {
+                    <button ngpButton type="button" class="flyout-spawn-btn" (click)="spawnMonsterFromLibrary(mon)">
+                      + {{ monsterSpawnCount() }}x
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        <div class="flyout-divider"></div>
         <div class="flyout-actions-list">
-          @if (isGm()) {
-            <button ngpButton type="button" class="flyout-item-btn" (click)="battle.toggleDmDrawer('quick-add')">
-              <lw-icon name="user-plus" [size]="14" />
-              <span class="flyout-item-text">Quick Add Monster / NPC</span>
-            </button>
-          }
           <button ngpButton type="button" class="flyout-item-btn" (click)="railOpen.set(!railOpen())">
             <lw-icon name="layers" [size]="14" />
             <span class="flyout-item-text">{{ railOpen() ? 'Hide Party Rail' : 'Show Party Rail' }}</span>
           </button>
           <button ngpButton type="button" class="flyout-item-btn" (click)="battle.toggleDmDrawer('scene-roster')">
             <lw-icon name="users" [size]="14" />
-            <span class="flyout-item-text">Encounter Roster</span>
+            <span class="flyout-item-text">Encounter Roster & Active Traps</span>
           </button>
         </div>
+
         @if (isGm() && vtt.tokens().length > 0) {
           <div class="flyout-divider"></div>
           <div class="token-size-control-panel">
@@ -197,26 +340,9 @@
                 </select>
               </div>
             }
-            <div class="token-size-stepper-row">
-              <button ngpButton type="button" class="stepper-btn" (click)="decreaseActiveTokenSize()" title="Decrease Size (D&D rules)">
-                <lw-icon name="minus" [size]="13" />
-                <span>Decrease</span>
-              </button>
-              <button ngpButton type="button" class="stepper-btn" (click)="increaseActiveTokenSize()" title="Increase Size (D&D rules)">
-                <lw-icon name="plus" [size]="13" />
-                <span>Increase</span>
-              </button>
-            </div>
             <div class="token-size-chips-grid">
               @for (sz of dndSizes; track sz.id) {
-                <button
-                  ngpButton
-                  type="button"
-                  class="size-chip-btn"
-                  [class.active]="activeTokenSize() === sz.id"
-                  (click)="setTokenSize(sz.id)"
-                  [title]="sz.label + ': ' + sz.space + ' (' + sz.squares + ')'"
-                >
+                <button ngpButton type="button" class="size-chip-btn" [class.active]="activeTokenSize() === sz.id" (click)="setTokenSize(sz.id)">
                   <span class="chip-label">{{ sz.label }}</span>
                   <span class="chip-space">{{ sz.space }}</span>
                 </button>
@@ -224,6 +350,7 @@
             </div>
           </div>
         }
+
         <div class="flyout-divider"></div>
         <div class="tokens-summary-counts">
           <span><strong>{{ partyCount() }}</strong> Party</span>
@@ -235,9 +362,7 @@
 
     @if (activeLeftTool() === 'view') {
       <div class="tool-flyout-popover view-flyout" (click)="$event.stopPropagation()">
-        <div class="flyout-popover-header">
-          <h3>View & Grid Calibration</h3>
-        </div>
+        <div class="flyout-popover-header"><h3>View & Grid Calibration</h3></div>
         <div class="flyout-actions-list">
           <button ngpButton type="button" class="flyout-item-btn" [class.active]="gridEnabled()" (click)="gridEnabled.set(!gridEnabled())">
             <lw-icon name="grid" [size]="14" />
@@ -258,81 +383,21 @@
               </select>
             </div>
           }
-
           @if (isGm()) {
             <div class="flyout-divider"></div>
             <div class="grid-scale-control-panel">
-              <button
-                ngpButton
-                type="button"
-                class="flyout-item-btn calibrate-draw-btn"
-                [class.active]="vttDisplay.calibratingGrid()"
-                (click)="startDrawSquareCalibration()"
-              >
+              <button ngpButton type="button" class="flyout-item-btn calibrate-draw-btn" [class.active]="vttDisplay.calibratingGrid()" (click)="startDrawSquareCalibration()">
                 <lw-icon name="grid" [size]="14" />
-                <span class="flyout-item-text">
-                  {{ vttDisplay.calibratingGrid() ? 'Cancel Draw Square' : 'Draw 1 Square to Match Map' }}
-                </span>
+                <span class="flyout-item-text">{{ vttDisplay.calibratingGrid() ? 'Cancel Draw Square' : 'Draw 1 Square to Match Map' }}</span>
               </button>
-
               <div class="scale-panel-header">
                 <span class="section-label">Grid Size</span>
                 <span class="scale-value-badge">{{ gridScalePercent() }}%</span>
               </div>
-              <p class="scale-hint">Adjust live or draw 1 square on the map to match custom grids.</p>
               <div class="scale-slider-row">
-                <button ngpButton type="button" class="mini-scale-btn" (click)="decreaseGridScale()" title="Decrease Grid Size">
-                  <lw-icon name="minus" [size]="12" />
-                </button>
-                <input
-                  type="range"
-                  min="0.25"
-                  max="2.5"
-                  step="0.02"
-                  [value]="gridScale()"
-                  (input)="onGridScaleInput($event)"
-                  class="scale-range-slider"
-                  title="Grid Size"
-                />
-                <button ngpButton type="button" class="mini-scale-btn" (click)="increaseGridScale()" title="Increase Grid Size">
-                  <lw-icon name="plus" [size]="12" />
-                </button>
-              </div>
-              <div class="scale-presets-row">
-                <button ngpButton type="button" class="preset-chip" [class.active]="gridScale() === 0.5" (click)="setGridScale(0.5)">50%</button>
-                <button ngpButton type="button" class="preset-chip" [class.active]="gridScale() === 0.75" (click)="setGridScale(0.75)">75%</button>
-                <button ngpButton type="button" class="preset-chip" [class.active]="gridScale() === 1.0" (click)="setGridScale(1.0)">100%</button>
-                <button ngpButton type="button" class="preset-chip" [class.active]="gridScale() === 1.25" (click)="setGridScale(1.25)">125%</button>
-                <button ngpButton type="button" class="preset-chip" [class.active]="gridScale() === 1.5" (click)="setGridScale(1.5)">150%</button>
-              </div>
-
-              <div class="scale-panel-header">
-                <span class="section-label">Grid Shift X / Y</span>
-                <button type="button" class="reset-grid-link" (click)="resetGridCalibration()">Reset</button>
-              </div>
-              <div class="scale-slider-row">
-                <span class="axis-tag">X</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="60"
-                  step="1"
-                  [value]="gridOffsetX()"
-                  (input)="onGridOffsetXInput($event)"
-                  class="scale-range-slider"
-                  title="Horizontal Grid Offset"
-                />
-                <span class="axis-tag">Y</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="60"
-                  step="1"
-                  [value]="gridOffsetY()"
-                  (input)="onGridOffsetYInput($event)"
-                  class="scale-range-slider"
-                  title="Vertical Grid Offset"
-                />
+                <button ngpButton type="button" class="mini-scale-btn" (click)="decreaseGridScale()"><lw-icon name="minus" [size]="12" /></button>
+                <input type="range" min="0.25" max="2.5" step="0.02" [value]="gridScale()" (input)="onGridScaleInput($event)" class="scale-range-slider" />
+                <button ngpButton type="button" class="mini-scale-btn" (click)="increaseGridScale()"><lw-icon name="plus" [size]="12" /></button>
               </div>
             </div>
           }
@@ -342,9 +407,7 @@
 
     @if (activeLeftTool() === 'measure') {
       <div class="tool-flyout-popover measure-flyout" (click)="$event.stopPropagation()">
-        <div class="flyout-popover-header">
-          <h3>Measurement Tools</h3>
-        </div>
+        <div class="flyout-popover-header"><h3>Measurement Tools</h3></div>
         <div class="flyout-actions-list">
           <button ngpButton type="button" class="flyout-item-btn" [class.active]="battle.measureEnabled() && battle.measureSubMode() === 'spell'" (click)="battle.toggleMeasureTool('spell')">
             <lw-icon name="target" [size]="14" />

@@ -89,6 +89,8 @@ const NAV_GROUPS: readonly StudioNavGroup[] = [
         icon: "users",
       },
       { id: "items", label: "Items", route: "/items", icon: "backpack" },
+      { id: "merchants", label: "Merchants", route: "/merchants", icon: "store" },
+      { id: "crafting", label: "Crafting & Foraging", route: "/crafting", icon: "wrench" },
       { id: "bestiary", label: "Bestiary", route: "/bestiary", icon: "skull" },
       {
         id: "maps-scenes",

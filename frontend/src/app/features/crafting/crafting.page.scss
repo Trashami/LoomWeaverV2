@@ -1,0 +1,80 @@
+.lw-crafting-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding-bottom: 2rem;
+}
+
+.lw-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.lw-campaign-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(4, 16, 12, 0.7);
+  border: 1px solid rgba(217, 183, 122, 0.3);
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  color: #d9b77a;
+  font-weight: 500;
+}
+
+.lw-crafting-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 1px solid rgba(73, 232, 146, 0.18);
+  padding-bottom: 0.5rem;
+  overflow-x: auto;
+}
+
+.lw-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #8da499;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: #e5fbf0;
+  }
+
+  &--active {
+    color: #49e892;
+    border-bottom-color: #49e892;
+    font-weight: 600;
+  }
+}
+
+.lw-tab-badge {
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  padding: 0.1rem 0.45rem;
+  font-weight: 600;
+
+  &--gm {
+    background: rgba(217, 183, 122, 0.25);
+    border-color: #d9b77a;
+    color: #f7e7c4;
+  }
+}
+
+.lw-crafting-content {
+  margin-top: 0.25rem;
+}

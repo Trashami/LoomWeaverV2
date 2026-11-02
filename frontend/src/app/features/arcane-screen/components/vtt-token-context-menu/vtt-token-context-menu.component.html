@@ -1,0 +1,356 @@
+@if (token(); as t) {
+  <div
+    class="lw-token-ctx-backdrop"
+    (click)="battle.closeTokenContextMenu()"
+    (contextmenu)="$event.preventDefault(); battle.closeTokenContextMenu()"
+  ></div>
+
+  <aside
+    class="lw-token-ctx"
+    [ngStyle]="menuPositionStyle()"
+    (click)="$event.stopPropagation()"
+    (contextmenu)="$event.preventDefault(); $event.stopPropagation()"
+    aria-label="Token Quick & Light Menu"
+  >
+    <header class="lw-token-ctx__head">
+      <div class="lw-token-ctx__title-wrap">
+        <span
+          class="lw-token-ctx__swatch"
+          [style.background]="t.colorHex || (t.faction === 'party' ? '#2ee66b' : '#ef5d72')"
+        ></span>
+        <div>
+          <strong class="lw-token-ctx__name">{{ t.name }}</strong>
+          <small class="lw-token-ctx__sub">
+            {{ t.roleLabel }} · HP {{ t.currentHp }}/{{ t.maxHp }} · AC {{ t.armorClass }}
+          </small>
+        </div>
+      </div>
+      <button
+        type="button"
+        class="lw-token-ctx__close"
+        (click)="battle.closeTokenContextMenu()"
+        aria-label="Close token menu"
+      >
+        <lw-icon name="close" [size]="15"></lw-icon>
+      </button>
+    </header>
+
+    <nav class="lw-token-ctx__tabs" role="tablist">
+      <button
+        type="button"
+        role="tab"
+        class="lw-token-ctx__tab"
+        [class.is-active]="activeTab() === 'quick'"
+        (click)="activeTab.set('quick')"
+      >
+        Quick Actions
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="lw-token-ctx__tab"
+        [class.is-active]="activeTab() === 'light'"
+        (click)="activeTab.set('light')"
+      >
+        Torch & Vision
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="lw-token-ctx__tab"
+        [class.is-active]="activeTab() === 'glow'"
+        (click)="activeTab.set('glow')"
+      >
+        Glow & Color
+      </button>
+    </nav>
+
+    @if (activeTab() === 'quick') {
+      <div class="lw-token-ctx__body">
+        <div class="lw-token-ctx__action-row">
+          <button type="button" class="lw-token-ctx__btn" (click)="selectAsActor(t)">
+            Select Actor
+          </button>
+          <button
+            type="button"
+            class="lw-token-ctx__btn"
+            [class.is-active]="battle.isTokenTargetedWithReticle(t.key)"
+            (click)="toggleTarget(t)"
+          >
+            {{ battle.isTokenTargetedWithReticle(t.key) ? 'Untarget' : 'Target Token' }}
+          </button>
+        </div>
+
+        <div class="lw-token-ctx__action-row">
+          <button
+            type="button"
+            class="lw-token-ctx__btn"
+            [class.is-active]="isPreviewingThisTokenEyes()"
+            (click)="toggleViewThroughEyes(t)"
+          >
+            {{ isPreviewingThisTokenEyes() ? 'Exit Token Eyes' : 'View Through Eyes' }}
+          </button>
+          @if (t.faction === 'party') {
+            <button
+              type="button"
+              class="lw-token-ctx__btn"
+              (click)="openCharacterSheet.emit(t.key); battle.closeTokenContextMenu()"
+            >
+              Character Sheet
+            </button>
+          }
+        </div>
+
+        @if (canEditToken()) {
+          <div class="lw-token-ctx__group">
+            <span class="lw-token-ctx__label">Hit Points ({{ t.currentHp }} / {{ t.maxHp }})</span>
+            <div class="lw-token-ctx__chip-grid lw-token-ctx__chip-grid--5">
+              <button type="button" class="lw-token-ctx__chip is-danger" (click)="adjustHp(t, -5)">-5</button>
+              <button type="button" class="lw-token-ctx__chip is-danger" (click)="adjustHp(t, -1)">-1</button>
+              <button type="button" class="lw-token-ctx__chip is-heal" (click)="adjustHp(t, 1)">+1</button>
+              <button type="button" class="lw-token-ctx__chip is-heal" (click)="adjustHp(t, 5)">+5</button>
+              <button type="button" class="lw-token-ctx__chip is-heal" (click)="fullHeal(t)">Full</button>
+            </div>
+          </div>
+
+          <div class="lw-token-ctx__group">
+            <span class="lw-token-ctx__label">Token Size ({{ (t.sizeCategory || 'medium') | uppercase }})</span>
+            <div class="lw-token-ctx__chip-grid lw-token-ctx__chip-grid--3">
+              @for (sz of sizeCategories; track sz.id) {
+                <button
+                  type="button"
+                  class="lw-token-ctx__chip"
+                  [class.is-active]="(t.sizeCategory || 'medium') === sz.id"
+                  (click)="setSize(t, sz.id)"
+                >
+                  {{ sz.label }}
+                </button>
+              }
+            </div>
+          </div>
+
+          <div class="lw-token-ctx__group">
+            <span class="lw-token-ctx__label">Active Conditions</span>
+            <div class="lw-token-ctx__chip-grid lw-token-ctx__chip-grid--3">
+              @for (cond of conditionOptions; track cond.key) {
+                <button
+                  type="button"
+                  class="lw-token-ctx__chip"
+                  [class.is-active]="hasCondition(t, cond.key)"
+                  (click)="toggleCondition(t, cond.key)"
+                >
+                  {{ cond.label }}
+                </button>
+              }
+            </div>
+          </div>
+        }
+
+        @if (store.viewerRole() === 'gm') {
+          <div class="lw-token-ctx__footer">
+            <button type="button" class="lw-token-ctx__remove" (click)="removeToken(t)">
+              Remove Token from Map
+            </button>
+          </div>
+        }
+      </div>
+    }
+
+    @if (activeTab() === 'light') {
+      <div class="lw-token-ctx__body">
+        <div class="lw-token-ctx__group">
+          <span class="lw-token-ctx__label">
+            Torch & Light Source
+            <strong>{{ t.emitsLight ? (t.lightBrightFeet + '/' + t.lightDimFeet + 'ft') : 'Off' }}</strong>
+          </span>
+          <div class="lw-token-ctx__preset-list">
+            @for (preset of lightPresets; track preset.id) {
+              <button
+                type="button"
+                class="lw-token-ctx__preset"
+                [class.is-active]="(t.lightPreset || 'none') === preset.id"
+                [disabled]="!canEditToken()"
+                (click)="applyLightPreset(t, preset.id)"
+              >
+                <span class="lw-token-ctx__preset-dot" [style.background]="preset.colorHex"></span>
+                <span class="lw-token-ctx__preset-copy">
+                  <strong>{{ preset.label }}</strong>
+                  <small>{{ preset.sublabel }}</small>
+                </span>
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="lw-token-ctx__group">
+          <span class="lw-token-ctx__label">Light Color Tint</span>
+          <div class="lw-token-ctx__swatch-row">
+            @for (hex of colorSwatches; track hex) {
+              <button
+                type="button"
+                class="lw-token-ctx__color-dot"
+                [style.background]="hex"
+                [class.is-active]="t.lightColorHex === hex"
+                [disabled]="!canEditToken()"
+                (click)="setLightColor(t, hex)"
+              ></button>
+            }
+            <input
+              type="color"
+              class="lw-token-ctx__color-input"
+              [value]="t.lightColorHex || '#ff9922'"
+              [disabled]="!canEditToken()"
+              (input)="setLightColor(t, $any($event.target).value)"
+            />
+          </div>
+        </div>
+
+        <div class="lw-token-ctx__group">
+          <span class="lw-token-ctx__label">
+            Token Vision ({{ t.sightFeet ?? 60 }}ft Sight · {{ t.darkvisionFeet ?? 0 }}ft Darkvision)
+          </span>
+          <div class="lw-token-ctx__chip-grid lw-token-ctx__chip-grid--2">
+            <button
+              type="button"
+              class="lw-token-ctx__chip"
+              [class.is-active]="(t.sightFeet ?? 60) === 30 && (t.darkvisionFeet ?? 0) === 0"
+              [disabled]="!canEditToken()"
+              (click)="setVisionPreset(t, 30, 0)"
+            >
+              Standard (30ft)
+            </button>
+            <button
+              type="button"
+              class="lw-token-ctx__chip"
+              [class.is-active]="(t.darkvisionFeet ?? 0) === 60"
+              [disabled]="!canEditToken()"
+              (click)="setVisionPreset(t, 60, 60)"
+            >
+              Darkvision (60ft)
+            </button>
+            <button
+              type="button"
+              class="lw-token-ctx__chip"
+              [class.is-active]="(t.darkvisionFeet ?? 0) === 90"
+              [disabled]="!canEditToken()"
+              (click)="setVisionPreset(t, 90, 90)"
+            >
+              Keen Sight (90ft)
+            </button>
+            <button
+              type="button"
+              class="lw-token-ctx__chip"
+              [class.is-active]="(t.darkvisionFeet ?? 0) === 120"
+              [disabled]="!canEditToken()"
+              (click)="setVisionPreset(t, 120, 120)"
+            >
+              Superior Dark (120ft)
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (activeTab() === 'glow') {
+      <div class="lw-token-ctx__body">
+        <div class="lw-token-ctx__group">
+          <div class="lw-token-ctx__toggle-line">
+            <div>
+              <strong class="lw-token-ctx__toggle-title">Character Ambient Glow</strong>
+              <small class="lw-token-ctx__toggle-sub">Aura ring around miniature & token base</small>
+            </div>
+            <button
+              type="button"
+              class="lw-token-ctx__pill-toggle"
+              [class.is-on]="t.ambientGlowEnabled"
+              [disabled]="!canEditToken()"
+              (click)="toggleAmbientGlow(t)"
+            >
+              {{ t.ambientGlowEnabled ? 'Enabled' : 'Off' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="lw-token-ctx__group">
+          <span class="lw-token-ctx__label">Ambient Glow Color</span>
+          <div class="lw-token-ctx__swatch-row">
+            @for (hex of colorSwatches; track hex) {
+              <button
+                type="button"
+                class="lw-token-ctx__color-dot"
+                [style.background]="hex"
+                [class.is-active]="t.ambientGlowColorHex === hex"
+                [disabled]="!canEditToken()"
+                (click)="setAmbientGlowColor(t, hex)"
+              ></button>
+            }
+            <input
+              type="color"
+              class="lw-token-ctx__color-input"
+              [value]="t.ambientGlowColorHex || '#2ee66b'"
+              [disabled]="!canEditToken()"
+              (input)="setAmbientGlowColor(t, $any($event.target).value)"
+            />
+          </div>
+        </div>
+
+        <div class="lw-token-ctx__group">
+          <label class="lw-token-ctx__slider-label">
+            <span>Glow Intensity</span>
+            <strong>{{ ((t.ambientGlowIntensity ?? 0.65) * 100) | number:'1.0-0' }}%</strong>
+          </label>
+          <input
+            type="range"
+            min="15"
+            max="100"
+            step="5"
+            class="lw-token-ctx__range"
+            [value]="((t.ambientGlowIntensity ?? 0.65) * 100)"
+            [disabled]="!canEditToken()"
+            (input)="setAmbientGlowIntensity(t, $any($event.target).value)"
+          />
+        </div>
+
+        <div class="lw-token-ctx__group">
+          <label class="lw-token-ctx__slider-label">
+            <span>Glow Radius</span>
+            <strong>{{ t.ambientGlowRadiusFeet ?? 10 }} ft</strong>
+          </label>
+          <input
+            type="range"
+            min="5"
+            max="25"
+            step="5"
+            class="lw-token-ctx__range"
+            [value]="t.ambientGlowRadiusFeet ?? 10"
+            [disabled]="!canEditToken()"
+            (input)="setAmbientGlowRadius(t, $any($event.target).value)"
+          />
+        </div>
+
+        <div class="lw-token-ctx__group">
+          <span class="lw-token-ctx__label">Token Ring & Base Color</span>
+          <div class="lw-token-ctx__swatch-row">
+            @for (hex of colorSwatches; track hex) {
+              <button
+                type="button"
+                class="lw-token-ctx__color-dot"
+                [style.background]="hex"
+                [class.is-active]="t.colorHex === hex"
+                [disabled]="!canEditToken()"
+                (click)="setTokenRingColor(t, hex)"
+              ></button>
+            }
+            <input
+              type="color"
+              class="lw-token-ctx__color-input"
+              [value]="t.colorHex || '#2ee66b'"
+              [disabled]="!canEditToken()"
+              (input)="setTokenRingColor(t, $any($event.target).value)"
+            />
+          </div>
+        </div>
+      </div>
+    }
+  </aside>
+}

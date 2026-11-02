@@ -1,15 +1,18 @@
 import { Color3, DynamicTexture, Mesh, Scene, StandardMaterial, VertexData } from '@babylonjs/core';
+import { TerrainMeshBuilder } from '../../maps/engine/terrain/terrain-mesh.builder';
 
-/** World extents covered by the fog canvas: x in [-12, 12], z in [-8, 8]. */
-const FOG_HALF_X = 12;
-const FOG_HALF_Z = 8;
-const FOG_Y = 1;
-const FOG_TEXTURE_WIDTH = 1200;
-const FOG_TEXTURE_HEIGHT = 800;
+/** World extents covered by the fog canvas: x in [-18, 18], z in [-13.5, 13.5]. */
+const FOG_HALF_X = 18;
+const FOG_HALF_Z = 13.5;
+const FOG_HEIGHT_OFFSET = 0.16;
+const FOG_SUBDIV_X = 48;
+const FOG_SUBDIV_Z = 36;
+const FOG_TEXTURE_WIDTH = 1080;
+const FOG_TEXTURE_HEIGHT = 810;
 
 /**
- * Horizontal fog plane textured with the player fog canvas. The canvas alpha
- * drives transparency, so cleared areas show the map beneath.
+ * Terrain-conforming fog plane textured with the MythWeaver-style fog canvas.
+ * The canvas alpha drives transparency, so cleared areas reveal the 3D/2D map beneath.
  */
 export class BabylonFogPlane {
   private mesh: Mesh | null = null;
@@ -24,12 +27,26 @@ export class BabylonFogPlane {
       return;
     }
     this.ensureMesh();
+    this.conformToTerrain();
     const ctx = this.texture?.getContext();
     if (!this.texture || !ctx) return;
     ctx.clearRect(0, 0, FOG_TEXTURE_WIDTH, FOG_TEXTURE_HEIGHT);
     ctx.drawImage(layer, 0, 0, FOG_TEXTURE_WIDTH, FOG_TEXTURE_HEIGHT);
     this.texture.update();
     this.mesh?.setEnabled(true);
+  }
+
+  conformToTerrain(): void {
+    if (!this.mesh) return;
+    const positions = this.mesh.getVerticesData('position');
+    if (!positions) return;
+    for (let i = 0; i < positions.length; i += 3) {
+      const vx = positions[i];
+      const vz = positions[i + 2];
+      const groundY = TerrainMeshBuilder.sampleElevationAt(this.scene, vx, vz);
+      positions[i + 1] = groundY + FOG_HEIGHT_OFFSET;
+    }
+    this.mesh.updateVerticesData('position', positions);
   }
 
   dispose(): void {
@@ -45,23 +62,43 @@ export class BabylonFogPlane {
     if (this.mesh) return;
 
     const mesh = new Mesh('lw-fog-plane', this.scene);
-    const positions = [
-      -FOG_HALF_X, FOG_Y, -FOG_HALF_Z,
-      FOG_HALF_X, FOG_Y, -FOG_HALF_Z,
-      FOG_HALF_X, FOG_Y, FOG_HALF_Z,
-      -FOG_HALF_X, FOG_Y, FOG_HALF_Z,
-    ];
-    const normals = [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0];
-    // Canvas top (z = -8) maps to v = 1 because the dynamic texture is not inverted.
-    const uvs = [0, 1, 1, 1, 1, 0, 0, 0];
-    const indices = [0, 2, 1, 0, 3, 2];
+    const positions: number[] = [];
+    const normals: number[] = [];
+    const uvs: number[] = [];
+    const indices: number[] = [];
+
+    for (let iz = 0; iz <= FOG_SUBDIV_Z; iz++) {
+      const tz = iz / FOG_SUBDIV_Z;
+      const z = -FOG_HALF_Z + tz * (FOG_HALF_Z * 2);
+      const v = 1 - tz; // Canvas top (z = -13.5) maps to v = 1
+      for (let ix = 0; ix <= FOG_SUBDIV_X; ix++) {
+        const tx = ix / FOG_SUBDIV_X;
+        const x = -FOG_HALF_X + tx * (FOG_HALF_X * 2);
+        const groundY = TerrainMeshBuilder.sampleElevationAt(this.scene, x, z);
+        positions.push(x, groundY + FOG_HEIGHT_OFFSET, z);
+        normals.push(0, 1, 0);
+        uvs.push(tx, v);
+      }
+    }
+
+    const rowStride = FOG_SUBDIV_X + 1;
+    for (let iz = 0; iz < FOG_SUBDIV_Z; iz++) {
+      for (let ix = 0; ix < FOG_SUBDIV_X; ix++) {
+        const i0 = iz * rowStride + ix;
+        const i1 = i0 + 1;
+        const i2 = (iz + 1) * rowStride + ix;
+        const i3 = i2 + 1;
+        indices.push(i0, i2, i1);
+        indices.push(i1, i2, i3);
+      }
+    }
 
     const data = new VertexData();
     data.positions = positions;
     data.normals = normals;
     data.uvs = uvs;
     data.indices = indices;
-    data.applyToMesh(mesh);
+    data.applyToMesh(mesh, true);
 
     const texture = new DynamicTexture(
       'lw-fog-tex',
@@ -73,10 +110,10 @@ export class BabylonFogPlane {
 
     const material = new StandardMaterial('lw-fog-mat', this.scene);
     material.disableLighting = true;
-    material.diffuseColor = Color3.Black();
+    material.diffuseTexture = texture;
+    material.useAlphaFromDiffuseTexture = true;
+    material.emissiveColor = Color3.FromHexString('#030806');
     material.specularColor = Color3.Black();
-    material.emissiveTexture = texture;
-    material.opacityTexture = texture;
     material.backFaceCulling = false;
     mesh.material = material;
     mesh.isPickable = false;

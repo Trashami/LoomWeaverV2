@@ -1,0 +1,178 @@
+<!-- BUY MODAL -->
+@if (buyModalOpen() && selectedBuyItem(); as bItem) {
+  <lw-modal
+    title="Purchase Goods"
+    [open]="true"
+    (closed)="buyModalOpen.set(false)"
+  >
+    <div class="checkout-modal">
+      <div class="checkout-summary">
+        <h3>{{ bItem.name }}</h3>
+        <p>{{ bItem.description }}</p>
+        <div class="checkout-price-line">
+          <span>Unit Price:</span>
+          <strong>{{ effectivePrice(bItem.priceGp) }} GP</strong>
+        </div>
+      </div>
+
+      <div class="checkout-form">
+        <label>
+          <span>Quantity to Purchase:</span>
+          <input
+            type="number"
+            min="1"
+            [max]="bItem.quantity === -1 ? 99 : bItem.quantity"
+            [ngModel]="buyQuantity()"
+            (ngModelChange)="buyQuantity.set($event)"
+          />
+        </label>
+
+        <div class="funding-choice">
+          <span class="funding-label">Funding Account:</span>
+          <div class="funding-options">
+            <label class="choice-label" [class.selected]="!buyWithPartyFunds()">
+              <input
+                type="radio"
+                name="fundSource"
+                [checked]="!buyWithPartyFunds()"
+                (change)="buyWithPartyFunds.set(false)"
+              />
+              <span>Personal Purse ({{ wallet().personalGoldGp }} GP)</span>
+            </label>
+            <label class="choice-label" [class.selected]="buyWithPartyFunds()">
+              <input
+                type="radio"
+                name="fundSource"
+                [checked]="buyWithPartyFunds()"
+                (change)="buyWithPartyFunds.set(true)"
+              />
+              <span>Party Treasury ({{ wallet().partyGoldGp }} GP)</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="checkout-total">
+          <span>Total Cost:</span>
+          <strong class="total-gp">{{ effectivePrice(bItem.priceGp) * buyQuantity() }} GP</strong>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button ngpButton class="lw-btn lw-btn--subtle" (click)="buyModalOpen.set(false)">Cancel</button>
+        <button ngpButton class="lw-btn lw-btn--primary" [disabled]="actionBusy()" (click)="onConfirmBuy()">
+          Confirm Purchase
+        </button>
+      </div>
+    </div>
+  </lw-modal>
+}
+
+<!-- SELL MODAL -->
+@if (sellModalOpen() && selectedSellItem(); as sItem) {
+  <lw-modal
+    title="Sell Goods to Merchant"
+    [open]="true"
+    (closed)="sellModalOpen.set(false)"
+  >
+    <div class="checkout-modal">
+      <div class="checkout-summary">
+        <h3>{{ sItem.name }}</h3>
+        <p>{{ sItem.summary || 'Item in adventurer pack.' }}</p>
+        <div class="checkout-price-line">
+          <span>Merchant Buyback Offer:</span>
+          <strong>{{ (sItem.valueGp || 20) * (merchant().buyRatePercent / 100) | number:'1.0-1' }} GP</strong>
+        </div>
+      </div>
+
+      <div class="checkout-form">
+        <div class="funding-choice">
+          <span class="funding-label">Deposit Proceeds Into:</span>
+          <div class="funding-options">
+            <label class="choice-label" [class.selected]="!sellDepositParty()">
+              <input
+                type="radio"
+                name="depositTarget"
+                [checked]="!sellDepositParty()"
+                (change)="sellDepositParty.set(false)"
+              />
+              <span>Personal Purse</span>
+            </label>
+            <label class="choice-label" [class.selected]="sellDepositParty()">
+              <input
+                type="radio"
+                name="depositTarget"
+                [checked]="sellDepositParty()"
+                (change)="sellDepositParty.set(true)"
+              />
+              <span>Party Treasury</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button ngpButton class="lw-btn lw-btn--subtle" (click)="sellModalOpen.set(false)">Cancel</button>
+        <button ngpButton class="lw-btn lw-btn--primary" [disabled]="actionBusy()" (click)="onConfirmSell()">
+          Confirm Sale
+        </button>
+      </div>
+    </div>
+  </lw-modal>
+}
+
+<!-- ADD ITEM MODAL -->
+@if (addItemModalOpen()) {
+  <lw-modal
+    title="Stock Custom Item"
+    [open]="true"
+    (closed)="addItemModalOpen.set(false)"
+  >
+    <form class="custom-item-form" (ngSubmit)="onSubmitAddItem()">
+      <label>
+        <span>Item Name *</span>
+        <input type="text" required [ngModel]="newItemName()" (ngModelChange)="newItemName.set($event)" name="itemName" />
+      </label>
+      <div class="form-row">
+        <label>
+          <span>Category</span>
+          <select [ngModel]="newItemType()" (ngModelChange)="newItemType.set($event)" name="itemType">
+            <option value="Weapon">Weapon</option>
+            <option value="Armor">Armor</option>
+            <option value="Potion">Potion</option>
+            <option value="Wondrous Item">Wondrous Item</option>
+            <option value="Adventuring Gear">Adventuring Gear</option>
+          </select>
+        </label>
+        <label>
+          <span>Rarity</span>
+          <select [ngModel]="newItemRarity()" (ngModelChange)="newItemRarity.set($event)" name="rarity">
+            <option value="common">Common</option>
+            <option value="uncommon">Uncommon</option>
+            <option value="rare">Rare</option>
+            <option value="very rare">Very Rare</option>
+            <option value="legendary">Legendary</option>
+          </select>
+        </label>
+      </div>
+      <div class="form-row">
+        <label>
+          <span>Price (GP)</span>
+          <input type="number" min="1" [ngModel]="newItemPrice()" (ngModelChange)="newItemPrice.set($event)" name="itemPrice" />
+        </label>
+        <label>
+          <span>Quantity in Stock</span>
+          <input type="number" min="-1" [ngModel]="newItemQty()" (ngModelChange)="newItemQty.set($event)" name="itemQty" />
+        </label>
+      </div>
+      <label>
+        <span>Description</span>
+        <textarea rows="2" [ngModel]="newItemDesc()" (ngModelChange)="newItemDesc.set($event)" name="itemDesc"></textarea>
+      </label>
+
+      <div class="modal-actions">
+        <button ngpButton type="button" class="lw-btn lw-btn--subtle" (click)="addItemModalOpen.set(false)">Cancel</button>
+        <button ngpButton type="submit" class="lw-btn lw-btn--primary" [disabled]="!newItemName().trim()">Stock Item</button>
+      </div>
+    </form>
+  </lw-modal>
+}

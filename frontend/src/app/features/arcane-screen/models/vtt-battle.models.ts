@@ -1,7 +1,26 @@
 import { ActionRuleVm } from '../../effects/engine/effect-timeline.contract';
 import type { ActionBarSkinId } from '../components/vtt-action-bar/action-bar-skins';
 
-export type VttFogMode = 'los-only' | 'explored-los' | 'no-fog';
+export type VttFogMode = 'los-only' | 'explored-los' | 'manual-only' | 'no-fog';
+
+export type VttFogBrushMode = 'none' | 'reveal' | 'cover';
+
+export type VttFogBrushShape = 'circle' | 'square';
+
+export interface VttFogBrushStrokeVm {
+  readonly id: string;
+  readonly x: number;
+  readonly z: number;
+  readonly radiusFeet: number;
+  readonly shape: VttFogBrushShape;
+  readonly mode: 'reveal' | 'cover';
+}
+
+export interface VttTokenContextMenuStateVm {
+  readonly tokenKey: string;
+  readonly clientX: number;
+  readonly clientY: number;
+}
 
 export type VttRightTabId =
   | 'chat'

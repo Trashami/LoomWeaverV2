@@ -64,6 +64,38 @@ export function getDndSizeScale(category?: string): number {
   return DND_SIZE_METRICS[cat]?.scaleFactor ?? 1.0;
 }
 
+export type DndTokenSizeCategory = DndSizeCategory;
+
+export const DND_TOKEN_SIZE_CATEGORIES: readonly { id: DndSizeCategory; label: string }[] = [
+  { id: 'tiny', label: 'Tiny' },
+  { id: 'small', label: 'Small' },
+  { id: 'medium', label: 'Medium' },
+  { id: 'large', label: 'Large' },
+  { id: 'huge', label: 'Huge' },
+  { id: 'gargantuan', label: 'Gargantuan' },
+];
+
+export type VttConditionKey =
+  | 'prone'
+  | 'concentrating'
+  | 'blessed'
+  | 'hasted'
+  | 'shielded'
+  | 'poisoned'
+  | 'invisible';
+
+export type VttTokenLightPreset =
+  | 'none'
+  | 'torch'
+  | 'lantern-hooded'
+  | 'lantern_hooded'
+  | 'lantern-bullseye'
+  | 'lantern_bullseye'
+  | 'candle'
+  | 'spell-light'
+  | 'spell_light'
+  | 'daylight';
+
 export interface VttTokenVm {
   readonly key: string;
   readonly name: string;
@@ -86,7 +118,18 @@ export interface VttTokenVm {
   readonly avatarUrl?: string;
   readonly glbUrl?: string;
   readonly sizeCategory?: DndSizeCategory;
+  readonly conditions?: readonly VttConditionKey[];
   readonly colorOverride?: string;
+  readonly emitsLight?: boolean;
+  readonly lightPreset?: VttTokenLightPreset;
+  readonly lightBrightFeet?: number;
+  readonly lightDimFeet?: number;
+  readonly lightColorHex?: string;
+  readonly lightFlicker?: number;
+  readonly ambientGlowEnabled?: boolean;
+  readonly ambientGlowColorHex?: string;
+  readonly ambientGlowIntensity?: number;
+  readonly ambientGlowRadiusFeet?: number;
 }
 
 const LEGACY_NEON_DEFAULTS = new Set(['#2ee66b', '#49e892', '#ef4444', '#737982']);

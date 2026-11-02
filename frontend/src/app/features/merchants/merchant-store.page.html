@@ -1,0 +1,465 @@
+@if (merchant(); as m) {
+  <section class="lw-store-view">
+    <div class="store-top-bar">
+      <a ngpButton routerLink="/merchants" class="back-link">
+        <lw-icon name="arrow-left" [size]="14" />
+        <span>Return to Merchants</span>
+      </a>
+
+      <div class="top-bar-actions">
+        <div class="location-badge" [class.location-badge--near]="m.isAtCurrentLocation">
+          <lw-icon name="map-pin" [size]="13" />
+          <span>{{ m.locationName }}</span>
+          @if (m.isAtCurrentLocation) {
+            <span class="sub-pill">In Town</span>
+          } @else {
+            <span class="sub-pill far">Distant</span>
+          }
+        </div>
+
+        @if (isGm()) {
+          <button
+            ngpButton
+            type="button"
+            class="mode-btn"
+            (click)="isGmMode.set(!isGmMode())"
+          >
+            <lw-icon [name]="isGmMode() ? 'eye' : 'settings'" [size]="14" />
+            <span>{{ isGmMode() ? 'View as Player' : 'DM Storekeeper' }}</span>
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Store Atmosphere Header -->
+    <header class="store-hero">
+      <div class="store-hero__left">
+        <div class="shopkeeper-frame">
+          <div class="shopkeeper-avatar">
+            <lw-icon name="storefront" [size]="36" tone="emerald" />
+          </div>
+          @if (m.pastPurchasesCount > 0) {
+            <span class="patron-badge">
+              <lw-icon name="bookmark" [size]="11" />
+              <span>Valued Patron</span>
+            </span>
+          }
+        </div>
+
+        <div class="store-hero__ident">
+          <div class="title-row">
+            <h1 class="store-title">{{ m.storeName }}</h1>
+            @if (m.rollTableName) {
+              <a routerLink="/roll-tables" class="roll-table-link" title="Attached Roll Table">
+                <lw-icon name="table-chart" [size]="13" tone="gold" />
+                <span>{{ m.rollTableName }}</span>
+              </a>
+            }
+          </div>
+
+          <p class="proprietor">Proprietor: <strong>{{ m.merchantName }}</strong></p>
+          <p class="tagline">{{ m.tagline }}</p>
+
+          <div class="dialogue-bubble">
+            <lw-icon name="note" [size]="14" tone="emerald" />
+            <span class="quote">"{{ m.greeting }}"</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Wallet Dashboard -->
+      <div class="wallet-board">
+        <div class="wallet-header">
+          <lw-icon name="shopping-bag" [size]="14" tone="gold" />
+          <span>Available Treasury</span>
+        </div>
+
+        <div class="wallet-row">
+          <div class="wallet-col">
+            <span class="wallet-sub">{{ activeCharacterName() }} (Personal)</span>
+            <div class="gold-display">
+              <span class="gold-amount">{{ wallet().personalGoldGp | number:'1.0-1' }}</span>
+              <span class="curr-unit gold">GP</span>
+              <span class="curr-minor">{{ wallet().personalSilverSp }} SP</span>
+            </div>
+          </div>
+
+          <div class="wallet-divider"></div>
+
+          <div class="wallet-col">
+            <span class="wallet-sub">Party Treasury (Pooled)</span>
+            <div class="gold-display">
+              <span class="gold-amount party">{{ wallet().partyGoldGp | number:'1.0-1' }}</span>
+              <span class="curr-unit gold">GP</span>
+              <span class="curr-minor">{{ wallet().partySilverSp }} SP</span>
+            </div>
+          </div>
+        </div>
+
+        @if (haggleDiscountPercent() > 0) {
+          <div class="discount-banner">
+            <lw-icon name="check" [size]="13" tone="emerald" />
+            <span>Barter Perk Active: <strong>{{ haggleDiscountPercent() }}% Off</strong></span>
+          </div>
+        }
+      </div>
+    </header>
+
+    @if (!m.isAtCurrentLocation) {
+      <div class="proximity-warning">
+        <lw-icon name="alert-circle" [size]="15" tone="muted" />
+        <span>Your party is in <strong>{{ activeCampaign().currentLocationName }}</strong>. This merchant is located in <strong>{{ m.locationName }}</strong>. You are currently viewing their catalog remotely.</span>
+      </div>
+    }
+
+    @if (statusMessage()) {
+      <div class="feedback-banner success">
+        <lw-icon name="check" [size]="16" tone="emerald" />
+        <span>{{ statusMessage() }}</span>
+      </div>
+    }
+    @if (errorMessage()) {
+      <div class="feedback-banner error">
+        <lw-icon name="alert-circle" [size]="16" tone="crimson" />
+        <span>{{ errorMessage() }}</span>
+      </div>
+    }
+
+    <!-- Navigation Tabs -->
+    <nav class="store-tabs">
+      <button
+        ngpButton
+        type="button"
+        class="tab-btn"
+        [class.active]="activeTab() === 'buy'"
+        (click)="setTab('buy')"
+      >
+        <lw-icon name="shopping-cart" [size]="15" />
+        <span>Buy Wares ({{ inventory().length }})</span>
+      </button>
+
+      <button
+        ngpButton
+        type="button"
+        class="tab-btn"
+        [class.active]="activeTab() === 'sell'"
+        (click)="setTab('sell')"
+      >
+        <lw-icon name="backpack" [size]="15" />
+        <span>Sell Goods ({{ characterItems().length }})</span>
+      </button>
+
+      <button
+        ngpButton
+        type="button"
+        class="tab-btn"
+        [class.active]="activeTab() === 'haggle'"
+        (click)="setTab('haggle')"
+      >
+        <lw-icon name="swords" [size]="15" />
+        <span>Haggle & Barter</span>
+      </button>
+
+      <button
+        ngpButton
+        type="button"
+        class="tab-btn"
+        [class.active]="activeTab() === 'ledger'"
+        (click)="setTab('ledger')"
+      >
+        <lw-icon name="description" [size]="15" />
+        <span>Transaction Ledger ({{ transactions().length }})</span>
+      </button>
+
+      @if (isGm() && isGmMode()) {
+        <button
+          ngpButton
+          type="button"
+          class="tab-btn gm-tab"
+          [class.active]="activeTab() === 'manage'"
+          (click)="setTab('manage')"
+        >
+          <lw-icon name="settings" [size]="15" tone="gold" />
+          <span>DM Management</span>
+        </button>
+      }
+    </nav>
+
+    <!-- BUY TAB -->
+    @if (activeTab() === 'buy') {
+      <div class="shelf-controls">
+        <div class="category-pills">
+          <button ngpButton [class.active]="categoryFilter() === 'all'" (click)="categoryFilter.set('all')">All Items</button>
+          <button ngpButton [class.active]="categoryFilter() === 'weapon'" (click)="categoryFilter.set('weapon')">Weapons</button>
+          <button ngpButton [class.active]="categoryFilter() === 'armor'" (click)="categoryFilter.set('armor')">Armor & Shields</button>
+          <button ngpButton [class.active]="categoryFilter() === 'potion'" (click)="categoryFilter.set('potion')">Potions & Elixirs</button>
+          <button ngpButton [class.active]="categoryFilter() === 'wondrous'" (click)="categoryFilter.set('wondrous')">Magic & Wondrous</button>
+          <button ngpButton [class.active]="categoryFilter() === 'gear'" (click)="categoryFilter.set('gear')">Adventuring Gear</button>
+        </div>
+
+        <div class="shelf-search">
+          <lw-icon name="search" [size]="14" tone="muted" />
+          <input
+            type="text"
+            placeholder="Search shelves..."
+            [ngModel]="searchFilter()"
+            (ngModelChange)="searchFilter.set($event)"
+          />
+        </div>
+      </div>
+
+      @if (filteredInventory().length === 0) {
+        <div class="empty-shelf">
+          <lw-icon name="inventory_2" [size]="40" tone="muted" />
+          <p>The shelves for this category are bare today.</p>
+        </div>
+      } @else {
+        <div class="item-grid">
+          @for (item of filteredInventory(); track item.id) {
+            <article class="item-card" [class.featured]="item.isFeatured">
+              <div class="item-card__header">
+                <div class="item-card__ident">
+                  <span class="rarity-badge" [attr.data-rarity]="item.rarity.toLowerCase()">
+                    {{ item.rarity }}
+                  </span>
+                  <span class="item-type">{{ item.itemType }}</span>
+                </div>
+                <div class="item-stock" [class.out]="item.quantity === 0">
+                  {{ item.quantity === -1 ? 'Always in Stock' : item.quantity + ' In Stock' }}
+                </div>
+              </div>
+
+              <h3 class="item-title">{{ item.name }}</h3>
+              <p class="item-desc">{{ item.description }}</p>
+
+              <div class="item-card__footer">
+                <div class="price-box">
+                  <span class="price-val">
+                    {{ effectivePrice(item.priceGp) }}
+                  </span>
+                  <span class="price-curr">GP</span>
+                  @if (haggleDiscountPercent() > 0) {
+                    <span class="orig-price">{{ item.priceGp }} GP</span>
+                  }
+                </div>
+
+                <button
+                  ngpButton
+                  type="button"
+                  class="buy-action-btn"
+                  [disabled]="item.quantity === 0 || actionBusy()"
+                  (click)="openBuyModal(item)"
+                >
+                  <lw-icon name="shopping-cart" [size]="14" />
+                  <span>Buy</span>
+                </button>
+              </div>
+            </article>
+          }
+        </div>
+      }
+    }
+
+    <!-- SELL TAB -->
+    @if (activeTab() === 'sell') {
+      <div class="sell-view">
+        <div class="sell-intro">
+          <h3>Your Inventory Wares</h3>
+          <p>{{ m.merchantName }} buys adventuring relics and gear at <strong>{{ m.buyRatePercent }}%</strong> of standard market value.</p>
+        </div>
+
+        @if (characterItems().length === 0) {
+          <div class="empty-shelf">
+            <lw-icon name="backpack" [size]="40" tone="muted" />
+            <p>You have no tradeable items in your character inventory.</p>
+          </div>
+        } @else {
+          <div class="item-grid">
+            @for (item of characterItems(); track item.id) {
+              <article class="item-card">
+                <div class="item-card__header">
+                  <span class="rarity-badge" [attr.data-rarity]="(item.rarity || 'common').toLowerCase()">
+                    {{ item.rarity || 'common' }}
+                  </span>
+                  <span class="item-type">{{ item.slot || 'Gear' }}</span>
+                </div>
+
+                <h3 class="item-title">{{ item.name }}</h3>
+                <p class="item-desc">{{ item.summary || 'Item in character pack.' }}</p>
+
+                <div class="item-card__footer">
+                  <div class="price-box">
+                    <span class="offer-label">Offer:</span>
+                    <span class="price-val gold">
+                      {{ (item.valueGp || 20) * (m.buyRatePercent / 100) | number:'1.0-1' }}
+                    </span>
+                    <span class="price-curr">GP</span>
+                  </div>
+
+                  <button
+                    ngpButton
+                    type="button"
+                    class="sell-action-btn"
+                    [disabled]="actionBusy()"
+                    (click)="openSellModal(item)"
+                  >
+                    <lw-icon name="monetization_on" [size]="14" />
+                    <span>Sell</span>
+                  </button>
+                </div>
+              </article>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    <!-- HAGGLE TAB -->
+    @if (activeTab() === 'haggle') {
+      <div class="haggle-card">
+        <div class="haggle-icon-box">
+          <lw-icon name="casino" [size]="40" tone="gold" />
+        </div>
+        <h2>Barter & Persuade {{ m.merchantName }}</h2>
+        <p>Attempt a Charisma (Persuasion) check to negotiate better prices on store inventory for this visit.</p>
+
+        @if (!haggleAttempted()) {
+          <div class="haggle-perks">
+            <div class="perk-box">
+              <span class="dc">DC 10</span>
+              <span class="res">10% Store Discount</span>
+            </div>
+            <div class="perk-box epic">
+              <span class="dc">DC 14</span>
+              <span class="res">15% Store Discount</span>
+            </div>
+          </div>
+
+          <button
+            ngpButton
+            type="button"
+            class="haggle-roll-btn"
+            (click)="attemptHaggle()"
+          >
+            <lw-icon name="casino" [size]="16" />
+            <span>Roll Persuasion (1d20 + 4)</span>
+          </button>
+        } @else {
+          <div class="haggle-result" [class.success]="haggleDiscountPercent() > 0">
+            <p>{{ haggleResultMessage() }}</p>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- LEDGER TAB -->
+    @if (activeTab() === 'ledger') {
+      <div class="ledger-view">
+        <h3>Store Transaction Ledger</h3>
+        @if (transactions().length === 0) {
+          <p class="empty-note">No recorded transactions at this counter yet.</p>
+        } @else {
+          <div class="ledger-table">
+            <div class="ledger-header">
+              <span>Date</span>
+              <span>Character</span>
+              <span>Type</span>
+              <span>Item</span>
+              <span>Qty</span>
+              <span>Total GP</span>
+              <span>Account</span>
+            </div>
+            @for (tx of transactions(); track tx.id) {
+              <div class="ledger-row" [class.sell]="tx.transactionType === 'sell'">
+                <span class="tx-date">{{ tx.createdAt | date:'shortDate' }}</span>
+                <span class="tx-char">{{ tx.characterName }}</span>
+                <span class="tx-type" [class.buy]="tx.transactionType === 'buy'">
+                  {{ tx.transactionType.toUpperCase() }}
+                </span>
+                <span class="tx-item">{{ tx.itemName }}</span>
+                <span class="tx-qty">{{ tx.quantity }}</span>
+                <span class="tx-total">{{ tx.totalGp | number:'1.0-1' }} GP</span>
+                <span class="tx-fund">{{ tx.usedPartyFunds ? 'Party Treasury' : 'Personal Purse' }}</span>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    <!-- DM MANAGEMENT TAB -->
+    @if (activeTab() === 'manage' && isGm()) {
+      <div class="dm-view">
+        <div class="dm-controls-bar">
+          <h3>Store Inventory & Pricing Tuning</h3>
+          <div class="dm-btn-group">
+            <button
+              ngpButton
+              type="button"
+              class="lw-btn lw-btn--secondary"
+              (click)="restockStore(false)"
+            >
+              <lw-icon name="refresh" [size]="14" />
+              <span>Roll & Restock from Attached Table</span>
+            </button>
+            <button
+              ngpButton
+              type="button"
+              class="lw-btn lw-btn--primary"
+              (click)="openAddItemModal()"
+            >
+              <lw-icon name="plus" [size]="14" />
+              <span>Add Custom Item</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="inventory-table">
+          <div class="inv-header">
+            <span>Item Name</span>
+            <span>Category</span>
+            <span>Rarity</span>
+            <span>Stock</span>
+            <span>Price (GP)</span>
+            <span>Actions</span>
+          </div>
+          @for (item of inventory(); track item.id) {
+            <div class="inv-row">
+              <span class="inv-name">{{ item.name }}</span>
+              <span class="inv-cat">{{ item.itemType }}</span>
+              <span class="inv-rarity" [attr.data-rarity]="item.rarity.toLowerCase()">{{ item.rarity }}</span>
+              <span class="inv-qty">{{ item.quantity === -1 ? 'Infinite' : item.quantity }}</span>
+              <span class="inv-price">{{ item.priceGp }} GP</span>
+              <span class="inv-actions">
+                <button
+                  type="button"
+                  class="action-icon-btn"
+                  title="Remove Item"
+                  (click)="deleteItem(item)"
+                >
+                  <lw-icon name="trash" [size]="14" tone="crimson" />
+                </button>
+              </span>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- CHECKOUT MODALS -->
+    <lw-merchant-checkout-modals
+      [merchant]="m"
+      [wallet]="wallet()"
+      [actionBusy]="actionBusy()"
+      [discountPercent]="haggleDiscountPercent()"
+      [(buyModalOpen)]="buyModalOpen"
+      [(selectedBuyItem)]="selectedBuyItem"
+      [(sellModalOpen)]="sellModalOpen"
+      [(selectedSellItem)]="selectedSellItem"
+      [(addItemModalOpen)]="addItemModalOpen"
+      (buyConfirmed)="onBuyConfirmed($event)"
+      (sellConfirmed)="onSellConfirmed($event)"
+      (itemAdded)="onItemAdded($event)"
+    />
+  </section>
+}

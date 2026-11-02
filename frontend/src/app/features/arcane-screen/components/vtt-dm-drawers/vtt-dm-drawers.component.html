@@ -8,18 +8,31 @@
       <label class="lw-vtt-field">
         <span>Encounter Fog of War Mode</span>
         <select [ngModel]="battle.fogMode()" (ngModelChange)="battle.fogMode.set($event)">
-          <option value="los-only">Fog of War completely based on Line of Sight</option>
-          <option value="explored-los">Fog of War based on where they have traveled</option>
-          <option value="no-fog">No Fog at all</option>
+          <option value="explored-los">Keep Fog Cleared from Traveled Areas + Line of Sight</option>
+          <option value="los-only">Reapply Fog of War (Line of Sight Only)</option>
+          <option value="manual-only">Manual GM Fog Brush Only</option>
+          <option value="no-fog">No Fog of War</option>
         </select>
       </label>
       <label class="lw-vtt-field">
-        <span>Player Sight Distance (ft)</span>
+        <span>Default Sight Distance (ft)</span>
         <input type="number" min="15" max="120" step="5" [ngModel]="battle.playerSightDistanceFeet()" (ngModelChange)="battle.playerSightDistanceFeet.set(+$event)" />
       </label>
+      <label class="lw-vtt-field">
+        <span>Traveled Fog of War Opacity ({{ (battle.traveledFogOpacity() * 100).toFixed(0) }}%)</span>
+        <input type="range" min="0.05" max="0.90" step="0.05" [ngModel]="battle.traveledFogOpacity()" (ngModelChange)="battle.traveledFogOpacity.set(+$event)" />
+      </label>
       <label class="lw-vtt-check">
-        <input type="checkbox" [ngModel]="battle.hideOutOfSightMonsters()" (ngModelChange)="battle.hideOutOfSightMonsters.set($event)" />
-        <span>Hide monster tokens outside individual player sight distance & Line of Sight</span>
+        <input type="checkbox" [ngModel]="battle.applyTokenVision()" (ngModelChange)="battle.applyTokenVision.set($event)" />
+        <span>Apply individual Character / Token Vision & Torch light settings</span>
+      </label>
+      <label class="lw-vtt-check">
+        <input type="checkbox" [ngModel]="battle.showMonstersBeyondVision()" (ngModelChange)="battle.setShowMonstersBeyondVision($event)" />
+        <span>Monsters visible beyond token vision range</span>
+      </label>
+      <label class="lw-vtt-check">
+        <input type="checkbox" [ngModel]="battle.showCharactersBeyondVision()" (ngModelChange)="battle.showCharactersBeyondVision.set($event)" />
+        <span>Characters visible beyond token vision range</span>
       </label>
       @if (store.viewerRole() === 'gm') {
         <label class="lw-vtt-check">
@@ -34,10 +47,16 @@
 @if (battle.openDmDrawer() === 'scene-roster') {
   <div class="lw-vtt-floating-drawer">
     <div class="lw-vtt-drawer-head">
-      <h4>Party, Scene Creatures & Active Traps</h4>
+      <h4>Party, Scene Creatures & Active Traps ({{ vtt.tokens().length }})</h4>
       <button ngpButton type="button" (click)="battle.openDmDrawer.set('none')">Close</button>
     </div>
     <div class="lw-vtt-roster-strip">
+      @for (tok of vtt.tokens(); track tok.key) {
+        <div class="lw-vtt-trap-chip">
+          <strong>{{ tok.name }} ({{ tok.faction === 'party' ? 'Party' : 'Hostile' }})</strong>
+          <span>{{ tok.roleLabel }} · HP {{ tok.currentHp }}/{{ tok.maxHp }} · AC {{ tok.armorClass }} · Vision {{ tok.sightFeet ?? 60 }}ft / Dark {{ tok.darkvisionFeet ?? 0 }}ft</span>
+        </div>
+      }
       @for (trap of vtt.activeLiveEncounter()?.traps ?? []; track trap.id) {
         <div class="lw-vtt-trap-chip">
           <strong>Trap: {{ trap.name }}</strong>

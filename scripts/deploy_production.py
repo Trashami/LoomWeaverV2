@@ -378,7 +378,7 @@ server {
     }
 
     # Only known studio routes receive the client app shell. Unknown URLs are 404s.
-    location ~ ^/(home|campaigns|world-lore|characters|maps|arcane-screen|encounters|dice|effects|loom|create|weave|marketplace|store|assets|handouts|timeline|bestiary|decks|sources|library|roll-tables|statistics|dashboard|dm-game|player-game|loom-graph|quests|notes|locations|npcs|monsters|spells|items)(/|$) {
+    location ~ ^/(home|campaigns|world-lore|characters|maps|arcane-screen|encounters|dice|effects|loom|create|weave|marketplace|store|assets|handouts|timeline|bestiary|decks|sources|library|roll-tables|statistics|dashboard|dm-game|player-game|loom-graph|quests|notes|locations|npcs|monsters|spells|items|merchants|crafting)(/|$) {
         add_header X-Robots-Tag "noindex, nofollow" always;
         add_header Cache-Control "no-store";
         try_files /index.html =404;

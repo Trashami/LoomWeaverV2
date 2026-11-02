@@ -14,10 +14,17 @@ export interface TokenPlacement {
   readonly z: number;
 }
 
+export interface TokenRightClickEvent {
+  readonly key: string;
+  readonly clientX: number;
+  readonly clientY: number;
+}
+
 export interface TokenDragHandlers {
   onDragStart(): void;
   onDragEnd(): void;
   onTokenSelected?(key: string, shiftKey: boolean): void;
+  onTokenRightClicked?(event: TokenRightClickEvent): void;
   onDragged(placement: TokenPlacement): void;
   onDropped(placement: TokenPlacement): void;
 }
@@ -45,7 +52,7 @@ export function sampleTokenFootprintElevation(
 }
 
 /**
- * Selects and drags token meshes across the flat ground plane or sculpted 3D terrain.
+ * Selects, right-clicks, and drags token meshes across the flat ground plane or sculpted 3D terrain.
  */
 export class TokenDragController {
   private active: ActiveDrag | null = null;
@@ -96,12 +103,23 @@ export class TokenDragController {
 
   private handlePointerDown(info: PointerInfo): void {
     const evt = info.event as PointerEvent;
-    if (evt.button !== 0) return;
     const key =
       (typeof info.pickInfo?.pickedMesh?.metadata?.tokenKey === 'string'
         ? (info.pickInfo.pickedMesh.metadata.tokenKey as string)
         : null) ?? this.pickTokenKey();
-    if (!key) return;
+
+    if (evt.button === 2) {
+      if (key) {
+        this.handlers.onTokenRightClicked?.({
+          key,
+          clientX: evt.clientX,
+          clientY: evt.clientY,
+        });
+      }
+      return;
+    }
+
+    if (evt.button !== 0 || !key) return;
 
     this.handlers.onTokenSelected?.(key, evt.shiftKey === true);
 

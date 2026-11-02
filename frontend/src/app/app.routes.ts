@@ -223,6 +223,24 @@ export const APP_ROUTES: Routes = [
       import('./features/roll-tables/roll-table.page').then((m) => m.RollTablePageComponent),
   },
   {
+    path: 'merchants',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/merchants/merchants.page').then((m) => m.MerchantsPageComponent),
+  },
+  {
+    path: 'merchants/:id',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/merchants/merchant-store.page').then((m) => m.MerchantStorePageComponent),
+  },
+  {
+    path: 'crafting',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/crafting/crafting.page').then((m) => m.CraftingPageComponent),
+  },
+  {
     path: 'create',
     canActivate: [authGuard],
     loadComponent: () =>

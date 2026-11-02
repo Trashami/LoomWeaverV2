@@ -1,0 +1,229 @@
+<div class="lw-workshop-grid">
+  <!-- Left Side: Character Inventory for Crafting -->
+  <aside class="lw-inventory-panel">
+    <div class="lw-panel-header">
+      <div class="lw-panel-header__title-group">
+        <lw-icon name="backpack" [size]="18" tone="gold" />
+        <h3 class="lw-panel-header__title">Character Inventory</h3>
+      </div>
+      <span class="lw-tag lw-tag--emerald">{{ crafting.characterInventory().length }} Items</span>
+    </div>
+
+    <!-- Character Selector -->
+    <div class="lw-character-selector">
+      <label class="lw-input-label" for="charSelect">Active Crafter</label>
+      <select
+        id="charSelect"
+        class="lw-select-input"
+        [value]="crafting.focusedCharacterKey()"
+        (change)="onCharacterChanged($event)"
+      >
+        @for (char of crafting.availableCharacters(); track char.key) {
+          <option [value]="char.key">
+            {{ char.name }} (Lvl {{ char.level }} {{ char.characterClass }})
+          </option>
+        }
+      </select>
+    </div>
+
+    <!-- Inventory Filter & Materials List -->
+    <div class="lw-inv-filter-row">
+      <button
+        type="button"
+        class="lw-pill-btn"
+        [class.lw-pill-btn--active]="inventoryFilter() === 'materials'"
+        (click)="inventoryFilter.set('materials')"
+      >
+        Crafting Materials
+      </button>
+      <button
+        type="button"
+        class="lw-pill-btn"
+        [class.lw-pill-btn--active]="inventoryFilter() === 'all'"
+        (click)="inventoryFilter.set('all')"
+      >
+        All Gear
+      </button>
+    </div>
+
+    <div class="lw-inv-items-list">
+      @if (filteredInventory().length === 0) {
+        <div class="lw-inv-empty">
+          <lw-icon name="info" [size]="20" tone="muted" />
+          <p>No crafting materials found in inventory.</p>
+          <span class="lw-inv-empty__hint">Use the Foraging tab or GM dispatch to gather raw ingredients!</span>
+        </div>
+      } @else {
+        @for (item of filteredInventory(); track item.id) {
+          <div class="lw-inv-item-card">
+            <div class="lw-inv-item-card__main">
+              <span class="lw-inv-item-card__name">{{ item.name }}</span>
+              <span class="lw-inv-item-card__sub">{{ item.bonusLabel || item.slot }} · {{ item.weightLb || 0.5 }} lb</span>
+            </div>
+            <div class="lw-inv-item-card__actions">
+              <span class="lw-inv-item-card__val">{{ item.valueGp || 1 }} gp</span>
+              <button
+                type="button"
+                class="lw-icon-btn lw-icon-btn--danger"
+                title="Discard Item"
+                (click)="crafting.deleteInventoryItem(item.id)"
+              >
+                <lw-icon name="trash" [size]="14" />
+              </button>
+            </div>
+          </div>
+        }
+      }
+    </div>
+  </aside>
+
+  <!-- Right Side: Recipes Browser & Craft Action -->
+  <section class="lw-recipes-panel">
+    <div class="lw-recipes-toolbar">
+      <div class="lw-search-box">
+        <lw-icon name="search" [size]="16" tone="muted" />
+        <input
+          type="text"
+          class="lw-search-input"
+          placeholder="Search recipes, ingredients, tools..."
+          [value]="crafting.searchQuery()"
+          (input)="onSearchInput($event)"
+        />
+      </div>
+
+      <!-- Bastion Workshop bonus toggle -->
+      <label class="lw-checkbox-label">
+        <input
+          type="checkbox"
+          [checked]="bastionBonusActive()"
+          (change)="bastionBonusActive.set(!bastionBonusActive())"
+        />
+        <span>Bastion Workshop (50% Time Reduction)</span>
+      </label>
+    </div>
+
+    <!-- Category Filters -->
+    <div class="lw-category-chips">
+      <button
+        type="button"
+        class="lw-cat-chip"
+        [class.lw-cat-chip--active]="crafting.selectedCategory() === 'all'"
+        (click)="crafting.selectedCategory.set('all')"
+      >
+        All Categories ({{ crafting.recipes().length }})
+      </button>
+      <button
+        type="button"
+        class="lw-cat-chip"
+        [class.lw-cat-chip--active]="crafting.selectedCategory() === 'herbalism'"
+        (click)="crafting.selectedCategory.set('herbalism')"
+      >
+        Herbalism &amp; Healing
+      </button>
+      <button
+        type="button"
+        class="lw-cat-chip"
+        [class.lw-cat-chip--active]="crafting.selectedCategory() === 'alchemy'"
+        (click)="crafting.selectedCategory.set('alchemy')"
+      >
+        Alchemy &amp; Reagents
+      </button>
+      <button
+        type="button"
+        class="lw-cat-chip"
+        [class.lw-cat-chip--active]="crafting.selectedCategory() === 'smithing'"
+        (click)="crafting.selectedCategory.set('smithing')"
+      >
+        Smithing &amp; Metallurgy
+      </button>
+      <button
+        type="button"
+        class="lw-cat-chip"
+        [class.lw-cat-chip--active]="crafting.selectedCategory() === 'leatherwork'"
+        (click)="crafting.selectedCategory.set('leatherwork')"
+      >
+        Leatherworking &amp; Outfitting
+      </button>
+      <button
+        type="button"
+        class="lw-cat-chip"
+        [class.lw-cat-chip--active]="crafting.selectedCategory() === 'arcane'"
+        (click)="crafting.selectedCategory.set('arcane')"
+      >
+        Arcane &amp; Scribing
+      </button>
+      <button
+        type="button"
+        class="lw-cat-chip"
+        [class.lw-cat-chip--active]="crafting.selectedCategory() === 'provisions'"
+        (click)="crafting.selectedCategory.set('provisions')"
+      >
+        Provisions &amp; Cooking
+      </button>
+    </div>
+
+    <!-- Recipe Cards Grid -->
+    <div class="lw-recipes-grid">
+      @for (recipe of crafting.filteredRecipes(); track recipe.id) {
+        <article class="lw-recipe-card" [class.lw-recipe-card--ready]="crafting.hasRequiredMaterials(recipe)">
+          <div class="lw-recipe-card__header">
+            <div class="lw-recipe-card__badge-row">
+              <span class="lw-tag lw-tag--gold">{{ recipe.categoryLabel }}</span>
+              <span class="lw-tag lw-tag--outline">{{ recipe.requiredTool }}</span>
+              <span class="lw-tag lw-tag--muted">{{ recipe.ruleSource }}</span>
+            </div>
+            <h4 class="lw-recipe-card__title">{{ recipe.name }}</h4>
+            <p class="lw-recipe-card__desc">{{ recipe.description }}</p>
+          </div>
+
+          <!-- Recipe Details & Ingredients -->
+          <div class="lw-recipe-card__body">
+            <div class="lw-recipe-card__meta">
+              <div class="lw-meta-pair">
+                <span class="lw-meta-label">Duration</span>
+                <span class="lw-meta-val">
+                  {{ bastionBonusActive() && recipe.bastionBonusEligible ? '4 Hours (Bastion Boost)' : recipe.durationLabel }}
+                </span>
+              </div>
+              <div class="lw-meta-pair">
+                <span class="lw-meta-label">Cost / Check</span>
+                <span class="lw-meta-val">{{ recipe.gpCost }} gp · {{ recipe.dcSkill || 'None' }}</span>
+              </div>
+            </div>
+
+            <div class="lw-ingredients-box">
+              <span class="lw-ingredients-box__title">Required Reagents:</span>
+              <ul class="lw-ingredients-list">
+                @for (ing of crafting.getMaterialStatus(recipe); track ing.name) {
+                  <li class="lw-ing-item" [class.lw-ing-item--ready]="ing.satisfied">
+                    <lw-icon [name]="ing.satisfied ? 'check' : 'close'" [size]="14" [tone]="ing.satisfied ? 'emerald' : 'crimson'" />
+                    <span>{{ ing.needed }}x {{ ing.name }}</span>
+                    <span class="lw-ing-item__count">({{ ing.have }} held)</span>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
+
+          <div class="lw-recipe-card__footer">
+            <div class="lw-yield-info">
+              <span class="lw-yield-label">Output Item:</span>
+              <span class="lw-yield-name">{{ recipe.output.name }} ({{ recipe.output.bonusLabel }})</span>
+            </div>
+
+            <button
+              ngpButton
+              type="button"
+              class="lw-craft-btn"
+              [disabled]="!crafting.hasRequiredMaterials(recipe) || crafting.loading()"
+              (click)="crafting.startCrafting(recipe, bastionBonusActive())"
+            >
+              <lw-icon name="wrench" [size]="15" />
+              <span>{{ recipe.durationMinutes === 0 ? 'Craft Instant' : 'Start Project' }}</span>
+            </button>
+          </div>
+        </article>
+      }
+    </div>
+  </section>
+</div>

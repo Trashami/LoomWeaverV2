@@ -19,6 +19,7 @@ using LoomWeaver.Modules.Maps;
 using LoomWeaver.Modules.Marketplace;
 using LoomWeaver.Modules.Realtime;
 using LoomWeaver.Modules.Sessions;
+using LoomWeaver.Modules.Merchants;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -58,6 +59,7 @@ public static class LoomWeaverEndpoints
             api.MapRollTableEndpoints();
             api.MapBestiaryEndpoints();
             api.MapItemsEndpoints();
+            api.MapMerchantEndpoints();
             MapCoreEndpoints(api);
         }
 

@@ -1,8 +1,32 @@
 <section class="roll-table-page">
   @if (table(); as t) {
     <lw-page-header [title]="t.name" [subtitle]="(t.sourceBook ?? 'Unknown source') + (t.page ? ' · p.' + t.page : '')">
-      <a pageActions class="back-link" routerLink="/roll-tables">All roll tables</a>
+      <div actions class="page-top-actions">
+        <a class="back-link" routerLink="/roll-tables">
+          <lw-icon name="arrow-left" [size]="14" />
+          <span>All roll tables</span>
+        </a>
+
+        @if (isGm()) {
+          <button
+            ngpButton
+            type="button"
+            class="action-btn attach-btn"
+            (click)="openAttachModal()"
+          >
+            <lw-icon name="link" [size]="14" />
+            <span>Attach to Campaign / Merchant</span>
+          </button>
+        }
+      </div>
     </lw-page-header>
+
+    @if (successMessage()) {
+      <div class="alert-banner success">
+        <lw-icon name="check" [size]="15" tone="emerald" />
+        <span>{{ successMessage() }}</span>
+      </div>
+    }
 
     @if (t.caption) {
       <p class="caption">{{ t.caption }}</p>
@@ -11,13 +35,14 @@
     <div class="roll-bar">
       @if (die(); as d) {
         <button type="button" class="roll-button" [disabled]="rolling()" (click)="roll()">
-          Roll {{ d.expression }}
+          <lw-icon name="casino" [size]="16" />
+          <span>Roll {{ d.expression }}</span>
         </button>
       } @else {
-        <span class="meta">This table has no dice expression to roll.</span>
+        <span class="meta">This table has no single dice expression to roll.</span>
       }
       @if (lastTotal() !== null) {
-        <span class="meta">Last roll: {{ lastTotal() }}</span>
+        <span class="meta roll-result-badge">Last roll: <strong>{{ lastTotal() }}</strong></span>
       }
     </div>
 
@@ -51,6 +76,101 @@
   @if (errorMessage()) {
     <p class="error">{{ errorMessage() }}</p>
   }
+
+  @if (attachModalOpen() && table(); as t) {
+    <lw-modal
+      title="Attach Roll Table"
+      [open]="true"
+      (closed)="attachModalOpen.set(false)"
+    >
+      <div class="attach-dialog">
+        <div class="table-target-preview">
+          <h3>{{ t.name }}</h3>
+          <span class="meta">{{ t.sourceBook }} · {{ t.die?.expression || 'd100' }}</span>
+        </div>
+
+        <div class="attach-form">
+          <label class="form-label">
+            <span>Attachment Target:</span>
+            <div class="target-options">
+              <label class="target-choice" [class.active]="attachTargetType() === 'campaign'">
+                <input
+                  type="radio"
+                  name="targetType"
+                  [checked]="attachTargetType() === 'campaign'"
+                  (change)="attachTargetType.set('campaign')"
+                />
+                <span>Campaign Pinned (Quick Loot)</span>
+              </label>
+
+              <label class="target-choice" [class.active]="attachTargetType() === 'session'">
+                <input
+                  type="radio"
+                  name="targetType"
+                  [checked]="attachTargetType() === 'session'"
+                  (change)="attachTargetType.set('session')"
+                />
+                <span>Assign to Specific Session</span>
+              </label>
+
+              <label class="target-choice" [class.active]="attachTargetType() === 'merchant'">
+                <input
+                  type="radio"
+                  name="targetType"
+                  [checked]="attachTargetType() === 'merchant'"
+                  (change)="attachTargetType.set('merchant')"
+                />
+                <span>Attach to Merchant Store</span>
+              </label>
+            </div>
+          </label>
+
+          @if (attachTargetType() === 'session') {
+            <label class="form-label">
+              <span>Select Campaign Session:</span>
+              <select
+                [ngModel]="selectedSessionId()"
+                (ngModelChange)="selectedSessionId.set($event)"
+              >
+                @for (s of campaignSessions(); track s.sessionId) {
+                  <option [value]="s.sessionId">Session {{ s.sessionNumber }}: {{ s.title }}</option>
+                }
+              </select>
+            </label>
+          }
+
+          @if (attachTargetType() === 'merchant') {
+            <label class="form-label">
+              <span>Select Merchant Store:</span>
+              <select
+                [ngModel]="selectedMerchantId()"
+                (ngModelChange)="selectedMerchantId.set($event)"
+              >
+                @for (m of merchants(); track m.id) {
+                  <option [value]="m.id">{{ m.storeName }} ({{ m.locationName }})</option>
+                }
+              </select>
+            </label>
+          }
+
+          <label class="form-label">
+            <span>GM Notes (Optional):</span>
+            <input
+              type="text"
+              placeholder="e.g. Loot chest in dungeon crypt, coastal stock source"
+              [ngModel]="attachNotes()"
+              (ngModelChange)="attachNotes.set($event)"
+            />
+          </label>
+        </div>
+
+        <div class="modal-actions">
+          <button ngpButton class="cancel-btn" (click)="attachModalOpen.set(false)">Cancel</button>
+          <button ngpButton class="confirm-btn" (click)="confirmAttach()">Confirm Attachment</button>
+        </div>
+      </div>
+    </lw-modal>
+  }
 </section>
 
 <lw-modal [(open)]="modalOpen" [title]="table()?.name ?? 'Roll result'" [subtitle]="'Rolled ' + (lastTotal() ?? '')" size="md">
@@ -58,13 +178,11 @@
     <p class="range">{{ row.rangeLabel }}</p>
     <dl>
       @for (cell of row.cells; track $index) {
-        @if (cellLabel($index)) {
-          <dt>{{ cellLabel($index) }}</dt>
-        }
+        <dt>{{ cellLabel($index + 1) }}</dt>
         <dd>{{ cell }}</dd>
       }
     </dl>
   } @else {
-    <p class="meta">No row matched the roll of {{ lastTotal() }}.</p>
+    <p class="meta">No matching row found for {{ lastTotal() }}.</p>
   }
 </lw-modal>

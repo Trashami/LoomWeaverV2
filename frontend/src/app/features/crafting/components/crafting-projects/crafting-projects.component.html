@@ -1,0 +1,123 @@
+<div class="lw-projects-container">
+  <!-- Header Alert Banner for DM -->
+  @if (crafting.isGm() && crafting.pendingProjectsForGm().length > 0) {
+    <div class="lw-dm-alert-banner">
+      <div class="lw-dm-alert-banner__content">
+        <lw-icon name="alert-circle" [size]="20" tone="gold" />
+        <div>
+          <h4 class="lw-dm-alert-banner__title">
+            {{ crafting.pendingProjectsForGm().length }} Crafting Project(s) Awaiting Review
+          </h4>
+          <p class="lw-dm-alert-banner__sub">
+            Players have queued projects. You can approve or expedite them immediately below.
+          </p>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Active Projects Section -->
+  <section class="lw-projects-section">
+    <div class="lw-section-header">
+      <h3 class="lw-section-title">
+        <lw-icon name="clock" [size]="18" tone="gold" />
+        <span>Active &amp; Pending Projects ({{ activeProjects().length }})</span>
+      </h3>
+      <button
+        type="button"
+        class="lw-refresh-btn"
+        (click)="crafting.loadProjects()"
+      >
+        <lw-icon name="undo" [size]="14" />
+        <span>Refresh Status</span>
+      </button>
+    </div>
+
+    @if (activeProjects().length === 0) {
+      <div class="lw-empty-projects">
+        <lw-icon name="info" [size]="24" tone="muted" />
+        <h4>No Active Projects in the Campaign</h4>
+        <p>Start a crafting project in the Workshop tab to begin forging weapons, brewing potions, or scribing scrolls.</p>
+      </div>
+    } @else {
+      <div class="lw-projects-grid">
+        @for (project of activeProjects(); track project.id) {
+          <article class="lw-project-card" [class.lw-project-card--pending]="project.status === 'pending'">
+            <div class="lw-project-card__top">
+              <div class="lw-project-badges">
+                <span class="lw-tag lw-tag--gold">{{ project.category }}</span>
+                <span
+                  class="lw-tag"
+                  [class.lw-tag--amber]="project.status === 'pending'"
+                  [class.lw-tag--emerald]="project.status === 'completed'"
+                >
+                  {{ project.status === 'pending' ? 'In Progress' : 'Completed' }}
+                </span>
+              </div>
+              <span class="lw-project-crafter">Crafter: <strong>{{ project.characterName }}</strong></span>
+            </div>
+
+            <div class="lw-project-card__main">
+              <h4 class="lw-project-title">{{ project.recipeName }}</h4>
+              <p class="lw-project-sub">
+                Output: <strong>{{ project.outputItemName }}</strong>
+              </p>
+
+              <!-- Time Info -->
+              <div class="lw-time-row">
+                <div class="lw-time-col">
+                  <span class="lw-time-label">Started:</span>
+                  <span class="lw-time-val">{{ formatTime(project.startedAt) }}</span>
+                </div>
+                <div class="lw-time-col">
+                  <span class="lw-time-label">Target Completion:</span>
+                  <span class="lw-time-val">{{ formatTime(project.completesAt) }}</span>
+                </div>
+              </div>
+
+              <!-- Materials Consumed List -->
+              @if (project.materialsConsumed && project.materialsConsumed.length > 0) {
+                <div class="lw-consumed-box">
+                  <span class="lw-consumed-title">Materials Consumed:</span>
+                  <div class="lw-consumed-chips">
+                    @for (mat of project.materialsConsumed; track mat.name) {
+                      <span class="lw-consumed-chip">{{ mat.count }}x {{ mat.name }}</span>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+
+            <!-- Action footer for DM approval or player status -->
+            <div class="lw-project-card__footer">
+              @if (project.status === 'pending') {
+                @if (crafting.isGm()) {
+                  <button
+                    ngpButton
+                    type="button"
+                    class="lw-approve-btn"
+                    [disabled]="crafting.loading()"
+                    (click)="crafting.approveProject(project, 'DM expedited completion')"
+                  >
+                    <lw-icon name="check" [size]="15" />
+                    <span>Approve &amp; Finish Now</span>
+                  </button>
+                } @else {
+                  <span class="lw-pending-note">
+                    <lw-icon name="clock" [size]="14" tone="gold" />
+                    <span>Pending completion or DM review</span>
+                  </span>
+                }
+              } @else {
+                <span class="lw-completed-badge">
+                  <lw-icon name="check" [size]="15" tone="emerald" />
+                  <span>Delivered to Character Inventory</span>
+                </span>
+              }
+            </div>
+          </article>
+        }
+      </div>
+    }
+  </section>
+</div>

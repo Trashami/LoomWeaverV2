@@ -1,0 +1,229 @@
+<div class="lw-foraging-grid">
+  <!-- Biome and Survival Check Config -->
+  <section class="lw-forage-config-panel">
+    <div class="lw-panel-header">
+      <div class="lw-panel-header__title-group">
+        <lw-icon name="compass" [size]="18" tone="gold" />
+        <h3 class="lw-panel-header__title">Wilderness Foraging Station</h3>
+      </div>
+      <span class="lw-tag lw-tag--emerald">DMG p. 111 / XGE</span>
+    </div>
+
+    <!-- Biome Selection Cards -->
+    <div class="lw-config-group">
+      <span class="lw-group-label">Select Wilderness Biome</span>
+      <div class="lw-biomes-grid">
+        @for (b of biomes; track b.id) {
+          <button
+            type="button"
+            class="lw-biome-card"
+            [class.lw-biome-card--active]="crafting.selectedBiome() === b.id"
+            (click)="crafting.selectedBiome.set(b.id)"
+          >
+            <lw-icon [name]="b.icon" [size]="18" tone="gold" />
+            <span class="lw-biome-card__label">{{ b.label }}</span>
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Abundance DC -->
+    <div class="lw-config-group">
+      <span class="lw-group-label">Region Resource Abundance</span>
+      <div class="lw-abundance-options">
+        @for (a of abundanceLevels; track a.id) {
+          <label
+            class="lw-abundance-card"
+            [class.lw-abundance-card--active]="crafting.selectedAbundance() === a.id"
+          >
+            <input
+              type="radio"
+              name="abundance"
+              [value]="a.id"
+              [checked]="crafting.selectedAbundance() === a.id"
+              (change)="crafting.selectedAbundance.set(a.id)"
+            />
+            <div class="lw-abundance-card__info">
+              <span class="lw-abundance-card__title">{{ a.label }} (DC {{ a.dc }})</span>
+              <span class="lw-abundance-card__sub">{{ a.description }}</span>
+            </div>
+          </label>
+        }
+      </div>
+    </div>
+
+    <!-- Target Character for Haul -->
+    <div class="lw-config-group">
+      <label class="lw-group-label" for="forageCharSelect">Harvest Assigned To</label>
+      <select
+        id="forageCharSelect"
+        class="lw-select-input"
+        [value]="targetCharacterKey()"
+        (change)="targetCharacterKey.set($any($event.target).value)"
+      >
+        @for (char of crafting.availableCharacters(); track char.key) {
+          <option [value]="char.key">
+            {{ char.name }} (Lvl {{ char.level }} {{ char.characterClass }})
+          </option>
+        }
+      </select>
+    </div>
+
+    <!-- Roll Action Button -->
+    <div class="lw-roll-action-box">
+      <button
+        ngpButton
+        type="button"
+        class="lw-roll-btn"
+        [disabled]="crafting.isRollingForage()"
+        (click)="crafting.rollForaging(survivalMod())"
+      >
+        <lw-icon name="dices" [size]="18" />
+        <span>{{ crafting.isRollingForage() ? 'Scanning Wilds...' : 'Roll Foraging Check (Wisdom + Survival)' }}</span>
+      </button>
+    </div>
+
+    <!-- GM Manual Dispatch Box -->
+    @if (crafting.isGm()) {
+      <div class="lw-gm-dispatch-box">
+        <div class="lw-gm-dispatch-header">
+          <lw-icon name="wrench" [size]="15" tone="gold" />
+          <span>GM Direct Reagent Dispatch</span>
+        </div>
+        <div class="lw-gm-dispatch-row">
+          <select
+            class="lw-select-input lw-dispatch-select"
+            [value]="crafting.manualItemName()"
+            (change)="crafting.manualItemName.set($any($event.target).value)"
+          >
+            @for (item of reagentCatalog; track item.name) {
+              <option [value]="item.name">{{ item.name }} ({{ item.category }})</option>
+            }
+          </select>
+          <input
+            type="number"
+            class="lw-qty-input"
+            min="1"
+            max="20"
+            [value]="crafting.manualItemQty()"
+            (input)="crafting.manualItemQty.set(+$any($event.target).value || 1)"
+          />
+          <button
+            type="button"
+            class="lw-dispatch-btn"
+            [disabled]="crafting.loading()"
+            (click)="crafting.grantManualItem(targetCharacterKey())"
+          >
+            Grant
+          </button>
+        </div>
+      </div>
+    }
+  </section>
+
+  <!-- Harvest Results & Assignment -->
+  <section class="lw-forage-results-panel">
+    <div class="lw-panel-header">
+      <div class="lw-panel-header__title-group">
+        <lw-icon name="table-chart" [size]="18" tone="gold" />
+        <h3 class="lw-panel-header__title">Foraged Yield &amp; Discoveries</h3>
+      </div>
+      @if (crafting.foragingResult()) {
+        <span
+          class="lw-tag"
+          [class.lw-tag--emerald]="crafting.foragingResult()?.success"
+          [class.lw-tag--crimson]="!crafting.foragingResult()?.success"
+        >
+          Check: {{ crafting.foragingResult()?.total }} vs DC {{ crafting.foragingResult()?.dc }}
+        </span>
+      }
+    </div>
+
+    @if (!crafting.foragingResult()) {
+      <div class="lw-forage-placeholder">
+        <lw-icon name="compass" [size]="32" tone="muted" />
+        <h4>No Active Harvest Rolled</h4>
+        <p>Choose an environment and click "Roll Foraging Check" to search for herbs, ores, fresh water, and provisions.</p>
+      </div>
+    } @else {
+      @let res = crafting.foragingResult();
+      <div class="lw-harvest-summary-card" [class.lw-harvest-summary-card--fail]="!res?.success">
+        <div class="lw-harvest-meta">
+          <span class="lw-harvest-status">
+            {{ res?.isNat20 ? 'CRITICAL SUCCESS (Natural 20)!' : res?.success ? 'Wilderness Foraging Succeeded!' : 'Sparse Harvest (DC Unmet)' }}
+          </span>
+          <span class="lw-harvest-roll-breakdown">
+            Die: {{ res?.roll }} + WIS Mod ({{ res?.modifier }}) = <strong>{{ res?.total }}</strong>
+          </span>
+        </div>
+
+        <!-- Food & Water Yield per DMG p. 111 -->
+        @if (res?.success) {
+          <div class="lw-sustenance-yield-row">
+            <div class="lw-sustenance-box">
+              <lw-icon name="restaurant" [size]="16" tone="emerald" />
+              <span><strong>{{ res?.foodLbs }} lbs</strong> Edible Food</span>
+            </div>
+            <div class="lw-sustenance-box">
+              <lw-icon name="water" [size]="16" tone="emerald" />
+              <span><strong>{{ res?.waterGallons }} gal</strong> Clean Water</span>
+            </div>
+          </div>
+        }
+
+        <!-- Harvested Flora, Minerals, & Parts -->
+        <div class="lw-harvest-list-box">
+          <span class="lw-harvest-list-title">Discovered Specimen &amp; Materials:</span>
+          @if (!res?.harvestedItems || res.harvestedItems.length === 0) {
+            <p class="lw-no-items-text">No specialized flora or mineral reagents were discovered this roll.</p>
+          } @else {
+            <div class="lw-discovered-items-list">
+              @for (item of res?.harvestedItems; track item.name) {
+                <div class="lw-discovered-item-row">
+                  <div class="lw-discovered-item-row__info">
+                    <span class="lw-discovered-item-row__name">{{ item.name }}</span>
+                    <span class="lw-discovered-item-row__desc">{{ item.description }}</span>
+                  </div>
+                  <div class="lw-discovered-item-row__controls">
+                    <span class="lw-tag lw-tag--gold">{{ item.rarity }}</span>
+                    <div class="lw-stepper">
+                      <button
+                        type="button"
+                        class="lw-stepper-btn"
+                        (click)="decrementItem(item)"
+                      >
+                        -
+                      </button>
+                      <span class="lw-stepper-val">{{ item.count }}</span>
+                      <button
+                        type="button"
+                        class="lw-stepper-btn"
+                        (click)="incrementItem(item)"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Deposit Action Button -->
+        <div class="lw-assign-action-footer">
+          <button
+            ngpButton
+            type="button"
+            class="lw-assign-btn"
+            [disabled]="crafting.loading() || !res?.success"
+            (click)="crafting.assignForagedHarvestToCharacter(targetCharacterKey())"
+          >
+            <lw-icon name="backpack" [size]="16" />
+            <span>Deposit Entire Harvest to {{ getTargetCharName() }}</span>
+          </button>
+        </div>
+      </div>
+    }
+  </section>
+</div>

@@ -1,0 +1,81 @@
+<div class="lw-crafting-page">
+  <lw-page-header
+    title="Crafting &amp; Wilderness Foraging"
+    subtitle="Forge weapons, brew healing potions, gather wilderness reagents, and dispatch harvested bounties to your party."
+    badgeText="Downtime &amp; Survival Engine"
+    badgeTone="gold"
+  >
+    <div actions class="lw-header-actions">
+      <span class="lw-campaign-pill">
+        <lw-icon name="bookmark" [size]="14" tone="gold" />
+        <span>{{ store.activeCampaign()?.name ?? 'Active Campaign' }}</span>
+      </span>
+    </div>
+  </lw-page-header>
+
+  <!-- Top Tab Navigation -->
+  <nav class="lw-crafting-tabs" aria-label="Crafting navigation">
+    <button
+      type="button"
+      class="lw-tab-btn"
+      [class.lw-tab-btn--active]="activeTab() === 'workshop'"
+      (click)="activeTab.set('workshop')"
+    >
+      <lw-icon name="wrench" [size]="16" />
+      <span>Crafting Workshop</span>
+    </button>
+
+    <button
+      type="button"
+      class="lw-tab-btn"
+      [class.lw-tab-btn--active]="activeTab() === 'projects'"
+      (click)="activeTab.set('projects')"
+    >
+      <lw-icon name="clock" [size]="16" />
+      <span>Active Projects</span>
+      @if (pendingProjectsCount() > 0) {
+        <span class="lw-tab-badge" [class.lw-tab-badge--gm]="crafting.isGm()">
+          {{ pendingProjectsCount() }}
+        </span>
+      }
+    </button>
+
+    <button
+      type="button"
+      class="lw-tab-btn"
+      [class.lw-tab-btn--active]="activeTab() === 'foraging'"
+      (click)="activeTab.set('foraging')"
+    >
+      <lw-icon name="compass" [size]="16" />
+      <span>Wilderness Foraging</span>
+    </button>
+
+    <button
+      type="button"
+      class="lw-tab-btn"
+      [class.lw-tab-btn--active]="activeTab() === 'rules'"
+      (click)="activeTab.set('rules')"
+    >
+      <lw-icon name="menu-book" [size]="16" />
+      <span>Rules &amp; Compendium</span>
+    </button>
+  </nav>
+
+  <!-- Tab Contents -->
+  <main class="lw-crafting-content">
+    @switch (activeTab()) {
+      @case ('workshop') {
+        <lw-crafting-workshop />
+      }
+      @case ('projects') {
+        <lw-crafting-projects />
+      }
+      @case ('foraging') {
+        <lw-foraging-studio />
+      }
+      @case ('rules') {
+        <lw-rules-reference />
+      }
+    }
+  </main>
+</div>

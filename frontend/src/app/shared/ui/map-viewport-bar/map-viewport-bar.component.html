@@ -60,20 +60,6 @@
 
   <div class="lw-viewport-bar__group lw-viewport-bar__group--right">
     <label class="lw-viewport-bar__select-pill">
-      <span class="lw-viewport-bar__select-label">Theme:</span>
-      <select
-        class="lw-viewport-bar__select"
-        [value]="activeTheme()"
-        (change)="onThemeSelect($event)"
-        aria-label="Scene Theme"
-      >
-        @for (theme of themes(); track theme) {
-          <option [value]="theme">{{ theme }}</option>
-        }
-      </select>
-    </label>
-
-    <label class="lw-viewport-bar__select-pill">
       <span class="lw-viewport-bar__select-label">Quality:</span>
       <select
         class="lw-viewport-bar__select"
@@ -104,6 +90,26 @@
       </select>
     </label>
 
+    @if (gridSize() !== 'Off') {
+      <label
+        class="lw-viewport-bar__select-pill"
+        title="Adjust Grid Cell Size & Scale on Map (50% to 220%)"
+      >
+        <span class="lw-viewport-bar__select-label">Scale:</span>
+        <input
+          type="range"
+          min="50"
+          max="220"
+          step="5"
+          [value]="gridScalePct()"
+          (input)="onGridScaleInput($event)"
+          aria-label="Grid Scale Percentage"
+          style="width: 68px; accent-color: #49e892; cursor: pointer"
+        />
+        <span class="lw-viewport-bar__fps-badge">{{ gridScalePct() }}%</span>
+      </label>
+    }
+
     <button
       ngpButton
       type="button"
@@ -113,6 +119,18 @@
     >
       <lw-icon name="straighten" [size]="13" />
       <span>Snap: {{ snapEnabled() ? 'On' : 'Off' }}</span>
+    </button>
+
+    <button
+      ngpButton
+      type="button"
+      class="lw-viewport-bar__toggle-pill"
+      [class.lw-viewport-bar__toggle-pill--active]="hasRefTokens()"
+      (click)="spawnTokensToggle.emit()"
+      title="Spawn or clear draggable reference tokens to visualize movement, scale, and perspective"
+    >
+      <lw-icon name="users" [size]="13" />
+      <span>{{ hasRefTokens() ? 'Ref Tokens: On' : 'Ref Tokens' }}</span>
     </button>
 
     <button

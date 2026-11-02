@@ -41,7 +41,10 @@ export function settingsForWater(water: WaterSplineNode): WaterSettings {
   );
 }
 
-/** Resample a centreline with smooth Chaikin curves and orient it downhill, clamped to map bounds. */
+/**
+ * Resamples a water centreline with smooth Chaikin curves and clamps to map bounds.
+ * Switching `settings.mode` to `'pond'` preserves the entire drawn path and only zeroes flow/waterfalls.
+ */
 export function buildWaterProfile(water: WaterSplineNode, ground: GroundSampler): WaterProfile {
   const settings = settingsForWater(water);
   let points = water.points
@@ -52,7 +55,9 @@ export function buildWaterProfile(water: WaterSplineNode, ground: GroundSampler)
   );
   if (!points.length) return { id: water.id, settings, samples: [] };
 
-  if (settings.mode === 'pond' || points.length === 1) {
+  // Only a single-click point (points.length === 1) is a circular point-basin;
+  // multi-point paths always preserve their full drawn shape in both 'river' and 'pond' modes.
+  if (points.length === 1) {
     const [x, z] = points[0];
     const r = settings.width / 2;
     const rim = Array.from({ length: 24 }, (_, i) =>
@@ -69,12 +74,13 @@ export function buildWaterProfile(water: WaterSplineNode, ground: GroundSampler)
     };
   }
 
+  const isStillPond = settings.mode === 'pond' || settings.flowSpeed <= 0.01;
   const last = points[points.length - 1];
-  if (ground(points[0][0], points[0][1]) < ground(last[0], last[1])) {
+  if (!isStillPond && ground(points[0][0], points[0][1]) < ground(last[0], last[1])) {
     points.reverse();
   }
 
-  // Three Chaikin corner-cutting passes produce natural, organic river curves without polygonal kinks.
+  // Three Chaikin corner-cutting passes produce natural, organic curves without polygonal kinks.
   let smooth: [number, number][] = points;
   for (let pass = 0; pass < 3; pass++) {
     const next: [number, number][] = [smooth[0]];
@@ -114,7 +120,10 @@ export function buildWaterProfile(water: WaterSplineNode, ground: GroundSampler)
         z,
         level,
         distance,
-        fall: slope > settings.waterfallSlope * 0.7 ? Math.min(1, slope / 1.6) : 0,
+        fall:
+          !isStillPond && slope > settings.waterfallSlope * 0.7
+            ? Math.min(1, slope / 1.6)
+            : 0,
       });
       previous = level;
     }
@@ -130,7 +139,12 @@ export function buildWaterProfile(water: WaterSplineNode, ground: GroundSampler)
       z: end[1],
       level,
       distance: distance + delta,
-      fall: p && (p.level - level) / Math.max(0.01, delta) > settings.waterfallSlope * 0.7 ? 1 : 0,
+      fall:
+        !isStillPond &&
+        p &&
+        (p.level - level) / Math.max(0.01, delta) > settings.waterfallSlope * 0.7
+          ? 1
+          : 0,
     });
   }
 
@@ -144,6 +158,11 @@ export function buildWaterProfile(water: WaterSplineNode, ground: GroundSampler)
     const vLen = Math.hypot(vx, vz) || 1;
     samples[i].dx = vx / vLen;
     samples[i].dz = vz / vLen;
+
+    if (isStillPond) {
+      samples[i].fall = 0;
+      continue;
+    }
 
     const a = samples[Math.max(0, i - 1)];
     const b = samples[Math.min(samples.length - 1, i + 1)];
@@ -198,9 +217,9 @@ export function channelBed(profile: WaterProfile, x: number, z: number, ground: 
   if (hit.distance >= radius + profile.settings.bankWidth) return ground;
   if (hit.distance <= radius) {
     const t = hit.distance / radius;
-    return Math.min(ground, hit.level - 0.035 - profile.settings.depth * (1 - t ** 4));
+    return hit.level - profile.settings.depth * (1 - t * t);
   }
-  const t = (hit.distance - radius) / profile.settings.bankWidth;
-  const feather = t * t * (3 - 2 * t);
-  return Math.min(ground, hit.level - 0.035 + (ground - hit.level + 0.035) * feather);
+  const t = (hit.distance - radius) / Math.max(0.05, profile.settings.bankWidth);
+  const smooth = t * t * (3 - 2 * t);
+  return hit.level + (ground - hit.level) * smooth;
 }

@@ -3,7 +3,12 @@ import { NgpButton } from 'ng-primitives/button';
 import { LwIconComponent } from '../icon/icon.component';
 
 export type LwMapCameraView = 'top-down' | 'isometric' | 'first-person' | 'real-2d' | 'split-2d-3d';
-export type LwMapQualityPreset = 'Auto' | 'Cinematic 3D' | 'Balanced 3D' | 'Performance 3D' | 'Classic 2D';
+export type LwMapQualityPreset =
+  | 'Auto'
+  | 'Cinematic 3D'
+  | 'Balanced 3D'
+  | 'Performance 3D'
+  | 'Classic 2D';
 
 @Component({
   selector: 'lw-map-viewport-bar',
@@ -25,15 +30,19 @@ export class LwMapViewportBarComponent {
     'Classic 2D',
   ]);
   readonly gridSize = input<string>('5 ft');
+  readonly gridScalePct = input<number>(100);
   readonly snapEnabled = input<boolean>(true);
   readonly showPlayerSafeOnly = input<boolean>(false);
+  readonly hasRefTokens = input<boolean>(false);
   readonly fps = input<number>(60);
 
   readonly viewChange = output<LwMapCameraView>();
   readonly themeChange = output<string>();
   readonly qualityChange = output<LwMapQualityPreset>();
   readonly gridSizeChange = output<string>();
+  readonly gridScaleChange = output<number>();
   readonly snapToggle = output<void>();
+  readonly spawnTokensToggle = output<void>();
   readonly playerSafeToggle = output<void>();
 
   selectView(view: LwMapCameraView): void {
@@ -58,6 +67,14 @@ export class LwMapViewportBarComponent {
     const select = event.target as HTMLSelectElement | null;
     if (select?.value) {
       this.gridSizeChange.emit(select.value);
+    }
+  }
+
+  onGridScaleInput(event: Event): void {
+    const inputEl = event.target as HTMLInputElement | null;
+    const val = Number(inputEl?.value ?? 100);
+    if (!Number.isNaN(val)) {
+      this.gridScaleChange.emit(val);
     }
   }
 }

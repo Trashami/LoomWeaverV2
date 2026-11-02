@@ -75,7 +75,7 @@ import {
   PickedSceneEntityMeta,
 } from './engine/rendering/babylon-map-stage.service';
 import { Real2dMapRenderer } from './engine/rendering/real-2d-map-renderer';
-import { TerrainMeshBuilder } from './engine/terrain/terrain-mesh.builder';
+import { LwFloorSurfaceFinish, TerrainMeshBuilder } from './engine/terrain/terrain-mesh.builder';
 import { WallMeshBuilder } from './engine/walls/wall-mesh.builder';
 
 @Component({
@@ -177,9 +177,22 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   readonly floorTilingScale = signal<number>(10);
   readonly floorBumpIntensity = signal<number>(135);
   readonly floorHeightScale = signal<number>(100);
+  readonly floorSurfaceFinish = signal<LwFloorSurfaceFinish>('matte');
+  readonly floorRoughness = signal<number>(82);
+  readonly floorSpecularIntensity = signal<number>(22);
+  readonly floorAmbientOcclusion = signal<number>(65);
   readonly floorColorHex = signal<string>('#ffffff');
   readonly floorColorStrength = signal<number>(0);
   readonly floorColorBlendMode = signal<MapFloorBlendMode>('multiply');
+
+  readonly gridScalePct = signal<number>(100);
+  readonly gridOffsetX = signal<number>(0);
+  readonly gridOffsetZ = signal<number>(0);
+  readonly gridOpacityPct = signal<number>(78);
+  readonly activeTokenPreset = signal<string>('hero-5ft');
+  readonly hasRefTokens = computed(() =>
+    this.sceneGraph().stamps.some((s) => s.category === 'Token'),
+  );
   readonly wallBrush = signal<WallBrushSettings>(DEFAULT_WALL_BRUSH);
   readonly selectedWallSmoothing = computed(() =>
     this.sceneGraph().walls?.find(w => w.id === this.selectedPlacedId())?.terrainSmoothing ?? 75);
@@ -405,6 +418,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         this.stage.setQualityPreset(this.activeQuality());
         this.stage.setCameraMode(this.cameraView());
         this.wireLightDrag();
+        this.wireStampDrag();
         this.syncSurfaceLock();
         this.syncGhostCursorToStage();
         this.pushCelestialLightToStage();
@@ -462,6 +476,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       ...blank,
       floorAlbedoUrl: starterFloor?.albedoUrl,
       floorNormalUrl: starterFloor?.normalUrl,
+      floorHeightUrl: starterFloor?.heightUrl,
       floorTilingScale: this.floorTilingScale(),
     });
     this.selectedPlacedId.set(null);
@@ -820,6 +835,10 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       tilingScale: this.floorTilingScale(),
       bumpIntensity: this.floorBumpIntensity(),
       heightScale: this.floorHeightScale(),
+      surfaceFinish: this.floorSurfaceFinish(),
+      roughness: this.floorRoughness(),
+      specularIntensity: this.floorSpecularIntensity(),
+      ambientOcclusion: this.floorAmbientOcclusion(),
       colorHex: this.floorColorHex(),
       colorStrength: this.floorColorStrength(),
       colorBlendMode: this.floorColorBlendMode(),
@@ -863,6 +882,41 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   onFloorHeightScaleChange(val: number): void {
     this.floorHeightScale.set(val);
     this.stage.configureFloorProperties({ heightScale: val });
+    this.render2dViewport();
+  }
+
+  onFloorSurfaceFinishChange(finish: LwFloorSurfaceFinish): void {
+    this.floorSurfaceFinish.set(finish);
+    if (finish === 'matte') {
+      this.floorRoughness.set(86);
+      this.floorSpecularIntensity.set(14);
+    } else if (finish === 'semi-glossy') {
+      this.floorRoughness.set(46);
+      this.floorSpecularIntensity.set(58);
+    } else if (finish === 'shiny') {
+      this.floorRoughness.set(14);
+      this.floorSpecularIntensity.set(115);
+    }
+    this.stage.configureFloorProperties({
+      surfaceFinish: finish,
+      roughness: this.floorRoughness(),
+      specularIntensity: this.floorSpecularIntensity(),
+    });
+  }
+
+  onFloorRoughnessChange(val: number): void {
+    this.floorRoughness.set(val);
+    this.stage.configureFloorProperties({ roughness: val });
+  }
+
+  onFloorSpecularIntensityChange(val: number): void {
+    this.floorSpecularIntensity.set(val);
+    this.stage.configureFloorProperties({ specularIntensity: val });
+  }
+
+  onFloorAmbientOcclusionChange(val: number): void {
+    this.floorAmbientOcclusion.set(val);
+    this.stage.configureFloorProperties({ ambientOcclusion: val });
     this.render2dViewport();
   }
 
@@ -942,6 +996,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     const isFloorPaint = tool === 'floor-bump' && this.floorBrushActive();
     const lightEditing = tool === 'select' || tool === 'lighting';
     this.stage.setLightEditing(lightEditing, lightEditing);
+    this.stage.setStampDragging(tool === 'select' || tool === 'tokens' || tool === 'objects');
     const isDecalStamp = Boolean(node.albedoUrl && !node.modelUrl && !node.isFloor);
     const kind = isFloorPaint
       ? 'floor-paint'
@@ -1395,6 +1450,11 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    if (dockTool === 'tokens') {
+      this.placeReferenceTokenAt(x, z);
+      return;
+    }
+
     if (dockTool === 'objects' || dockTool === 'annotate') {
       this.placeStampAt(x, z);
     }
@@ -1584,6 +1644,235 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       const lt = this.sceneGraph().lights.find((l) => l.id === id);
       if (lt) this.stage.focusGizmoAt(x, lt.y, z, 0.35);
     };
+  }
+
+  private wireStampDrag(): void {
+    this.stage.stampDrag.onStart = (id) => {
+      const st = this.sceneGraph().stamps.find((s) => s.id === id);
+      this.selectPlacedEntity(
+        { lwKind: 'object', lwEntityId: id } as PickedSceneEntityMeta,
+        st?.x ?? 0,
+        st?.z ?? 0,
+      );
+      this.recordHistoryBeforeEdit(st?.category === 'Token' ? 'Move Reference Token' : 'Move Object');
+    };
+    this.stage.stampDrag.onMove = (id, x, z, distFeet, distSquares) => {
+      const st = this.sceneGraph().stamps.find((s) => s.id === id);
+      if (st?.category === 'Token') {
+        this.pngPipelineBanner.set(
+          `${st.label}: Moved ${distFeet} ft (${distSquares.toFixed(1)} sq) · 30 ft turn limit shown`,
+        );
+      }
+      this.stage.focusGizmoAt(x, (st?.offsetY ?? 0) + 0.1, z);
+    };
+    this.stage.stampDrag.onEnd = (id, x, z, moved, distFeet) => {
+      if (!moved) return;
+      this.commitSceneUpdate((cur) => ({
+        ...cur,
+        revision: cur.revision + 1,
+        stamps: cur.stamps.map((s) => (s.id === id ? { ...s, x, z } : s)),
+      }));
+      this.selectedNode.update((cur) => ({ ...cur, gridX: x, gridZ: z }));
+      const st = this.sceneGraph().stamps.find((s) => s.id === id);
+      if (st) {
+        this.stage.focusGizmoAt(x, (st.offsetY ?? 0) + 0.1, z);
+        if (st.category === 'Token') {
+          this.pngPipelineBanner.set(`${st.label} placed after ${distFeet} ft movement.`);
+        }
+      }
+    };
+  }
+
+  private placeReferenceTokenAt(x: number, z: number, presetOverride?: string): void {
+    const snapped = TerrainMeshBuilder.snapWorldCoordinates(
+      x,
+      z,
+      this.snapEnabled(),
+      'cell-center',
+    );
+    const preset = presetOverride ?? this.activeTokenPreset();
+    const catalog: Record<
+      string,
+      { label: string; sizeSq: number; colorHex: string; portraitUrl: string }
+    > = {
+      'hero-5ft': {
+        label: 'Dal (5ft PC)',
+        sizeSq: 1,
+        colorHex: '#49e892',
+        portraitUrl: '/assets/5etools/img/bestiary/tokens/MM/Knight.webp',
+      },
+      'ally-5ft': {
+        label: 'Fivi (5ft Fey)',
+        sizeSq: 1,
+        colorHex: '#38bdf8',
+        portraitUrl: '/assets/5etools/img/bestiary/tokens/MM/Mage.webp',
+      },
+      'large-10ft': {
+        label: 'Ogre (10ft Large)',
+        sizeSq: 2,
+        colorHex: '#f59e0b',
+        portraitUrl: '/assets/5etools/img/bestiary/tokens/MM/Ogre.webp',
+      },
+      'huge-15ft': {
+        label: 'Dragon (15ft Huge)',
+        sizeSq: 3,
+        colorHex: '#ef4444',
+        portraitUrl: '/assets/5etools/img/bestiary/tokens/MM/Adult Red Dragon.webp',
+      },
+    };
+    const spec = catalog[preset] ?? catalog['hero-5ft'];
+    const stampId = `token-${Date.now()}-${this.sceneGraph().stamps.length + 1}`;
+    this.recordHistoryBeforeEdit(`Place Reference Token (${spec.label})`);
+    this.commitSceneUpdate((cur) => ({
+      ...cur,
+      revision: cur.revision + 1,
+      stamps: [
+        ...cur.stamps,
+        {
+          id: stampId,
+          label: spec.label,
+          category: 'Token',
+          thumbnailUrl: spec.portraitUrl,
+          albedoUrl: spec.portraitUrl,
+          x: snapped.x,
+          z: snapped.z,
+          offsetY: 0,
+          placementMode: 'floor',
+          scale: 1,
+          scaleX: spec.sizeSq,
+          scaleY: spec.sizeSq,
+          scaleZ: spec.sizeSq,
+          rotationY: 0,
+          colorHex: spec.colorHex,
+          surfaceFinish: 'standard',
+          opacity: 1,
+          gmSecretOnly: false,
+          blocksMovement: true,
+          blocksVision: false,
+        },
+      ],
+    }));
+    this.selectedPlacedId.set(stampId);
+    this.selectedPlacedKind.set('object');
+    this.stage.focusGizmoAt(snapped.x, 0.1, snapped.z);
+    this.pngPipelineBanner.set(
+      `Placed ${spec.label}. Drag token on the map to visualize 30ft movement & scale.`,
+    );
+  }
+
+  onSpawnSampleParty(): void {
+    this.recordHistoryBeforeEdit('Spawn Sample Reference Tokens');
+    const step = TerrainMeshBuilder.getCellStepMeters();
+    const entries = [
+      {
+        label: 'Dal (5ft PC)',
+        sizeSq: 1,
+        colorHex: '#49e892',
+        portraitUrl: '/assets/5etools/img/bestiary/tokens/MM/Knight.webp',
+        x: -step * 1.5,
+        z: step * 0.5,
+      },
+      {
+        label: 'Munk (5ft PC)',
+        sizeSq: 1,
+        colorHex: '#2ee66b',
+        portraitUrl: '/assets/5etools/img/bestiary/tokens/MM/Berserker.webp',
+        x: -step * 0.5,
+        z: step * 0.5,
+      },
+      {
+        label: 'Fivi (5ft Fey)',
+        sizeSq: 1,
+        colorHex: '#38bdf8',
+        portraitUrl: '/assets/5etools/img/bestiary/tokens/MM/Mage.webp',
+        x: -step * 1.5,
+        z: -step * 0.5,
+      },
+      {
+        label: 'Ogre (10ft Large)',
+        sizeSq: 2,
+        colorHex: '#ef4444',
+        portraitUrl: '/assets/5etools/img/bestiary/tokens/MM/Ogre.webp',
+        x: step * 2.0,
+        z: 0,
+      },
+    ];
+    const now = Date.now();
+    this.commitSceneUpdate((cur) => ({
+      ...cur,
+      revision: cur.revision + 1,
+      stamps: [
+        ...cur.stamps.filter((s) => s.category !== 'Token'),
+        ...entries.map((e, idx) => ({
+          id: `token-${now}-${idx}`,
+          label: e.label,
+          category: 'Token' as const,
+          thumbnailUrl: e.portraitUrl,
+          albedoUrl: e.portraitUrl,
+          x: e.x,
+          z: e.z,
+          offsetY: 0,
+          placementMode: 'floor' as const,
+          scale: 1,
+          scaleX: e.sizeSq,
+          scaleY: e.sizeSq,
+          scaleZ: e.sizeSq,
+          rotationY: 0,
+          colorHex: e.colorHex,
+          surfaceFinish: 'standard' as const,
+          opacity: 1,
+          gmSecretOnly: false,
+          blocksMovement: true,
+          blocksVision: false,
+        })),
+      ],
+    }));
+    this.stage.setStampDragging(true);
+    this.pngPipelineBanner.set(
+      'Spawned 4 Reference Tokens (3 Medium 5ft PCs + 1 Large 10ft Ogre). Drag any token to test scale & 30ft movement.',
+    );
+  }
+
+  onClearRefTokens(): void {
+    this.recordHistoryBeforeEdit('Clear Reference Tokens');
+    this.commitSceneUpdate((cur) => ({
+      ...cur,
+      revision: cur.revision + 1,
+      stamps: cur.stamps.filter((s) => s.category !== 'Token'),
+    }));
+    this.pngPipelineBanner.set('Cleared reference tokens from map.');
+  }
+
+  onToggleRefTokensFromBar(): void {
+    if (this.hasRefTokens()) {
+      this.onClearRefTokens();
+    } else {
+      this.onSpawnSampleParty();
+    }
+  }
+
+  onGridScalePctChange(pct: number): void {
+    this.gridScalePct.set(pct);
+    this.stage.configureGrid({ scaleFactor: pct / 100 });
+    this.render2dViewport();
+  }
+
+  onGridOffsetXChange(val: number): void {
+    this.gridOffsetX.set(val);
+    this.stage.configureGrid({ offsetX: val });
+    this.render2dViewport();
+  }
+
+  onGridOffsetZChange(val: number): void {
+    this.gridOffsetZ.set(val);
+    this.stage.configureGrid({ offsetZ: val });
+    this.render2dViewport();
+  }
+
+  onGridOpacityPctChange(pct: number): void {
+    this.gridOpacityPct.set(pct);
+    this.stage.configureGrid({ opacity: pct / 100 });
+    this.render2dViewport();
   }
 
   onDoorPropertyChanged(): void {

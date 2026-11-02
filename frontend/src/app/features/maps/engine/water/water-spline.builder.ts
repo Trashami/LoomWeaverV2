@@ -53,7 +53,8 @@ export class WaterSplineBuilder {
     }
 
     for (const network of WaterChannelTerrain.getNetworks(scene)) {
-      const profile = network[0];
+      // Use the most recently added/updated profile in the network for material defaults
+      const profile = network[network.length - 1] ?? network[0];
       const mesh = createWaterNetworkMesh(scene, network, (x, z) =>
         TerrainMeshBuilder.sampleElevationAt(scene, x, z),
       );

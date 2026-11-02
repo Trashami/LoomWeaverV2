@@ -1,6 +1,7 @@
 import {
   AbstractMesh,
   Color3,
+  DynamicTexture,
   MeshBuilder,
   Scene,
   StandardMaterial,
@@ -79,6 +80,148 @@ function getOrCreateDecalMaterial(
   return dMat;
 }
 
+function createTokenReferenceNode(
+  scene: Scene,
+  st: MapStampNode,
+  cellMeters: number,
+  stampMeta: GlbCloneMetadata,
+): TransformNode {
+  const root = new TransformNode(`lw-stamp-node-${st.id}`, scene);
+  root.metadata = stampMeta;
+
+  const footprintSq = Math.max(0.5, (st.scaleX ?? 1) * st.scale);
+  const diameter = cellMeters * footprintSq * 0.9;
+  const ringColorHex = st.colorHex && st.colorHex !== '#ffffff' ? st.colorHex : '#49e892';
+
+  // 1. Beveled 3D miniature base cylinder
+  const base = MeshBuilder.CreateCylinder(
+    `lw-stamp-token-base-${st.id}`,
+    {
+      diameterTop: diameter * 0.94,
+      diameterBottom: diameter,
+      height: 0.14,
+      tessellation: 32,
+    },
+    scene,
+  );
+  base.position.y = 0.07;
+  base.parent = root;
+  base.metadata = stampMeta;
+  base.isPickable = true;
+
+  const baseMat = new StandardMaterial(`lw-stamp-token-base-mat-${st.id}`, scene);
+  baseMat.diffuseColor = Color3.FromHexString('#10281e');
+  baseMat.emissiveColor = Color3.FromHexString(ringColorHex).scale(0.32);
+  baseMat.specularColor = Color3.FromHexString('#49e892').scale(0.4);
+  base.material = baseMat;
+
+  // 2. Top circular portrait disc with character art + crisp border
+  const topDisc = MeshBuilder.CreateGround(
+    `lw-stamp-token-top-${st.id}`,
+    { width: diameter * 0.92, height: diameter * 0.92 },
+    scene,
+  );
+  topDisc.position.y = 0.145;
+  topDisc.parent = root;
+  topDisc.metadata = stampMeta;
+  topDisc.isPickable = true;
+
+  // 3. Upright 3D reference standee silhouette so the user can judge vertical scale & perspective in 3D
+  const standeeHeight = cellMeters * Math.max(0.8, (st.scaleY ?? 1) * st.scale) * 0.88;
+  const standee = MeshBuilder.CreatePlane(
+    `lw-stamp-token-standee-${st.id}`,
+    { width: diameter * 0.78, height: standeeHeight },
+    scene,
+  );
+  standee.position.y = 0.14 + standeeHeight * 0.5;
+  standee.billboardMode = AbstractMesh.BILLBOARDMODE_Y;
+  standee.parent = root;
+  standee.metadata = stampMeta;
+  standee.isPickable = true;
+
+  const dynTex = new DynamicTexture(
+    `lw-stamp-token-tex-${st.id}`,
+    { width: 256, height: 256 },
+    scene,
+    true,
+  );
+  dynTex.hasAlpha = true;
+
+  const drawTokenFace = (img: HTMLImageElement | null) => {
+    if (scene.isDisposed) return;
+    const ctx = dynTex.getContext() as unknown as CanvasRenderingContext2D;
+    ctx.clearRect(0, 0, 256, 256);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(128, 128, 118, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+
+    const bgGrad = ctx.createRadialGradient(128, 108, 16, 128, 128, 120);
+    bgGrad.addColorStop(0, '#1e4635');
+    bgGrad.addColorStop(1, '#091912');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, 256, 256);
+
+    if (img && img.naturalWidth > 0) {
+      ctx.drawImage(img, 8, 8, 240, 240);
+    } else {
+      ctx.fillStyle = '#e9f6ee';
+      ctx.font = '700 68px Cinzel, Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const initials = (st.label || 'PC')
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((w) => w[0]?.toUpperCase() ?? '')
+        .join('');
+      ctx.fillText(initials || 'PC', 128, 116);
+    }
+
+    // Bottom name plate inside disc
+    ctx.fillStyle = 'rgba(5, 16, 12, 0.82)';
+    ctx.fillRect(0, 192, 256, 64);
+    ctx.fillStyle = '#f3faf6';
+    ctx.font = '700 24px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText((st.label || 'Token').slice(0, 14), 128, 218);
+    ctx.restore();
+
+    // Outer faction border ring
+    ctx.beginPath();
+    ctx.arc(128, 128, 118, 0, Math.PI * 2);
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = ringColorHex;
+    ctx.stroke();
+
+    dynTex.update();
+  };
+
+  drawTokenFace(null);
+  const portraitUrl = st.thumbnailUrl || st.albedoUrl;
+  if (portraitUrl && typeof Image !== 'undefined') {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => drawTokenFace(img);
+    img.src = portraitUrl;
+  }
+
+  const faceMat = new StandardMaterial(`lw-stamp-token-face-mat-${st.id}`, scene);
+  faceMat.diffuseTexture = dynTex;
+  faceMat.emissiveTexture = dynTex;
+  faceMat.useAlphaFromDiffuseTexture = true;
+  faceMat.emissiveColor = new Color3(0.75, 0.78, 0.76);
+  faceMat.specularColor = Color3.Black();
+  faceMat.backFaceCulling = false;
+
+  topDisc.material = faceMat;
+  standee.material = faceMat;
+
+  return root;
+}
+
 export class StampSceneBuilder {
   /** Clears cached stamp instances for `scene` (e.g., when switching visual quality LOD tier). */
   static evictScene(scene: Scene): void {
@@ -96,6 +239,16 @@ export class StampSceneBuilder {
       }
       mats.clear();
     }
+  }
+
+  /** Moves an existing placed Token or Object stamp in real time during drag without rebuilding the scene. */
+  static moveStamp(scene: Scene, st: MapStampNode, x: number, z: number): void {
+    const built = builtStampsByScene.get(scene)?.get(st.id);
+    if (!built || built.node.isDisposed()) return;
+    const groundY = TerrainMeshBuilder.sampleElevationAt(scene, x, z);
+    const offsetY = st.placementMode === 'custom' ? (st.offsetY ?? 0) : 0;
+    const isFlatDecal = !st.modelUrl && st.category !== 'Token';
+    built.node.position.set(x, groundY + (isFlatDecal ? 0.04 : 0) + offsetY, z);
   }
 
   /**
@@ -132,15 +285,22 @@ export class StampSceneBuilder {
       const sz = (st.scaleZ ?? 1) * st.scale;
       const tiltRad = ((st.tiltX ?? 0) * Math.PI) / 180;
 
-      const tpl = st.modelUrl
-        ? GlbModelCache.getOrLoadTemplate(scene, st.modelUrl, onTemplateLoaded)
-        : null;
-      const modeKey = tpl ? `3d:${tpl.url}` : `2d:${st.albedoUrl || st.thumbnailUrl || ''}:${st.normalUrl || ''}`;
-      const sig = `${modeKey}|${tier}|${cellMeters}|${sx.toFixed(3)}|${sy.toFixed(3)}|${sz.toFixed(3)}|${st.colorHex || ''}|${st.surfaceFinish || ''}|${(st.opacity ?? 1).toFixed(2)}`;
+      const tpl =
+        st.modelUrl && st.category !== 'Token'
+          ? GlbModelCache.getOrLoadTemplate(scene, st.modelUrl, onTemplateLoaded)
+          : null;
+      const modeKey =
+        st.category === 'Token'
+          ? `token:${st.label}:${st.thumbnailUrl || st.albedoUrl || ''}`
+          : tpl
+            ? `3d:${tpl.url}`
+            : `2d:${st.albedoUrl || st.thumbnailUrl || ''}:${st.normalUrl || ''}`;
+      const sig = `${modeKey}|${tier}|${cellMeters.toFixed(3)}|${sx.toFixed(3)}|${sy.toFixed(3)}|${sz.toFixed(3)}|${st.colorHex || ''}|${st.surfaceFinish || ''}|${(st.opacity ?? 1).toFixed(2)}`;
 
       const existing = builtMap.get(st.id);
       if (existing && existing.signature === sig && !existing.node.isDisposed()) {
-        const targetY = tpl ? groundY + offsetY : groundY + 0.04 + offsetY;
+        const isFlatDecal = !tpl && st.category !== 'Token';
+        const targetY = isFlatDecal ? groundY + 0.04 + offsetY : groundY + offsetY;
         existing.node.position.set(st.x, targetY, st.z);
         existing.node.rotation.y = st.rotationY;
         if (tpl) {
@@ -159,6 +319,15 @@ export class StampSceneBuilder {
         lwKind: 'object',
         lwEntityId: st.id,
       };
+
+      // 0. Reference Character / Creature Token (3D Base + 2D Portrait Disc + Vertical Standee)
+      if (st.category === 'Token') {
+        const tokenNode = createTokenReferenceNode(scene, st, cellMeters, stampMeta);
+        tokenNode.position.set(st.x, groundY + offsetY, st.z);
+        tokenNode.rotation.y = st.rotationY;
+        builtMap.set(st.id, { signature: sig, node: tokenNode });
+        continue;
+      }
 
       // 1. Real 3D Asset Model (shared template & GPU geometry across all stamps of this asset)
       if (tpl) {

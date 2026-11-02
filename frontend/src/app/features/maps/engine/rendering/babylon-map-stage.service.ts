@@ -28,12 +28,17 @@ import {
 } from '../map-scene-contract';
 import { PathRibbonEngine } from '../paths/path-ribbon.engine';
 import { SeededScatterEngine } from '../scatter/seeded-scatter.engine';
-import { FloorBumpAndColorConfig, TerrainMeshBuilder } from '../terrain/terrain-mesh.builder';
+import {
+  FloorBumpAndColorConfig,
+  FloorGridConfig,
+  TerrainMeshBuilder,
+} from '../terrain/terrain-mesh.builder';
 import { WallMeshBuilder } from '../walls/wall-mesh.builder';
 import { WaterSplineBuilder } from '../water/water-spline.builder';
 import { lodTierForQualityPreset } from './glb-lod';
 import { GlbModelCache } from './glb-model-cache';
 import { LightDragController } from './light-drag.controller';
+import { StampDragController } from './stamp-drag.controller';
 import { StampSceneBuilder } from './stamp-scene.builder';
 import { LightFixtureBuilder } from '../lighting/light-fixture.builder';
 
@@ -94,6 +99,7 @@ export class BabylonMapStageService {
   private selectedPosition: Vector3 | null = null;
   private selectedGizmoRadius = 1.1;
   readonly lightDrag = new LightDragController();
+  readonly stampDrag = new StampDragController();
   private hideGmSecrets = false;
   private snapToGrid = true;
   private surfaceLockEnabled = false;
@@ -154,13 +160,13 @@ export class BabylonMapStageService {
 
       this.camera = new ArcRotateCamera(
         'lw-map-cam',
-        -Math.PI / 2.25,
-        0.78,
-        26,
+        -Math.PI / 2.3,
+        0.82,
+        15.5,
         Vector3.Zero(),
         this.scene,
       );
-      this.camera.lowerRadiusLimit = 4;
+      this.camera.lowerRadiusLimit = 1.6;
       this.camera.upperRadiusLimit = 68;
       this.camera.wheelPrecision = 18;
       this.camera.attachControl(canvas, true);
@@ -173,6 +179,15 @@ export class BabylonMapStageService {
         },
         pickGround: () => this.pickGroundCoordinates('cell-center'),
         getLight: (id) => this.lastState?.lights.find((l) => l.id === id),
+        isCameraOverride: () => this.isSpaceKeyHeld,
+      });
+      this.stampDrag.attach(this.scene, canvas, {
+        pickStampId: () => {
+          const meta = this.pickSceneEntityMeta();
+          return meta?.lwKind === 'object' ? (meta.lwEntityId ?? null) : null;
+        },
+        pickGround: () => this.pickGroundCoordinates('cell-center'),
+        getStamp: (id) => this.lastState?.stamps.find((s) => s.id === id),
         isCameraOverride: () => this.isSpaceKeyHeld,
       });
 
@@ -796,6 +811,21 @@ export class BabylonMapStageService {
   setGridMode(mode: string): void {
     if (!this.scene) return;
     TerrainMeshBuilder.setGridMode(this.scene, mode);
+    if (this.lastState) {
+      this.rebuildStamps(this.scene, this.lastState.stamps);
+    }
+  }
+
+  configureGrid(config: FloorGridConfig): void {
+    if (!this.scene) return;
+    TerrainMeshBuilder.configureGrid(this.scene, config);
+    if (this.lastState) {
+      this.rebuildStamps(this.scene, this.lastState.stamps);
+    }
+  }
+
+  setStampDragging(enabled: boolean): void {
+    this.stampDrag.enabled = enabled;
   }
 
   setCameraMode(mode: MapRenderMode | string): void {

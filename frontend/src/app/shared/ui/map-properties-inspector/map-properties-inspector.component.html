@@ -124,7 +124,7 @@
 
             <div class="lw-map-inspector__slider-block">
               <div class="lw-map-inspector__slider-head">
-                <span>Texture Height / Relief Depth</span>
+                <span>Texture Height (High / Low Exaggeration)</span>
                 <strong>{{ floorHeightScale() }}%</strong>
               </div>
               <input
@@ -135,6 +135,98 @@
                 class="lw-map-inspector__range"
                 [value]="floorHeightScale()"
                 (input)="onNumInput($event, floorHeightScaleChange)"
+              />
+            </div>
+
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
+                <span>Cavity / Crevice AO Shadow Depth</span>
+                <strong>{{ floorAmbientOcclusion() }}%</strong>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="150"
+                step="5"
+                class="lw-map-inspector__range"
+                [value]="floorAmbientOcclusion()"
+                (input)="onNumInput($event, floorAmbientOcclusionChange)"
+              />
+            </div>
+          </div>
+
+          <!-- SURFACE FINISH & 3D MATERIAL OPTIONS -->
+          <div class="lw-map-inspector__subsection">
+            <h4 class="lw-map-inspector__section-title">Surface finish &amp; 3D material</h4>
+
+            <div class="lw-map-inspector__pill-group">
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="floorSurfaceFinish() === 'matte'"
+                (click)="floorSurfaceFinishChange.emit('matte')"
+              >
+                Matte
+              </button>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="floorSurfaceFinish() === 'semi-glossy'"
+                (click)="floorSurfaceFinishChange.emit('semi-glossy')"
+              >
+                Semi-Glossy
+              </button>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="floorSurfaceFinish() === 'shiny'"
+                (click)="floorSurfaceFinishChange.emit('shiny')"
+              >
+                Shiny / Wet
+              </button>
+            </div>
+
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
+                <span>Surface Roughness</span>
+                <strong>
+                  {{ floorRoughness() }}%
+                  {{
+                    floorRoughness() <= 25
+                      ? '(Slick / Wet)'
+                      : floorRoughness() >= 75
+                        ? '(Matte)'
+                        : '(Satin)'
+                  }}
+                </strong>
+              </div>
+              <input
+                type="range"
+                min="4"
+                max="100"
+                step="2"
+                class="lw-map-inspector__range"
+                [value]="floorRoughness()"
+                (input)="onNumInput($event, floorRoughnessChange)"
+              />
+            </div>
+
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
+                <span>Specular Highlight Strength</span>
+                <strong>{{ floorSpecularIntensity() }}%</strong>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="150"
+                step="5"
+                class="lw-map-inspector__range"
+                [value]="floorSpecularIntensity()"
+                (input)="onNumInput($event, floorSpecularIntensityChange)"
               />
             </div>
           </div>
@@ -846,6 +938,165 @@
               Hover over any wall to snap the door into the wall and click to cut an opening. Click any placed door with Select to swap its 3D Door Asset or resize the cutout.
             </p>
           }
+        </div>
+      }
+
+      <!-- 5A. REFERENCE TOKENS & ADJUSTABLE GRID SCALE -->
+      @if (effectiveMode() === 'tokens' || (effectiveMode() === 'select' && !hasPlacedSelection())) {
+        <div class="lw-map-inspector__section">
+          <div class="lw-map-inspector__group-box">
+            <div class="lw-map-inspector__slider-head">
+              <span class="lw-map-inspector__subhead">Scale &amp; Movement Reference Tokens</span>
+            </div>
+            <p class="lw-map-inspector__hint">
+              Place or drag tokens across the map to judge 5ft/10ft/15ft scale, sightlines, and 30ft movement per turn.
+            </p>
+
+            <div class="lw-map-inspector__dual-range">
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__apply-btn"
+                (click)="spawnSampleParty.emit()"
+              >
+                Spawn Sample Party
+              </button>
+              @if (hasRefTokens()) {
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__cancel-btn"
+                  (click)="clearRefTokens.emit()"
+                >
+                  Clear Tokens
+                </button>
+              }
+            </div>
+
+            <div class="lw-map-inspector__row">
+              <span class="lw-map-inspector__label">Click-to-Place Token Size</span>
+              <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="activeTokenPreset() === 'hero-5ft'"
+                  (click)="tokenPresetChange.emit('hero-5ft')"
+                >
+                  Medium PC (5ft · 1×1)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="activeTokenPreset() === 'ally-5ft'"
+                  (click)="tokenPresetChange.emit('ally-5ft')"
+                >
+                  Companion (5ft · 1×1)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="activeTokenPreset() === 'large-10ft'"
+                  (click)="tokenPresetChange.emit('large-10ft')"
+                >
+                  Large (10ft · 2×2)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="activeTokenPreset() === 'huge-15ft'"
+                  (click)="tokenPresetChange.emit('huge-15ft')"
+                >
+                  Huge (15ft · 3×3)
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="lw-map-inspector__group-box">
+            <span class="lw-map-inspector__subhead">Adjustable Grid Size &amp; Alignment</span>
+
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
+                <span>Grid Cell Scale</span>
+                <strong>{{ gridScalePct() }}% ({{ (1.5 * gridScalePct() / 100).toFixed(2) }}m / sq)</strong>
+              </div>
+              <input
+                type="range"
+                min="50"
+                max="220"
+                step="5"
+                class="lw-map-inspector__range"
+                [value]="gridScalePct()"
+                (input)="onNumInput($event, gridScalePctChange)"
+              />
+              <div class="lw-map-inspector__pill-group">
+                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="gridScalePctChange.emit(75)">
+                  Dense (75%)
+                </button>
+                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="gridScalePctChange.emit(100)">
+                  Standard (100%)
+                </button>
+                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="gridScalePctChange.emit(135)">
+                  Large (135%)
+                </button>
+                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="gridScalePctChange.emit(175)">
+                  XL (175%)
+                </button>
+              </div>
+            </div>
+
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
+                <span>Grid Offset X (East–West)</span>
+                <strong>{{ gridOffsetX() >= 0 ? '+' : '' }}{{ gridOffsetX().toFixed(2) }}m</strong>
+              </div>
+              <input
+                type="range"
+                min="-1.5"
+                max="1.5"
+                step="0.05"
+                class="lw-map-inspector__range"
+                [value]="gridOffsetX()"
+                (input)="onNumInput($event, gridOffsetXChange)"
+              />
+            </div>
+
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
+                <span>Grid Offset Z (North–South)</span>
+                <strong>{{ gridOffsetZ() >= 0 ? '+' : '' }}{{ gridOffsetZ().toFixed(2) }}m</strong>
+              </div>
+              <input
+                type="range"
+                min="-1.5"
+                max="1.5"
+                step="0.05"
+                class="lw-map-inspector__range"
+                [value]="gridOffsetZ()"
+                (input)="onNumInput($event, gridOffsetZChange)"
+              />
+            </div>
+
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
+                <span>Grid Line Visibility</span>
+                <strong>{{ gridOpacityPct() }}%</strong>
+              </div>
+              <input
+                type="range"
+                min="15"
+                max="100"
+                step="5"
+                class="lw-map-inspector__range"
+                [value]="gridOpacityPct()"
+                (input)="onNumInput($event, gridOpacityPctChange)"
+              />
+            </div>
+          </div>
         </div>
       }
 

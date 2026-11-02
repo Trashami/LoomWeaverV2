@@ -25,7 +25,8 @@ varying vec4 vDeep;
 varying vec4 vStyle;
 void main() {
   vec3 p = position;
-  float wave = sin(p.x * waterStyle.z + time * .8) * cos(p.z * waterStyle.z * .72 - time * .65);
+  float animSpeed = max(0.18, vFlow.z * 0.75 + 0.25);
+  float wave = sin(p.x * waterStyle.z + time * animSpeed) * cos(p.z * waterStyle.z * .72 - time * animSpeed * .82);
   p.y += wave * waterStyle.w * waterData.x * (1.0 - waterData.y * 0.65);
   vWorld = (world * vec4(p, 1.0)).xyz;
   vNormal = normalize(mat3(world) * normal);
@@ -71,21 +72,24 @@ void main() {
   vec2 direction = normalize(vFlow.xy + vec2(.00001));
   vec2 flowing = vec2(dot(vWorld.xz, vec2(-direction.y, direction.x)), dot(vWorld.xz, direction));
   vec2 coord = mix(vWorld.xz, flowing, vWater.z);
+  float isFlowing = step(0.02, vFlow.z);
   float speed = vFlow.z * mix(1.0, 5.2, fall);
   vec2 p = coord * vStyle.z;
   p.y -= time * speed;
-  p.x += sin(p.y * .6 + time * .4) * vStyle.x * .15;
+  // Gentle ambient ripple drift when water is a still pond (speed == 0)
+  p += (1.0 - isFlowing) * vec2(sin(time * 0.28 + coord.y * 0.7), cos(time * 0.22 + coord.x * 0.7)) * 0.14;
+  p.x += sin(p.y * .6 + time * (.2 + speed * .25)) * vStyle.x * .15;
   p.y *= mix(1.0, .38, fall);
   float roughness = vStyle.x * (1.0 + fall * 2.1);
   float n = waves(p), nx = waves(p + vec2(.07, 0.)), nz = waves(p + vec2(0., .07));
-  vec3 N = normalize(vNormal + vec3((n - nx) * roughness * 4.0, 0., (n - nz) * roughness * 4.0));
+  vec3 N = normalize(vNormal + vec3((n - nx) * roughness * 4.2, 0., (n - nz) * roughness * 4.2));
   vec3 V = normalize(cameraPosition - vWorld);
   if (dot(N, V) < 0.) N = -N;
   float fresnel = pow(1.0 - max(dot(N, V), 0.), 3.6);
   float depth = clamp(vWater.x, 0., 1.);
   vec3 water = mix(vShallow.rgb, vDeep.rgb, sqrt(depth) * .85);
 
-  // Procedural river-bed caustic refraction (never depends on secondary scene RenderTargetTexture)
+  // Procedural river-bed caustic refraction
   float causticWave = waves(p * 1.45 + N.xz * 2.4);
   vec3 bedRefracted = mix(vDeep.rgb * 0.78, vShallow.rgb * 1.32, smoothstep(0.32, 0.78, causticWave));
   water = mix(water, bedRefracted, clamp(vFlow.w * 0.45 * (1.0 - depth * 0.35), 0.0, 0.55));
@@ -99,12 +103,13 @@ void main() {
   float spec = pow(max(dot(N, normalize(L + V)), 0.), mix(160., 32., clamp(vStyle.x * .4, 0., 1.)));
   color += lightColor * spec * vDeep.a * 1.35;
 
-  // Shoreline & Waterfall Curtain Whitewater
-  float shore = (1.0 - smoothstep(.02, .38, depth)) * (.14 + .36 * noise(coord * 5. - time * .25));
-  float streak = smoothstep(.44, .82, waves(vec2(p.x * 3.4, p.y * .22)));
+  // Shoreline, Rapids & Waterfall Curtain Whitewater
+  float shore = (1.0 - smoothstep(.02, .38, depth)) * (.14 + .36 * noise(coord * 5. - time * (.08 + speed * .15)));
+  float streak = smoothstep(.38, .76, waves(vec2(p.x * 3.2, p.y * .28)));
   float fallCurtain = fall * (0.42 + 0.58 * smoothstep(0.35, 0.78, waves(vec2(p.x * 4.5, p.y * 0.18 - time * 1.8))));
-  float rapids = max(fallCurtain, clamp(vStyle.x - 1., 0., 1.) * .5 * streak);
-  float whitewater = clamp((shore + rapids) * max(0.35, vStyle.y), 0., .94);
+  float currentRapids = isFlowing * clamp((vStyle.x - 0.85) * 0.9, 0., 1.) * streak * (0.45 + 0.55 * vStyle.y);
+  float rapids = max(fallCurtain, currentRapids);
+  float whitewater = clamp((shore * vStyle.y + rapids * max(0.45, vStyle.y)), 0., .94);
   color = mix(color, vec3(.88, .96, .99) * max(vec3(.55), lightColor), whitewater);
 
   float edge = smoothstep(0., .12, depth);

@@ -17,6 +17,7 @@ export const DEFAULT_MAP_DOCK_TOOLS: readonly MapDockToolItem[] = [
   { id: 'room', label: 'Room', icon: 'grid', layerHint: 'Draw Grid-Snapped Square & Shaped Rooms' },
   { id: 'door', label: 'Door', icon: 'key-round', layerHint: 'Portals, Archways & Wall-Cutout Doors' },
   { id: 'objects', label: 'Objects', icon: 'cube', layerHint: 'Place 1x1x1 3D Assets or 2D Floor Stamps' },
+  { id: 'tokens', label: 'Tokens', icon: 'users', layerHint: 'Place & Drag Scale/Movement Reference Tokens' },
   { id: 'lighting', label: 'Lights', icon: 'zap', layerHint: 'Torches, Lanterns, Spotlights & Glow' },
   { id: 'sun-moon', label: 'Sun/Moon', icon: 'compass', layerHint: 'Adjust Sun & Moon Shadow Position' },
   { id: 'water', label: 'Water', icon: 'globe', layerHint: 'Spline Rivers, Pools & Ocean' },

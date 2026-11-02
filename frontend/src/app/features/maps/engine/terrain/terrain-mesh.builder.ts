@@ -1,4 +1,8 @@
-import { configureFloorRelief } from './floor-texture-relief';
+import {
+  configureFloorRelief,
+  loadFloorImage,
+  resolveDerivedHeightUrl,
+} from './floor-texture-relief';
 import { WaterChannelTerrain } from '../water/water-channel-terrain';
 import { GlbModelCache } from '../rendering/glb-model-cache';
 import { resolveTextureLodUrl } from '../rendering/glb-lod';
@@ -16,6 +20,7 @@ import {
 import { MapFloorBlendMode, MapFloorPaintDab } from '../map-scene-contract';
 
 export type LwFloorGridMode = '5 ft' | '10 ft' | 'Hex' | 'Off';
+export type LwFloorSurfaceFinish = 'matte' | 'semi-glossy' | 'shiny';
 
 export interface FloorBumpAndColorConfig {
   readonly albedoUrl?: string;
@@ -24,9 +29,21 @@ export interface FloorBumpAndColorConfig {
   readonly tilingScale?: number;
   readonly bumpIntensity?: number;
   readonly heightScale?: number;
+  readonly surfaceFinish?: LwFloorSurfaceFinish;
+  readonly roughness?: number;
+  readonly specularIntensity?: number;
+  readonly ambientOcclusion?: number;
   readonly colorHex?: string;
   readonly colorStrength?: number;
   readonly colorBlendMode?: MapFloorBlendMode;
+}
+
+export interface FloorGridConfig {
+  readonly mode?: string;
+  readonly scaleFactor?: number;
+  readonly offsetX?: number;
+  readonly offsetZ?: number;
+  readonly opacity?: number;
 }
 
 export class TerrainMeshBuilder {
@@ -34,6 +51,7 @@ export class TerrainMeshBuilder {
   static readonly GROUND_H = 27;
   private static readonly SUBDIV = 64;
   private static readonly COMP_SIZE = 1024;
+  private static readonly TILE_SIZE = 512;
 
   private static customElevations: Float32Array | null = null;
   private static elevationVersion = 0;
@@ -44,16 +62,28 @@ export class TerrainMeshBuilder {
     '/assets/sewer-dungeon-wall-library-v1/512/worn-castle-flagstone.png';
   private static activeNormalUrl =
     '/assets/sewer-dungeon-wall-library-v1/512/worn-castle-flagstone_normal.png';
-  private static activeHeightUrl = '';
+  private static activeHeightUrl =
+    '/assets/sewer-dungeon-wall-library-v1/512/worn-castle-flagstone_height.png';
   private static floorTilingScale = 10;
   private static floorBumpIntensity = 135; // 0% to 300%
-  private static floorHeightScale = 100; // -100% to +200%
+  private static floorHeightScale = 100; // 0% to 220%
+  private static floorSurfaceFinish: LwFloorSurfaceFinish = 'matte';
+  private static floorRoughness = 82; // 0% (wet/glossy) to 100% (matte)
+  private static floorSpecularIntensity = 22; // 0% to 150%
+  private static floorAmbientOcclusion = 65; // 0% to 150%
   private static floorColorHex = '#ffffff';
   private static floorColorStrength = 0; // 0% to 100%
   private static floorColorBlendMode: MapFloorBlendMode = 'multiply';
+
   private static activeGridMode: LwFloorGridMode = '5 ft';
+  private static gridScaleFactor = 1.0; // 0.5x to 2.5x
+  private static gridOffsetX = 0; // -1.5m to +1.5m
+  private static gridOffsetZ = 0; // -1.5m to +1.5m
+  private static gridOpacity = 0.78; // 0.15 to 1.0
 
   private static paintDabs: MapFloorPaintDab[] = [];
+  private static processedTileCanvas: HTMLCanvasElement | null = null;
+  private static tileDynTex: DynamicTexture | null = null;
   private static baseTiledCanvas: HTMLCanvasElement | null = null;
   private static compositeDynTex: DynamicTexture | null = null;
   private static eraserScratchCanvas: HTMLCanvasElement | null = null;
@@ -70,14 +100,33 @@ export class TerrainMeshBuilder {
       this.floorTexCache.set(scene, map);
     }
     const existing = map.get(url);
-    if (existing) return existing;
+    if (existing) {
+      existing.wrapU = Texture.WRAP_ADDRESSMODE;
+      existing.wrapV = Texture.WRAP_ADDRESSMODE;
+      return existing;
+    }
     const tex = new Texture(url, scene);
+    tex.wrapU = Texture.WRAP_ADDRESSMODE;
+    tex.wrapV = Texture.WRAP_ADDRESSMODE;
     map.set(url, tex);
     return tex;
   }
 
   static getCellStepMeters(): number {
-    return this.activeGridMode === '10 ft' ? 3.0 : 1.5;
+    const base = this.activeGridMode === '10 ft' ? 3.0 : 1.5;
+    return Math.max(0.6, Math.min(4.5, base * this.gridScaleFactor));
+  }
+
+  static getGridScaleFactor(): number {
+    return this.gridScaleFactor;
+  }
+
+  static getGridOffset(): { x: number; z: number } {
+    return { x: this.gridOffsetX, z: this.gridOffsetZ };
+  }
+
+  static getGridOpacity(): number {
+    return this.gridOpacity;
   }
 
   static getPaintDabs(): readonly MapFloorPaintDab[] {
@@ -85,7 +134,7 @@ export class TerrainMeshBuilder {
   }
 
   static getCompositeFloorCanvas(): HTMLCanvasElement | null {
-    if (!this.compositeDynTex) return this.baseTiledCanvas;
+    if (!this.compositeDynTex) return this.baseTiledCanvas ?? this.processedTileCanvas;
     return this.compositeDynTex.getContext().canvas as HTMLCanvasElement;
   }
 
@@ -108,17 +157,19 @@ export class TerrainMeshBuilder {
     }
 
     const step = this.getCellStepMeters();
+    const ox = this.gridOffsetX;
+    const oz = this.gridOffsetZ;
     if (snapKind === 'wall') {
-      const sx = Math.round((clampedX + halfW) / step) * step - halfW;
-      const sz = Math.round((clampedZ + halfH) / step) * step - halfH;
+      const sx = Math.round((clampedX + halfW - ox) / step) * step - halfW + ox;
+      const sz = Math.round((clampedZ + halfH - oz) / step) * step - halfH + oz;
       return {
-        x: Math.round(sx * 100) / 100,
-        z: Math.round(sz * 100) / 100,
+        x: Math.round(Math.max(-halfW, Math.min(halfW, sx)) * 100) / 100,
+        z: Math.round(Math.max(-halfH, Math.min(halfH, sz)) * 100) / 100,
       };
     }
 
-    const cx = (Math.floor((clampedX + halfW) / step) + 0.5) * step - halfW;
-    const cz = (Math.floor((clampedZ + halfH) / step) + 0.5) * step - halfH;
+    const cx = (Math.floor((clampedX + halfW - ox) / step) + 0.5) * step - halfW + ox;
+    const cz = (Math.floor((clampedZ + halfH - oz) / step) + 0.5) * step - halfH + oz;
     return {
       x: Math.round(Math.max(-halfW + step * 0.5, Math.min(halfW - step * 0.5, cx)) * 100) / 100,
       z: Math.round(Math.max(-halfH + step * 0.5, Math.min(halfH - step * 0.5, cz)) * 100) / 100,
@@ -204,6 +255,28 @@ export class TerrainMeshBuilder {
     this.rebuildGridOverlay(scene);
   }
 
+  static configureGrid(scene: Scene, config: FloorGridConfig): void {
+    if (config.mode !== undefined) {
+      this.activeGridMode =
+        config.mode === '10 ft' || config.mode === 'Hex' || config.mode === 'Off'
+          ? config.mode
+          : '5 ft';
+    }
+    if (config.scaleFactor !== undefined && Number.isFinite(config.scaleFactor)) {
+      this.gridScaleFactor = Math.max(0.5, Math.min(2.5, config.scaleFactor));
+    }
+    if (config.offsetX !== undefined && Number.isFinite(config.offsetX)) {
+      this.gridOffsetX = Math.max(-2.0, Math.min(2.0, config.offsetX));
+    }
+    if (config.offsetZ !== undefined && Number.isFinite(config.offsetZ)) {
+      this.gridOffsetZ = Math.max(-2.0, Math.min(2.0, config.offsetZ));
+    }
+    if (config.opacity !== undefined && Number.isFinite(config.opacity)) {
+      this.gridOpacity = Math.max(0.15, Math.min(1.0, config.opacity));
+    }
+    this.rebuildGridOverlay(scene);
+  }
+
   static buildTerrainAndGrid(
     scene: Scene,
     biome: string,
@@ -212,6 +285,7 @@ export class TerrainMeshBuilder {
     let ground = scene.getMeshByName('lw-terrain-ground') as Mesh | null;
     if (!ground) {
       this.compositeDynTex = null;
+      this.tileDynTex = null;
       this.appliedFloorSigByScene.delete(scene);
       this.appliedReliefSigByScene.delete(scene);
       ground = MeshBuilder.CreateGround(
@@ -249,7 +323,7 @@ export class TerrainMeshBuilder {
     waterSplineCount = 0,
   ): void {
     const waterSig = JSON.stringify(WaterChannelTerrain.getBodies(scene));
-    const sig = `${this.elevationVersion}|${baseReliefScale}|${waterSplineCount}|${waterSig}|${this.activeGridMode}`;
+    const sig = `${this.elevationVersion}|${waterSplineCount}|${waterSig}|${this.activeGridMode}|${this.gridScaleFactor}|${this.gridOffsetX}|${this.gridOffsetZ}|${this.gridOpacity}`;
     if (this.appliedReliefSigByScene.get(scene) === sig) {
       return;
     }
@@ -259,13 +333,13 @@ export class TerrainMeshBuilder {
   }
 
   /**
-   * Applies procedural terrain elevation and
-   * user-sculpted `customElevations` onto the ground mesh vertices.
+   * Applies user-sculpted `customElevations` and water channels onto the ground mesh vertices.
+   * Never warps the floor plane with material height settings.
    */
   static applyVertexReliefAndHeightMap(
     scene: Scene,
     ground: Mesh,
-    baseReliefScale = 24,
+    _baseReliefScale = 0,
   ): void {
     const positions = ground.getVerticesData('position');
     if (!positions) return;
@@ -273,19 +347,9 @@ export class TerrainMeshBuilder {
       this.customElevations = new Float32Array(positions.length / 3);
     }
 
-    const baseAmp = baseReliefScale <= 0 ? 0 : (Math.min(100, baseReliefScale) / 100) * 0.35;
-
     for (let i = 0; i < positions.length; i += 3) {
-      const x = positions[i];
-      const z = positions[i + 2];
       const vIdx = i / 3;
-      const distFromCenter = Math.sqrt(x * x + z * z);
-      const edgeFactor = Math.min(1, Math.max(0, (distFromCenter - 7) / 12));
-      const baseWave =
-        baseAmp === 0 ? 0 : Math.sin(x * 0.35) * Math.cos(z * 0.35) * baseAmp * edgeFactor;
-
-      // Texture height is material relief; only terrain tools change the ground geometry.
-      positions[i + 1] = baseWave + (this.customElevations[vIdx] ?? 0);
+      positions[i + 1] = this.customElevations[vIdx] ?? 0;
     }
 
     WaterChannelTerrain.apply(scene, positions, this.GROUND_W, this.GROUND_H);
@@ -293,6 +357,15 @@ export class TerrainMeshBuilder {
     this.cachedPositionsByScene.set(scene, new Float32Array(positions));
     this.recomputeNormals(ground, positions);
     ground.refreshBoundingInfo();
+  }
+
+  private static recomputeNormals(ground: Mesh, positions: Float32Array | number[]): void {
+    const indices = ground.getIndices();
+    const normals = ground.getVerticesData('normal');
+    if (indices && normals) {
+      VertexData.ComputeNormals(positions, indices, normals);
+      ground.updateVerticesData('normal', normals);
+    }
   }
 
   private static cachedPositionsByScene = new WeakMap<Scene, Float32Array>();
@@ -344,30 +417,40 @@ export class TerrainMeshBuilder {
     const liftY = 0.045;
 
     const slopeAdjustedPoint = (x: number, z: number): Vector3 => {
-      const y = this.sampleElevationAt(scene, x, z);
+      const cx = Math.max(-halfW, Math.min(halfW, x));
+      const cz = Math.max(-halfH, Math.min(halfH, z));
+      const y = this.sampleElevationAt(scene, cx, cz);
       const eps = 0.35;
       const dydx =
-        (this.sampleElevationAt(scene, x + eps, z) -
-          this.sampleElevationAt(scene, x - eps, z)) /
+        (this.sampleElevationAt(scene, cx + eps, cz) -
+          this.sampleElevationAt(scene, cx - eps, cz)) /
         (2 * eps);
       const dydz =
-        (this.sampleElevationAt(scene, x, z + eps) -
-          this.sampleElevationAt(scene, x, z - eps)) /
+        (this.sampleElevationAt(scene, cx, cz + eps) -
+          this.sampleElevationAt(scene, cx, cz - eps)) /
         (2 * eps);
-      const adjX = x - dydx * Math.abs(y) * 0.18;
-      const adjZ = z - dydz * Math.abs(y) * 0.18;
+      const adjX = cx - dydx * Math.abs(y) * 0.18;
+      const adjZ = cz - dydz * Math.abs(y) * 0.18;
       const adjY = this.sampleElevationAt(scene, adjX, adjZ) + liftY;
       return new Vector3(adjX, adjY, adjZ);
     };
 
     if (this.activeGridMode === 'Hex') {
-      const hexR = 1.05;
+      const hexR = 1.05 * this.gridScaleFactor;
       const dx = hexR * 1.5;
       const dz = hexR * Math.sqrt(3);
       let col = 0;
-      for (let cx = -halfW + hexR; cx <= halfW - hexR; cx += dx, col++) {
+      for (
+        let cx = -halfW + hexR + (this.gridOffsetX % dx);
+        cx <= halfW - hexR;
+        cx += dx, col++
+      ) {
         const zOffset = col % 2 === 0 ? 0 : dz / 2;
-        for (let cz = -halfH + hexR + zOffset; cz <= halfH - hexR; cz += dz) {
+        for (
+          let cz = -halfH + hexR + zOffset + (this.gridOffsetZ % dz);
+          cz <= halfH - hexR;
+          cz += dz
+        ) {
           const ring: Vector3[] = [];
           for (let k = 0; k <= 6; k++) {
             const angle = (k * Math.PI) / 3;
@@ -379,10 +462,12 @@ export class TerrainMeshBuilder {
         }
       }
     } else {
-      const cellStep = this.activeGridMode === '10 ft' ? 3.0 : 1.5;
+      const cellStep = this.getCellStepMeters();
       const sampleStep = 0.5;
+      const startX = -halfW + (((this.gridOffsetX % cellStep) + cellStep) % cellStep);
+      const startZ = -halfH + (((this.gridOffsetZ % cellStep) + cellStep) % cellStep);
 
-      for (let x = -halfW; x <= halfW + 0.01; x += cellStep) {
+      for (let x = startX; x <= halfW + 0.01; x += cellStep) {
         const polyline: Vector3[] = [];
         for (let z = -halfH; z <= halfH + 0.01; z += sampleStep) {
           polyline.push(slopeAdjustedPoint(x, z));
@@ -390,7 +475,7 @@ export class TerrainMeshBuilder {
         lines.push(polyline);
       }
 
-      for (let z = -halfH; z <= halfH + 0.01; z += cellStep) {
+      for (let z = startZ; z <= halfH + 0.01; z += cellStep) {
         const polyline: Vector3[] = [];
         for (let x = -halfW; x <= halfW + 0.01; x += sampleStep) {
           polyline.push(slopeAdjustedPoint(x, z));
@@ -400,7 +485,8 @@ export class TerrainMeshBuilder {
     }
 
     const grid = MeshBuilder.CreateLineSystem('lw-terrain-grid', { lines }, scene);
-    grid.color = Color3.FromHexString('#34634d');
+    grid.color = Color3.FromHexString('#3b7359');
+    grid.alpha = this.gridOpacity;
     grid.isPickable = false;
   }
 
@@ -411,15 +497,16 @@ export class TerrainMeshBuilder {
     tilingScale = 10,
     heightUrl?: string,
   ): void {
+    const derivedHeight = resolveDerivedHeightUrl(albedoUrl, normalUrl, heightUrl);
     const tier = GlbModelCache.getLodTier();
-    const sig = `${tier}|${albedoUrl}|${normalUrl}|${heightUrl ?? ''}|${tilingScale}`;
+    const sig = `${tier}|${albedoUrl}|${normalUrl}|${derivedHeight}|${tilingScale}`;
     if (this.appliedFloorSigByScene.get(scene) === sig) {
       return;
     }
     this.appliedFloorSigByScene.set(scene, sig);
     this.activeAlbedoUrl = albedoUrl;
     this.activeNormalUrl = normalUrl;
-    this.activeHeightUrl = heightUrl ?? '';
+    this.activeHeightUrl = derivedHeight;
     this.floorTilingScale = tilingScale;
 
     const ground = scene.getMeshByName('lw-terrain-ground') as Mesh | null;
@@ -433,7 +520,6 @@ export class TerrainMeshBuilder {
     config: FloorBumpAndColorConfig,
   ): void {
     let needsMaterialRebuild = false;
-    let needsVertexReliefUpdate = false;
 
     if (config.albedoUrl !== undefined && config.albedoUrl !== this.activeAlbedoUrl) {
       this.activeAlbedoUrl = config.albedoUrl;
@@ -443,26 +529,61 @@ export class TerrainMeshBuilder {
       this.activeNormalUrl = config.normalUrl;
       needsMaterialRebuild = true;
     }
-    if (config.heightUrl !== undefined && config.heightUrl !== this.activeHeightUrl) {
-      this.activeHeightUrl = config.heightUrl;
-      needsMaterialRebuild = true;
+    if (config.heightUrl !== undefined) {
+      const resolved = resolveDerivedHeightUrl(
+        this.activeAlbedoUrl,
+        this.activeNormalUrl,
+        config.heightUrl,
+      );
+      if (resolved !== this.activeHeightUrl) {
+        this.activeHeightUrl = resolved;
+        needsMaterialRebuild = true;
+      }
     }
     if (config.tilingScale !== undefined && config.tilingScale !== this.floorTilingScale) {
       this.floorTilingScale = config.tilingScale;
       needsMaterialRebuild = true;
-      needsVertexReliefUpdate = true;
     }
     if (config.bumpIntensity !== undefined && config.bumpIntensity !== this.floorBumpIntensity) {
       this.floorBumpIntensity = config.bumpIntensity;
-      const mat = scene.getMaterialByName('lw-terrain-mat') as StandardMaterial | null;
-      if (mat?.bumpTexture) {
-        mat.bumpTexture.level = (this.floorBumpIntensity / 100) * 1.35;
-      } else {
-        needsMaterialRebuild = true;
-      }
+      needsMaterialRebuild = true;
     }
     if (config.heightScale !== undefined && config.heightScale !== this.floorHeightScale) {
       this.floorHeightScale = config.heightScale;
+      needsMaterialRebuild = true;
+    }
+    if (config.surfaceFinish !== undefined && config.surfaceFinish !== this.floorSurfaceFinish) {
+      this.floorSurfaceFinish = config.surfaceFinish;
+      if (config.roughness === undefined && config.specularIntensity === undefined) {
+        if (config.surfaceFinish === 'matte') {
+          this.floorRoughness = 86;
+          this.floorSpecularIntensity = 14;
+        } else if (config.surfaceFinish === 'semi-glossy') {
+          this.floorRoughness = 46;
+          this.floorSpecularIntensity = 58;
+        } else if (config.surfaceFinish === 'shiny') {
+          this.floorRoughness = 14;
+          this.floorSpecularIntensity = 115;
+        }
+      }
+      needsMaterialRebuild = true;
+    }
+    if (config.roughness !== undefined && config.roughness !== this.floorRoughness) {
+      this.floorRoughness = config.roughness;
+      needsMaterialRebuild = true;
+    }
+    if (
+      config.specularIntensity !== undefined &&
+      config.specularIntensity !== this.floorSpecularIntensity
+    ) {
+      this.floorSpecularIntensity = config.specularIntensity;
+      needsMaterialRebuild = true;
+    }
+    if (
+      config.ambientOcclusion !== undefined &&
+      config.ambientOcclusion !== this.floorAmbientOcclusion
+    ) {
+      this.floorAmbientOcclusion = config.ambientOcclusion;
       needsMaterialRebuild = true;
     }
     if (
@@ -479,10 +600,6 @@ export class TerrainMeshBuilder {
     const ground = scene.getMeshByName('lw-terrain-ground') as Mesh | null;
     if (!ground) return;
 
-    if (needsVertexReliefUpdate) {
-      this.applyVertexReliefAndHeightMap(scene, ground);
-      this.rebuildGridOverlay(scene);
-    }
     if (needsMaterialRebuild) {
       this.appliedFloorSigByScene.delete(scene);
       this.applyMaterialAndBump(scene, ground, '');
@@ -569,7 +686,6 @@ export class TerrainMeshBuilder {
     const rgb = this.hexToRgb(dab.colorHex);
     const grad = ctx.createRadialGradient(cx, cy, innerR, cx, cy, rPx);
     grad.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`);
-    // Multi-stop smooth cosine feathering between innerR and rPx for natural edge falloff
     const stops = [0.25, 0.5, 0.75, 1.0];
     for (const s of stops) {
       const falloff = 0.5 * (1 + Math.cos(Math.PI * s));
@@ -617,12 +733,132 @@ export class TerrainMeshBuilder {
     return null;
   }
 
-  private static rebuildCompositeCanvasFromImage(
+  /**
+   * Builds a 512x512 seamless floor tile canvas with height-map high/low contrast
+   * exaggeration, cavity ambient occlusion, and optional global color tint.
+   */
+  private static buildProcessedTileCanvas(
+    albedoImg: HTMLImageElement,
+    heightImg: HTMLImageElement | null,
+  ): HTMLCanvasElement | null {
+    if (typeof document === 'undefined') return null;
+    const size = this.TILE_SIZE;
+    if (!this.processedTileCanvas) {
+      this.processedTileCanvas = document.createElement('canvas');
+      this.processedTileCanvas.width = size;
+      this.processedTileCanvas.height = size;
+    }
+    const ctx = this.processedTileCanvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+
+    ctx.clearRect(0, 0, size, size);
+    ctx.drawImage(albedoImg, 0, 0, size, size);
+
+    // Apply global whole-floor tint if enabled
+    if (this.floorColorStrength > 0 && this.floorColorHex) {
+      ctx.save();
+      const mode =
+        this.floorColorBlendMode === 'eraser' ? 'multiply' : this.floorColorBlendMode;
+      ctx.globalCompositeOperation = mode as GlobalCompositeOperation;
+      ctx.globalAlpha = Math.max(0, Math.min(1, this.floorColorStrength / 100));
+      ctx.fillStyle = this.floorColorHex;
+      ctx.fillRect(0, 0, size, size);
+      ctx.restore();
+    }
+
+    // Exaggerate high and low points of the height map (and cavity AO) directly on the tile
+    const heightStrength = Math.max(0, Math.min(2.5, this.floorHeightScale / 100));
+    const aoStrength = Math.max(0, Math.min(1.5, this.floorAmbientOcclusion / 100));
+    if (heightStrength > 0.01 || aoStrength > 0.01) {
+      const imgData = ctx.getImageData(0, 0, size, size);
+      const px = imgData.data;
+
+      let hData: Uint8ClampedArray | null = null;
+      if (heightImg) {
+        const hCanvas = document.createElement('canvas');
+        hCanvas.width = size;
+        hCanvas.height = size;
+        const hCtx = hCanvas.getContext('2d', { willReadFrequently: true });
+        if (hCtx) {
+          hCtx.drawImage(heightImg, 0, 0, size, size);
+          hData = hCtx.getImageData(0, 0, size, size).data;
+        }
+      }
+
+      // Compute mean height so high/low exaggeration is balanced around the texture's midpoint
+      let sumH = 0;
+      const totalPx = size * size;
+      for (let i = 0; i < px.length; i += 4) {
+        const lum = hData
+          ? hData[i] / 255
+          : (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114) / 255;
+        sumH += lum;
+      }
+      const meanH = sumH / Math.max(1, totalPx);
+
+      for (let i = 0; i < px.length; i += 4) {
+        const rawH = hData
+          ? hData[i] / 255
+          : (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114) / 255;
+        const delta = rawH - meanH; // > 0 = high ridge/stone, < 0 = low crevice/mortar
+
+        let gain = 1.0;
+        if (delta >= 0) {
+          // Exaggerate high points
+          gain = 1.0 + delta * heightStrength * 0.85;
+        } else {
+          // Exaggerate low points & cavity AO shadow depth
+          gain = Math.max(
+            0.18,
+            1.0 + delta * (heightStrength * 0.95 + aoStrength * 0.55),
+          );
+        }
+
+        px[i] = Math.max(0, Math.min(255, Math.round(px[i] * gain)));
+        px[i + 1] = Math.max(0, Math.min(255, Math.round(px[i + 1] * gain)));
+        px[i + 2] = Math.max(0, Math.min(255, Math.round(px[i + 2] * gain)));
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    return this.processedTileCanvas;
+  }
+
+  private static rebuildCompositeCanvasFromTile(
     scene: Scene,
     mat: StandardMaterial,
-    img: HTMLImageElement,
+    tileCanvas: HTMLCanvasElement,
+    uScale: number,
+    vScale: number,
   ): void {
     if (typeof document === 'undefined') return;
+
+    // Fast path when no freehand brush paint dabs are present: use hardware-wrapped 512x512 tile texture!
+    if (this.paintDabs.length === 0) {
+      const tSize = this.TILE_SIZE;
+      if (!this.tileDynTex || this.tileDynTex.getScene() !== scene) {
+        if (this.tileDynTex) {
+          this.tileDynTex.dispose();
+        }
+        this.tileDynTex = new DynamicTexture(
+          'lw-floor-tile-dyn',
+          { width: tSize, height: tSize },
+          scene,
+          true,
+        );
+      }
+      this.tileDynTex.wrapU = Texture.WRAP_ADDRESSMODE;
+      this.tileDynTex.wrapV = Texture.WRAP_ADDRESSMODE;
+      this.tileDynTex.uScale = uScale;
+      this.tileDynTex.vScale = vScale;
+      const tCtx = this.tileDynTex.getContext() as unknown as CanvasRenderingContext2D;
+      tCtx.clearRect(0, 0, tSize, tSize);
+      tCtx.drawImage(tileCanvas, 0, 0, tSize, tSize);
+      this.tileDynTex.update();
+      mat.diffuseTexture = this.tileDynTex;
+      return;
+    }
+
     const size = this.COMP_SIZE;
     if (!this.baseTiledCanvas) {
       this.baseTiledCanvas = document.createElement('canvas');
@@ -632,28 +868,22 @@ export class TerrainMeshBuilder {
     const bctx = this.baseTiledCanvas.getContext('2d');
     if (!bctx) return;
 
-    const cols = Math.max(2, this.floorTilingScale);
-    const rows = Math.max(2, Math.round(this.floorTilingScale * 0.8));
+    const cols = Math.max(2, uScale);
+    const rows = Math.max(2, vScale);
     const tileW = size / cols;
     const tileH = size / rows;
 
     bctx.clearRect(0, 0, size, size);
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        bctx.drawImage(img, c * tileW, r * tileH, tileW + 0.75, tileH + 0.75);
+        bctx.drawImage(
+          tileCanvas,
+          Math.floor(c * tileW),
+          Math.floor(r * tileH),
+          Math.ceil(tileW),
+          Math.ceil(tileH),
+        );
       }
-    }
-
-    // Apply Global Floor Colorize with selected Photoshop Blend Mode
-    if (this.floorColorStrength > 0 && this.floorColorHex) {
-      bctx.save();
-      const mode =
-        this.floorColorBlendMode === 'eraser' ? 'multiply' : this.floorColorBlendMode;
-      bctx.globalCompositeOperation = mode as GlobalCompositeOperation;
-      bctx.globalAlpha = Math.max(0, Math.min(1, this.floorColorStrength / 100));
-      bctx.fillStyle = this.floorColorHex;
-      bctx.fillRect(0, 0, size, size);
-      bctx.restore();
     }
 
     if (!this.compositeDynTex || this.compositeDynTex.getScene() !== scene) {
@@ -667,6 +897,10 @@ export class TerrainMeshBuilder {
         true,
       );
     }
+    this.compositeDynTex.wrapU = Texture.WRAP_ADDRESSMODE;
+    this.compositeDynTex.wrapV = Texture.WRAP_ADDRESSMODE;
+    this.compositeDynTex.uScale = 1;
+    this.compositeDynTex.vScale = 1;
 
     const compCtx = this.compositeDynTex.getContext() as unknown as CanvasRenderingContext2D;
     compCtx.clearRect(0, 0, size, size);
@@ -686,14 +920,21 @@ export class TerrainMeshBuilder {
     if (!mat) {
       mat = new StandardMaterial('lw-terrain-mat', scene);
     }
-    mat.diffuseColor = Color3.FromHexString('#b8c7be');
-    mat.specularColor = Color3.FromHexString('#1e2923');
-    mat.roughness = 0.85;
+
+    // Standard 3D Surface Finish (Matte, Semi-Glossy, Shiny) + Roughness & Specular controls
+    const roughnessFrac = Math.max(0.04, Math.min(1.0, this.floorRoughness / 100));
+    const specStrength = Math.max(0, Math.min(1.8, this.floorSpecularIntensity / 100));
+    mat.diffuseColor = Color3.FromHexString('#c6d4cc');
+    mat.roughness = roughnessFrac;
+    mat.specularPower = Math.round(8 + Math.pow(1 - roughnessFrac, 2) * 180);
+    mat.specularColor = new Color3(
+      0.56 * specStrength,
+      0.64 * specStrength,
+      0.6 * specStrength,
+    );
 
     const uScale = this.floorTilingScale;
-    const vScale = Math.round(this.floorTilingScale * 0.8);
-    const hasCustomColorOrPaint =
-      this.floorColorStrength > 0 || this.paintDabs.length > 0;
+    const vScale = Math.max(2, Math.round(this.floorTilingScale * 0.8));
     const tier = GlbModelCache.getLodTier();
     const resolvedAlbedoUrl = this.activeAlbedoUrl
       ? resolveTextureLodUrl(this.activeAlbedoUrl, tier)
@@ -701,44 +942,50 @@ export class TerrainMeshBuilder {
     const resolvedNormalUrl = this.activeNormalUrl
       ? resolveTextureLodUrl(this.activeNormalUrl, tier)
       : '';
-    const resolvedHeightUrl = this.activeHeightUrl
-      ? resolveTextureLodUrl(this.activeHeightUrl, tier)
-      : '';
+    const rawHeightUrl = resolveDerivedHeightUrl(
+      this.activeAlbedoUrl,
+      this.activeNormalUrl,
+      this.activeHeightUrl,
+    );
+    const resolvedHeightUrl = rawHeightUrl ? resolveTextureLodUrl(rawHeightUrl, tier) : '';
 
     try {
       if (resolvedAlbedoUrl) {
-        if (hasCustomColorOrPaint) {
-          const readyImg = this.loadOrGetAlbedoImage(resolvedAlbedoUrl, (loaded) => {
+        const diffTex = this.getOrCreateFloorTex(scene, resolvedAlbedoUrl);
+        diffTex.uScale = uScale;
+        diffTex.vScale = vScale;
+        if (!mat.diffuseTexture) {
+          mat.diffuseTexture = diffTex;
+        }
+
+        // Load albedo + height image and build the high/low relief & tinted tile texture
+        const heightPromise = resolvedHeightUrl
+          ? loadFloorImage(resolvedHeightUrl).catch(() => null)
+          : Promise.resolve(null);
+        void Promise.all([loadFloorImage(resolvedAlbedoUrl), heightPromise])
+          .then(([albedoImg, heightImg]) => {
+            if (scene.isDisposed) return;
             const currentMat = scene.getMaterialByName(
               'lw-terrain-mat',
             ) as StandardMaterial | null;
-            if (currentMat) {
-              this.rebuildCompositeCanvasFromImage(scene, currentMat, loaded);
+            if (!currentMat) return;
+            const tileCanvas = this.buildProcessedTileCanvas(albedoImg, heightImg);
+            if (tileCanvas) {
+              this.rebuildCompositeCanvasFromTile(scene, currentMat, tileCanvas, uScale, vScale);
             }
+          })
+          .catch(() => {
+            // Keep base diffuseTexture on load fallback
           });
-          if (readyImg) {
-            this.rebuildCompositeCanvasFromImage(scene, mat, readyImg);
-          } else {
-            const diffTex = this.getOrCreateFloorTex(scene, resolvedAlbedoUrl);
-            diffTex.uScale = uScale;
-            diffTex.vScale = vScale;
-            mat.diffuseTexture = diffTex;
-          }
-        } else {
-          const diffTex = this.getOrCreateFloorTex(scene, resolvedAlbedoUrl);
-          diffTex.uScale = uScale;
-          diffTex.vScale = vScale;
-          mat.diffuseTexture = diffTex;
-          // Pre-warm image cache so switching to brush painting is instantaneous
-          this.loadOrGetAlbedoImage(resolvedAlbedoUrl, () => {});
-        }
       }
       if (resolvedNormalUrl) {
-        const bumpTex = this.getOrCreateFloorTex(scene, resolvedNormalUrl);
-        bumpTex.uScale = uScale;
-        bumpTex.vScale = vScale;
-        bumpTex.level = (this.floorBumpIntensity / 100) * 1.35;
-        mat.bumpTexture = bumpTex;
+        if (!mat.bumpTexture) {
+          const bumpTex = this.getOrCreateFloorTex(scene, resolvedNormalUrl);
+          bumpTex.uScale = uScale;
+          bumpTex.vScale = vScale;
+          bumpTex.level = (this.floorBumpIntensity / 100) * 1.65;
+          mat.bumpTexture = bumpTex;
+        }
       }
     } catch {
       if (biome.toLowerCase().includes('forest')) {
@@ -754,6 +1001,7 @@ export class TerrainMeshBuilder {
       this.floorHeightScale,
       uScale,
       vScale,
+      this.floorBumpIntensity,
     );
     ground.material = mat;
     ground.receiveShadows = true;
@@ -784,7 +1032,6 @@ export class TerrainMeshBuilder {
     const innerCoreR = r * (1.0 - featherFrac * 0.92);
     const maxCap = Math.max(0.5, Math.min(8.5, plateauLimit));
 
-    // Precompute average elevation inside brush for 'smooth' mode
     let smoothTargetY = 0;
     if (mode === 'smooth') {
       let sumY = 0;
@@ -832,13 +1079,5 @@ export class TerrainMeshBuilder {
     this.recomputeNormals(ground, positions);
     ground.refreshBoundingInfo();
     this.rebuildGridOverlay(scene);
-  }
-
-  private static recomputeNormals(ground: Mesh, positions: number[] | Float32Array): void {
-    const indices = ground.getIndices();
-    if (!indices) return;
-    const normals: number[] = [];
-    VertexData.ComputeNormals(positions, indices, normals);
-    ground.updateVerticesData('normal', normals);
   }
 }

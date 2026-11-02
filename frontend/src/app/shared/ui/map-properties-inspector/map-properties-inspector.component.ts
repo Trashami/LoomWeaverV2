@@ -1,11 +1,17 @@
 import { LwButtonComponent } from '../button/button.component';
 import { LwLightControlsComponent } from '../light-controls/light-controls.component';
-import { DEFAULT_LIGHT_SETTINGS, LightSettings } from '../../../features/maps/engine/lighting/light-settings';
+import {
+  DEFAULT_LIGHT_SETTINGS,
+  LightSettings,
+} from '../../../features/maps/engine/lighting/light-settings';
 import { LwWaterControlsComponent } from '../water-controls/water-controls.component';
 import { DEFAULT_WATER, WaterSettings } from '../../../features/maps/engine/water/water-settings';
 import type { WaterSplineNode } from '../../../features/maps/engine/map-scene-contract';
 import { LwWallSurfaceControlsComponent } from '../wall-surface-controls/wall-surface-controls.component';
-import { DEFAULT_WALL_BRUSH, WallBrushSettings } from '../../../features/maps/engine/walls/wall-surface.models';
+import {
+  DEFAULT_WALL_BRUSH,
+  WallBrushSettings,
+} from '../../../features/maps/engine/walls/wall-surface.models';
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { NgpButton } from 'ng-primitives/button';
 import {
@@ -15,6 +21,7 @@ import {
   MapObjectSurfaceFinish,
   WallDrawMode,
 } from '../../../features/maps/engine/map-scene-contract';
+import { LwFloorSurfaceFinish } from '../../../features/maps/engine/terrain/terrain-mesh.builder';
 import { LwIconComponent } from '../icon/icon.component';
 import { LwMapMaterialPreset } from '../map-png-asset-browser/map-png-asset-browser.component';
 
@@ -116,7 +123,14 @@ export interface LwSelectedSceneNode {
 @Component({
   selector: 'lw-map-properties-inspector',
   standalone: true,
-  imports: [LwButtonComponent, NgpButton, LwIconComponent, LwWallSurfaceControlsComponent, LwWaterControlsComponent, LwLightControlsComponent],
+  imports: [
+    LwButtonComponent,
+    NgpButton,
+    LwIconComponent,
+    LwWallSurfaceControlsComponent,
+    LwWaterControlsComponent,
+    LwLightControlsComponent,
+  ],
   templateUrl: './map-properties-inspector.component.html',
   styleUrl: './map-properties-inspector.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -142,6 +156,10 @@ export class LwMapPropertiesInspectorComponent {
   readonly floorTilingScale = input<number>(10);
   readonly floorBumpIntensity = input<number>(135);
   readonly floorHeightScale = input<number>(100);
+  readonly floorSurfaceFinish = input<LwFloorSurfaceFinish>('matte');
+  readonly floorRoughness = input<number>(82);
+  readonly floorSpecularIntensity = input<number>(22);
+  readonly floorAmbientOcclusion = input<number>(65);
   readonly floorColorHex = input<string>('#ffffff');
   readonly floorColorStrength = input<number>(0);
   readonly floorColorBlendMode = input<MapFloorBlendMode>('multiply');
@@ -157,6 +175,13 @@ export class LwMapPropertiesInspectorComponent {
   readonly terrainGradualRate = input<number>(20);
   readonly terrainFeathering = input<number>(80);
   readonly terrainPlateauLimit = input<number>(5.5);
+
+  readonly gridScalePct = input<number>(100);
+  readonly gridOffsetX = input<number>(0);
+  readonly gridOffsetZ = input<number>(0);
+  readonly gridOpacityPct = input<number>(78);
+  readonly activeTokenPreset = input<string>('hero-5ft');
+  readonly hasRefTokens = input<boolean>(false);
 
   readonly doorWallPositionPct = input<number>(50);
   readonly doorWidthMeters = input<number>(2.4);
@@ -183,6 +208,10 @@ export class LwMapPropertiesInspectorComponent {
   readonly floorTilingChange = output<number>();
   readonly floorBumpIntensityChange = output<number>();
   readonly floorHeightScaleChange = output<number>();
+  readonly floorSurfaceFinishChange = output<LwFloorSurfaceFinish>();
+  readonly floorRoughnessChange = output<number>();
+  readonly floorSpecularIntensityChange = output<number>();
+  readonly floorAmbientOcclusionChange = output<number>();
   readonly floorColorHexChange = output<string>();
   readonly floorColorStrengthChange = output<number>();
   readonly floorColorBlendModeChange = output<MapFloorBlendMode>();
@@ -193,6 +222,14 @@ export class LwMapPropertiesInspectorComponent {
   readonly floorBrushRadiusChange = output<number>();
   readonly floorBrushSharpnessChange = output<number>();
   readonly clearFloorPaint = output<void>();
+  readonly gridScalePctChange = output<number>();
+  readonly gridOffsetXChange = output<number>();
+  readonly gridOffsetZChange = output<number>();
+  readonly gridOpacityPctChange = output<number>();
+  readonly tokenPresetChange = output<string>();
+  readonly spawnSampleParty = output<void>();
+  readonly clearRefTokens = output<void>();
+
   readonly materialChange = output<string>();
   readonly heightSquaresChange = output<number>();
   readonly thicknessChange = output<number>();
@@ -256,13 +293,14 @@ export class LwMapPropertiesInspectorComponent {
     const mode = this.effectiveMode();
     const isSelected = this.hasPlacedSelection();
     const map: Record<string, string> = {
-      select: 'Scene Selection Inspector',
+      select: 'Scene Selection & Grid Inspector',
       'floor-bump': 'Flooring Bump/Height Setup',
       terrain: 'Raise / Lower Terrain Brush',
       wall: isSelected ? 'Selected 3D Wall Properties' : '3D Wall Line Placement',
       room: 'Room Shape & Wall Setup',
       door: isSelected ? 'Selected Wall Door Properties' : 'Wall-Cutout Door Placement',
       objects: isSelected ? 'Selected Object Properties' : 'Object Stamp Setup (1×1×1)',
+      tokens: 'Reference Tokens & Grid Scale',
       lighting: isSelected ? 'Selected Scene Light Properties' : 'Scene Light Fixture Setup',
       'sun-moon': 'Sun / Moon & Shadow Position',
       water: 'Water River & Pool Brush',

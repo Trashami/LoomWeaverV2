@@ -325,12 +325,15 @@ export class CraftingService {
       isNat20,
       isCritFail,
       alert: {
-        title: 'Wilderness Foraging Check',
-        summary: `${charName} rolled ${total} (d20: ${d20} + WIS ${wisMod}) vs DC ${dc} — ${isSuccess ? 'Harvest Successful!' : 'Sparse harvest.'}`,
-        dice: [d20],
-        total,
-        actionType: 'check',
-        characterName: charName,
+        whoRolled: charName,
+        rollType: 'Wilderness Foraging (Survival)',
+        formula: `1d20 + ${wisMod}`,
+        naturalDie: d20,
+        modifier: wisMod,
+        adjustedTotal: total,
+        isNat20,
+        isCritFail,
+        outcomeSubtext: isSuccess ? `Harvest Succeeded! (DC ${dc})` : `Sparse harvest (DC ${dc})`,
       },
       onComplete: () => {
         this.isRollingForage.set(false);
@@ -434,7 +437,7 @@ export class CraftingService {
           6500,
         );
 
-        this.tableSync.publishCampaignEvent('forage_harvest', `${charName} foraged: ${itemNames}`, {
+        this.tableSync.publishTableEvent('forage_harvest', charName, `${charName} foraged: ${itemNames}`, {
           characterKey: charKey,
           items: itemsToGrant,
         });

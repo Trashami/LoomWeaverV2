@@ -114,19 +114,10 @@ export class BabylonVttMapSceneBuilder {
         pt.intensity = baseIntensity;
         pt.range = Math.max(5, (l.radius ?? 150) / 20);
 
-        // Small glowing torch/lantern bracket flame
-        const flame = MeshBuilder.CreateSphere(`lw-map-flame-${l.id}`, { diameter: 0.16 }, scene);
-        flame.position.set(wx, wy, wz);
-        const fMat = new StandardMaterial(`lw-map-fmat-${l.id}`, scene);
-        fMat.emissiveColor = col;
-        fMat.diffuseColor = col;
-        flame.material = fMat;
-
         const animRaw = l.animation || (l.preset === 'torch' ? 'torch' : l.preset === 'campfire' ? 'campfire' : 'steady');
         if (animRaw === 'torch' || animRaw === 'campfire' || animRaw === 'pulse') {
           this.animatedLights.push({
             light: pt,
-            flameMesh: flame,
             baseIntensity,
             basePos: new Vector3(wx, wy, wz),
             animType: animRaw,

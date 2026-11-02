@@ -1,4 +1,4 @@
-@if (battle.openDmDrawer() === 'fog-settings') {
+@if (battle.openDmDrawer() === 'fog-settings' && store.viewerRole() === 'gm') {
   <div class="lw-vtt-floating-drawer">
     <div class="lw-vtt-drawer-head">
       <h4>Encounter Vision & Fog of War Settings</h4>

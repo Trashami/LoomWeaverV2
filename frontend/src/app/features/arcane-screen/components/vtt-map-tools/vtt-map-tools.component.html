@@ -14,7 +14,7 @@
 
   @if (showMapTools()) {
     <div class="vertical-tool-palette" role="toolbar" aria-label="Tabletop Tools">
-      @for (tool of paletteTools; track tool.id) {
+      @for (tool of visiblePaletteTools(); track tool.id) {
         <button
           ngpButton
           type="button"
@@ -52,7 +52,7 @@
       </div>
     }
 
-    @if (activeLeftTool() === 'draw') {
+    @if (activeLeftTool() === 'draw' && isGm()) {
       <div class="tool-flyout-popover draw-flyout" (click)="$event.stopPropagation()">
         <div class="flyout-popover-header"><h3>Drawing & Walls</h3></div>
         <div class="flyout-actions-list">
@@ -68,11 +68,15 @@
       </div>
     }
 
-    @if (activeLeftTool() === 'light') {
+    @if (activeLeftTool() === 'light' && isGm()) {
       <div class="tool-flyout-popover light-flyout is-wide" (click)="$event.stopPropagation()">
         <div class="flyout-popover-header"><h3>Fog of War, Vision & Lighting</h3></div>
 
         <div class="flyout-sub-section">
+          <div class="flyout-row-between">
+            <span class="flyout-sub-label">Viewing Vision For</span>
+            <span class="flyout-badge">{{ vtt.selectedAttacker()?.name || 'All Party' }}</span>
+          </div>
           <span class="flyout-sub-label">Fog of War Mode</span>
           <div class="flyout-chip-grid-2">
             @for (fm of fogModeOptions; track fm.id) {

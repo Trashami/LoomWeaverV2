@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { NgpButton } from 'ng-primitives/button';
 import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
-import { LwBadgeComponent, LwIconComponent, LwPageHeaderComponent } from '../../shared/ui/public-api';
+import { LwIconComponent, LwPageHeaderComponent } from '../../shared/ui/public-api';
 import { LwModalComponent } from '../../shared/ui/modal/modal.component';
 import { FullscreenDiceOverlayService } from '../dice/engine/fullscreen-dice-overlay.service';
 import type { FullscreenDieEntry } from '../dice/engine/fullscreen-dice-overlay.service';
@@ -15,6 +15,7 @@ import {
   RollTablesApiService,
 } from './roll-tables-api.service';
 import {
+  LwCampaignRollTableVm,
   LwMerchantSummaryVm,
   MerchantsApiService,
 } from '../merchants/merchants-api.service';
@@ -38,6 +39,7 @@ export class RollTablePageComponent {
 
   readonly table = signal<LwRollTableDetailVm | null>(null);
   readonly merchants = signal<readonly LwMerchantSummaryVm[]>([]);
+  readonly tableAttachments = signal<readonly LwCampaignRollTableVm[]>([]);
   readonly loading = signal(false);
   readonly errorMessage = signal('');
   readonly successMessage = signal('');
@@ -45,13 +47,24 @@ export class RollTablePageComponent {
   readonly lastTotal = signal<number | null>(null);
   readonly matchedRow = signal<LwRollTableRowVm | null>(null);
   readonly modalOpen = signal(false);
+  readonly lootActionFeedback = signal('');
+  readonly searchFilter = signal('');
 
   // Attach modal state
   readonly attachModalOpen = signal(false);
-  readonly attachTargetType = signal<'campaign' | 'session' | 'merchant'>('merchant');
+  readonly attachTargetType = signal<'campaign' | 'encounter' | 'session' | 'merchant'>('encounter');
   readonly selectedSessionId = signal('');
+  readonly selectedEncounterId = signal('enc-goblin-ambush');
+  readonly customEncounterName = signal('');
   readonly selectedMerchantId = signal<number | null>(null);
   readonly attachNotes = signal('');
+
+  readonly campaignEncounters = signal<Array<{ id: string; name: string }>>([
+    { id: 'enc-goblin-ambush', name: 'Goblin Ambush & Roadblock' },
+    { id: 'enc-crypt-guardian', name: 'Crypt Guardian & Sarcophagus' },
+    { id: 'enc-bandit-camp', name: 'Bandit Lair & Supply Chest' },
+    { id: 'enc-dragon-hoard', name: 'Dragon Cult Hoard' },
+  ]);
 
   readonly isGm = computed(() => this.store.isGmForActiveCampaign() || this.store.viewerRole() === 'gm');
   readonly campaignSessions = computed(() => this.store.sessions());
@@ -60,6 +73,18 @@ export class RollTablePageComponent {
     const d = this.table()?.die;
     if (!d || !SUPPORTED_SIDES.has(d.sides) || d.count < 1) return null;
     return d;
+  });
+
+  readonly filteredRows = computed(() => {
+    const t = this.table();
+    if (!t) return [];
+    const q = this.searchFilter().trim().toLowerCase();
+    if (!q) return t.rows;
+    return t.rows.filter(
+      (r) =>
+        r.rangeLabel.toLowerCase().includes(q) ||
+        r.cells.some((c) => c.toLowerCase().includes(q))
+    );
   });
 
   constructor() {
@@ -73,6 +98,7 @@ export class RollTablePageComponent {
       next: (detail) => {
         this.table.set(detail);
         this.loading.set(false);
+        this.loadAttachments(id);
       },
       error: () => {
         this.errorMessage.set('Could not load this roll table.');
@@ -89,33 +115,59 @@ export class RollTablePageComponent {
     });
   }
 
-  roll(): void {
-    const t = this.table();
-    const d = this.die();
-    if (!t || !d || this.rolling()) return;
-
-    const dieType = `d${d.sides}` as DicePolyhedronType;
-    const values = Array.from({ length: d.count }, () => 1 + Math.floor(Math.random() * d.sides));
-    const entries: FullscreenDieEntry[] = values.map((value) => ({ dieType, value }));
-    const total = values.reduce((sum, v) => sum + v, 0);
-
-    this.rolling.set(true);
-    this.lastTotal.set(total);
-    this.overlay.triggerFullScreenRoll({
-      label: t.name,
-      expression: d.expression,
-      diceValues: values,
-      diceEntries: entries,
-      total,
-      onComplete: () => {
-        this.rolling.set(false);
-        this.matchedRow.set(this.findRow(t.rows, total));
-        this.modalOpen.set(true);
+  loadAttachments(rollTableId: number): void {
+    const cid = this.store.activeCampaignId() || 1;
+    this.merchantApi.listCampaignRollTables(cid).subscribe({
+      next: (all) => {
+        this.tableAttachments.set(all.filter((a) => a.rollTableId === rollTableId));
       },
     });
   }
 
-  openAttachModal(): void {
+  roll(): void {
+    const t = this.table();
+    if (!t || this.rolling() || t.rows.length === 0) return;
+
+    const d = this.die();
+
+    if (d) {
+      const dieType = `d${d.sides}` as DicePolyhedronType;
+      const values = Array.from({ length: d.count }, () => 1 + Math.floor(Math.random() * d.sides));
+      const entries: FullscreenDieEntry[] = values.map((value) => ({ dieType, value }));
+      const total = values.reduce((sum, v) => sum + v, 0);
+
+      this.rolling.set(true);
+      this.lastTotal.set(total);
+      this.overlay.triggerFullScreenRoll({
+        label: t.name,
+        expression: d.expression,
+        diceValues: values,
+        diceEntries: entries,
+        total,
+        onComplete: () => {
+          this.rolling.set(false);
+          this.matchedRow.set(this.findRow(t.rows, total));
+          this.modalOpen.set(true);
+        },
+      });
+    } else {
+      // For tables without single dice expression (e.g. creature sizes, custom rows)
+      this.rolling.set(true);
+      const randomIndex = Math.floor(Math.random() * t.rows.length);
+      const row = t.rows[randomIndex];
+      const rollNumber = randomIndex + 1;
+
+      setTimeout(() => {
+        this.rolling.set(false);
+        this.lastTotal.set(rollNumber);
+        this.matchedRow.set(row);
+        this.modalOpen.set(true);
+      }, 350);
+    }
+  }
+
+  openAttachModal(targetType?: 'campaign' | 'encounter' | 'session' | 'merchant'): void {
+    if (targetType) this.attachTargetType.set(targetType);
     this.selectedSessionId.set(this.campaignSessions()[0]?.sessionId || '');
     this.attachNotes.set('');
     this.attachModalOpen.set(true);
@@ -130,10 +182,18 @@ export class RollTablePageComponent {
 
     let sessionId: string | undefined;
     let sessionTitle: string | undefined;
+    let encounterId: string | undefined;
+    let encounterTitle: string | undefined;
     let merchantId: number | undefined;
     let merchantName: string | undefined;
 
-    if (targetType === 'session') {
+    if (targetType === 'encounter') {
+      encounterId = this.selectedEncounterId();
+      encounterTitle =
+        this.customEncounterName().trim() ||
+        this.campaignEncounters().find((e) => e.id === encounterId)?.name ||
+        'Battle Encounter';
+    } else if (targetType === 'session') {
       sessionId = this.selectedSessionId();
       sessionTitle = this.campaignSessions().find((s) => s.sessionId === sessionId)?.title || 'Campaign Session';
     } else if (targetType === 'merchant') {
@@ -148,6 +208,8 @@ export class RollTablePageComponent {
         sourceBook: t.sourceBook ?? undefined,
         sessionId,
         sessionTitle,
+        encounterId,
+        encounterTitle,
         merchantId,
         merchantName,
         notes: this.attachNotes(),
@@ -156,10 +218,35 @@ export class RollTablePageComponent {
         next: () => {
           this.attachModalOpen.set(false);
           this.successMessage.set(`Successfully attached table to ${targetType}!`);
+          this.loadAttachments(t.id);
           setTimeout(() => this.successMessage.set(''), 4000);
         },
         error: () => this.errorMessage.set('Could not attach roll table.'),
       });
+  }
+
+  removeAttachment(attId: number, event: Event): void {
+    event.stopPropagation();
+    const t = this.table();
+    if (!t) return;
+    const cid = this.store.activeCampaignId() || 1;
+    this.merchantApi.removeRollTableAttachment(cid, attId).subscribe({
+      next: () => this.loadAttachments(t.id),
+      error: () => this.errorMessage.set('Could not remove attachment.'),
+    });
+  }
+
+  awardLoot(row: LwRollTableRowVm): void {
+    const lootText = row.cells.join(' — ');
+    this.lootActionFeedback.set(`Loot awarded to campaign: "${lootText}"`);
+    setTimeout(() => this.lootActionFeedback.set(''), 4000);
+  }
+
+  copyLootOutcome(row: LwRollTableRowVm): void {
+    const lootText = `${row.rangeLabel}: ${row.cells.join(' — ')}`;
+    void navigator.clipboard.writeText(lootText);
+    this.lootActionFeedback.set('Loot copied to clipboard!');
+    setTimeout(() => this.lootActionFeedback.set(''), 3000);
   }
 
   findRow(rows: readonly LwRollTableRowVm[], total: number): LwRollTableRowVm | null {

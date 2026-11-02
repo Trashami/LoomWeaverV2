@@ -19,27 +19,53 @@ export class ForagingStudioComponent {
   readonly abundanceLevels = FORAGING_ABUNDANCE_LEVELS;
   readonly reagentCatalog = FORAGE_LOOT_TABLE;
 
-  readonly targetCharacterKey = signal<string>('ciaran');
+  readonly gmDispatchOpen = signal<boolean>(false);
+
+  readonly activeCharacter = computed(() => this.crafting.activeCharacter());
 
   readonly survivalMod = computed(() => {
-    // Survival modifier based on character Wisdom mod
     const char = this.crafting.activeCharacter();
     if (!char) return 2;
     const wisScore = char.abilities?.find((a) => a.code === 'WIS');
     return wisScore?.modifier ?? 2;
   });
 
-  getTargetCharName(): string {
-    const chars = this.crafting.availableCharacters();
-    const match = chars.find((c) => c.key === this.targetCharacterKey());
-    return match ? match.name : 'Character';
+  readonly targetDc = computed(() => {
+    const ab = this.abundanceLevels.find((a) => a.id === this.crafting.selectedAbundance());
+    return ab?.dc ?? 15;
+  });
+
+  readonly currentBiomeLabel = computed(() => {
+    const b = this.biomes.find((x) => x.id === this.crafting.selectedBiome());
+    return b?.label ?? 'Wilderness';
+  });
+
+  readonly currentBiomeDescription = computed(() => {
+    const b = this.biomes.find((x) => x.id === this.crafting.selectedBiome());
+    return b?.description ?? 'Dense wilderness terrain with hidden botanical specimens and wildlife tracks.';
+  });
+
+  getActiveCharName(): string {
+    const char = this.crafting.activeCharacter();
+    return char?.name ?? this.crafting.getCharacterName();
   }
 
-  decrementItem(item: { count: number }): void {
-    if (item.count > 0) item.count--;
+  onCharacterSelect(event: Event): void {
+    const key = (event.target as HTMLSelectElement).value;
+    if (key) {
+      this.crafting.setFocusedCharacter(key);
+    }
   }
 
-  incrementItem(item: { count: number }): void {
-    if (item.count < 99) item.count++;
+  goToWorkshop(): void {
+    this.crafting.activeTab.set('workshop');
+  }
+
+  grantManualDispatch(): void {
+    this.crafting.grantManualItem();
+  }
+
+  quickGrant(name: string, qty: number): void {
+    this.crafting.grantManualItem(this.crafting.focusedCharacterKey(), name, qty);
   }
 }

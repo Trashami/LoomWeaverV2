@@ -18,22 +18,6 @@ export function attachTokenLightAndGlowMeshes(
     pt.specular = Color3.FromHexString(lightHex).scale(0.25);
     pt.range = rangeWorld * 1.35;
     pt.intensity = 1.25;
-
-    const auraDisc = MeshBuilder.CreateDisc(
-      `lw-token-light-aura-${token.key}`,
-      { radius: Math.min(4.8, rangeWorld * 0.45), tessellation: 40 },
-      scene,
-    );
-    auraDisc.parent = baseMesh;
-    auraDisc.position.set(0, -baseHeight / 2 + 0.015, 0);
-    auraDisc.rotation.x = Math.PI / 2;
-    auraDisc.isPickable = false;
-    const auraMat = new StandardMaterial(`lw-token-light-auramat-${token.key}`, scene);
-    auraMat.disableLighting = true;
-    auraMat.emissiveColor = Color3.FromHexString(lightHex);
-    auraMat.alpha = 0.16;
-    auraMat.backFaceCulling = false;
-    auraDisc.material = auraMat;
   }
 
   if (token.ambientGlowEnabled) {

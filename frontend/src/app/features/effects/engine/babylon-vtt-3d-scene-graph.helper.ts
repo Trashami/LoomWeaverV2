@@ -15,6 +15,7 @@ import { TerrainMeshBuilder } from '../../maps/engine/terrain/terrain-mesh.build
 import { WaterChannelTerrain } from '../../maps/engine/water/water-channel-terrain';
 import { WaterSplineBuilder } from '../../maps/engine/water/water-spline.builder';
 import { SceneLightingController } from '../../maps/engine/lighting/scene-lighting.controller';
+import { LightFixtureBuilder } from '../../maps/engine/lighting/light-fixture.builder';
 import { SeededScatterEngine } from '../../maps/engine/scatter/seeded-scatter.engine';
 import { WallMeshBuilder } from '../../maps/engine/walls/wall-mesh.builder';
 import { PathRibbonEngine } from '../../maps/engine/paths/path-ribbon.engine';
@@ -91,7 +92,15 @@ export function sync3dMapSceneGraph(
   }
 
   WaterSplineBuilder.rebuildWaterSplines(scene, state.waterSplines ?? []);
+  LightFixtureBuilder.setHandlesVisible(scene, false);
   SceneLightingController.syncLights(scene, state.lights ?? []);
+  scene.meshes
+    .filter((m) => m.name.startsWith('lw-light-orb-') || m.name === 'lw-celestial-sky-orb')
+    .forEach((m) => {
+      m.visibility = 0;
+      m.isVisible = false;
+      m.isPickable = false;
+    });
   SeededScatterEngine.rebuildScatterInstances(
     scene,
     state.scatterSeed ?? 104729,
@@ -220,4 +229,37 @@ export function restoreCameraAfterTokenDrag(
   camera.attachControl(canvas, true);
   const p = camera.inputs.attached['pointers'] as ArcRotateCameraPointersInput | undefined;
   if (p) p.buttons = [0, 1, 2];
+}
+
+export function pickTokenOrNearbyAtScreenPoint(
+  scene: Scene,
+  canvas: HTMLCanvasElement,
+  ground: Mesh | null,
+  clientX: number,
+  clientY: number,
+  tokens: readonly { key: string; x: number; z: number }[],
+  opacityByKey: ReadonlyMap<string, number>,
+  gridScale: number,
+): string | null {
+  const rect = canvas.getBoundingClientRect();
+  const cx = clientX - rect.left;
+  const cy = clientY - rect.top;
+  const hit = scene.pick(cx, cy, (m) => m.isPickable && typeof m.metadata?.tokenKey === 'string');
+  if (hit?.hit && typeof hit.pickedMesh?.metadata?.tokenKey === 'string') {
+    return hit.pickedMesh.metadata.tokenKey as string;
+  }
+  const gPick = scene.pick(cx, cy, (m) => m === ground || m.name === 'lw-terrain-ground');
+  if (!gPick?.hit || !gPick.pickedPoint) return null;
+  const maxRadius = 0.82 * Math.max(0.5, gridScale);
+  let bestKey: string | null = null;
+  let bestDist = maxRadius;
+  for (const t of tokens) {
+    if ((opacityByKey.get(t.key) ?? 1) <= 0.05) continue;
+    const d = Math.hypot(gPick.pickedPoint.x - t.x, gPick.pickedPoint.z - t.z);
+    if (d <= bestDist) {
+      bestDist = d;
+      bestKey = t.key;
+    }
+  }
+  return bestKey;
 }

@@ -8,7 +8,7 @@ import { LwRollTableSummaryVm, RollTablesApiService } from './roll-tables-api.se
 import { LwCampaignRollTableVm, LwMerchantSummaryVm, MerchantsApiService } from '../merchants/merchants-api.service';
 
 const PAGE_SIZE = 60;
-type TableTab = 'all' | 'campaign' | 'sessions' | 'merchants';
+type TableTab = 'all' | 'encounters' | 'sessions' | 'campaign' | 'merchants';
 
 @Component({
   selector: 'lw-roll-tables-page',
@@ -37,10 +37,19 @@ export class RollTablesPageComponent {
   // Attach modal state
   readonly attachModalOpen = signal(false);
   readonly selectedTableForAttach = signal<LwRollTableSummaryVm | null>(null);
-  readonly attachTargetType = signal<'campaign' | 'session' | 'merchant'>('campaign');
+  readonly attachTargetType = signal<'campaign' | 'encounter' | 'session' | 'merchant'>('encounter');
   readonly selectedSessionId = signal('');
+  readonly selectedEncounterId = signal('enc-goblin-ambush');
+  readonly customEncounterName = signal('');
   readonly selectedMerchantId = signal<number | null>(null);
   readonly attachNotes = signal('');
+
+  readonly campaignEncounters = signal<Array<{ id: string; name: string }>>([
+    { id: 'enc-goblin-ambush', name: 'Goblin Ambush & Roadblock' },
+    { id: 'enc-crypt-guardian', name: 'Crypt Guardian & Sarcophagus' },
+    { id: 'enc-bandit-camp', name: 'Bandit Lair & Supply Chest' },
+    { id: 'enc-dragon-hoard', name: 'Dragon Cult Hoard' },
+  ]);
 
   readonly activeCampaign = computed(() => this.store.activeCampaign());
   readonly isGm = computed(() => this.store.isGmForActiveCampaign() || this.store.viewerRole() === 'gm');
@@ -122,10 +131,16 @@ export class RollTablesPageComponent {
 
     let sessionId: string | undefined;
     let sessionTitle: string | undefined;
+    let encounterId: string | undefined;
+    let encounterTitle: string | undefined;
     let merchantId: number | undefined;
     let merchantName: string | undefined;
 
-    if (targetType === 'session') {
+    if (targetType === 'encounter') {
+      encounterId = this.selectedEncounterId();
+      encounterTitle = this.customEncounterName().trim() ||
+        this.campaignEncounters().find((e) => e.id === encounterId)?.name || 'Battle Encounter';
+    } else if (targetType === 'session') {
       sessionId = this.selectedSessionId();
       sessionTitle = this.campaignSessions().find((s) => s.sessionId === sessionId)?.title || 'Campaign Session';
     } else if (targetType === 'merchant') {
@@ -140,6 +155,8 @@ export class RollTablesPageComponent {
         sourceBook: table.sourceBook ?? undefined,
         sessionId,
         sessionTitle,
+        encounterId,
+        encounterTitle,
         merchantId,
         merchantName,
         notes: this.attachNotes(),

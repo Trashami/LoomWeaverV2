@@ -18,7 +18,7 @@ public static class MerchantRollTableService
 
         const string sql = """
             SELECT id, campaign_id, roll_table_id, table_name, source_book, session_id, session_title,
-                   merchant_id, merchant_name, notes, is_pinned, created_at
+                   encounter_id, encounter_title, merchant_id, merchant_name, notes, is_pinned, created_at
             FROM lw_campaign_roll_tables
             WHERE campaign_id = @cid
             ORDER BY is_pinned DESC, id DESC;
@@ -39,6 +39,8 @@ public static class MerchantRollTableService
                 r.GetString(r.GetOrdinal("source_book")),
                 r.IsDBNull(r.GetOrdinal("session_id")) ? null : r.GetString(r.GetOrdinal("session_id")),
                 r.GetString(r.GetOrdinal("session_title")),
+                r.IsDBNull(r.GetOrdinal("encounter_id")) ? null : r.GetString(r.GetOrdinal("encounter_id")),
+                r.GetString(r.GetOrdinal("encounter_title")),
                 r.IsDBNull(r.GetOrdinal("merchant_id")) ? null : r.GetInt64(r.GetOrdinal("merchant_id")),
                 r.GetString(r.GetOrdinal("merchant_name")),
                 r.IsDBNull(r.GetOrdinal("notes")) ? null : r.GetString(r.GetOrdinal("notes")),
@@ -90,9 +92,9 @@ public static class MerchantRollTableService
 
         await using var cmd = new MySqlCommand("""
             INSERT INTO lw_campaign_roll_tables
-              (campaign_id, roll_table_id, table_name, source_book, session_id, session_title, merchant_id, merchant_name, notes, is_pinned)
+              (campaign_id, roll_table_id, table_name, source_book, session_id, session_title, encounter_id, encounter_title, merchant_id, merchant_name, notes, is_pinned)
             VALUES
-              (@cid, @rtid, @name, @src, @sid, @stitle, @mid, @mname, @notes, 1);
+              (@cid, @rtid, @name, @src, @sid, @stitle, @encid, @enctitle, @mid, @mname, @notes, 1);
             SELECT LAST_INSERT_ID();
             """, db);
 
@@ -102,6 +104,8 @@ public static class MerchantRollTableService
         cmd.Parameters.AddWithValue("@src", sourceBook);
         cmd.Parameters.AddWithValue("@sid", string.IsNullOrWhiteSpace(req.SessionId) ? (object)DBNull.Value : req.SessionId);
         cmd.Parameters.AddWithValue("@stitle", req.SessionTitle ?? string.Empty);
+        cmd.Parameters.AddWithValue("@encid", string.IsNullOrWhiteSpace(req.EncounterId) ? (object)DBNull.Value : req.EncounterId);
+        cmd.Parameters.AddWithValue("@enctitle", req.EncounterTitle ?? string.Empty);
         cmd.Parameters.AddWithValue("@mid", req.MerchantId.HasValue ? (object)req.MerchantId.Value : DBNull.Value);
         cmd.Parameters.AddWithValue("@mname", req.MerchantName ?? string.Empty);
         cmd.Parameters.AddWithValue("@notes", req.Notes ?? string.Empty);

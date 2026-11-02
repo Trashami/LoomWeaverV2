@@ -89,35 +89,49 @@ export class TokenDragController {
     this.active = null;
   }
 
-  private pickTokenKey(): string | null {
+  private pickTokenKey(evt?: PointerEvent): string | null {
+    const canvas = this.scene.getEngine().getRenderingCanvas();
+    const rect = canvas?.getBoundingClientRect();
+    const cx = evt && rect ? evt.clientX - rect.left : this.scene.pointerX;
+    const cy = evt && rect ? evt.clientY - rect.top : this.scene.pointerY;
     const pick = this.scene.pick(
-      this.scene.pointerX,
-      this.scene.pointerY,
+      cx,
+      cy,
       (mesh) => mesh.isPickable && typeof mesh.metadata?.tokenKey === 'string',
     );
     if (pick?.hit && typeof pick.pickedMesh?.metadata?.tokenKey === 'string') {
       return pick.pickedMesh.metadata.tokenKey;
+    }
+    const gPick = this.scene.pick(
+      cx,
+      cy,
+      (mesh) => mesh === this.ground || mesh.name === 'lw-terrain-ground',
+    );
+    if (gPick?.hit && gPick.pickedPoint) {
+      let bestKey: string | null = null;
+      let bestDist = 0.78;
+      for (const m of this.scene.meshes) {
+        if (!m.isPickable || !m.name.startsWith('lw-token-') || m.name.startsWith('lw-token-hitbox-') || m.name.startsWith('lw-token-puck-') || m.name.startsWith('lw-token-part-')) continue;
+        const tk = m.metadata?.tokenKey as string | undefined;
+        if (!tk) continue;
+        const d = Math.hypot(gPick.pickedPoint.x - m.position.x, gPick.pickedPoint.z - m.position.z);
+        if (d <= bestDist) {
+          bestDist = d;
+          bestKey = tk;
+        }
+      }
+      return bestKey;
     }
     return null;
   }
 
   private handlePointerDown(info: PointerInfo): void {
     const evt = info.event as PointerEvent;
+    if (evt.button === 2) return;
     const key =
       (typeof info.pickInfo?.pickedMesh?.metadata?.tokenKey === 'string'
         ? (info.pickInfo.pickedMesh.metadata.tokenKey as string)
-        : null) ?? this.pickTokenKey();
-
-    if (evt.button === 2) {
-      if (key) {
-        this.handlers.onTokenRightClicked?.({
-          key,
-          clientX: evt.clientX,
-          clientY: evt.clientY,
-        });
-      }
-      return;
-    }
+        : null) ?? this.pickTokenKey(evt);
 
     if (evt.button !== 0 || !key) return;
 

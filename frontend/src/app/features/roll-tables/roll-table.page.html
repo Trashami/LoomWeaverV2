@@ -8,15 +8,29 @@
         </a>
 
         @if (isGm()) {
-          <button
-            ngpButton
-            type="button"
-            class="action-btn attach-btn"
-            (click)="openAttachModal()"
-          >
-            <lw-icon name="link" [size]="14" />
-            <span>Attach to Campaign / Merchant</span>
-          </button>
+          <div class="dm-quick-assign-group">
+            <button
+              ngpButton
+              type="button"
+              class="action-btn attach-btn encounter-btn"
+              (click)="openAttachModal('encounter')"
+              title="Assign this table to a battle encounter to loot off fallen enemies"
+            >
+              <lw-icon name="swords" [size]="14" tone="emerald" />
+              <span>Assign to Encounter</span>
+            </button>
+
+            <button
+              ngpButton
+              type="button"
+              class="action-btn attach-btn"
+              (click)="openAttachModal('session')"
+              title="Assign this table to a session"
+            >
+              <lw-icon name="calendar-days" [size]="14" tone="gold" />
+              <span>Assign to Session</span>
+            </button>
+          </div>
         }
       </div>
     </lw-page-header>
@@ -27,39 +41,139 @@
         <span>{{ successMessage() }}</span>
       </div>
     }
-
-    @if (t.caption) {
-      <p class="caption">{{ t.caption }}</p>
+    @if (lootActionFeedback()) {
+      <div class="alert-banner success">
+        <lw-icon name="check" [size]="15" tone="emerald" />
+        <span>{{ lootActionFeedback() }}</span>
+      </div>
     }
 
-    <div class="roll-bar">
-      @if (die(); as d) {
-        <button type="button" class="roll-button" [disabled]="rolling()" (click)="roll()">
-          <lw-icon name="casino" [size]="16" />
-          <span>Roll {{ d.expression }}</span>
+    <!-- ACTIVE ASSIGNMENTS BAR -->
+    @if (tableAttachments().length > 0) {
+      <div class="assignments-bar">
+        <span class="assignments-label">
+          <lw-icon name="link" [size]="13" tone="gold" />
+          <span>Assigned To:</span>
+        </span>
+        <div class="assignments-pills">
+          @for (att of tableAttachments(); track att.id) {
+            <span class="att-pill" [class.encounter]="att.encounterId" [class.session]="att.sessionId" [class.merchant]="att.merchantId">
+              @if (att.encounterTitle) {
+                <lw-icon name="swords" [size]="12" />
+                <span>Battle: {{ att.encounterTitle }}</span>
+              } @else if (att.sessionTitle) {
+                <lw-icon name="calendar-days" [size]="12" />
+                <span>Session: {{ att.sessionTitle }}</span>
+              } @else if (att.merchantName) {
+                <lw-icon name="storefront" [size]="12" />
+                <span>Store: {{ att.merchantName }}</span>
+              } @else {
+                <lw-icon name="bookmark" [size]="12" />
+                <span>Campaign Pinned</span>
+              }
+              @if (isGm()) {
+                <button type="button" class="remove-att-btn" (click)="removeAttachment(att.id, $event)" title="Remove assignment">
+                  <lw-icon name="close" [size]="11" />
+                </button>
+              }
+            </span>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- DM BATTLE & LOOT ROLLER CONSOLE -->
+    <div class="dm-roller-card">
+      <div class="roller-left">
+        <div class="roller-icon">
+          <lw-icon name="dices" [size]="28" tone="emerald" />
+        </div>
+        <div class="roller-meta">
+          <h3 class="roller-title">{{ t.name }}</h3>
+          <p class="roller-sub">
+            @if (die(); as d) {
+              <span>Dice Expression: <strong>{{ d.expression }}</strong></span>
+            } @else {
+              <span>Table Rows: <strong>{{ t.rows.length }} outcomes</strong> (select or roll random)</span>
+            }
+            @if (t.caption) {
+              <span class="dot">·</span>
+              <span class="caption-text">{{ t.caption }}</span>
+            }
+          </p>
+        </div>
+      </div>
+
+      <div class="roller-actions">
+        <button
+          ngpButton
+          type="button"
+          class="lw-roll-btn"
+          [disabled]="rolling() || t.rows.length === 0"
+          (click)="roll()"
+        >
+          <lw-icon name="dices" [size]="18" />
+          @if (die(); as d) {
+            <span>Roll {{ d.expression }} for Loot</span>
+          } @else {
+            <span>Roll Random Row (1d{{ t.rows.length }})</span>
+          }
         </button>
-      } @else {
-        <span class="meta">This table has no single dice expression to roll.</span>
-      }
-      @if (lastTotal() !== null) {
-        <span class="meta roll-result-badge">Last roll: <strong>{{ lastTotal() }}</strong></span>
-      }
+      </div>
+    </div>
+
+    <!-- LOOT OUTCOME CALLOUT -->
+    @if (matchedRow(); as row) {
+      <div class="loot-outcome-banner">
+        <div class="loot-badge">
+          <lw-icon name="check" [size]="16" tone="emerald" />
+          <span>Loot Outcome (Rolled {{ lastTotal() }})</span>
+        </div>
+        <div class="loot-content">
+          <span class="loot-range">{{ row.rangeLabel }}</span>
+          <p class="loot-text">{{ row.cells.join(' — ') }}</p>
+        </div>
+        <div class="loot-actions">
+          <button ngpButton class="loot-btn award-btn" (click)="awardLoot(row)" title="Add rolled outcome to campaign loot">
+            <lw-icon name="backpack" [size]="14" />
+            <span>Award Loot</span>
+          </button>
+          <button ngpButton class="loot-btn copy-btn" (click)="copyLootOutcome(row)" title="Copy outcome text to clipboard">
+            <lw-icon name="copy" [size]="14" />
+            <span>Copy Text</span>
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- TABLE TOOLBAR (SEARCH & STATS) -->
+    <div class="table-toolbar">
+      <span class="table-count">{{ filteredRows().length }} of {{ t.rows.length }} outcomes</span>
+      <div class="table-search">
+        <lw-icon name="search" [size]="14" tone="muted" />
+        <input
+          type="search"
+          placeholder="Filter table rows..."
+          [ngModel]="searchFilter()"
+          (ngModelChange)="searchFilter.set($event)"
+        />
+      </div>
     </div>
 
     <div class="table-scroll">
-      <table>
+      <table class="lw-studio-table">
         <thead>
           <tr>
-            <th>Roll</th>
+            <th class="th-roll">Roll</th>
             @for (label of t.colLabels; track $index) {
               <th>{{ label }}</th>
             }
           </tr>
         </thead>
         <tbody>
-          @for (row of t.rows; track $index) {
+          @for (row of filteredRows(); track $index) {
             <tr [class.matched]="matchedRow() === row">
-              <td class="range">{{ row.rangeLabel }}</td>
+              <td class="range-cell">{{ row.rangeLabel }}</td>
               @for (cell of row.cells; track $index) {
                 <td>{{ cell }}</td>
               }
@@ -71,36 +185,37 @@
   }
 
   @if (loading()) {
-    <p class="meta">Loading table…</p>
+    <p class="loading-state">Loading table data…</p>
   }
   @if (errorMessage()) {
     <p class="error">{{ errorMessage() }}</p>
   }
 
+  <!-- ATTACH MODAL -->
   @if (attachModalOpen() && table(); as t) {
     <lw-modal
-      title="Attach Roll Table"
+      title="Attach Roll Table to Battle or Campaign"
       [open]="true"
       (closed)="attachModalOpen.set(false)"
     >
       <div class="attach-dialog">
         <div class="table-target-preview">
           <h3>{{ t.name }}</h3>
-          <span class="meta">{{ t.sourceBook }} · {{ t.die?.expression || 'd100' }}</span>
+          <span class="meta">{{ t.sourceBook }} · {{ die()?.expression || (t.rows.length + ' rows') }}</span>
         </div>
 
         <div class="attach-form">
           <label class="form-label">
             <span>Attachment Target:</span>
             <div class="target-options">
-              <label class="target-choice" [class.active]="attachTargetType() === 'campaign'">
+              <label class="target-choice" [class.active]="attachTargetType() === 'encounter'">
                 <input
                   type="radio"
                   name="targetType"
-                  [checked]="attachTargetType() === 'campaign'"
-                  (change)="attachTargetType.set('campaign')"
+                  [checked]="attachTargetType() === 'encounter'"
+                  (change)="attachTargetType.set('encounter')"
                 />
-                <span>Campaign Pinned (Quick Loot)</span>
+                <span>Battle & Encounter Loot (Bodies & Chests)</span>
               </label>
 
               <label class="target-choice" [class.active]="attachTargetType() === 'session'">
@@ -111,6 +226,16 @@
                   (change)="attachTargetType.set('session')"
                 />
                 <span>Assign to Specific Session</span>
+              </label>
+
+              <label class="target-choice" [class.active]="attachTargetType() === 'campaign'">
+                <input
+                  type="radio"
+                  name="targetType"
+                  [checked]="attachTargetType() === 'campaign'"
+                  (change)="attachTargetType.set('campaign')"
+                />
+                <span>Campaign Pinned (Quick Loot)</span>
               </label>
 
               <label class="target-choice" [class.active]="attachTargetType() === 'merchant'">
@@ -124,6 +249,29 @@
               </label>
             </div>
           </label>
+
+          @if (attachTargetType() === 'encounter') {
+            <label class="form-label">
+              <span>Select Active Campaign Encounter:</span>
+              <select
+                [ngModel]="selectedEncounterId()"
+                (ngModelChange)="selectedEncounterId.set($event)"
+              >
+                @for (e of campaignEncounters(); track e.id) {
+                  <option [value]="e.id">{{ e.name }}</option>
+                }
+              </select>
+            </label>
+            <label class="form-label">
+              <span>Or Custom Encounter / Battle Name:</span>
+              <input
+                type="text"
+                placeholder="e.g. Underdark Troll Ambush"
+                [ngModel]="customEncounterName()"
+                (ngModelChange)="customEncounterName.set($event)"
+              />
+            </label>
+          }
 
           @if (attachTargetType() === 'session') {
             <label class="form-label">
@@ -157,7 +305,7 @@
             <span>GM Notes (Optional):</span>
             <input
               type="text"
-              placeholder="e.g. Loot chest in dungeon crypt, coastal stock source"
+              placeholder="e.g. Dropped by goblin shaman, hidden in sarcophagus"
               [ngModel]="attachNotes()"
               (ngModelChange)="attachNotes.set($event)"
             />
@@ -165,24 +313,42 @@
         </div>
 
         <div class="modal-actions">
-          <button ngpButton class="cancel-btn" (click)="attachModalOpen.set(false)">Cancel</button>
-          <button ngpButton class="confirm-btn" (click)="confirmAttach()">Confirm Attachment</button>
+          <button ngpButton class="lw-btn lw-btn--subtle" (click)="attachModalOpen.set(false)">Cancel</button>
+          <button ngpButton class="lw-btn lw-btn--primary" (click)="confirmAttach()">Confirm Attachment</button>
         </div>
       </div>
     </lw-modal>
   }
 </section>
 
-<lw-modal [(open)]="modalOpen" [title]="table()?.name ?? 'Roll result'" [subtitle]="'Rolled ' + (lastTotal() ?? '')" size="md">
+<!-- ROLL RESULT MODAL -->
+<lw-modal [(open)]="modalOpen" [title]="table()?.name ?? 'Roll Result'" [subtitle]="'Rolled ' + (lastTotal() ?? '')" size="md">
   @if (matchedRow(); as row) {
-    <p class="range">{{ row.rangeLabel }}</p>
-    <dl>
-      @for (cell of row.cells; track $index) {
-        <dt>{{ cellLabel($index + 1) }}</dt>
-        <dd>{{ cell }}</dd>
-      }
-    </dl>
+    <div class="modal-result-box">
+      <div class="result-number">
+        <span>Outcome</span>
+        <strong>{{ row.rangeLabel }}</strong>
+      </div>
+      <div class="result-fields">
+        @for (cell of row.cells; track $index) {
+          <div class="field-item">
+            <span class="field-label">{{ cellLabel($index + 1) || 'Outcome' }}</span>
+            <span class="field-value">{{ cell }}</span>
+          </div>
+        }
+      </div>
+      <div class="modal-loot-actions">
+        <button ngpButton class="lw-btn lw-btn--primary" (click)="awardLoot(row); modalOpen.set(false)">
+          <lw-icon name="backpack" [size]="14" />
+          <span>Award Loot to Campaign</span>
+        </button>
+        <button ngpButton class="lw-btn lw-btn--subtle" (click)="copyLootOutcome(row)">
+          <lw-icon name="copy" [size]="14" />
+          <span>Copy Text</span>
+        </button>
+      </div>
+    </div>
   } @else {
-    <p class="meta">No matching row found for {{ lastTotal() }}.</p>
+    <p class="empty-roll">No matching row found for roll {{ lastTotal() }}.</p>
   }
 </lw-modal>

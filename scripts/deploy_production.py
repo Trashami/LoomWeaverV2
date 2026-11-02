@@ -298,7 +298,7 @@ server {
         expires 7d;
         add_header Cache-Control "public, no-transform";
         add_header Access-Control-Allow-Origin "*";
-        try_files $uri $uri/ =404;
+        try_files $uri $uri/ /index.html;
     }
 
     location ^~ /5etools/ {
@@ -306,7 +306,7 @@ server {
         expires 7d;
         add_header Cache-Control "public, no-transform";
         add_header Access-Control-Allow-Origin "*";
-        try_files $uri $uri/ =404;
+        try_files $uri $uri/ /index.html;
     }
 
     location ^~ /uploads/ {
@@ -378,7 +378,7 @@ server {
     }
 
     # Only known studio routes receive the client app shell. Unknown URLs are 404s.
-    location ~ ^/(home|campaigns|world-lore|characters|maps|arcane-screen|encounters|dice|effects|loom|create|weave|marketplace|store|assets|handouts|timeline|bestiary|decks|sources|library|roll-tables|statistics|dashboard|dm-game|player-game|loom-graph|quests|notes|locations|npcs|monsters|spells|items|merchants|crafting)(/|$) {
+    location ~ ^/(home|campaigns|world-lore|characters|maps|arcane-screen|encounters|dice|effects|loom|create|weave|marketplace|store|assets|handouts|timeline|bestiary|decks|sources|library|roll-tables|statistics|dashboard|dm-game|player-game|loom-graph|quests|notes|locations|npcs|monsters|spells|items|merchants|crafting|404)(/|$) {
         add_header X-Robots-Tag "noindex, nofollow" always;
         add_header Cache-Control "no-store";
         try_files /index.html =404;
@@ -386,7 +386,7 @@ server {
 
     location / {
         add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
-        try_files $uri $uri/ =404;
+        try_files $uri $uri/ /index.html;
     }
 }
 '''
@@ -434,15 +434,13 @@ for conf_path, ssr_index in subdomain_routes:
     if os.path.exists(conf_path):
         with open(conf_path, "r", encoding="utf-8") as f:
             conf = f.read()
-        if f"try_files $uri $uri/ {ssr_index};" not in conf:
-            conf = conf.replace("try_files $uri $uri/ /index.html;", f"try_files $uri $uri/ {ssr_index} /index.html;")
-            if "location = / {" not in conf:
-                conf = conf.replace(
-                    f"try_files $uri $uri/ {ssr_index} /index.html;",
-                    f"try_files $uri $uri/ {ssr_index} /index.html;\n    }}\n    location = / {{\n        add_header Cache-Control \"no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0\";\n        try_files {ssr_index} /index.html =404;",
-                )
-            with open(conf_path, "w", encoding="utf-8") as f:
-                f.write(conf)
+        conf = re.sub(r'location\s+/\s+\{[^}]*\}', 'location / {\n        try_files $uri $uri/ /index.html;\n    }', conf)
+        if "location = / {" in conf:
+            conf = re.sub(r'location\s+=\s+/\s+\{[^}]*\}', f'location = / {{\n        add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";\n        try_files {ssr_index} /index.html =404;\n    }}', conf)
+        else:
+            conf = conf.replace('location / {', f'location = / {{\n        add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";\n        try_files {ssr_index} /index.html =404;\n    }}\n    location / {{')
+        with open(conf_path, "w", encoding="utf-8") as f:
+            f.write(conf)
 PYEOF
 
 nginx -t && systemctl reload nginx

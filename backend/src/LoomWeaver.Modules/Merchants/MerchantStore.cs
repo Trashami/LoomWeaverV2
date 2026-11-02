@@ -88,6 +88,8 @@ public static class MerchantStore
                   source_book VARCHAR(64) NOT NULL DEFAULT '',
                   session_id VARCHAR(64) NULL,
                   session_title VARCHAR(160) NOT NULL DEFAULT '',
+                  encounter_id VARCHAR(64) NULL,
+                  encounter_title VARCHAR(160) NOT NULL DEFAULT '',
                   merchant_id BIGINT UNSIGNED NULL,
                   merchant_name VARCHAR(160) NOT NULL DEFAULT '',
                   notes TEXT NULL,
@@ -95,6 +97,7 @@ public static class MerchantStore
                   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                   KEY ix_crt_campaign (campaign_id),
                   KEY ix_crt_session (campaign_id, session_id),
+                  KEY ix_crt_encounter (campaign_id, encounter_id),
                   KEY ix_crt_merchant (merchant_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -113,6 +116,17 @@ public static class MerchantStore
 
             await using var cmd = new MySqlCommand(ddl, db);
             await cmd.ExecuteNonQueryAsync(ct);
+
+            try
+            {
+                await using var alterCmd = new MySqlCommand("""
+                    ALTER TABLE lw_campaign_roll_tables
+                    ADD COLUMN IF NOT EXISTS encounter_id VARCHAR(64) NULL,
+                    ADD COLUMN IF NOT EXISTS encounter_title VARCHAR(160) NOT NULL DEFAULT '';
+                """, db);
+                await alterCmd.ExecuteNonQueryAsync(ct);
+            }
+            catch { /* columns already exist on newer schema */ }
 
             await SeedDefaultDataAsync(db, ct);
             _initialized = true;

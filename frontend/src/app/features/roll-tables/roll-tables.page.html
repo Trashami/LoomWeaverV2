@@ -2,7 +2,7 @@
   <lw-page-header
     title="Roll Tables & Loot Generators"
     eyebrow="5e Tools & Campaign Integration"
-    description="Browse every official 5e roll table, roll dice outcomes, or attach loot tables to campaigns, sessions, and merchant stores."
+    description="Browse every official 5e roll table, roll dice outcomes, or attach loot tables to battles, encounters, sessions, and merchant stores."
   >
     <div actions class="header-actions">
       <a ngpButton routerLink="/merchants" class="lw-btn lw-btn--secondary">
@@ -28,10 +28,10 @@
         ngpButton
         type="button"
         class="tab-btn"
-        [class.active]="activeTab() === 'campaign'"
-        (click)="setTab('campaign')"
+        [class.active]="activeTab() === 'encounters'"
+        (click)="setTab('encounters')"
       >
-        <span>Campaign Pinned ({{ campaignTables().length }})</span>
+        <span>Encounter & Battle Loot</span>
       </button>
 
       <button
@@ -48,10 +48,20 @@
         ngpButton
         type="button"
         class="tab-btn"
+        [class.active]="activeTab() === 'campaign'"
+        (click)="setTab('campaign')"
+      >
+        <span>Campaign Pinned ({{ campaignTables().length }})</span>
+      </button>
+
+      <button
+        ngpButton
+        type="button"
+        class="tab-btn"
         [class.active]="activeTab() === 'merchants'"
         (click)="setTab('merchants')"
       >
-        <span>Merchant Tables</span>
+        <span>Merchant Stock</span>
       </button>
     </div>
 
@@ -90,42 +100,69 @@
 
   <!-- TAB: ALL TABLES -->
   @if (activeTab() === 'all') {
-    <ul class="card-grid">
+    <div class="lw-tables-grid">
       @for (table of tables(); track table.id) {
-        <li>
-          <div class="table-card">
-            <a class="card-clickable" [routerLink]="['/roll-tables', table.id]">
-              <span class="table-name">{{ table.name }}</span>
-              <span class="meta">
-                {{ table.sourceBook ?? 'Unknown source' }}@if (table.page) { · p.{{ table.page }} }
-              </span>
-              <span class="meta die-info">{{ dieLabel(table) }} · {{ table.rowCount }} rows</span>
-              @if (table.category) {
-                <span class="tag">{{ table.category }}</span>
-              }
+        <article class="lw-table-card">
+          <div class="lw-table-card__body">
+            <div class="lw-table-card__top">
+              <div class="lw-table-card__thumb-wrap">
+                <lw-icon name="dices" [size]="24" tone="emerald" />
+              </div>
+
+              <div class="lw-table-card__head-meta">
+                <div class="lw-table-card__badges">
+                  <span class="lw-pill lw-pill--die">{{ dieLabel(table) }}</span>
+                  <span class="lw-pill lw-pill--source">{{ table.sourceBook ?? '5e' }}</span>
+                  @if (table.category) {
+                    <span class="lw-pill lw-pill--cat">{{ table.category }}</span>
+                  }
+                </div>
+
+                <h3 class="lw-table-card__title">{{ table.name }}</h3>
+
+                <div class="lw-table-card__meta-row">
+                  <span class="lw-table-card__rows">{{ table.rowCount }} rows</span>
+                  @if (table.page) {
+                    <span class="lw-table-card__dot">·</span>
+                    <span class="lw-table-card__page">p. {{ table.page }}</span>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <p class="lw-table-card__desc">
+              {{ table.caption || 'Roll on this table for adventure loot, enemy pockets, and encounter spoils.' }}
+            </p>
+          </div>
+
+          <footer class="lw-table-card__footer">
+            <a [routerLink]="['/roll-tables', table.id]" class="lw-btn lw-btn--secondary lw-btn--xs">
+              <span>Details</span>
             </a>
 
-            <div class="card-bottom">
-              <a [routerLink]="['/roll-tables', table.id]" class="card-btn roll">
-                <lw-icon name="casino" [size]="13" />
-                <span>Roll Table</span>
-              </a>
+            <div class="lw-table-card__actions">
               @if (isGm()) {
                 <button
+                  ngpButton
                   type="button"
-                  class="card-btn attach"
-                  title="Attach to Campaign, Session, or Merchant"
+                  class="lw-btn lw-btn--subtle lw-btn--xs"
+                  title="Assign to Encounter, Session, or Merchant"
                   (click)="openAttachModal(table, $event)"
                 >
                   <lw-icon name="link" [size]="13" />
-                  <span>Attach</span>
+                  <span>Assign</span>
                 </button>
               }
+
+              <a [routerLink]="['/roll-tables', table.id]" class="lw-btn lw-btn--primary lw-btn--xs">
+                <lw-icon name="dices" [size]="13" />
+                <span>Roll Table</span>
+              </a>
             </div>
-          </div>
-        </li>
+          </footer>
+        </article>
       }
-    </ul>
+    </div>
 
     @if (!loading() && tables().length === 0 && !errorMessage()) {
       <p class="empty">No roll tables match this search.</p>
@@ -138,7 +175,7 @@
     }
   }
 
-  <!-- TAB: CAMPAIGN PINNED OR SESSIONS OR MERCHANTS -->
+  <!-- TAB: ENCOUNTERS, SESSIONS, CAMPAIGN, MERCHANTS -->
   @if (activeTab() !== 'all') {
     <div class="pinned-section">
       @if (campaignTables().length === 0) {
@@ -154,6 +191,7 @@
           @for (att of campaignTables(); track att.id) {
             @if (
               activeTab() === 'campaign' ||
+              (activeTab() === 'encounters' && att.encounterId) ||
               (activeTab() === 'sessions' && att.sessionId) ||
               (activeTab() === 'merchants' && att.merchantId)
             ) {
@@ -163,6 +201,12 @@
                   <span class="att-src">{{ att.sourceBook }}</span>
                 </div>
 
+                @if (att.encounterTitle) {
+                  <div class="att-badge encounter">
+                    <lw-icon name="swords" [size]="12" />
+                    <span>Encounter: {{ att.encounterTitle }}</span>
+                  </div>
+                }
                 @if (att.sessionTitle) {
                   <div class="att-badge session">
                     <lw-icon name="calendar-days" [size]="12" />
@@ -181,7 +225,7 @@
 
                 <div class="att-footer">
                   <a [routerLink]="['/roll-tables', att.rollTableId]" class="card-btn roll">
-                    <lw-icon name="casino" [size]="13" />
+                    <lw-icon name="dices" [size]="13" />
                     <span>Roll on Table</span>
                   </a>
 
@@ -228,14 +272,14 @@
           <label class="form-label">
             <span>Attachment Target:</span>
             <div class="target-options">
-              <label class="target-choice" [class.active]="attachTargetType() === 'campaign'">
+              <label class="target-choice" [class.active]="attachTargetType() === 'encounter'">
                 <input
                   type="radio"
                   name="targetType"
-                  [checked]="attachTargetType() === 'campaign'"
-                  (change)="attachTargetType.set('campaign')"
+                  [checked]="attachTargetType() === 'encounter'"
+                  (change)="attachTargetType.set('encounter')"
                 />
-                <span>Campaign Pinned (Quick Loot)</span>
+                <span>Battle & Encounter Loot (Bodies & Chests)</span>
               </label>
 
               <label class="target-choice" [class.active]="attachTargetType() === 'session'">
@@ -246,6 +290,16 @@
                   (change)="attachTargetType.set('session')"
                 />
                 <span>Assign to Specific Session</span>
+              </label>
+
+              <label class="target-choice" [class.active]="attachTargetType() === 'campaign'">
+                <input
+                  type="radio"
+                  name="targetType"
+                  [checked]="attachTargetType() === 'campaign'"
+                  (change)="attachTargetType.set('campaign')"
+                />
+                <span>Campaign Pinned (Quick Loot)</span>
               </label>
 
               <label class="target-choice" [class.active]="attachTargetType() === 'merchant'">
@@ -259,6 +313,29 @@
               </label>
             </div>
           </label>
+
+          @if (attachTargetType() === 'encounter') {
+            <label class="form-label">
+              <span>Select Active Campaign Encounter:</span>
+              <select
+                [ngModel]="selectedEncounterId()"
+                (ngModelChange)="selectedEncounterId.set($event)"
+              >
+                @for (e of campaignEncounters(); track e.id) {
+                  <option [value]="e.id">{{ e.name }}</option>
+                }
+              </select>
+            </label>
+            <label class="form-label">
+              <span>Or Custom Encounter Name:</span>
+              <input
+                type="text"
+                placeholder="e.g. Underdark Troll Ambush"
+                [ngModel]="customEncounterName()"
+                (ngModelChange)="customEncounterName.set($event)"
+              />
+            </label>
+          }
 
           @if (attachTargetType() === 'session') {
             <label class="form-label">
@@ -292,7 +369,7 @@
             <span>GM Notes (Optional):</span>
             <input
               type="text"
-              placeholder="e.g. Loot chest in dungeon crypt, coastal stock source"
+              placeholder="e.g. Dropped by goblin shaman, hidden in sarcophagus"
               [ngModel]="attachNotes()"
               (ngModelChange)="attachNotes.set($event)"
             />

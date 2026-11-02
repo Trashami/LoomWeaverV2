@@ -141,6 +141,12 @@ const NAV_GROUPS: readonly StudioNavGroup[] = [
         route: "/rules",
         icon: "layers",
       },
+      {
+        id: "roll-tables-ref",
+        label: "Roll Tables",
+        route: "/roll-tables",
+        icon: "table-chart",
+      },
     ],
   },
   {

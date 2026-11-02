@@ -228,7 +228,7 @@
                 <span>Spawn Bestiary Monster onto Battle Map</span>
                 <div class="lw-vtt-inline-row">
                   <select [ngModel]="quickAddMonsterId()" (ngModelChange)="quickAddMonsterId.set($event)">
-                    @for (c of vtt.creatures(); track c.id) {
+                    @for (c of vtt.monsterCatalog(); track c.id) {
                       <option [value]="c.id">{{ c.name }} (CR {{ c.challengeRating }} · HP {{ c.maxHp }})</option>
                     }
                   </select>

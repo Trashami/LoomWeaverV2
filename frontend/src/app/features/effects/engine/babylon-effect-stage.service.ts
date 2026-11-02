@@ -39,6 +39,7 @@ import {
   clear3dMapSceneGraph,
   createFlatGridLineSystem,
   isMapSceneGraphStatePayload,
+  pickTokenOrNearbyAtScreenPoint,
   restoreCameraAfterTokenDrag,
   sync3dMapSceneGraph,
 } from './babylon-vtt-3d-scene-graph.helper';
@@ -281,6 +282,12 @@ export class BabylonEffectStageService {
     return pick?.hit && pick.pickedPoint ? { x: pick.pickedPoint.x, z: pick.pickedPoint.z } : null;
   }
 
+  pickTokenAtScreenPoint(clientX: number, clientY: number): string | null {
+    const canvas = this.engine?.getRenderingCanvas();
+    if (!this.scene || !canvas) return null;
+    return pickTokenOrNearbyAtScreenPoint(this.scene, canvas, this.ground, clientX, clientY, this.latestTokens, this.latestOpacityByKey, this.latestGridScale);
+  }
+
   mountStage(
     canvas: HTMLCanvasElement,
     tokens: readonly VttTokenVm[],
@@ -296,9 +303,17 @@ export class BabylonEffectStageService {
       this.scene.clearColor = new Color4(0.02, 0.05, 0.04, 1);
       this.scene.shadowsEnabled = true;
 
-      const preventContextMenu = (e: MouseEvent) => e.preventDefault();
-      canvas.addEventListener('contextmenu', preventContextMenu);
-      this.cleanupHandlers.push(() => canvas.removeEventListener('contextmenu', preventContextMenu));
+      const onContextMenu = (e: MouseEvent) => {
+        e.preventDefault();
+        const key = this.pickTokenAtScreenPoint(e.clientX, e.clientY);
+        if (key) {
+          const ev: TokenRightClickEvent = { key, clientX: e.clientX, clientY: e.clientY };
+          this.rightClickedSubject.next(ev);
+          onTokenRightClicked?.(ev);
+        }
+      };
+      canvas.addEventListener('contextmenu', onContextMenu);
+      this.cleanupHandlers.push(() => canvas.removeEventListener('contextmenu', onContextMenu));
 
       const camera = new ArcRotateCamera('lw-vtt-cam', -Math.PI / 2, 0.0001, 24, new Vector3(0, 0, 0), this.scene);
       camera.lowerRadiusLimit = 5;

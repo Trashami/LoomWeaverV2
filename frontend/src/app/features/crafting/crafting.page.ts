@@ -29,7 +29,7 @@ export class CraftingPageComponent {
   readonly store = inject(LoomWeaverStoreService);
   readonly crafting = inject(CraftingService);
 
-  readonly activeTab = signal<CraftingTab>('workshop');
+  readonly activeTab = this.crafting.activeTab;
 
   readonly pendingProjectsCount = computed(() => {
     return this.crafting.pendingProjectsForGm().length;

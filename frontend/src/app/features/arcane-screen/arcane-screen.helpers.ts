@@ -326,7 +326,7 @@ export function registerArcaneScreenStageEffects(
     sync3dStage: () => void;
     disposeStageIfMounted: () => void;
     vtt: VttCombatService;
-    fog: { layer: () => unknown };
+    fog: { layer: () => unknown; opacityByKey: () => unknown };
     battle: VttBattleStateService;
     vttDisplay: VttDisplaySettingsService;
     serverSync: { activeSceneResponse: () => { sceneDataJson?: string | null } | null; loadScene: (k: string, t: string, u: string) => Promise<unknown>; publishMove: (k: string, x: number, z: number) => Promise<unknown> };
@@ -345,7 +345,12 @@ export function registerArcaneScreenStageEffects(
   effect(() => {
     if (!host.hasConfiguredMap()) return;
     vtt.tokens();
+    vtt.selectedAttackerKey();
+    vtt.selectedTargetKey();
+    battle.multiTargetKeys();
+    battle.queuedTargetSequence();
     fog.layer();
+    fog.opacityByKey();
     untracked(() => host.sync3dStage());
   });
   effect(() => {

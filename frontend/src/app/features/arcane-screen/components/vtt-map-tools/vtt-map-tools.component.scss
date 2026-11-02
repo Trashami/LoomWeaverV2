@@ -295,9 +295,14 @@
     padding: 0.35rem 0.48rem;
     border-radius: 0.44rem;
     border: 1px solid rgba(73, 232, 146, 0.28);
-    background: rgba(8, 22, 16, 0.92);
+    background: #081812;
     color: #f4efe2;
     font-size: 0.71rem;
+
+    option {
+      background: #081812;
+      color: #f4efe2;
+    }
   }
 
   .flyout-inline-row {

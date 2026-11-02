@@ -176,6 +176,8 @@ public sealed record AttachRollTableRequest(
     string? SourceBook,
     string? SessionId,
     string? SessionTitle,
+    string? EncounterId,
+    string? EncounterTitle,
     long? MerchantId,
     string? MerchantName,
     string? Notes
@@ -189,6 +191,8 @@ public sealed record CampaignRollTableDto(
     string SourceBook,
     string? SessionId,
     string? SessionTitle,
+    string? EncounterId,
+    string? EncounterTitle,
     long? MerchantId,
     string? MerchantName,
     string? Notes,

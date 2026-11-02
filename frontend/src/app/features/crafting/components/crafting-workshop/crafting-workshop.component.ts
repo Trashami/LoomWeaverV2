@@ -28,11 +28,22 @@ export class CraftingWorkshopComponent {
       'moss', 'wood', 'timber', 'pitch', 'hide', 'feather', 'sac', 'brine',
       'sulfur', 'pyrite', 'silver', 'iron', 'water', 'meat', 'berries',
       'rations', 'kit', 'supplies', 'tools', 'vellum', 'ink', 'balm', 'bandages',
+      'reagent', 'flora', 'mineral', 'chitin', 'scales', 'fang', 'venom',
     ];
     return inv.filter((item) => {
       const name = item.name.toLowerCase();
       const bonus = (item.bonusLabel || '').toLowerCase();
-      return materialKeywords.some((k) => name.includes(k) || bonus.includes(k));
+      const summary = (item.summary || '').toLowerCase();
+      const source = ((item as { source?: string }).source || '').toLowerCase();
+      return (
+        source.includes('foraged') ||
+        source.includes('crafted') ||
+        bonus.includes('reagent') ||
+        bonus.includes('flora') ||
+        bonus.includes('mineral') ||
+        bonus.includes('sustenance') ||
+        materialKeywords.some((k) => name.includes(k) || bonus.includes(k) || summary.includes(k))
+      );
     });
   });
 

@@ -92,6 +92,8 @@ export interface LwCampaignRollTableVm {
   readonly sourceBook: string;
   readonly sessionId?: string | null;
   readonly sessionTitle: string;
+  readonly encounterId?: string | null;
+  readonly encounterTitle?: string;
   readonly merchantId?: number | null;
   readonly merchantName: string;
   readonly notes?: string | null;
@@ -186,7 +188,8 @@ export class MerchantsApiService {
   }
 
   attachRollTable(campaignId: number, payload: {
-    rollTableId: number; tableName?: string; sourceBook?: string; sessionId?: string; sessionTitle?: string;
+    rollTableId: number; tableName?: string; sourceBook?: string;
+    sessionId?: string; sessionTitle?: string; encounterId?: string; encounterTitle?: string;
     merchantId?: number; merchantName?: string; notes?: string;
   }): Observable<{ id: number; message: string }> {
     return this.http.post<{ id: number; message: string }>(`/api/v2/campaigns/${campaignId}/campaign-roll-tables`, payload);

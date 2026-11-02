@@ -77,7 +77,16 @@ export class VttMapToolsComponent {
   ];
 
   readonly isGm = computed(() => this.store.viewerRole() === 'gm');
+  readonly visiblePaletteTools = computed(() =>
+    this.isGm()
+      ? this.paletteTools
+      : this.paletteTools.filter((t) => t.id !== 'light' && t.id !== 'draw'),
+  );
   readonly partyCount = computed(() => this.vtt.partyTokensInScene().length);
+
+  constructor() {
+    this.bestiary.ensureLoaded();
+  }
   readonly hostileCount = computed(() =>
     this.battle.visibleMapTokens().filter((t) => t.faction === 'hostile').length,
   );
@@ -241,6 +250,8 @@ export class VttMapToolsComponent {
   }
 
   deselectAll(): void {
+    this.vtt.selectedAttackerKey.set('');
+    this.battle.previewTokenVisionKey.set(null);
     this.battle.queuedTargetSequence.set([]);
     this.battle.cancelAllInteractiveModes();
     this.vttDisplay.calibratingGrid.set(false);

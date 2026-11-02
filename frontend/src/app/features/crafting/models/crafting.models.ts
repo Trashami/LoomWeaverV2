@@ -101,6 +101,8 @@ export interface ForageRollResult {
   readonly isNat1: boolean;
   readonly foodLbs: number;
   readonly waterGallons: number;
+  deposited?: boolean;
+  depositedTo?: string;
   readonly harvestedItems: readonly {
     readonly name: string;
     count: number;

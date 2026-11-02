@@ -3,11 +3,16 @@ import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import { AuthSessionService } from '../../../core/services/auth-session.service';
 import { LoomWeaverStoreService } from '../../../core/services/loomweaver-store.service';
 import { LwAlertifyService } from '../../../core/services/lw-alertify.service';
+import { TableRealtimeSyncService } from '../../../core/services/table-realtime-sync.service';
 import { EquipmentLoadoutItemVm } from '../../characters/models/character-studio.models';
 import { CharacterStudioService } from '../../characters/services/character-studio.service';
+import { FullscreenDiceOverlayService, type FullscreenDieEntry } from '../../dice/engine/fullscreen-dice-overlay.service';
+import type { DicePolyhedronType } from '../../dice/engine/models/dice-model.types';
 import { CRAFTING_RECIPES } from '../data/crafting-recipes.data';
 import { FORAGE_LOOT_TABLE, FORAGING_ABUNDANCE_LEVELS, FORAGING_BIOMES, resolveForagingHarvest } from '../data/foraging-tables.data';
 import { CraftingProjectVm, CraftingRecipe, ForageRollResult, ForagingAbundance, ForagingBiome, RecipeCategory } from '../models/crafting.models';
+
+export type CraftingPageTab = 'workshop' | 'projects' | 'foraging' | 'rules';
 
 @Injectable({ providedIn: 'root' })
 export class CraftingService {
@@ -16,7 +21,10 @@ export class CraftingService {
   private readonly auth = inject(AuthSessionService);
   private readonly studio = inject(CharacterStudioService);
   private readonly alertify = inject(LwAlertifyService);
+  private readonly diceOverlay = inject(FullscreenDiceOverlayService);
+  private readonly tableSync = inject(TableRealtimeSyncService);
 
+  readonly activeTab = signal<CraftingPageTab>('workshop');
   readonly recipes = signal<readonly CraftingRecipe[]>(CRAFTING_RECIPES);
   readonly selectedCategory = signal<RecipeCategory | 'all'>('all');
   readonly searchQuery = signal<string>('');
@@ -35,8 +43,9 @@ export class CraftingService {
   readonly manualItemCategory = signal<string>('herb');
   readonly manualItemRarity = signal<string>('Common');
 
-  // Currently focused character for crafting
-  readonly focusedCharacterKey = signal<string>('ciaran');
+  // Currently focused character for crafting & foraging
+  readonly focusedCharacterKey = signal<string>('char-dal');
+  readonly loadedInventory = signal<readonly EquipmentLoadoutItemVm[]>([]);
 
   readonly availableCharacters = computed(() => {
     return this.studio.sheets().map((s) => ({
@@ -59,8 +68,10 @@ export class CraftingService {
 
   readonly characterInventory = computed<readonly EquipmentLoadoutItemVm[]>(() => {
     const char = this.activeCharacter();
-    if (!char) return [];
-    return char.equipment ?? [];
+    const baseEquipment = char?.equipment ?? [];
+    const dbItems = this.loadedInventory();
+    const dbIds = new Set(dbItems.map((i) => i.id));
+    return [...dbItems, ...baseEquipment.filter((i) => !dbIds.has(i.id))];
   });
 
   readonly filteredRecipes = computed(() => {
@@ -81,26 +92,69 @@ export class CraftingService {
     return this.activeProjects().filter((p) => p.status === 'pending');
   });
 
+  private lastLoadedCharKey = '';
+  private lastLoadedCampaignId = 0;
+
   constructor() {
-    // Keep focused character updated with signed in player's character
+    // Keep focused character updated with active sheet if available
     effect(() => {
       const char = this.studio.activeSheet();
-      if (char?.characterKey) {
+      if (char?.characterKey && char.characterKey !== this.focusedCharacterKey()) {
         this.focusedCharacterKey.set(char.characterKey);
       }
     });
 
-    // Load projects when campaign changes
+    // Auto-load inventory and projects whenever campaign or focused character changes
     effect(() => {
-      const campaignId = this.store.activeCampaignId();
-      if (campaignId > 0) {
-        this.loadProjects(campaignId);
+      const cid = this.store.activeCampaignId();
+      const charKey = this.focusedCharacterKey();
+      if (cid > 0) {
+        this.loadProjects(cid);
+        if (charKey) {
+          this.loadCharacterInventory(cid, charKey);
+        }
       }
     });
   }
 
   setFocusedCharacter(key: string): void {
+    if (!key) return;
     this.focusedCharacterKey.set(key);
+    const cid = this.store.activeCampaignId();
+    if (cid > 0) {
+      this.loadCharacterInventory(cid, key, true);
+    }
+  }
+
+  getCharacterName(key?: string): string {
+    const targetKey = key ?? this.focusedCharacterKey();
+    const found = this.availableCharacters().find((c) => c.key === targetKey);
+    return found?.name ?? 'Character';
+  }
+
+  loadCharacterInventory(campaignId: number, characterKey: string, force = false): void {
+    if (campaignId <= 0 || !characterKey) {
+      this.loadedInventory.set([]);
+      return;
+    }
+    if (!force && this.lastLoadedCharKey === characterKey && this.lastLoadedCampaignId === campaignId) {
+      return;
+    }
+    this.lastLoadedCharKey = characterKey;
+    this.lastLoadedCampaignId = campaignId;
+
+    this.http.get<readonly EquipmentLoadoutItemVm[]>(
+      `/api/v2/campaigns/${campaignId}/characters/${encodeURIComponent(characterKey)}/items`,
+    ).subscribe({
+      next: (items) => {
+        const list = items ?? [];
+        this.loadedInventory.set(list);
+        if (list.length > 0) {
+          this.studio.mergeCatalogInventory(campaignId, characterKey, list);
+        }
+      },
+      error: () => {},
+    });
   }
 
   loadProjects(campaignId?: number): void {
@@ -151,15 +205,12 @@ export class CraftingService {
       return;
     }
 
-    // Check materials
     if (!this.hasRequiredMaterials(recipe)) {
       this.alertify.notifyStatus('Workshop', 'Materials Missing', `You lack the ingredients to craft ${recipe.name}.`, 'crimson');
       return;
     }
 
     const durationMinutes = bastionDiscount && recipe.bastionBonusEligible ? Math.floor(recipe.durationMinutes / 2) : recipe.durationMinutes;
-
-    // Optional skill check roll d20 + character proficiency/mod
     const d20 = Math.floor(Math.random() * 20) + 1;
     const isInstant = durationMinutes <= 0;
 
@@ -180,11 +231,10 @@ export class CraftingService {
       `/api/v2/campaigns/${cid}/crafting/start`,
       payload,
     ).subscribe({
-      next: (res) => {
+      next: () => {
         this.loading.set(false);
-        // Refresh projects and character equipment
         this.loadProjects(cid);
-        this.refreshCharacterItems(cid, char.characterKey);
+        this.loadCharacterInventory(cid, char.characterKey, true);
 
         if (isInstant) {
           this.alertify.notifyStatus(
@@ -223,7 +273,7 @@ export class CraftingService {
       next: () => {
         this.loading.set(false);
         this.loadProjects(cid);
-        this.refreshCharacterItems(cid, project.characterKey);
+        this.loadCharacterInventory(cid, project.characterKey, true);
         this.alertify.notifyStatus(
           'Dungeon Master',
           'Crafting Approved',
@@ -239,36 +289,78 @@ export class CraftingService {
     });
   }
 
-  rollForaging(survivalModifier = 2): void {
-    this.isRollingForage.set(true);
+  rollForaging(): void {
+    if (this.isRollingForage()) return;
+    const cid = this.store.activeCampaignId();
+    const char = this.activeCharacter();
+    const charKey = char?.characterKey ?? this.focusedCharacterKey();
+    const charName = char?.name ?? 'Explorer';
+
+    const wisMod = char?.abilities?.find((a) => a.code === 'WIS')?.modifier ?? 2;
     const biome = this.selectedBiome();
     const abundance = this.selectedAbundance();
+    const abundanceMeta = FORAGING_ABUNDANCE_LEVELS.find((a) => a.id === abundance);
+    const dc = abundanceMeta?.dc ?? 15;
+
     const d20 = Math.floor(Math.random() * 20) + 1;
+    const total = d20 + wisMod;
+    const isNat20 = d20 === 20;
+    const isCritFail = d20 === 1;
+    const isSuccess = isNat20 || total >= dc;
 
-    setTimeout(() => {
-      const res = resolveForagingHarvest(biome, abundance, d20, survivalModifier);
-      this.foragingResult.set(res);
-      this.isRollingForage.set(false);
+    this.isRollingForage.set(true);
 
-      if (res.isNat20) {
-        this.alertify.notifyStatus('Foraging', 'CRITICAL SUCCESS', 'Natural 20! Discovered rare flora and pristine springs!', 'gold');
-      } else if (res.success) {
-        this.alertify.notifyStatus('Foraging', 'Foraging Success', `Harvested ${res.foodLbs} lbs food and ${res.waterGallons} gal water.`, 'emerald');
-      } else {
-        this.alertify.notifyStatus('Foraging', 'Sparse Yield', `Total ${res.total} failed DC ${res.dc}. Little edible flora found.`, 'crimson');
-      }
-    }, 400);
+    const dieType: DicePolyhedronType = 'd20';
+    const entries: FullscreenDieEntry[] = [{ dieType, value: d20 }];
+
+    this.diceOverlay.triggerFullScreenRoll({
+      label: `${charName} · Survival Check (Foraging)`,
+      actorName: charName,
+      expression: `1d20 + ${wisMod}`,
+      diceValues: [d20],
+      diceEntries: entries,
+      modifier: wisMod,
+      total,
+      outcomeBadge: isNat20 ? 'NATURAL 20!' : (isSuccess ? `SUCCESS (DC ${dc})` : `FAILED DC ${dc}`),
+      isNat20,
+      isCritFail,
+      alert: {
+        title: 'Wilderness Foraging Check',
+        summary: `${charName} rolled ${total} (d20: ${d20} + WIS ${wisMod}) vs DC ${dc} — ${isSuccess ? 'Harvest Successful!' : 'Sparse harvest.'}`,
+        dice: [d20],
+        total,
+        actionType: 'check',
+        characterName: charName,
+      },
+      onComplete: () => {
+        this.isRollingForage.set(false);
+        const harvest = resolveForagingHarvest(biome, abundance, d20, wisMod);
+        this.foragingResult.set(harvest);
+
+        if (harvest.success) {
+          this.assignForagedHarvestToCharacter(charKey, harvest);
+        } else {
+          this.alertify.notifyStatus(
+            charName,
+            'Sparse Harvest',
+            `Survival roll ${total} did not meet DC ${dc}. Only barren ground or picked-over roots found.`,
+            'gold',
+            5000,
+          );
+        }
+      },
+    });
   }
 
-  assignForagedHarvestToCharacter(targetCharacterKey?: string): void {
-    const res = this.foragingResult();
+  assignForagedHarvestToCharacter(targetCharacterKey?: string, overrideResult?: ForageRollResult): void {
+    const res = overrideResult ?? this.foragingResult();
     const cid = this.store.activeCampaignId();
     const charKey = targetCharacterKey ?? this.focusedCharacterKey();
     if (!res || cid <= 0 || !charKey) return;
 
+    const charName = this.getCharacterName(charKey);
     const itemsToGrant: { name: string; description: string; category: string; count: number; rarity: string; valueGp: number; weightLb: number }[] = [];
 
-    // Add foraged flora / minerals / parts
     for (const h of res.harvestedItems) {
       if (h.count > 0) {
         itemsToGrant.push({
@@ -283,7 +375,6 @@ export class CraftingService {
       }
     }
 
-    // Add food & water if gathered
     if (res.foodLbs > 0) {
       itemsToGrant.push({
         name: `Wild Sustenance Rations (${res.foodLbs} lbs)`,
@@ -313,8 +404,10 @@ export class CraftingService {
       return;
     }
 
+    const itemNames = itemsToGrant.map((i) => (i.count > 1 ? `${i.count}x ${i.name}` : i.name)).join(', ');
+
     this.loading.set(true);
-    this.http.post<{ success: boolean; count: number }>(
+    this.http.post<{ success: boolean; count: number; items?: EquipmentLoadoutItemVm[] }>(
       `/api/v2/campaigns/${cid}/crafting/forage-harvest`,
       {
         characterKey: charKey,
@@ -324,17 +417,27 @@ export class CraftingService {
         items: itemsToGrant,
       },
     ).subscribe({
-      next: (resp) => {
+      next: () => {
         this.loading.set(false);
-        this.refreshCharacterItems(cid, charKey);
+        this.loadCharacterInventory(cid, charKey, true);
+
+        // Mark harvest as deposited
+        res.deposited = true;
+        res.depositedTo = charName;
+        this.foragingResult.set({ ...res });
+
         this.alertify.notifyStatus(
-          'Foraging Depot',
-          'Haul Deposited',
-          `Successfully assigned ${resp.count} foraged item(s) to inventory!`,
+          charName,
+          'Foraged Bounty Received',
+          `Added to ${charName}'s inventory: ${itemNames}`,
           'emerald',
-          5000,
+          6500,
         );
-        this.foragingResult.set(null);
+
+        this.tableSync.publishCampaignEvent('forage_harvest', `${charName} foraged: ${itemNames}`, {
+          characterKey: charKey,
+          items: itemsToGrant,
+        });
       },
       error: () => {
         this.loading.set(false);
@@ -343,11 +446,11 @@ export class CraftingService {
     });
   }
 
-  grantManualItem(targetCharacterKey?: string): void {
+  grantManualItem(targetCharacterKey?: string, customName?: string, customQty?: number): void {
     const cid = this.store.activeCampaignId();
     const charKey = targetCharacterKey ?? this.focusedCharacterKey();
-    const name = this.manualItemName().trim();
-    const count = Math.max(1, this.manualItemQty());
+    const name = (customName ?? this.manualItemName()).trim();
+    const count = Math.max(1, customQty ?? this.manualItemQty());
     if (cid <= 0 || !charKey || !name) return;
 
     const catalogItem = FORAGE_LOOT_TABLE.find((it) => it.name.toLowerCase() === name.toLowerCase());
@@ -364,7 +467,6 @@ export class CraftingService {
     };
 
     this.loading.set(true);
-    // Add count times
     let addedCount = 0;
     const addNext = () => {
       this.http.post<EquipmentLoadoutItemVm>(
@@ -377,11 +479,12 @@ export class CraftingService {
             addNext();
           } else {
             this.loading.set(false);
-            this.refreshCharacterItems(cid, charKey);
+            this.loadCharacterInventory(cid, charKey, true);
+            const charName = this.getCharacterName(charKey);
             this.alertify.notifyStatus(
               'DM Dispatch',
               'Item Granted',
-              `Granted ${count}x "${name}" to character inventory.`,
+              `Granted ${count}x "${name}" to ${charName}'s inventory.`,
               'emerald',
               4500,
             );
@@ -399,26 +502,13 @@ export class CraftingService {
 
   deleteInventoryItem(itemId: string): void {
     const cid = this.store.activeCampaignId();
-    const char = this.activeCharacter();
-    if (cid <= 0 || !char) return;
+    const charKey = this.focusedCharacterKey();
+    if (cid <= 0 || !charKey) return;
 
-    this.http.delete(`/api/v2/campaigns/${cid}/characters/${encodeURIComponent(char.characterKey)}/items/${encodeURIComponent(itemId)}`).subscribe({
+    this.http.delete(`/api/v2/campaigns/${cid}/characters/${encodeURIComponent(charKey)}/items/${encodeURIComponent(itemId)}`).subscribe({
       next: () => {
-        this.refreshCharacterItems(cid, char.characterKey);
+        this.loadCharacterInventory(cid, charKey, true);
         this.alertify.notifyStatus('Inventory', 'Item Removed', 'Discarded item from inventory.', 'gold');
-      },
-      error: () => {},
-    });
-  }
-
-  private refreshCharacterItems(campaignId: number, characterKey: string): void {
-    this.http.get<readonly EquipmentLoadoutItemVm[]>(
-      `/api/v2/campaigns/${campaignId}/characters/${encodeURIComponent(characterKey)}/items`,
-    ).subscribe({
-      next: (equipment) => {
-        if (equipment) {
-          this.studio.mergeCatalogInventory(campaignId, characterKey, equipment);
-        }
       },
       error: () => {},
     });

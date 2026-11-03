@@ -120,26 +120,29 @@ public static class MerchantStore
             await using var cmd = new MySqlCommand(ddl, db);
             await cmd.ExecuteNonQueryAsync(ct);
 
+            var migrations = new[]
+            {
+                "ALTER TABLE lw_campaign_roll_tables ADD COLUMN encounter_id VARCHAR(64) NULL",
+                "ALTER TABLE lw_campaign_roll_tables ADD COLUMN encounter_title VARCHAR(160) NOT NULL DEFAULT ''",
+                "ALTER TABLE lw_merchants ADD COLUMN merchant_type VARCHAR(64) NOT NULL DEFAULT 'General Goods'",
+                "ALTER TABLE lw_merchants ADD COLUMN standing INT NOT NULL DEFAULT 0",
+                "ALTER TABLE lw_merchants ADD COLUMN npc_details_json JSON NULL"
+            };
+            foreach (var migSql in migrations)
+            {
+                try
+                {
+                    await using var alterCmd = new MySqlCommand(migSql, db);
+                    await alterCmd.ExecuteNonQueryAsync(ct);
+                }
+                catch { /* column already exists */ }
+            }
+
             try
             {
-                await using var alterCmd = new MySqlCommand("""
-                    ALTER TABLE lw_campaign_roll_tables
-                    ADD COLUMN IF NOT EXISTS encounter_id VARCHAR(64) NULL,
-                    ADD COLUMN IF NOT EXISTS encounter_title VARCHAR(160) NOT NULL DEFAULT '';
-                """, db);
-                await alterCmd.ExecuteNonQueryAsync(ct);
-
-                await using var alterMerchantsCmd = new MySqlCommand("""
-                    ALTER TABLE lw_merchants
-                    ADD COLUMN IF NOT EXISTS merchant_type VARCHAR(64) NOT NULL DEFAULT 'General Goods',
-                    ADD COLUMN IF NOT EXISTS standing INT NOT NULL DEFAULT 0,
-                    ADD COLUMN IF NOT EXISTS npc_details_json JSON NULL;
-                """, db);
-                await alterMerchantsCmd.ExecuteNonQueryAsync(ct);
+                await SeedDefaultDataAsync(db, ct);
             }
-            catch { /* columns already exist on newer schema */ }
-
-            await SeedDefaultDataAsync(db, ct);
+            catch { /* seed optional if foreign/table constraints differ */ }
             _initialized = true;
         }
         finally

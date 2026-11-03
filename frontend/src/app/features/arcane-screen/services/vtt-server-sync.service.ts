@@ -1,5 +1,4 @@
 import { resolveDefaultTokenFromLibrary, is3dPreviewThumbnailUrl } from './vtt-token-library-resolver';
-import { resolveCharacterGlbUrl } from '../../characters/models/character-portrait-catalog.data';
 import { CharacterStudioService } from '../../characters/services/character-studio.service';
 import { HttpClient } from '@angular/common/http';
 import { DestroyRef, Injectable, effect, inject, signal, untracked } from '@angular/core';
@@ -9,12 +8,13 @@ import { LoomWeaverStoreService } from '../../../core/services/loomweaver-store.
 import { LwAlertifyService } from '../../../core/services/lw-alertify.service';
 import { TableRealtimeSyncService, VttRealtimeEvent } from '../../../core/services/table-realtime-sync.service';
 import { CombatStateResponse, ServerVttToken, VttSceneListItem, VttSceneResponse } from '../models/vtt-server.models';
+import { snapToFiveFootGrid } from '../engine/vtt-los-and-grid.engine';
 import { VttBattleStateService } from './vtt-battle-state.service';
 import { VttCombatService } from './vtt-combat.service';
 import { VttPartyAndActionsService } from './vtt-party-and-actions.service';
 import { parseVttEvent } from './vtt-realtime-events';
 
-/** Loads combat tokens and turn state from the API and sends movement and turn requests; the server decides what is allowed. */
+/** Loads combat tokens and turn state from the API and sends movement and turn requests; client-first with SignalR broadcast. */
 @Injectable({ providedIn: 'root' })
 export class VttServerSyncService {
   private readonly http = inject(HttpClient);
@@ -26,6 +26,7 @@ export class VttServerSyncService {
   private readonly realtime = inject(TableRealtimeSyncService);
   private readonly alertify = inject(LwAlertifyService);
   private readonly destroyRef = inject(DestroyRef);
+  private lastLocalMoveMs = 0;
 
   readonly scenes = signal<readonly VttSceneListItem[]>([]);
   readonly activeSceneKey = signal('');
@@ -34,7 +35,10 @@ export class VttServerSyncService {
   constructor() {
     effect(() => {
       this.realtime.combatTick();
-      untracked(() => void this.refresh());
+      untracked(() => {
+        if (Date.now() - this.lastLocalMoveMs < 2000) return;
+        void this.refresh();
+      });
     });
     effect(() => {
       if (this.store.activeCampaignId() > 0) untracked(() => void this.loadScenes());
@@ -45,14 +49,16 @@ export class VttServerSyncService {
       .subscribe((evt) => this.routeRemoteEvent(evt));
   }
 
-  /** Sends a token move to the server, then tells other clients so their 2D and 3D views follow. */
+  /** Broadcasts a token move over SignalR and persists it to the backend without re-fetching or overwriting local selection. */
   async publishMove(key: string, x: number, z: number): Promise<boolean> {
+    this.lastLocalMoveMs = Date.now();
+    this.vtt.saveTokenPositionsToStorage();
     const campaignId = this.store.activeCampaignId();
-    const ok = await this.moveToken(key, x, z);
-    if (ok && campaignId > 0) {
-      await this.realtime.publishVtt(campaignId, 'token_moved', this.localActorKey(), { key, x, z });
+    if (campaignId > 0) {
+      void this.realtime.publishVtt(campaignId, 'token_moved', this.localActorKey(), { key, x, z });
     }
-    return ok;
+    void this.moveToken(key, x, z);
+    return true;
   }
 
   private localActorKey(): string {
@@ -130,6 +136,7 @@ export class VttServerSyncService {
     const base = this.base();
     if (!base) return;
     const campaignId = this.store.activeCampaignId() || 1;
+    const preservedAttackerKey = this.vtt.selectedAttackerKey();
     try {
       const [tokens, state] = await Promise.all([
         firstValueFrom(this.http.get<readonly ServerVttToken[]>(`${base}/vtt-tokens`)),
@@ -156,9 +163,12 @@ export class VttServerSyncService {
           ...t,
           avatarUrl: preferred2dAvatar || t.avatarUrl,
         });
+        const snapped = snapToFiveFootGrid({ x: prev?.x ?? t.x, z: prev?.z ?? t.z });
         return {
           ...prev,
           ...t,
+          x: snapped.x,
+          z: snapped.z,
           movementFeet: t.movementRemainingFeet,
           canControl: t.canControl === true,
           avatarUrl: prev?.avatarUrl || def.avatarUrl,
@@ -167,15 +177,20 @@ export class VttServerSyncService {
       });
       const mergedWithParty = this.partyAndActions
         .mergeCampaignPartyIntoTokens(mapped, campaignId)
+        .map((t) => {
+          const snapped = snapToFiveFootGrid({ x: t.x, z: t.z });
+          return { ...t, x: snapped.x, z: snapped.z };
+        })
         .sort((a, b) => b.initiative - a.initiative);
       if (mergedWithParty.length === 0) return;
       this.vtt.tokens.set(mergedWithParty);
       this.vtt.activeRound.set(state.round);
       const index = Math.max(0, mergedWithParty.findIndex((t) => t.key === state.activeTokenKey));
       this.vtt.activeTurnIndex.set(index);
-      this.vtt.selectedAttackerKey.set(mergedWithParty[index].key);
+      if (!preservedAttackerKey || !mergedWithParty.some((t) => t.key === preservedAttackerKey)) {
+        this.vtt.selectedAttackerKey.set(mergedWithParty[index].key);
+      }
     } catch {
-      // Not a campaign member or offline: ensure local campaign party is still present.
       const merged = this.partyAndActions.mergeCampaignPartyIntoTokens(this.vtt.tokens(), campaignId);
       if (merged.length > 0 && this.vtt.tokens().length === 0) {
         this.vtt.tokens.set(merged);
@@ -218,7 +233,12 @@ export class VttServerSyncService {
   async moveToken(key: string, x: number, z: number): Promise<boolean> {
     const base = this.base();
     if (!base) return false;
-    return this.send(`${base}/vtt-tokens/move`, { tokenKey: key, x, z });
+    try {
+      await firstValueFrom(this.http.post(`${base}/vtt-tokens/move`, { tokenKey: key, x, z }));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async nextTurn(): Promise<boolean> {

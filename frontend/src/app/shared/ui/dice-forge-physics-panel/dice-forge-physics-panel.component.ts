@@ -23,6 +23,7 @@ import {
   imports: [CommonModule, FormsModule, NgpButton, DiceCritEditorComponent],
   templateUrl: './dice-forge-physics-panel.component.html',
   styleUrl: '../dice-forge-inspector/dice-forge-inspector.component.scss',
+  host: { class: 'lw-dice-physics-panel-host' },
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class LwDiceForgePhysicsPanelComponent {
@@ -50,10 +51,13 @@ export class LwDiceForgePhysicsPanelComponent {
   readonly previewRollCameraRequested = output<void>();
 
   readonly publishTagline = signal<string>('Custom polyhedral set forged in LoomWeaver Studio.');
+
   patchCrit(outcome: 'nat20' | 'critfail', value: DiceCritCustomization): void {
-    this.configPatched.emit(outcome === 'nat20'
-      ? { nat20EffectId: value.presetId, nat20Customization: value }
-      : { critFailEffectId: value.presetId, critFailCustomization: value });
+    this.configPatched.emit(
+      outcome === 'nat20'
+        ? { nat20EffectId: value.presetId, nat20Customization: value }
+        : { critFailEffectId: value.presetId, critFailCustomization: value }
+    );
   }
 
   patch<K extends keyof DiceCustomRuntimeConfig>(key: K, value: DiceCustomRuntimeConfig[K]): void {

@@ -128,7 +128,7 @@
         <input type="range" min="2" max="20" step="0.5" [value]="customConfig().physics.startingHeight" (input)="patchPhysicsNum('startingHeight', $event)" />
         <code>{{ customConfig().physics.startingHeight }}</code>
       </label>
-      <p>Dice lose energy through contact and always finish flat. Throw settings never override the landing.</p>
+      <p class="lw-dice-inspector__hint">Dice lose energy through contact and always finish flat. Throw settings never override the landing.</p>
     </section>
 
     <section class="lw-dice-inspector__group">
@@ -168,10 +168,10 @@
           Preview Angle
         </button>
       </div>
-      <label class="lw-dice-inspector__phys-row" title="Camera Pitch Angle (85Â° = Top-Down Game View)">
-        <span>camPitchÂ°</span>
+      <label class="lw-dice-inspector__phys-row" title="Camera Pitch Angle (85° = Top-Down Game View)">
+        <span>camPitch°</span>
         <input type="range" min="15" max="89" step="1" [value]="customConfig().physics.rollCameraPitchDeg" (input)="patchPhysicsNum('rollCameraPitchDeg', $event); previewRollCameraRequested.emit()" />
-        <code>{{ customConfig().physics.rollCameraPitchDeg }}Â°</code>
+        <code>{{ customConfig().physics.rollCameraPitchDeg }}°</code>
       </label>
       <label class="lw-dice-inspector__phys-row">
         <span>camDistance</span>
@@ -211,6 +211,54 @@
 <!-- 7. CRIT EFFECTS -->
 @if (activeToolId() === 'crit') {
   <div class="lw-dice-inspector__body">
+    <section class="lw-dice-inspector__group">
+      <div class="lw-dice-inspector__row">
+        <span class="lw-dice-inspector__label">Crit Screen Edge Vignette</span>
+        <button
+          ngpButton
+          type="button"
+          class="lw-dice-inspector__switch"
+          [class.is-on]="customConfig().critVignetteEnabled ?? true"
+          (click)="patch('critVignetteEnabled', !(customConfig().critVignetteEnabled ?? true))"
+        >
+          {{ (customConfig().critVignetteEnabled ?? true) ? 'Enabled' : 'Disabled' }}
+        </button>
+      </div>
+      <p class="lw-dice-inspector__hint">
+        Fades a radial emerald green (Natural 20) or crimson red (Critical Fail) vignette around the outer edge of the screen.
+      </p>
+      @if (customConfig().critVignetteEnabled ?? true) {
+        <label class="lw-dice-inspector__slider">
+          <div class="lw-dice-inspector__slider-head">
+            <span>Vignette Edge Intensity</span>
+            <strong>{{ ((customConfig().critVignetteIntensity ?? 0.78) * 100) | number:'1.0-0' }}%</strong>
+          </div>
+          <input
+            type="range"
+            min="0.15"
+            max="1"
+            step="0.05"
+            [value]="customConfig().critVignetteIntensity ?? 0.78"
+            (input)="patchNum('critVignetteIntensity', $event)"
+          />
+        </label>
+        <label class="lw-dice-inspector__slider">
+          <div class="lw-dice-inspector__slider-head">
+            <span>Edge Fade Depth</span>
+            <strong>{{ ((customConfig().critVignetteSpread ?? 0.45) * 100) | number:'1.0-0' }}%</strong>
+          </div>
+          <input
+            type="range"
+            min="0.2"
+            max="0.85"
+            step="0.05"
+            [value]="customConfig().critVignetteSpread ?? 0.45"
+            (input)="patchNum('critVignetteSpread', $event)"
+          />
+        </label>
+      }
+    </section>
+
     <lw-dice-crit-editor title="Natural 20" [presetId]="customConfig().nat20EffectId"
       [customization]="customConfig().nat20Customization" (changed)="patchCrit('nat20', $event)"
       (preview)="previewCritRequested.emit('nat20')" />
@@ -233,7 +281,7 @@
           <div class="lw-dice-inspector__preset-item">
             <div class="lw-dice-inspector__preset-info" (click)="loadPresetRequested.emit(preset)">
               <strong>{{ preset.name }}</strong>
-              <small>{{ preset.config.surfaceStyleOverride || 'obsidian' }} Â· {{ preset.updatedAt }}</small>
+              <small>{{ preset.config.surfaceStyleOverride || 'obsidian' }} · {{ preset.updatedAt }}</small>
             </div>
             <button ngpButton type="button" class="lw-dice-inspector__del-btn" (click)="deletePresetRequested.emit(preset.id)" title="Delete Preset">
               Delete
@@ -264,7 +312,7 @@
           <div class="lw-dice-inspector__preset-item">
             <div class="lw-dice-inspector__preset-info">
               <strong>{{ mp.name }}</strong>
-              <small>{{ mp.creatorHandle }} Â· {{ mp.downloadsCount }} imports Â· {{ mp.tagline }}</small>
+              <small>{{ mp.creatorHandle }} · {{ mp.downloadsCount }} imports · {{ mp.tagline }}</small>
             </div>
             <button ngpButton type="button" class="lw-dice-inspector__reset-btn" (click)="importMarketPresetRequested.emit(mp)">
               Import

@@ -15,16 +15,20 @@ import {
 import { buildDefaultMarketplaceDicePresets } from './dice-marketplace-defaults';
 import { DICE_SOUND_PROFILES, DiceSoundService } from './engine/audio';
 import { BabylonDiceStageService } from './engine/babylon-dice-stage.service';
-import { DEFAULT_DICE_PHYSICS_CONFIG, DiceForgeToolId, DicePhysicsConfig } from './engine/dice-physics.types';
+import { DiceForgeToolId, DicePhysicsConfig } from './engine/dice-physics.types';
+import {
+  normalizeCustomRuntimeConfig,
+  readStoredActiveDiceConfig,
+  readStoredUserPresets,
+  writeStoredActiveDiceConfig,
+  writeStoredUserPresets,
+} from './engine/dice-user-preferences.helper';
 import { DICE_CRITFAIL_EFFECTS, DICE_NAT20_EFFECTS } from './engine/effects';
 import { DICE_MODEL_CATALOG, DiceModelDefinition, DicePolyhedronType, resolveDiceModel } from './engine/models';
 import {
-  createDefaultRuntimeConfigFromSkin, DICE_SKIN_CATALOG, DiceCustomRuntimeConfig,
+  DICE_SKIN_CATALOG, DiceCustomRuntimeConfig,
   DiceSkinConfig, MarketplaceDicePreset, resolveDiceSkin, SavedUserDicePreset,
 } from './engine/skins';
-
-const USER_PRESETS_STORAGE_KEY = 'lw_user_dice_presets_v2';
-const ACTIVE_CONFIG_STORAGE_KEY = 'lw_active_dice_config_v2';
 
 @Component({
   selector: 'app-dice-page',
@@ -60,7 +64,7 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly cameraZoomPercent = signal<number>(100);
 
   readonly customConfig = signal<DiceCustomRuntimeConfig>(
-    this.loadStoredActiveConfig() ?? createDefaultRuntimeConfigFromSkin(DICE_SKIN_CATALOG[0]),
+    this.loadStoredActiveConfig() ?? this.stageService.getCurrentCustomConfig(),
   );
   readonly activeSkin = computed(() => resolveDiceSkin(this.customConfig().skinId));
   readonly activeModel = computed(() => resolveDiceModel(this.customConfig().modelId));
@@ -73,10 +77,16 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
     const presets = this.savedUserPresets();
     if (presets.length > 0 && !this.activePresetId()) this.activePresetId.set(presets[0].id);
 
+    this.stageService.onActiveConfigChanged(custom => {
+      this.customConfig.set(custom);
+    });
+
     this.http
-      .get<{ savedPresets?: SavedUserDicePreset[]; marketplacePresets?: MarketplaceDicePreset[] }>(
-        `/api/v2/campaigns/${this.store.activeCampaignId()}/dice-forge/state`,
-      )
+      .get<{
+        savedPresets?: SavedUserDicePreset[];
+        marketplacePresets?: MarketplaceDicePreset[];
+        activeCustomConfig?: unknown;
+      }>(`/api/v2/campaigns/${this.store.activeCampaignId()}/dice-forge/state`)
       .subscribe({
         next: (state) => {
           if (Array.isArray(state.savedPresets) && state.savedPresets.length > 0) {
@@ -85,6 +95,12 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
           }
           if (Array.isArray(state.marketplacePresets) && state.marketplacePresets.length > 0) {
             this.marketplacePresets.set(state.marketplacePresets);
+          }
+          const serverCustom = normalizeCustomRuntimeConfig(state.activeCustomConfig);
+          if (serverCustom) {
+            const applied = this.stageService.applyCustomOverrides(serverCustom);
+            this.customConfig.set(applied);
+            writeStoredActiveDiceConfig(applied, this.resolveCurrentUserId());
           }
         },
         error: () => {},
@@ -116,7 +132,7 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
         currentName && !DICE_SKIN_CATALOG.some((s) => s.name === currentName) ? currentName : skin.name,
     });
     this.customConfig.set(merged);
-    this.persistActiveConfig(merged);
+    this.persistActiveConfig(merged, true);
     this.alertify.notifyStatus(
       '3D Dice Forge',
       'Skin Texture Applied',
@@ -130,7 +146,7 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!trimmed) return;
     const updated = this.stageService.applyCustomOverrides({ customName: trimmed });
     this.customConfig.set(updated);
-    this.persistActiveConfig(updated);
+    this.persistActiveConfig(updated, true);
     this.alertify.notifyStatus(
       '3D Dice Forge',
       'Custom Dice Renamed',
@@ -142,21 +158,21 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
   applyCustomChange(overrides: Partial<DiceCustomRuntimeConfig>): void {
     const updated = this.stageService.applyCustomOverrides(overrides);
     this.customConfig.set(updated);
-    this.persistActiveConfig(updated);
+    this.persistActiveConfig(updated, false);
   }
 
   applyPhysicsChange(physicsPatch: Partial<DicePhysicsConfig>): void {
     const mergedPhysics: DicePhysicsConfig = { ...this.customConfig().physics, ...physicsPatch };
     const updated = this.stageService.applyCustomOverrides({ physics: mergedPhysics });
     this.customConfig.set(updated);
-    this.persistActiveConfig(updated);
+    this.persistActiveConfig(updated, false);
   }
 
   resetCustomToSkinDefaults(): void {
     const skin = this.activeSkin();
     const fresh = this.stageService.applySkin(skin);
     this.customConfig.set(fresh);
-    this.persistActiveConfig(fresh);
+    this.persistActiveConfig(fresh, true);
     this.alertify.notifyStatus(
       '3D Dice Forge',
       'Reset to Skin Defaults',
@@ -251,13 +267,13 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.activePresetId.set(savedPreset.id);
     this.customConfig.set(cfg);
     this.persistUserPresetsToStorage(nextList);
-    this.persistActiveConfig(cfg);
+    this.persistActiveConfig(cfg, true);
     this.http.post(`/api/v2/campaigns/${this.store.activeCampaignId()}/dice-forge/presets`, savedPreset).subscribe({ error: () => {} });
 
     this.alertify.notifyStatus(
       '3D Dice Forge',
       asNew ? 'Saved New Custom Dice' : 'Custom Dice Saved',
-      `Saved "${finalName}" to your personal dice presets.`,
+      `Saved "${finalName}" as your active dice preference.`,
       'emerald',
     );
   }
@@ -268,8 +284,8 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.stageService.applySkin(resolveDiceSkin(cfg.skinId));
     const applied = this.stageService.applyCustomOverrides(cfg);
     this.customConfig.set(applied);
-    this.persistActiveConfig(applied);
-    this.alertify.notifyStatus('3D Dice Forge', 'Loaded Custom Dice', `Equipped "${preset.name}" onto the 3D forge stage.`, 'emerald');
+    this.persistActiveConfig(applied, true);
+    this.alertify.notifyStatus('3D Dice Forge', 'Loaded Custom Dice', `Equipped "${preset.name}" as your active dice preference.`, 'emerald');
   }
 
   deleteSavedPreset(presetId: string): void {
@@ -318,6 +334,7 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
       isPublishedToMarket: true,
       config: importedCfg,
     };
+
     const nextList = [savedPreset, ...this.savedUserPresets()];
     this.savedUserPresets.set(nextList);
     this.activePresetId.set(savedPreset.id);
@@ -325,7 +342,7 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.stageService.applySkin(resolveDiceSkin(importedCfg.skinId));
     const applied = this.stageService.applyCustomOverrides(importedCfg);
     this.customConfig.set(applied);
-    this.persistActiveConfig(applied);
+    this.persistActiveConfig(applied, true);
     this.marketModalOpen.set(false);
     this.alertify.notifyStatus(
       'Creator Marketplace',
@@ -401,7 +418,7 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
       { dieType: 'd4', sides: 4 }, { dieType: 'd6', sides: 6 }, { dieType: 'd8', sides: 8 },
       { dieType: 'd10', sides: 10 }, { dieType: 'd12', sides: 12 }, { dieType: 'd20', sides: 20 }, { dieType: 'd100', sides: 100 },
     ];
-    const totalDice = Math.floor(Math.random() * 5) + 1; // 1..5 random dice, never exceeds 5
+    const totalDice = Math.floor(Math.random() * 5) + 1;
     const bucket = new Map<DicePolyhedronType, { dieType: DicePolyhedronType; sides: number; count: number }>();
     for (let i = 0; i < totalDice; i++) {
       const pick = options[Math.floor(Math.random() * options.length)];
@@ -412,40 +429,28 @@ export class DicePageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.executePoolRoll({ pool: Array.from(bucket.values()), rollMode: 'normal', isRandomQuickRoll: true });
   }
 
+  private resolveCurrentUserId(): string | null {
+    const profile = this.auth.activeProfile();
+    return profile?.accountId || profile?.username || null;
+  }
+
   private loadStoredUserPresets(): SavedUserDicePreset[] {
-    if (typeof window === 'undefined') return [];
-    try {
-      const parsed = JSON.parse(window.localStorage.getItem(USER_PRESETS_STORAGE_KEY) || '[]');
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
+    return readStoredUserPresets(this.resolveCurrentUserId());
   }
 
   private persistUserPresetsToStorage(presets: readonly SavedUserDicePreset[]): void {
-    if (typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem(USER_PRESETS_STORAGE_KEY, JSON.stringify(presets));
-    } catch {}
+    writeStoredUserPresets(presets, this.resolveCurrentUserId());
   }
 
   private loadStoredActiveConfig(): DiceCustomRuntimeConfig | null {
-    if (typeof window === 'undefined') return null;
-    try {
-      const raw = window.localStorage.getItem(ACTIVE_CONFIG_STORAGE_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as Partial<DiceCustomRuntimeConfig>;
-      const base = createDefaultRuntimeConfigFromSkin(resolveDiceSkin(parsed.skinId || DICE_SKIN_CATALOG[0].id));
-      return { ...base, ...parsed, physics: { ...DEFAULT_DICE_PHYSICS_CONFIG, ...(parsed.physics ?? {}) } };
-    } catch {
-      return null;
-    }
+    return readStoredActiveDiceConfig(this.resolveCurrentUserId());
   }
 
-  private persistActiveConfig(cfg: DiceCustomRuntimeConfig): void {
-    if (typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem(ACTIVE_CONFIG_STORAGE_KEY, JSON.stringify(cfg));
-    } catch {}
+  private persistActiveConfig(cfg: DiceCustomRuntimeConfig, syncServer = false): void {
+    if (syncServer) {
+      this.stageService.persistActiveUserDicePreference(cfg, this.store.activeCampaignId());
+    } else {
+      writeStoredActiveDiceConfig(cfg, this.resolveCurrentUserId());
+    }
   }
 }

@@ -1,14 +1,14 @@
 <section>
   <h3>{{title()}}</h3>
   <select [attr.aria-label]="title() + ' effect'" [ngModel]="selected()" (ngModelChange)="choose($event)">
-    @for(group of groups; track group.name){
+    @for(group of groups(); track group.name){
       <optgroup [label]="group.name">@for(effect of group.effects; track effect.id){<option [value]="effect.id">{{effect.name}}</option>}</optgroup>
     }
   </select>
   <button ngpButton type="button" (click)="preview.emit()">Preview {{title()}}</button>
   <details>
     <summary>Edit effect layers</summary>
-    <p>EffectBuilder's core layers and controls. Up to 4 layers and 96 primary particles per layer in the dice overlay.</p>
+    <p>Uses EffectBuilder saved effects, built effects, and core styles centered on the die with no projectile.</p>
     <label>Layer<select aria-label="Effect layer" [ngModel]="index()" (ngModelChange)="index.set(+$event)">
       @for(l of definition().layers; track l.id; let i = $index){<option [ngValue]="i">{{i + 1}} · {{l.kind}} / {{l.variant}}</option>}
     </select></label>

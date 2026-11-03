@@ -1,5 +1,6 @@
-import { inject, Injectable, Injector, NgZone, signal } from '@angular/core';
+import { effect, inject, Injectable, Injector, NgZone, runInInjectionContext, signal } from '@angular/core';
 import { LwAlertifyService, type LwRollNotifyParams } from '../../../core/services/lw-alertify.service';
+import type { BabylonDiceStageService, CritScreenVignetteState } from './babylon-dice-stage.service';
 import type { FullscreenDiceBabylonRunner } from './fullscreen-dice-babylon.runner';
 import type { DicePolyhedronType } from './models';
 
@@ -42,9 +43,15 @@ export class FullscreenDiceOverlayService {
   private readonly alertify = inject(LwAlertifyService);
 
   readonly overlayPhase = signal<FullscreenDiceOverlayPhase>('hidden');
+  readonly critVignetteState = signal<CritScreenVignetteState>({
+    outcome: null,
+    intensity: 0.78,
+    spread: 0.45,
+  });
 
   private canvas: HTMLCanvasElement | null = null;
   private runner: FullscreenDiceBabylonRunner | null = null;
+  private stageService: BabylonDiceStageService | null = null;
   private runnerPromise: Promise<FullscreenDiceBabylonRunner> | null = null;
   private stageTimers: number[] = [];
 
@@ -53,6 +60,26 @@ export class FullscreenDiceOverlayService {
     if (this.runner) {
       this.runner.mountCanvas(canvas);
     }
+    this.warmUpUserDice();
+  }
+
+  /**
+   * Lazily loads the Babylon runner in the background and pre-builds the authenticated
+   * user's custom dice meshes, dynamic textures, and shaders in memory so rolls outside
+   * the Dice Forge start smoothly at frame 0 with zero lag.
+   */
+  warmUpUserDice(): void {
+    if (typeof window === 'undefined') return;
+    this.ngZone.runOutsideAngular(() => {
+      window.setTimeout(() => {
+        void this.ensureRunner().then((runner) => {
+          if (this.canvas) {
+            runner.mountCanvas(this.canvas);
+            runner.warmUpDiceCache();
+          }
+        });
+      }, 120);
+    });
   }
 
   /**
@@ -106,9 +133,14 @@ export class FullscreenDiceOverlayService {
           if (settledHandled) return;
           settledHandled = true;
 
-          // Step 2: Dice have stopped — show the bottom-right result toast and invoke table highlight
+          // Step 2: Dice have stopped — show the bottom-right result toast, screen edge vignette, and invoke table highlight
           this.ngZone.run(() => {
             this.overlayPhase.set('settled');
+            if (req.isNat20) {
+              this.stageService?.triggerCritScreenVignette('nat20');
+            } else if (req.isCritFail) {
+              this.stageService?.triggerCritScreenVignette('critfail');
+            }
             if (req.alert) {
               this.alertify.notifyRoll(req.alert);
             }
@@ -162,6 +194,18 @@ export class FullscreenDiceOverlayService {
       ]).then(([runnerMod, audioMod, stageMod]) => {
         const soundService = this.injector.get(audioMod.DiceSoundService);
         const stageService = this.injector.get(stageMod.BabylonDiceStageService);
+        this.stageService = stageService;
+
+        runInInjectionContext(this.injector, () => {
+          effect(() => {
+            this.critVignetteState.set(stageService.critVignetteState());
+          });
+        });
+
+        stageService.onActiveConfigChanged(() => {
+          this.runner?.warmUpDiceCache();
+        });
+
         const instance = new runnerMod.FullscreenDiceBabylonRunner(
           this.ngZone,
           soundService,

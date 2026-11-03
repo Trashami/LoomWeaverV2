@@ -179,6 +179,9 @@ export interface DiceCustomRuntimeConfig {
   readonly critFailEffectId: string;
   readonly critBurstIntensity: number;
   readonly critRingScale: number;
+  readonly critVignetteEnabled?: boolean;
+  readonly critVignetteIntensity?: number;
+  readonly critVignetteSpread?: number;
   readonly soundProfileId: string;
 
   // World & Physics Settings
@@ -290,6 +293,9 @@ export function createDefaultRuntimeConfigFromSkin(skin: DiceSkinConfig): DiceCu
     critFailEffectId: skin.defaultCritFailEffectId,
     critBurstIntensity: 1.0,
     critRingScale: 1.0,
+    critVignetteEnabled: true,
+    critVignetteIntensity: 0.78,
+    critVignetteSpread: 0.45,
     soundProfileId: skin.defaultSoundProfileId,
     physics: { ...DEFAULT_DICE_PHYSICS_CONFIG }
   };

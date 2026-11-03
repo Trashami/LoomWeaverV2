@@ -1,3 +1,14 @@
+@if (overlay.critVignetteState().outcome; as critVignetteOutcome) {
+  <div
+    class="lw-crit-screen-vignette"
+    [class.lw-crit-screen-vignette--success]="critVignetteOutcome === 'nat20'"
+    [class.lw-crit-screen-vignette--failure]="critVignetteOutcome === 'critfail'"
+    [style.--lw-vignette-opacity]="overlay.critVignetteState().intensity"
+    [style.--lw-vignette-inner-stop]="(1 - overlay.critVignetteState().spread) * 100 + '%'"
+    aria-hidden="true"
+  ></div>
+}
+
 <div
   class="lw-fs-dice-overlay"
   [class.lw-fs-dice-overlay--active]="overlay.overlayPhase() !== 'hidden'"

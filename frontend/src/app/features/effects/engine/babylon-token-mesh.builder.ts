@@ -17,7 +17,6 @@ import {
   getDndSizeScale,
   getTokenBaseColorHex,
 } from './effect-timeline.contract';
-import { TerrainMeshBuilder } from '../../maps/engine/terrain/terrain-mesh.builder';
 import { sampleTokenFootprintElevation } from './token-drag-controller';
 import { resolve2dTokenUrlFromLibrary } from '../../arcane-screen/services/vtt-token-library-resolver';
 import {
@@ -36,6 +35,41 @@ export class BabylonTokenMeshBuilder {
     this.loadingGlbUrls.clear();
   }
 
+  private disposeTokenArtifacts(scene: Scene, tokenKey: string): void {
+    scene.lights
+      .filter((l) => l.name === `lw-token-light-${tokenKey}`)
+      .forEach((l) => l.dispose());
+    scene.meshes
+      .filter(
+        (m) =>
+          m.name === `lw-token-${tokenKey}` ||
+          m.name.startsWith(`lw-token-hitbox-${tokenKey}`) ||
+          m.name.startsWith(`lw-token-puck-disc-${tokenKey}`) ||
+          m.name.startsWith(`lw-token-puck-rim-${tokenKey}`) ||
+          m.name.startsWith(`lw-token-glow-${tokenKey}`) ||
+          m.name.startsWith(`lw-token-part-${tokenKey}-`) ||
+          m.name.startsWith(`lw-token-mini-${tokenKey}-`) ||
+          m.name.startsWith(`lw-target-reticle-root-${tokenKey}`) ||
+          m.name.startsWith(`lw-target-reticle-outer-${tokenKey}`) ||
+          m.name.startsWith(`lw-target-reticle-inner-${tokenKey}`),
+      )
+      .forEach((m) => m.dispose());
+    scene.transformNodes
+      .filter((n) => n.name === `lw-token-root-${tokenKey}`)
+      .forEach((n) => n.dispose());
+  }
+
+  private disposeReticle(scene: Scene, tokenKey: string): void {
+    scene.meshes
+      .filter(
+        (m) =>
+          m.name === `lw-target-reticle-root-${tokenKey}` ||
+          m.name === `lw-target-reticle-outer-${tokenKey}` ||
+          m.name === `lw-target-reticle-inner-${tokenKey}`,
+      )
+      .forEach((m) => m.dispose());
+  }
+
   syncTokens(
     scene: Scene,
     tokens: readonly VttTokenVm[],
@@ -47,20 +81,28 @@ export class BabylonTokenMeshBuilder {
     gridScale: number,
     onGlbLoaded: () => void,
   ): void {
-    scene.lights.filter((l) => l.name.startsWith('lw-token-light-')).forEach((l) => l.dispose());
-    scene.meshes
-      .filter(
-        (m) =>
-          m.name.startsWith('lw-token-') ||
-          m.name.startsWith('lw-target-reticle-') ||
-          m.name === 'lw-tether-line',
-      )
-      .forEach((m) => m.dispose());
-    scene.transformNodes.filter((n) => n.name.startsWith('lw-token-')).forEach((n) => n.dispose());
-
     const activeTargetSet = new Set<string>(
       targetedKeys.length > 0 ? targetedKeys : targetKey ? [targetKey] : [],
     );
+
+    const visibleKeys = new Set<string>();
+    for (const t of tokens) {
+      if ((opacityByKey.get(t.key) ?? 1) > 0.05) {
+        visibleKeys.add(t.key);
+      }
+    }
+
+    // Remove meshes for tokens that were deleted or hidden by Fog of War / LoS
+    const existingTokenKeys = new Set<string>();
+    for (const m of scene.meshes) {
+      const tk = m.metadata?.tokenKey as string | undefined;
+      if (tk) existingTokenKeys.add(tk);
+    }
+    for (const tk of existingTokenKeys) {
+      if (!visibleKeys.has(tk)) {
+        this.disposeTokenArtifacts(scene, tk);
+      }
+    }
 
     for (const t of tokens) {
       const tokenOpacity = opacityByKey.get(t.key) ?? 1;
@@ -78,13 +120,43 @@ export class BabylonTokenMeshBuilder {
       const footprintRadius = baseDiameter * 0.42;
       const groundY = sampleTokenFootprintElevation(scene, t.x, t.z, footprintRadius);
 
+      const glbReady = Boolean(!isTopDown2D && t.glbUrl && this.glbContainerCache.has(t.glbUrl));
+      const renderSig = `${isTopDown2D ? '2d' : '3d'}|${t.glbUrl ?? ''}|${glbReady ? 1 : 0}|${t.avatarUrl ?? ''}|${t.sizeCategory ?? 'medium'}|${isDead ? 1 : 0}|${isAttacker ? 1 : 0}|${isTargeted ? 1 : 0}|${t.faction}|${t.colorHex ?? ''}|${t.emitsLight ? 1 : 0}|${t.lightColorHex ?? ''}|${t.lightDimFeet ?? 0}|${t.ambientGlowEnabled ? 1 : 0}|${t.ambientGlowColorHex ?? ''}|${t.ambientGlowRadiusFeet ?? 0}|${t.ambientGlowIntensity ?? 0}|${gridScale.toFixed(2)}`;
+
+      const existingBase = scene.getMeshByName(`lw-token-${t.key}`) as Mesh | null;
+      if (existingBase && existingBase.metadata?.renderSig === renderSig) {
+        existingBase.position.set(t.x, groundY + baseHeight / 2 + 0.01, t.z);
+        const pickable = tokenOpacity > 0.05;
+        existingBase.visibility = tokenOpacity;
+        existingBase.isPickable = pickable;
+        for (const child of existingBase.getChildMeshes()) {
+          if (!child.name.startsWith('lw-token-hitbox-')) {
+            child.visibility = tokenOpacity;
+          }
+          child.isPickable = pickable;
+        }
+        const existingReticle = scene.getMeshByName(`lw-target-reticle-root-${t.key}`) as Mesh | null;
+        if (isTargeted && pickable) {
+          if (existingReticle) {
+            existingReticle.position.set(t.x, groundY + 0.025, t.z);
+          } else {
+            createSpinningBaseTargetReticleMesh(scene, t.key, t.x, groundY, t.z, effectiveScale);
+          }
+        } else if (existingReticle) {
+          this.disposeReticle(scene, t.key);
+        }
+        continue;
+      }
+
+      this.disposeTokenArtifacts(scene, t.key);
+
       const baseMesh = MeshBuilder.CreateCylinder(
         `lw-token-${t.key}`,
         { height: baseHeight, diameter: baseDiameter, tessellation: 36 },
         scene,
       );
       baseMesh.position.set(t.x, groundY + baseHeight / 2 + 0.01, t.z);
-      baseMesh.metadata = { tokenKey: t.key, baseHeight, footprintRadius };
+      baseMesh.metadata = { tokenKey: t.key, baseHeight, footprintRadius, renderSig };
       baseMesh.renderingGroupId = 2;
       baseMesh.alphaIndex = 10;
       baseMesh.isPickable = true;

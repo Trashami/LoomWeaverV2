@@ -36,6 +36,7 @@ import { SEED_ADDITIONAL_ENCOUNTERS } from '../../encounters/services/encounter-
 import { FullscreenDiceOverlayService, type FullscreenDieEntry } from '../../dice/engine/fullscreen-dice-overlay.service';
 import { SEED_ACTION_RULES, SEED_CREATURES, SEED_EFFECT_PRESETS, SEED_NPCS, SEED_VTT_TOKENS } from './vtt-combat.seed';
 import { VttPartyAndActionsService } from './vtt-party-and-actions.service';
+import { snapToFiveFootGrid } from '../engine/vtt-los-and-grid.engine';
 import type { CombatResolutionResult, EncounterCompletionResult } from '../models/vtt-server.models';
 import type { LwMonsterSummaryVm } from '../../../shared/ui/public-api';
 
@@ -130,6 +131,7 @@ export class VttCombatService {
       this.launchEncounterIntoVtt(this.activeEncounterId());
     } else {
       this.ensureCampaignPartyTokens();
+      this.snapAllTokensToActiveGrid();
     }
     effect(() => {
       const sheets = this.characterStudio.campaignSheets();
@@ -138,8 +140,61 @@ export class VttCombatService {
     });
   }
 
+  private getSavedPositionsMap(): Record<string, { x: number; z: number }> {
+    if (typeof localStorage === 'undefined') return {};
+    try {
+      const cid = this.store.activeCampaignId() || 1;
+      const eid = this.activeEncounterId() || 'default';
+      const raw = localStorage.getItem(`lw.vtt.tokenPositions.${cid}.${eid}`);
+      return raw ? (JSON.parse(raw) as Record<string, { x: number; z: number }>) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  saveTokenPositionsToStorage(list: readonly VttTokenVm[] = this.tokens()): void {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      const cid = this.store.activeCampaignId() || 1;
+      const eid = this.activeEncounterId() || 'default';
+      const map: Record<string, { x: number; z: number }> = {};
+      for (const t of list) {
+        map[t.key] = { x: t.x, z: t.z };
+      }
+      localStorage.setItem(`lw.vtt.tokenPositions.${cid}.${eid}`, JSON.stringify(map));
+    } catch {
+      // Ignore quota errors
+    }
+  }
+
+  /** Snaps all tokens in the scene to the exact center of their nearest active 5-ft grid square. */
+  snapAllTokensToActiveGrid(): void {
+    const saved = this.getSavedPositionsMap();
+    this.tokens.update((list) => {
+      let changed = false;
+      const next = list.map((t) => {
+        const src = saved[t.key] ?? { x: t.x, z: t.z };
+        const snapped = snapToFiveFootGrid(src);
+        if (Math.abs(snapped.x - t.x) > 0.001 || Math.abs(snapped.z - t.z) > 0.001) {
+          changed = true;
+          return { ...t, x: snapped.x, z: snapped.z };
+        }
+        return t;
+      });
+      if (changed) this.saveTokenPositionsToStorage(next);
+      return changed ? next : list;
+    });
+  }
+
   ensureCampaignPartyTokens(campaignId: number = this.store.activeCampaignId() || 1): void {
-    const merged = this.partyAndActions.mergeCampaignPartyIntoTokens(this.tokens(), campaignId);
+    const saved = this.getSavedPositionsMap();
+    const merged = this.partyAndActions
+      .mergeCampaignPartyIntoTokens(this.tokens(), campaignId)
+      .map((t) => {
+        const pos = saved[t.key] ?? { x: t.x, z: t.z };
+        const snapped = snapToFiveFootGrid(pos);
+        return { ...t, x: snapped.x, z: snapped.z };
+      });
     if (merged.length > 0) {
       this.tokens.set(merged);
       if (!merged.some((t) => t.key === this.selectedAttackerKey())) this.selectedAttackerKey.set(merged[0].key);
@@ -176,9 +231,10 @@ export class VttCombatService {
     const npcTokens: VttTokenVm[] = enc.sessionNpcs.filter((n) => n.includedInEncounter).map((n, idx) => {
       const faction = (n.disposition === 'Hostile' ? 'hostile' : 'ally') as 'ally' | 'hostile';
       const resolved = resolveDefaultTokenFromLibrary({ name: n.name, roleLabel: n.role, faction, avatarUrl: n.avatarUrl });
+      const snapped = snapToFiveFootGrid({ x: -4 + idx * 2, z: -1 });
       return {
         key: n.compositeKey, name: n.name, roleLabel: `Session NPC · ${n.disposition}`, faction,
-        initiative: 15 - idx * 2, currentHp: 42, maxHp: 42, armorClass: 15, x: -4 + idx * 2, z: -1,
+        initiative: 15 - idx * 2, currentHp: 42, maxHp: 42, armorClass: 15, x: snapped.x, z: snapped.z,
         colorHex: n.disposition === 'Hostile' ? '#ef5d72' : '#d4a853',
         actionUsed: false, bonusUsed: false, reactionUsed: false, movementFeet: 30,
         avatarUrl: resolved.avatarUrl, glbUrl: resolved.glbUrl,
@@ -191,18 +247,25 @@ export class VttCombatService {
       for (let i = 0; i < instances; i++) {
         const suffix = instances > 1 ? ` ${String.fromCharCode(65 + i)}` : '';
         const resolved = resolveDefaultTokenFromLibrary({ name: slot.name, roleLabel: slot.disposition, faction: 'hostile', avatarUrl: slot.tokenPreviewUrl, glbUrl: slot.tokenGlbUrl });
+        const snapped = snapToFiveFootGrid({ x: 4 + sIdx * 2 + (i % 2) * 1.5, z: -3 + i * 2.5 });
         monsterTokens.push({
           key: `1:Encounter:${slot.slotId}-${i}`, name: `${slot.name}${suffix}`, roleLabel: `${slot.disposition} · CR ${slot.challengeRating}`,
           faction: 'hostile', initiative: Math.max(4, 19 - sIdx * 3 - i), currentHp: slot.maxHp, maxHp: slot.maxHp, armorClass: slot.armorClass,
-          x: 4 + sIdx * 2 + (i % 2) * 1.5, z: -3 + i * 2.5, colorHex: '#ef5d72',
+          x: snapped.x, z: snapped.z, colorHex: '#ef5d72',
           actionUsed: false, bonusUsed: false, reactionUsed: false, movementFeet: slot.speedFeet,
           avatarUrl: resolved.avatarUrl, glbUrl: resolved.glbUrl,
         });
       }
     });
 
+    const saved = this.getSavedPositionsMap();
     const combined = this.partyAndActions
       .mergeCampaignPartyIntoTokens([...npcTokens, ...monsterTokens], this.store.activeCampaignId() || 1)
+      .map((t) => {
+        const pos = saved[t.key] ?? { x: t.x, z: t.z };
+        const snapped = snapToFiveFootGrid(pos);
+        return { ...t, x: snapped.x, z: snapped.z };
+      })
       .sort((a, b) => b.initiative - a.initiative);
     if (combined.length > 0) {
       this.tokens.set(combined);
@@ -306,11 +369,12 @@ export class VttCombatService {
     const faction = (npc.disposition === 'Hostile' ? 'hostile' : 'ally') as 'ally' | 'hostile';
     const resolved = resolveDefaultTokenFromLibrary({ name: npc.name, roleLabel: npc.title, faction });
     const id = `1:NPC:${npc.compositeKey}-${Date.now().toString(36).slice(-3)}`;
+    const snapped = snapToFiveFootGrid({ x: 1, z: -2 });
     this.tokens.update((list) => [
       ...list,
       {
         key: id, name: npc.name, roleLabel: `${npc.title} · ${npc.disposition}`, faction,
-        initiative: 14, currentHp: 38, maxHp: 38, armorClass: 15, x: 1, z: -2,
+        initiative: 14, currentHp: 38, maxHp: 38, armorClass: 15, x: snapped.x, z: snapped.z,
         colorHex: faction === 'hostile' ? '#ef5d72' : '#d4a853',
         actionUsed: false, bonusUsed: false, reactionUsed: false, movementFeet: 30,
         sightFeet: 60, darkvisionFeet: 0, avatarUrl: resolved.avatarUrl, glbUrl: resolved.glbUrl,
@@ -329,12 +393,13 @@ export class VttCombatService {
     for (let i = 0; i < qty; i++) {
       const suffix = qty > 1 ? ` ${String.fromCharCode(65 + i)}` : '';
       const id = `${cid}:Encounter:bst-${monster.key}-${Date.now().toString(36).slice(-4)}-${i}`;
+      const snapped = snapToFiveFootGrid({ x: Math.random() * 8 + 2 + i * 1.2, z: Math.random() * 8 - 4 });
       additions.push({
         key: id, name: `${monster.name}${suffix}`, roleLabel: `${monster.creatureType} · CR ${monster.challengeRating}`,
         faction: 'hostile', initiative: Math.floor(Math.random() * 14) + 8,
         currentHp: Math.max(1, monster.hitPoints || 28), maxHp: Math.max(1, monster.hitPoints || 28),
-        armorClass: monster.armorClass || 13, x: Math.round((Math.random() * 8 + 2 + i * 1.2) * 10) / 10,
-        z: Math.round((Math.random() * 8 - 4) * 10) / 10, colorHex: '#ef5d72',
+        armorClass: monster.armorClass || 13, x: snapped.x,
+        z: snapped.z, colorHex: '#ef5d72',
         actionUsed: false, bonusUsed: false, reactionUsed: false, movementFeet: 30,
         sightFeet: 60, darkvisionFeet: 60, avatarUrl: resolved.avatarUrl || monster.tokenUrl, glbUrl: resolved.glbUrl, sizeCategory,
       });
@@ -410,7 +475,12 @@ export class VttCombatService {
   }
 
   applyRemoteTokenMove(key: string, x: number, z: number): void {
-    this.tokens.update((list) => list.map((t) => (t.key === key ? { ...t, x, z } : t)));
+    const snapped = snapToFiveFootGrid({ x, z });
+    this.tokens.update((list) => {
+      const next = list.map((t) => (t.key === key ? { ...t, x: snapped.x, z: snapped.z } : t));
+      this.saveTokenPositionsToStorage(next);
+      return next;
+    });
   }
 
   applyRemoteTurn(activeKey: string, round: number): void {
@@ -430,12 +500,13 @@ export class VttCombatService {
   spawnCreatureIntoVtt(creature: CreatureCardVm): void {
     const id = `1:Encounter:spawn-${Date.now().toString().slice(-4)}`;
     const resolved = resolveDefaultTokenFromLibrary({ name: creature.name, roleLabel: creature.creatureType, faction: 'hostile' });
+    const snapped = snapToFiveFootGrid({ x: Math.random() * 10 + 2, z: Math.random() * 10 - 5 });
     this.tokens.update((list) => [
       ...list,
       {
         key: id, name: creature.name, roleLabel: `Hostile · CR ${creature.challengeRating}`, faction: 'hostile',
         initiative: Math.floor(Math.random() * 12) + 10, currentHp: creature.maxHp, maxHp: creature.maxHp, armorClass: creature.armorClass,
-        x: Math.round((Math.random() * 10 + 2) * 10) / 10, z: Math.round((Math.random() * 10 - 5) * 10) / 10,
+        x: snapped.x, z: snapped.z,
         colorHex: '#ef5d72', actionUsed: false, bonusUsed: false, reactionUsed: false, movementFeet: creature.speedFeet,
         avatarUrl: resolved.avatarUrl, glbUrl: resolved.glbUrl,
       },

@@ -212,6 +212,7 @@ export class WorldLoreFacadeService {
     }
     this.selectedLocationKey.set(local?.locationKey ?? locationKey);
     const cid = this.store.activeCampaignId();
+    if (!cid || cid <= 0) return;
     this.http.get<LocationInspectorDetailVm>(`/api/v2/campaigns/${cid}/world-lore/locations/${locationKey}?role=${this.store.viewerRole()}`).subscribe({
       next: (detail) => {
         if (detail && detail.campaignId === this.store.activeCampaignId()) {
@@ -389,6 +390,10 @@ export class WorldLoreFacadeService {
     this.inspectorContextMode.set('session-guide');
     this.selectedLoreId.set(null);
     this.errorBanner.set(null);
+    if (!campaignId || campaignId <= 0) {
+      this.loading.set(false);
+      return;
+    }
     this.loading.set(true);
     this.http.get<WorldLoreWorkspaceVm>(`/api/v2/campaigns/${campaignId}/world-lore?role=${role}`).subscribe({
       next: (res) => {

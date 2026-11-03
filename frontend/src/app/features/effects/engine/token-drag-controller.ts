@@ -23,7 +23,9 @@ export interface TokenRightClickEvent {
 export interface TokenDragHandlers {
   onDragStart(): void;
   onDragEnd(): void;
-  onTokenSelected?(key: string, shiftKey: boolean): void;
+  canStartTokenDrag?(key: string, evt: PointerEvent): boolean;
+  onTokenSelected?(key: string, shiftKey: boolean, ctrlKey?: boolean): void;
+  onGroundClicked?(point: { x: number; z: number }, evt: PointerEvent): void;
   onTokenRightClicked?(event: TokenRightClickEvent): void;
   onDragged(placement: TokenPlacement): void;
   onDropped(placement: TokenPlacement): void;
@@ -57,6 +59,9 @@ export function sampleTokenFootprintElevation(
 export class TokenDragController {
   private active: ActiveDrag | null = null;
   private observer: Observer<PointerInfo> | null = null;
+  private downClientX = 0;
+  private downClientY = 0;
+  private downHadToken = false;
 
   constructor(
     private readonly scene: Scene,
@@ -74,7 +79,7 @@ export class TokenDragController {
       (info) => {
         if (info.type === PointerEventTypes.POINTERDOWN) this.handlePointerDown(info);
         else if (info.type === PointerEventTypes.POINTERMOVE) this.handlePointerMove();
-        else if (info.type === PointerEventTypes.POINTERUP) this.handlePointerUp();
+        else if (info.type === PointerEventTypes.POINTERUP) this.handlePointerUp(info);
       },
       undefined,
       true,
@@ -111,7 +116,15 @@ export class TokenDragController {
       let bestKey: string | null = null;
       let bestDist = 0.78;
       for (const m of this.scene.meshes) {
-        if (!m.isPickable || !m.name.startsWith('lw-token-') || m.name.startsWith('lw-token-hitbox-') || m.name.startsWith('lw-token-puck-') || m.name.startsWith('lw-token-part-')) continue;
+        if (
+          !m.isPickable ||
+          !m.name.startsWith('lw-token-') ||
+          m.name.startsWith('lw-token-hitbox-') ||
+          m.name.startsWith('lw-token-puck-') ||
+          m.name.startsWith('lw-token-part-')
+        ) {
+          continue;
+        }
         const tk = m.metadata?.tokenKey as string | undefined;
         if (!tk) continue;
         const d = Math.hypot(gPick.pickedPoint.x - m.position.x, gPick.pickedPoint.z - m.position.z);
@@ -127,6 +140,9 @@ export class TokenDragController {
 
   private handlePointerDown(info: PointerInfo): void {
     const evt = info.event as PointerEvent;
+    this.downClientX = evt.clientX;
+    this.downClientY = evt.clientY;
+    this.downHadToken = false;
     if (evt.button === 2) return;
     const key =
       (typeof info.pickInfo?.pickedMesh?.metadata?.tokenKey === 'string'
@@ -134,8 +150,17 @@ export class TokenDragController {
         : null) ?? this.pickTokenKey(evt);
 
     if (evt.button !== 0 || !key) return;
+    this.downHadToken = true;
 
-    this.handlers.onTokenSelected?.(key, evt.shiftKey === true);
+    this.handlers.onTokenSelected?.(
+      key,
+      evt.shiftKey === true,
+      evt.ctrlKey === true || evt.metaKey === true,
+    );
+
+    if (this.handlers.canStartTokenDrag && !this.handlers.canStartTokenDrag(key, evt)) {
+      return;
+    }
 
     const mesh = this.scene.getMeshByName(`lw-token-${key}`);
     if (!mesh) return;
@@ -162,9 +187,19 @@ export class TokenDragController {
     this.handlers.onDragged({ key: drag.key, x: snapped.x, z: snapped.z });
   }
 
-  private handlePointerUp(): void {
+  private handlePointerUp(info: PointerInfo): void {
+    const evt = info.event as PointerEvent;
     const drag = this.active;
-    if (!drag) return;
+    if (!drag) {
+      if (evt.button === 0 && !this.downHadToken && this.handlers.onGroundClicked) {
+        const distPx = Math.hypot(evt.clientX - this.downClientX, evt.clientY - this.downClientY);
+        if (distPx <= 8) {
+          const pt = this.groundPoint();
+          if (pt) this.handlers.onGroundClicked(pt, evt);
+        }
+      }
+      return;
+    }
     this.active = null;
     this.handlers.onDragEnd();
     if (Math.abs(drag.x - drag.startX) < 0.001 && Math.abs(drag.z - drag.startZ) < 0.001) return;
@@ -196,7 +231,7 @@ export class TokenDragController {
     }
     const reticle = this.scene.getMeshByName(`lw-target-reticle-root-${key}`);
     if (reticle) {
-      reticle.position.set(x, groundY + 0.035, z);
+      reticle.position.set(x, groundY + 0.025, z);
     }
   }
 }

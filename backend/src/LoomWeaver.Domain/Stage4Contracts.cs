@@ -27,7 +27,8 @@ public sealed record DiceForgeLoadoutContract(
     bool VeinPulse,
     string Nat20EffectId,
     string CritFailEffectId,
-    string SoundProfileId
+    string SoundProfileId,
+    object? CustomConfig = null
 );
 
 public sealed record DiceForgeMilestoneRewardContract(
@@ -70,7 +71,8 @@ public sealed record DiceForgeUserStateContract(
     IReadOnlyList<DiceForgeMilestoneRewardContract> Milestones,
     DiceForgeLoadoutContract ActiveLoadout,
     IReadOnlyList<DiceForgeUserPresetContract>? SavedPresets = null,
-    IReadOnlyList<DiceForgeMarketplacePresetContract>? MarketplacePresets = null
+    IReadOnlyList<DiceForgeMarketplacePresetContract>? MarketplacePresets = null,
+    object? ActiveCustomConfig = null
 );
 
 public sealed record DiceForgeUnlockRequestContract(
@@ -157,4 +159,3 @@ public sealed record AudioTransitionRequestContract(
     double CrossfadeSeconds,
     string? Role
 );
-

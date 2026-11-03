@@ -1,10 +1,14 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using LoomWeaver.Domain;
+using LoomWeaver.Infrastructure.MySql;
+using LoomWeaver.Modules.Auth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using MySqlConnector;
 
 namespace LoomWeaver.Modules.Dice;
 
@@ -12,6 +16,15 @@ public static class DiceForgeEndpoints
 {
     private static readonly object StateLock = new();
     private static int CurrentLoommarksBalance = 1250;
+
+    private sealed class UserDicePreferenceMemory
+    {
+        public DiceForgeLoadoutContract ActiveLoadout { get; set; } = DefaultLoadout;
+        public object? ActiveCustomConfig { get; set; }
+        public List<DiceForgeUserPresetContract> SavedPresets { get; set; } = new();
+    }
+
+    private static readonly ConcurrentDictionary<long, UserDicePreferenceMemory> UserMemoryByAccount = new();
 
     private static readonly HashSet<string> UnlockedSkins = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -33,7 +46,7 @@ public static class DiceForgeEndpoints
         "model-dragon-eye"
     };
 
-    private static DiceForgeLoadoutContract ActiveLoadout = new(
+    private static readonly DiceForgeLoadoutContract DefaultLoadout = new(
         "skin-obsidian-gold",
         "model-classic-chamfer",
         "medium",
@@ -49,6 +62,9 @@ public static class DiceForgeEndpoints
         "fx-basalt-shatter",
         "sfx-stone-rattle"
     );
+
+    private static DiceForgeLoadoutContract ActiveLoadout = DefaultLoadout;
+    private static object? ActiveCustomConfigGlobal;
 
     private static readonly List<DiceForgeMilestoneRewardContract> Milestones = new()
     {
@@ -100,52 +116,174 @@ public static class DiceForgeEndpoints
         new DiceSkinPresetContract("skin-astral-void", "Astral Singularity", "Void Nebula Crystal", "#0b0718", "#c06cff", 0.32, 0.14, "Astral Singularity", "Void Rift Collapse", "750 Loommarks")
     };
 
+    private static async Task EnsureTableAsync(MySqlConnection conn, CancellationToken ct)
+    {
+        const string ddl = """
+            CREATE TABLE IF NOT EXISTS lw_user_dice_preferences (
+              user_id BIGINT NOT NULL PRIMARY KEY,
+              active_loadout_json LONGTEXT NOT NULL,
+              active_custom_json LONGTEXT NULL,
+              saved_presets_json LONGTEXT NOT NULL,
+              updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """;
+        await using var cmd = new MySqlCommand(ddl, conn);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    private static async Task<UserDicePreferenceMemory> LoadUserPreferencesAsync(
+        long? userId,
+        LoomWeaverMySqlRepository mysql,
+        CancellationToken ct)
+    {
+        if (userId is null || userId <= 0)
+        {
+            lock (StateLock)
+            {
+                return new UserDicePreferenceMemory
+                {
+                    ActiveLoadout = ActiveLoadout,
+                    ActiveCustomConfig = ActiveCustomConfigGlobal,
+                    SavedPresets = SavedUserPresets.ToList()
+                };
+            }
+        }
+
+        var mem = UserMemoryByAccount.GetOrAdd(userId.Value, _ => new UserDicePreferenceMemory());
+        try
+        {
+            await using var conn = await mysql.OpenConnectionAsync(ct);
+            await EnsureTableAsync(conn, ct);
+            await using var cmd = new MySqlCommand(
+                "SELECT active_loadout_json, active_custom_json, saved_presets_json FROM lw_user_dice_preferences WHERE user_id=@u LIMIT 1",
+                conn);
+            cmd.Parameters.AddWithValue("@u", userId.Value);
+            await using var r = await cmd.ExecuteReaderAsync(ct);
+            if (await r.ReadAsync(ct))
+            {
+                var loadoutRaw = r.IsDBNull(0) ? null : r.GetString(0);
+                var customRaw = r.IsDBNull(1) ? null : r.GetString(1);
+                var presetsRaw = r.IsDBNull(2) ? null : r.GetString(2);
+
+                if (!string.IsNullOrWhiteSpace(loadoutRaw))
+                {
+                    mem.ActiveLoadout = JsonSerializer.Deserialize<DiceForgeLoadoutContract>(loadoutRaw) ?? DefaultLoadout;
+                }
+                if (!string.IsNullOrWhiteSpace(customRaw))
+                {
+                    mem.ActiveCustomConfig = JsonDocument.Parse(customRaw).RootElement.Clone();
+                }
+                if (!string.IsNullOrWhiteSpace(presetsRaw))
+                {
+                    mem.SavedPresets = JsonSerializer.Deserialize<List<DiceForgeUserPresetContract>>(presetsRaw) ?? new();
+                }
+            }
+        }
+        catch
+        {
+            // Fallback to in-memory user preference cache when DB is unreachable
+        }
+
+        return mem;
+    }
+
+    private static async Task SaveUserPreferencesAsync(
+        long? userId,
+        UserDicePreferenceMemory mem,
+        LoomWeaverMySqlRepository mysql,
+        CancellationToken ct)
+    {
+        if (userId is null || userId <= 0) return;
+        UserMemoryByAccount[userId.Value] = mem;
+        try
+        {
+            await using var conn = await mysql.OpenConnectionAsync(ct);
+            await EnsureTableAsync(conn, ct);
+            const string sql = """
+                INSERT INTO lw_user_dice_preferences (user_id, active_loadout_json, active_custom_json, saved_presets_json)
+                VALUES (@u, @l, @c, @p)
+                ON DUPLICATE KEY UPDATE
+                  active_loadout_json = VALUES(active_loadout_json),
+                  active_custom_json = VALUES(active_custom_json),
+                  saved_presets_json = VALUES(saved_presets_json),
+                  updated_at = CURRENT_TIMESTAMP;
+                """;
+            await using var cmd = new MySqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@u", userId.Value);
+            cmd.Parameters.AddWithValue("@l", JsonSerializer.Serialize(mem.ActiveLoadout));
+            cmd.Parameters.AddWithValue("@c", mem.ActiveCustomConfig is not null ? JsonSerializer.Serialize(mem.ActiveCustomConfig) : DBNull.Value);
+            cmd.Parameters.AddWithValue("@p", JsonSerializer.Serialize(mem.SavedPresets));
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+        catch
+        {
+            // Keep in-memory state if DB write fails
+        }
+    }
+
     public static RouteGroupBuilder MapDiceForgeEndpoints(this RouteGroupBuilder api)
     {
         api.MapGet("/campaigns/{campaignId:int}/dice-skins", (int campaignId) =>
             Results.Ok(GetCuratedSkins()));
 
-        api.MapGet("/campaigns/{campaignId:int}/dice-forge/state", (int campaignId) =>
+        api.MapGet("/campaigns/{campaignId:int}/dice-forge/state", async (int campaignId, HttpContext ctx, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
         {
-            lock (StateLock)
-            {
-                return Results.Ok(BuildStateSnapshot(campaignId));
-            }
+            var u = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
+            var mem = await LoadUserPreferencesAsync(u?.Id, mysql, ct);
+            return Results.Ok(BuildStateSnapshot(campaignId, mem));
         });
 
-        api.MapPut("/campaigns/{campaignId:int}/dice-forge/loadout", (int campaignId, DiceForgeLoadoutContract loadout) =>
+        api.MapPut("/campaigns/{campaignId:int}/dice-forge/loadout", async (int campaignId, DiceForgeLoadoutContract loadout, HttpContext ctx, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
         {
+            var u = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
+            var mem = await LoadUserPreferencesAsync(u?.Id, mysql, ct);
             lock (StateLock)
             {
                 ActiveLoadout = loadout;
-                return Results.Ok(BuildStateSnapshot(campaignId));
+                if (loadout.CustomConfig is not null)
+                {
+                    ActiveCustomConfigGlobal = loadout.CustomConfig;
+                }
             }
+            mem.ActiveLoadout = loadout;
+            if (loadout.CustomConfig is not null)
+            {
+                mem.ActiveCustomConfig = loadout.CustomConfig;
+            }
+            await SaveUserPreferencesAsync(u?.Id, mem, mysql, ct);
+            return Results.Ok(BuildStateSnapshot(campaignId, mem));
         });
 
-        api.MapPost("/campaigns/{campaignId:int}/dice-forge/presets", (int campaignId, DiceForgeUserPresetContract preset) =>
+        api.MapPost("/campaigns/{campaignId:int}/dice-forge/presets", async (int campaignId, DiceForgeUserPresetContract preset, HttpContext ctx, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
         {
+            var u = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
+            var mem = await LoadUserPreferencesAsync(u?.Id, mysql, ct);
             lock (StateLock)
             {
                 var idx = SavedUserPresets.FindIndex(p => string.Equals(p.Id, preset.Id, StringComparison.OrdinalIgnoreCase));
-                if (idx >= 0)
-                {
-                    SavedUserPresets[idx] = preset;
-                }
-                else
-                {
-                    SavedUserPresets.Insert(0, preset);
-                }
-                return Results.Ok(SavedUserPresets.ToList());
+                if (idx >= 0) SavedUserPresets[idx] = preset;
+                else SavedUserPresets.Insert(0, preset);
+                ActiveCustomConfigGlobal = preset.Config;
             }
+            var uIdx = mem.SavedPresets.FindIndex(p => string.Equals(p.Id, preset.Id, StringComparison.OrdinalIgnoreCase));
+            if (uIdx >= 0) mem.SavedPresets[uIdx] = preset;
+            else mem.SavedPresets.Insert(0, preset);
+            mem.ActiveCustomConfig = preset.Config;
+            await SaveUserPreferencesAsync(u?.Id, mem, mysql, ct);
+            return Results.Ok(mem.SavedPresets.ToList());
         });
 
-        api.MapDelete("/campaigns/{campaignId:int}/dice-forge/presets/{presetId}", (int campaignId, string presetId) =>
+        api.MapDelete("/campaigns/{campaignId:int}/dice-forge/presets/{presetId}", async (int campaignId, string presetId, HttpContext ctx, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
         {
+            var u = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
+            var mem = await LoadUserPreferencesAsync(u?.Id, mysql, ct);
             lock (StateLock)
             {
                 SavedUserPresets.RemoveAll(p => string.Equals(p.Id, presetId, StringComparison.OrdinalIgnoreCase));
-                return Results.Ok(SavedUserPresets.ToList());
             }
+            mem.SavedPresets.RemoveAll(p => string.Equals(p.Id, presetId, StringComparison.OrdinalIgnoreCase));
+            await SaveUserPreferencesAsync(u?.Id, mem, mysql, ct);
+            return Results.Ok(mem.SavedPresets.ToList());
         });
 
         api.MapGet("/marketplace/dice-presets", () =>
@@ -210,14 +348,8 @@ public static class DiceForgeEndpoints
                     CurrentLoommarksBalance -= cost;
                 }
 
-                if (itemType == "model")
-                {
-                    UnlockedModels.Add(itemId);
-                }
-                else
-                {
-                    UnlockedSkins.Add(itemId);
-                }
+                if (itemType == "model") UnlockedModels.Add(itemId);
+                else UnlockedSkins.Add(itemId);
 
                 return Results.Ok(new DiceForgeUnlockResponseContract(
                     true,
@@ -301,17 +433,23 @@ public static class DiceForgeEndpoints
         return api;
     }
 
-    private static DiceForgeUserStateContract BuildStateSnapshot(int campaignId) =>
-        new(
-            campaignId,
-            CurrentLoommarksBalance,
-            UnlockedSkins.ToList(),
-            UnlockedModels.ToList(),
-            Milestones.ToList(),
-            ActiveLoadout,
-            SavedUserPresets.ToList(),
-            MarketplaceDicePresets.ToList()
-        );
+    private static DiceForgeUserStateContract BuildStateSnapshot(int campaignId, UserDicePreferenceMemory mem)
+    {
+        lock (StateLock)
+        {
+            return new DiceForgeUserStateContract(
+                campaignId,
+                CurrentLoommarksBalance,
+                UnlockedSkins.ToList(),
+                UnlockedModels.ToList(),
+                Milestones.ToList(),
+                mem.ActiveLoadout,
+                mem.SavedPresets.ToList(),
+                MarketplaceDicePresets.ToList(),
+                mem.ActiveCustomConfig ?? mem.ActiveLoadout.CustomConfig ?? ActiveCustomConfigGlobal
+            );
+        }
+    }
 
     private static string NormalizeRollMode(string? mode) =>
         mode?.Trim().ToLowerInvariant() switch

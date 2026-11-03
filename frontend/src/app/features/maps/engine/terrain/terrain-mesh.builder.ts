@@ -419,20 +419,8 @@ export class TerrainMeshBuilder {
     const slopeAdjustedPoint = (x: number, z: number): Vector3 => {
       const cx = Math.max(-halfW, Math.min(halfW, x));
       const cz = Math.max(-halfH, Math.min(halfH, z));
-      const y = this.sampleElevationAt(scene, cx, cz);
-      const eps = 0.35;
-      const dydx =
-        (this.sampleElevationAt(scene, cx + eps, cz) -
-          this.sampleElevationAt(scene, cx - eps, cz)) /
-        (2 * eps);
-      const dydz =
-        (this.sampleElevationAt(scene, cx, cz + eps) -
-          this.sampleElevationAt(scene, cx, cz - eps)) /
-        (2 * eps);
-      const adjX = cx - dydx * Math.abs(y) * 0.18;
-      const adjZ = cz - dydz * Math.abs(y) * 0.18;
-      const adjY = this.sampleElevationAt(scene, adjX, adjZ) + liftY;
-      return new Vector3(adjX, adjY, adjZ);
+      const y = this.sampleElevationAt(scene, cx, cz) + liftY;
+      return new Vector3(cx, y, cz);
     };
 
     if (this.activeGridMode === 'Hex') {

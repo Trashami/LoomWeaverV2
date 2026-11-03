@@ -109,6 +109,11 @@ export function registerDiceSoundProfile(profile: DiceSoundProfile): void {
 export class DiceSoundService {
   readonly volume = signal<number>(0.78);
   readonly muted = signal<boolean>(false);
+  /**
+   * Crit success / failure procedural sound synthesis is disabled by default per user preference,
+   * while preserving the WebAudio synthesis engine below for future sound design updates.
+   */
+  readonly critSoundsEnabled = signal<boolean>(false);
 
   private audioCtx: AudioContext | null = null;
   private buffers = new Map<string, AudioBuffer>();
@@ -164,6 +169,7 @@ export class DiceSoundService {
   }
 
   playCriticalSuccessFanfare(profileId?: string): void {
+    if (!this.critSoundsEnabled()) return;
     const ctx = this.ensureContext();
     if (!ctx) return;
     const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5];
@@ -190,6 +196,7 @@ export class DiceSoundService {
   }
 
   playCriticalFailureFracture(): void {
+    if (!this.critSoundsEnabled()) return;
     const ctx = this.ensureContext();
     if (!ctx) return;
     const now = ctx.currentTime;

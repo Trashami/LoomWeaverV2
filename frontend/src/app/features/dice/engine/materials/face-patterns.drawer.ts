@@ -14,24 +14,7 @@ export function preloadDiceSurfaceAssets(): Promise<void> {
   }
 
   assetsPreloadPromise = new Promise<void>(resolve => {
-    let pending = 2;
-    const done = () => {
-      pending--;
-      if (pending <= 0) {
-        resolve();
-      }
-    };
-
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      preloadedRockImage = img;
-      done();
-    };
-    img.onerror = () => done();
-    img.src = '/assets/dice/rock_face_diff_2k.jpg';
-
-    void loadDiceFonts().then(done);
+    void loadDiceFonts().then(() => resolve()).catch(() => resolve());
   });
 
   return assetsPreloadPromise;

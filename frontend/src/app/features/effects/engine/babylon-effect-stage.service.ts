@@ -149,6 +149,7 @@ export class BabylonEffectStageService {
     this.has3dSceneLoaded.set(true);
     setActiveBaseCellWorld(1.5);
     sync3dMapSceneGraph(this.scene, state, this.ground, this.latestGridVisible, () => this.schedule3dSceneResync(), this.latestGridScale, this.latestGridOffsetX, this.latestGridOffsetY);
+    this.fogPlane?.refreshVolumetricMasking();
     if (this.latestTokens.length > 0) this.refreshTokens();
   }
 
@@ -277,14 +278,16 @@ export class BabylonEffectStageService {
     tokens: readonly VttTokenVm[],
     attackerKey?: string,
     targetKey?: string,
-    onTokenClicked?: (tokenKey: string, shiftKey?: boolean) => void,
+    onTokenClicked?: (tokenKey: string, shiftKey?: boolean, ctrlKey?: boolean) => void,
     onTokenRightClicked?: (event: TokenRightClickEvent) => void,
+    canStartTokenDrag?: (tokenKey: string, evt: PointerEvent) => boolean,
+    onGroundClicked?: (point: { x: number; z: number }, evt: PointerEvent) => void,
   ): void {
     this.dispose();
     try {
       this.engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
       this.scene = new Scene(this.engine);
-      this.scene.clearColor = new Color4(0.02, 0.05, 0.04, 1);
+      this.scene.clearColor = new Color4(0, 0, 0, 1);
       this.scene.shadowsEnabled = true;
 
       const onContextMenu = (e: MouseEvent) => {
@@ -361,7 +364,9 @@ export class BabylonEffectStageService {
             }
           }, 0);
         },
-        onTokenSelected: (key, shiftKey) => onTokenClicked?.(key, shiftKey),
+        canStartTokenDrag: (key, evt) => (canStartTokenDrag ? canStartTokenDrag(key, evt) : true),
+        onTokenSelected: (key, shiftKey, ctrlKey) => onTokenClicked?.(key, shiftKey, ctrlKey),
+        onGroundClicked: (pt, evt) => onGroundClicked?.(pt, evt),
         onTokenRightClicked: (event) => {
           this.rightClickedSubject.next(event);
           onTokenRightClicked?.(event);

@@ -37,10 +37,37 @@ public static class CombatTurnStore
         read.Parameters.AddWithValue("@k", tokenKey);
         double ox, oz;
         int remaining, hp;
+        var found = false;
         await using (var r = await read.ExecuteReaderAsync(ct))
         {
-            if (!await r.ReadAsync(ct)) return new(null, 404, "Token not found.");
-            ox = r.GetDouble(0); oz = r.GetDouble(1); remaining = r.GetInt32(2); hp = r.GetInt32(3);
+            if (await r.ReadAsync(ct))
+            {
+                found = true;
+                ox = r.GetDouble(0); oz = r.GetDouble(1); remaining = r.GetInt32(2); hp = r.GetInt32(3);
+            }
+            else
+            {
+                ox = x; oz = z; remaining = 30; hp = 20;
+            }
+        }
+
+        if (!found)
+        {
+            await using var insert = new MySqlCommand("""
+                INSERT INTO lw_combat_tokens
+                  (campaign_id, token_key, name, subtitle, faction, pos_x, pos_z, current_hp, max_hp, armor_class, initiative, speed_feet, movement_feet, revision)
+                VALUES
+                  (@c, @k, @n, 'Combatant', 'Party', @x, @z, 20, 20, 14, 10, 30, 30, 1)
+                ON DUPLICATE KEY UPDATE pos_x=@x, pos_z=@z, revision=revision+1;
+                """, db, tx);
+            insert.Parameters.AddWithValue("@c", campaignId);
+            insert.Parameters.AddWithValue("@k", tokenKey);
+            insert.Parameters.AddWithValue("@n", CombatTokenStore.CharacterKeyOf(tokenKey) ?? tokenKey);
+            insert.Parameters.AddWithValue("@x", x);
+            insert.Parameters.AddWithValue("@z", z);
+            await insert.ExecuteNonQueryAsync(ct);
+            await tx.CommitAsync(ct);
+            return new(new { tokenKey, x, z, movementRemainingFeet = 30 }, 200, null);
         }
 
         if (hp <= 0) return new(null, 409, "A defeated combatant cannot move.");

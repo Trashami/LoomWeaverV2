@@ -155,7 +155,7 @@ export function createFlatGridLineSystem(
   for (let x = -12 + offsetXWorld; x <= 12.001; x += step) {
     lines.push([new Vector3(x, 0.025, -8), new Vector3(x, 0.025, 8)]);
   }
-  for (let z = -8 - offsetZWorld; z <= 8.001; z += step) {
+  for (let z = -8 + offsetZWorld; z <= 8.001; z += step) {
     lines.push([new Vector3(-12, 0.025, z), new Vector3(12, 0.025, z)]);
   }
   const grid = MeshBuilder.CreateLineSystem('lw-vtt-grid', { lines }, scene);

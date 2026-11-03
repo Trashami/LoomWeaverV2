@@ -28,6 +28,7 @@ import { DICE_FORGE_DOCK_TOOLS } from '../dice-tool-dock/dice-tool-dock.componen
   imports: [CommonModule, FormsModule, NgpButton, LwDiceForgePhysicsPanelComponent],
   templateUrl: './dice-forge-inspector.component.html',
   styleUrl: './dice-forge-inspector.component.scss',
+  host: { class: 'lw-dice-inspector-host' },
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class LwDiceForgeInspectorComponent {

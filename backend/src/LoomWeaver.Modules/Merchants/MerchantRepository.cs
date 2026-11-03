@@ -230,11 +230,18 @@ public static class MerchantRepository
 
     private static async Task<string> GetCampaignCurrentLocationAsync(MySqlConnection db, int campaignId, CancellationToken ct)
     {
-        await using var cmd = new MySqlCommand(
-            "SELECT current_location_name FROM lw_campaigns WHERE id = @cid LIMIT 1", db);
-        cmd.Parameters.AddWithValue("@cid", campaignId);
-        var res = await cmd.ExecuteScalarAsync(ct);
-        return res?.ToString() ?? "Starting Location";
+        try
+        {
+            await using var cmd = new MySqlCommand(
+                "SELECT current_location_name FROM lw_campaigns WHERE id = @cid LIMIT 1", db);
+            cmd.Parameters.AddWithValue("@cid", campaignId);
+            var res = await cmd.ExecuteScalarAsync(ct);
+            return res?.ToString() ?? "Starting Location";
+        }
+        catch
+        {
+            return "Starting Location";
+        }
     }
 
     private static bool IsLocationMatch(string merchantLocation, string campaignCurrentLocation)

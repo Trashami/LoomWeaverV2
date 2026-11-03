@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { NgpButton } from 'ng-primitives/button';
 import { LwIconComponent } from '../../../../shared/ui/icon/icon.component';
+import { CraftingRecipe } from '../../models/crafting.models';
 import { CraftingService } from '../../services/crafting.service';
 
 @Component({
@@ -16,13 +17,13 @@ export class CraftingWorkshopComponent {
 
   readonly inventoryFilter = signal<'materials' | 'all'>('materials');
   readonly bastionBonusActive = signal<boolean>(false);
+  readonly craftPacing = signal<'session' | 'standard'>('session');
 
   readonly filteredInventory = computed(() => {
     const inv = this.crafting.characterInventory();
     if (this.inventoryFilter() === 'all') {
       return inv;
     }
-    // Filter to known materials, reagents, herbs, tools, parts, sustenance
     const materialKeywords = [
       'herb', 'leaf', 'root', 'ore', 'crystal', 'ingot', 'dust', 'powder',
       'moss', 'wood', 'timber', 'pitch', 'hide', 'feather', 'sac', 'brine',
@@ -59,7 +60,18 @@ export class CraftingWorkshopComponent {
     this.crafting.searchQuery.set(query);
   }
 
-  getRecipeMod(recipe: import('../../models/crafting.models').CraftingRecipe) {
+  getRecipeMod(recipe: CraftingRecipe) {
     return this.crafting.getCharacterRecipeModifier(this.crafting.focusedCharacterKey(), recipe);
+  }
+
+  onCraftRecipe(recipe: CraftingRecipe): void {
+    let durationSeconds = recipe.durationMinutes * 60;
+    if (this.bastionBonusActive() && recipe.bastionBonusEligible) {
+      durationSeconds = Math.floor(durationSeconds / 2);
+    }
+    if (this.craftPacing() === 'session' && durationSeconds > 0) {
+      durationSeconds = Math.min(120, durationSeconds);
+    }
+    this.crafting.startCrafting(recipe, durationSeconds);
   }
 }

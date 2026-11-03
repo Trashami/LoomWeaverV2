@@ -21,9 +21,15 @@ public static class MerchantGenerationService
             ? req.MerchantType
             : MerchantGeneratorData.MerchantTypes[rng.Next(MerchantGeneratorData.MerchantTypes.Count)];
 
-        var storeName = MerchantGeneratorData.GenerateStoreName(type);
-        var locName = !string.IsNullOrWhiteSpace(req.LocationName) ? req.LocationName : "Local Settlement";
+        var storeName = !string.IsNullOrWhiteSpace(req.StoreName)
+            ? req.StoreName.Trim()
+            : MerchantGeneratorData.GenerateStoreName(type);
+        var locName = !string.IsNullOrWhiteSpace(req.LocationName) ? req.LocationName.Trim() : "Local Settlement";
         var npc = MerchantGeneratorData.GenerateNpc(type, locName);
+        if (!string.IsNullOrWhiteSpace(req.MerchantName))
+        {
+            npc = npc with { Name = req.MerchantName.Trim() };
+        }
 
         var tagline = GetTagline(type);
         var greeting = GetGreeting(type, npc);

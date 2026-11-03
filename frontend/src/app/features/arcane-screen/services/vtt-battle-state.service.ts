@@ -97,8 +97,9 @@ export class VttBattleStateService {
 
   readonly pendingAbility = signal<VttTacticalAbilityVm | null>(null);
   readonly targetSelectionMode = signal<boolean>(false);
-  readonly multiTargetKeys = signal<readonly string[]>(['1:Encounter:vamp-1']);
+  readonly multiTargetKeys = signal<readonly string[]>([]);
   readonly queuedTargetSequence = signal<readonly string[]>([]);
+  readonly hasActiveTargetTether = signal<boolean>(false);
 
   readonly chatMessages = signal<readonly VttChatMessageVm[]>(SEED_VTT_CHAT_MESSAGES);
   readonly scopedQuests = signal<readonly VttScopedQuestVm[]>(SEED_VTT_SCOPED_QUESTS);
@@ -231,11 +232,11 @@ export class VttBattleStateService {
     if (!obs) return null;
     const ability = this.pendingAbility() ? this.pendingAbility() : this.measureEnabled() && this.measureSubMode() === 'spell' ? this.measuredAbility() : null;
     if (!ability) return null;
-    const candidates = this.visibleMapTokens().filter((t) => t.key !== obs.key);
     const isSingleOrMulti = this.isSingleOrMultiTargetAbility(ability);
     const maxTargets = Math.max(1, ability.maxTargets || 1);
 
     if (isSingleOrMulti) {
+      const candidates = this.visibleMapTokens().filter((t) => t.key !== obs.key);
       const snappedToken = findClosestSnapToken({ x: obs.x, z: obs.z }, this.cursorWorldPos(), ability.rangeFeet, this.actionBarSettings().snapSensitivityFeet, candidates, this.walls());
       const desiredEnd: VttPoint2D = snappedToken ? { x: snappedToken.x, z: snappedToken.z } : this.cursorWorldPos();
       const clamped = clampLineToRangeAndWalls({ x: obs.x, z: obs.z }, desiredEnd, ability.rangeFeet, this.walls(), false);
@@ -245,13 +246,14 @@ export class VttBattleStateService {
 
     const clamped = clampLineToRangeAndWalls({ x: obs.x, z: obs.z }, this.cursorWorldPos(), ability.rangeFeet, this.walls(), false);
     const aoeRadius = Math.max(10, ability.aoeRadiusFeet);
-    const highlightedTokens = findTokensInAoe(clamped.end, aoeRadius, candidates);
+    const highlightedTokens = findTokensInAoe(clamped.end, aoeRadius, this.visibleMapTokens());
     return { ability, clamped, isSingleOrMulti: false, maxTargets: 0, snappedToken: null, aoeRadiusFeet: aoeRadius, highlightedTokens, highlightedKeys: new Set(highlightedTokens.map((t) => t.key)) };
   });
 
   isTokenTargetedWithReticle(tokenKey: string): boolean {
-    if (this.activeRangeAndAoePreview()?.highlightedKeys?.has(tokenKey)) return true;
-    return this.queuedTargetSequence().includes(tokenKey) || this.multiTargetKeys().includes(tokenKey);
+    const preview = this.activeRangeAndAoePreview();
+    if (preview && !preview.isSingleOrMulti) return preview.highlightedKeys.has(tokenKey);
+    return !!preview?.highlightedKeys?.has(tokenKey) || this.queuedTargetSequence().includes(tokenKey) || this.multiTargetKeys().includes(tokenKey);
   }
 
   getTargetStackCount(tokenKey: string): number {
@@ -260,10 +262,23 @@ export class VttBattleStateService {
   }
 
   readonly allReticleTargetKeys = computed<readonly string[]>(() => {
+    const preview = this.activeRangeAndAoePreview();
+    if (preview && !preview.isSingleOrMulti) return preview.highlightedTokens.map((t) => t.key);
     const set = new Set<string>(this.multiTargetKeys());
     this.queuedTargetSequence().forEach((k) => set.add(k));
-    this.activeRangeAndAoePreview()?.highlightedTokens.forEach((t) => set.add(t.key));
+    preview?.highlightedTokens.forEach((t) => set.add(t.key));
     return Array.from(set);
+  });
+
+  readonly activeTetherTargetPoints = computed<readonly VttPoint2D[]>(() => {
+    const obs = this.activeObserverToken();
+    const preview = this.activeRangeAndAoePreview();
+    if (preview && !preview.isSingleOrMulti) return [];
+    const tokens = this.visibleMapTokens();
+    const keys = this.queuedTargetSequence().length > 0 ? this.queuedTargetSequence() : this.hasActiveTargetTether() ? this.multiTargetKeys() : [];
+    const pts = keys.filter((k) => !obs || k !== obs.key).map((k) => tokens.find((tok) => tok.key === k)).filter((t): t is VttTokenVm => !!t).map((t) => ({ x: t.x, z: t.z }));
+    if (preview && preview.isSingleOrMulti && preview.snappedToken && !keys.includes(preview.snappedToken.key)) pts.push({ x: preview.snappedToken.x, z: preview.snappedToken.z });
+    return pts;
   });
 
   readonly activeMovementPreview = computed(() => {
@@ -381,7 +396,13 @@ export class VttBattleStateService {
   beginAbilityTargeting(ability: VttTacticalAbilityVm): void {
     if (!this.isAbilityAvailableOnTurn(ability)) return;
     this.measureEnabled.set(false);
-    this.queuedTargetSequence.set([]);
+    if (!this.isSingleOrMultiTargetAbility(ability)) {
+      const obs = this.activeObserverToken();
+      if (obs) this.cursorWorldPos.set({ x: obs.x, z: obs.z });
+      this.multiTargetKeys.set([]); this.queuedTargetSequence.set([]); this.hasActiveTargetTether.set(false);
+    } else if (!this.hasActiveTargetTether()) {
+      this.queuedTargetSequence.set([]);
+    }
     this.pendingAbility.set(ability);
   }
 
@@ -392,32 +413,33 @@ export class VttBattleStateService {
     if (!preview.isSingleOrMulti) {
       const aoeKeys = preview.highlightedTokens.map((t) => t.key);
       if (aoeKeys.length > 0) { this.multiTargetKeys.set(aoeKeys); this.queuedTargetSequence.set(aoeKeys); this.vtt.selectedTargetKey.set(aoeKeys[0]); }
-      return { shouldExecuteNow: true, selectedCount: aoeKeys.length, maxTargets: aoeKeys.length };
+      return { shouldExecuteNow: aoeKeys.length > 0, selectedCount: aoeKeys.length, maxTargets: aoeKeys.length };
     }
     const picked = targetToken ?? preview.snappedToken;
     if (!picked) return { shouldExecuteNow: false, selectedCount: this.queuedTargetSequence().length, maxTargets: preview.maxTargets };
     const nextSeq = [...this.queuedTargetSequence(), picked.key];
     this.queuedTargetSequence.set(nextSeq);
     this.multiTargetKeys.set(Array.from(new Set(nextSeq)));
+    this.hasActiveTargetTether.set(true);
     this.vtt.selectedTargetKey.set(picked.key);
     return { shouldExecuteNow: nextSeq.length >= preview.maxTargets, selectedCount: nextSeq.length, maxTargets: preview.maxTargets };
   }
 
   handleTokenClick(token: VttTokenVm, shiftKey: boolean): void {
     const obs = this.activeObserverToken();
-    if ((token.faction === 'party' || this.store.viewerRole() === 'gm') && !shiftKey && !this.targetSelectionMode() && !this.pendingAbility()) {
+    if (token.faction === 'party' && !shiftKey && !this.targetSelectionMode() && !this.pendingAbility()) {
       this.vtt.selectedAttackerKey.set(token.key);
       return;
     }
     if (obs && !this.isTokenInPlayerLoS(token) && this.store.viewerRole() === 'players') return;
     if (shiftKey || this.targetSelectionMode()) {
-      this.multiTargetKeys.update((keys) => [...keys, token.key]);
+      this.multiTargetKeys.update((keys) => Array.from(new Set([...keys, token.key])));
       this.queuedTargetSequence.update((seq) => [...seq, token.key]);
-      this.vtt.selectedTargetKey.set(token.key);
+      this.hasActiveTargetTether.set(true); this.vtt.selectedTargetKey.set(token.key);
     } else if (!this.pendingAbility()) {
-      this.multiTargetKeys.set([token.key]);
-      this.queuedTargetSequence.set([token.key]);
-      this.vtt.selectedTargetKey.set(token.key);
+      if (this.store.viewerRole() === 'gm' && obs && obs.key === token.key) { this.vtt.selectedAttackerKey.set(token.key); return; }
+      this.multiTargetKeys.set([token.key]); this.queuedTargetSequence.set([token.key]);
+      this.hasActiveTargetTether.set(true); this.vtt.selectedTargetKey.set(token.key);
     }
   }
 
@@ -429,7 +451,7 @@ export class VttBattleStateService {
     const allTokens = this.vtt.tokens();
     let finalTargets: VttTokenVm[] = [];
     if (preview.isSingleOrMulti) {
-      const seq = this.queuedTargetSequence();
+      const seq = this.queuedTargetSequence().length > 0 ? this.queuedTargetSequence() : this.multiTargetKeys();
       if (seq.length > 0) finalTargets = seq.map((key) => allTokens.find((t) => t.key === key)).filter((t): t is VttTokenVm => !!t);
       else if (preview.snappedToken) finalTargets = [preview.snappedToken];
     } else {
@@ -439,13 +461,16 @@ export class VttBattleStateService {
       this.multiTargetKeys.set(Array.from(new Set(finalTargets.map((t) => t.key))));
       this.vtt.selectedTargetKey.set(finalTargets[0].key);
     }
-    this.pendingAbility.set(null);
-    this.queuedTargetSequence.set([]);
     return { ability, targets: finalTargets };
   }
 
+  clearTargetSelectionAfterCast(): void {
+    this.pendingAbility.set(null); this.multiTargetKeys.set([]); this.queuedTargetSequence.set([]);
+    this.hasActiveTargetTether.set(false); this.targetSelectionMode.set(false);
+  }
+
   cancelAllInteractiveModes(): void {
-    this.pendingAbility.set(null); this.queuedTargetSequence.set([]); this.targetSelectionMode.set(false);
+    this.clearTargetSelectionAfterCast();
     this.measureEnabled.set(false); this.fogBrushMode.set('none'); this.tokenContextMenu.set(null);
     this.draggingTokenKey.set(null); this.dragStartWorldPos.set(null);
   }

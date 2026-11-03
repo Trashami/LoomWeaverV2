@@ -158,6 +158,8 @@ export class MerchantsApiService {
     populateInventory: boolean;
     locationName?: string;
     locationKey?: string;
+    storeName?: string;
+    merchantName?: string;
   }): Observable<LwMerchantDetailVm> {
     return this.http.post<LwMerchantDetailVm>(`/api/v2/campaigns/${campaignId}/merchants/generate-random`, payload);
   }

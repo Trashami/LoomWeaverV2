@@ -9,16 +9,19 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { NgpButton } from 'ng-primitives/button';
 import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
+import { WorldLoreFacadeService } from '../../core/services/world-lore-facade.service';
 import {
-  LwBadgeComponent,
   LwIconComponent,
-  LwModalComponent,
   LwPageHeaderComponent,
 } from '../../shared/ui/public-api';
 import {
   LwMerchantSummaryVm,
   MerchantsApiService,
 } from './merchants-api.service';
+import { FANTASY_NPC_NAMES } from './merchant-generator.helpers';
+import { MerchantChoiceModalComponent } from './components/merchant-choice-modal/merchant-choice-modal.component';
+import { MerchantRandomModalComponent } from './components/merchant-random-modal/merchant-random-modal.component';
+import { MerchantCreateModalComponent } from './components/merchant-create-modal/merchant-create-modal.component';
 
 type MerchantFilterTab = 'all' | 'near' | 'visited';
 
@@ -31,7 +34,9 @@ type MerchantFilterTab = 'all' | 'near' | 'visited';
     NgpButton,
     LwPageHeaderComponent,
     LwIconComponent,
-    LwModalComponent,
+    MerchantChoiceModalComponent,
+    MerchantRandomModalComponent,
+    MerchantCreateModalComponent,
   ],
   templateUrl: './merchants.page.html',
   styleUrl: './merchants.page.scss',
@@ -39,6 +44,7 @@ type MerchantFilterTab = 'all' | 'near' | 'visited';
 })
 export class MerchantsPageComponent {
   readonly store = inject(LoomWeaverStoreService);
+  private readonly worldLore = inject(WorldLoreFacadeService);
   private readonly api = inject(MerchantsApiService);
   private readonly router = inject(Router);
 
@@ -47,43 +53,66 @@ export class MerchantsPageComponent {
   readonly errorMessage = signal('');
   readonly activeTab = signal<MerchantFilterTab>('all');
   readonly searchQuery = signal('');
-  readonly createModalOpen = signal(false);
   readonly isGmMode = signal(false);
 
-  // Random Forge Modal state
+  // Modals state
+  readonly choiceModalOpen = signal(false);
   readonly randomModalOpen = signal(false);
-  readonly randomMerchantType = signal('random');
-  readonly randomPopulateInventory = signal(true);
-  readonly randomLocation = signal('');
-  readonly generatingRandom = signal(false);
-
-  readonly merchantTypes: readonly string[] = [
-    'Blacksmith & Armory',
-    'Alchemist & Apothecary',
-    'Arcane & Wandmaker',
-    'General Goods & Provisions',
-    'Jeweler & Gemcutter',
-    'Curios & Antiquities',
-    'Tavern & Brewer',
-    'Fletcher & Bowyer',
-    'Tailor & Weaver',
-    'Wandering Exotic Trader',
-  ];
-
-  // New merchant form model
-  readonly newStoreName = signal('');
-  readonly newMerchantName = signal('');
-  readonly newTagline = signal('');
-  readonly newDescription = signal('');
-  readonly newLocationName = signal('');
-  readonly newGreeting = signal('Welcome! Look around, tell me what catches your eye.');
-  readonly newRollTableName = signal('');
-  readonly newBuyRate = signal(50);
-  readonly newMarkup = signal(100);
+  readonly createModalOpen = signal(false);
+  readonly actionBusy = signal(false);
 
   readonly activeCampaign = computed(() => this.store.activeCampaign());
   readonly isGm = computed(() => this.store.isGmForActiveCampaign() || this.store.viewerRole() === 'gm');
-  readonly currentLocation = computed(() => this.activeCampaign().currentLocationName || 'Starting Location');
+  readonly currentLocation = computed(() => this.activeCampaign().currentLocationName || 'Vandia Harbor');
+
+  // Aggregated campaign locations from multiple data sources
+  readonly campaignLocations = computed<readonly string[]>(() => {
+    const set = new Set<string>();
+    const curr = this.currentLocation();
+    if (curr) set.add(curr);
+
+    // From active sessions
+    this.store.sessions().forEach((s) => {
+      if (s.locationName) set.add(s.locationName);
+      if (s.locationLabel) set.add(s.locationLabel);
+    });
+
+    // From world lore markers
+    this.worldLore.workspace().markers.forEach((m) => {
+      if (m.name && (m.category === 'Settlements' || m.category === 'Locations' || m.category === 'Regions')) {
+        set.add(m.name);
+      }
+    });
+
+    // Curated campaign geography
+    ['Vandia Harbor', 'Cinth High Market', 'Plains of Vistagh', 'Bay of Forgotten Treasures', 'Whispering Grove'].forEach(
+      (loc) => set.add(loc),
+    );
+
+    return Array.from(set);
+  });
+
+  // Aggregated campaign NPCs from multiple data sources
+  readonly campaignNpcs = computed<readonly string[]>(() => {
+    const set = new Set<string>();
+
+    // From campaign dashboard guide
+    const guideNpcs = this.store.campaignDashboard().sessionGuide?.keyNpcs ?? [];
+    guideNpcs.forEach((n) => {
+      if (typeof n === 'string') set.add(n);
+      else if (n && typeof n === 'object' && 'name' in n) set.add((n as { name: string }).name);
+    });
+
+    // From world lore markers
+    this.worldLore.workspace().markers.forEach((m) => {
+      if (m.name && m.category === 'NPCs') set.add(m.name);
+    });
+
+    // Curated fantasy D&D NPC shopkeepers
+    FANTASY_NPC_NAMES.slice(0, 15).forEach((name) => set.add(name));
+
+    return Array.from(set);
+  });
 
   readonly filteredMerchants = computed(() => {
     const list = this.merchants();
@@ -138,77 +167,89 @@ export class MerchantsPageComponent {
     this.router.navigate(['/merchants', merchant.id]);
   }
 
-  openCreateModal(): void {
-    this.newStoreName.set('');
-    this.newMerchantName.set('');
-    this.newTagline.set('');
-    this.newDescription.set('');
-    this.newLocationName.set(this.currentLocation());
-    this.newGreeting.set('Welcome! Look around, tell me what catches your eye.');
-    this.newRollTableName.set('Magic Item Table A');
-    this.newBuyRate.set(50);
-    this.newMarkup.set(100);
-    this.createModalOpen.set(true);
+  openAddMerchantChoice(): void {
+    this.choiceModalOpen.set(true);
   }
 
-  submitCreateMerchant(): void {
-    if (!this.newStoreName().trim()) return;
-
-    const cid = this.store.activeCampaignId() || 1;
-    this.api
-      .createMerchant(cid, {
-        storeName: this.newStoreName().trim(),
-        merchantName: this.newMerchantName().trim() || 'Shopkeeper',
-        tagline: this.newTagline().trim(),
-        description: this.newDescription().trim(),
-        locationName: this.newLocationName().trim() || this.currentLocation(),
-        greeting: this.newGreeting().trim(),
-        rollTableName: this.newRollTableName().trim(),
-        buyRatePercent: this.newBuyRate(),
-        markupPercent: this.newMarkup(),
-        imageUrl: '/portraits/default-merchant.png',
-        bannerUrl: '/campaigns/market-banner.jpg',
-        isUnlocked: true,
-      })
-      .subscribe({
-        next: () => {
-          this.createModalOpen.set(false);
-          this.loadMerchants();
-        },
-        error: () => {
-          this.errorMessage.set('Could not create merchant.');
-        },
-      });
-  }
-
-  openRandomModal(): void {
-    this.randomMerchantType.set('random');
-    this.randomPopulateInventory.set(true);
-    this.randomLocation.set(this.currentLocation());
+  onChoiceRandom(): void {
     this.randomModalOpen.set(true);
   }
 
-  submitGenerateRandom(): void {
-    const cid = this.store.activeCampaignId() || 1;
-    this.generatingRandom.set(true);
+  onChoiceManual(): void {
+    this.createModalOpen.set(true);
+  }
 
-    const type = this.randomMerchantType();
+  onRandomConfirmed(payload: {
+    merchantType: string;
+    storeName: string;
+    merchantName: string;
+    locationName: string;
+    populateInventory: boolean;
+  }): void {
+    const cid = this.store.activeCampaignId() || 1;
+    this.actionBusy.set(true);
+
     this.api
       .generateRandomMerchant(cid, {
-        merchantType: type === 'random' ? undefined : type,
-        populateInventory: this.randomPopulateInventory(),
-        locationName: this.randomLocation().trim() || this.currentLocation(),
+        merchantType: payload.merchantType,
+        populateInventory: payload.populateInventory,
+        locationName: payload.locationName,
+        storeName: payload.storeName,
+        merchantName: payload.merchantName,
       })
       .subscribe({
         next: (created) => {
-          this.generatingRandom.set(false);
+          this.actionBusy.set(false);
           this.randomModalOpen.set(false);
           this.loadMerchants();
           this.router.navigate(['/merchants', created.id]);
         },
         error: () => {
-          this.generatingRandom.set(false);
-          this.errorMessage.set('Could not forge random merchant.');
+          this.actionBusy.set(false);
+          this.errorMessage.set('Could not establish random merchant.');
+        },
+      });
+  }
+
+  onManualCreated(payload: {
+    storeName: string;
+    merchantName: string;
+    merchantType: string;
+    locationName: string;
+    tagline: string;
+    description: string;
+    greeting: string;
+    buyRatePercent: number;
+    markupPercent: number;
+  }): void {
+    const cid = this.store.activeCampaignId() || 1;
+    this.actionBusy.set(true);
+
+    this.api
+      .createMerchant(cid, {
+        storeName: payload.storeName,
+        merchantName: payload.merchantName,
+        merchantType: payload.merchantType,
+        locationName: payload.locationName,
+        tagline: payload.tagline,
+        description: payload.description,
+        greeting: payload.greeting,
+        buyRatePercent: payload.buyRatePercent,
+        markupPercent: payload.markupPercent,
+        imageUrl: `/portraits/merchants/${payload.merchantType.toLowerCase().replace(/ & /g, '-').replace(/ /g, '-')}.png`,
+        bannerUrl: '/campaigns/market-banner.jpg',
+        isUnlocked: true,
+      })
+      .subscribe({
+        next: (created) => {
+          this.actionBusy.set(false);
+          this.createModalOpen.set(false);
+          this.loadMerchants();
+          this.router.navigate(['/merchants', created.id]);
+        },
+        error: () => {
+          this.actionBusy.set(false);
+          this.errorMessage.set('Could not create merchant.');
         },
       });
   }

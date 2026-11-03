@@ -23,10 +23,20 @@ import { VttMapToolsComponent } from './components/vtt-map-tools/vtt-map-tools.c
 import { VttSettingsModalComponent } from './components/vtt-settings-modal/vtt-settings-modal.component';
 import { VttSettingsPanelComponent } from './components/vtt-settings-panel/vtt-settings-panel.component';
 import { VttTokenContextMenuComponent } from './components/vtt-token-context-menu/vtt-token-context-menu.component';
-import { BASE_GRID_CELL_SVG_PX, svgToWorldPoint, worldToSvgX, worldToSvgY } from './engine/vtt-los-and-grid.engine';
+import { VttCombatOrderModalComponent } from './components/vtt-combat-order-modal/vtt-combat-order-modal.component';
+import {
+  BASE_GRID_CELL_SVG_PX,
+  clampLineToRangeAndWalls,
+  getActiveCellStepWorld,
+  svgToWorldPoint,
+  worldToSvgX,
+  worldToSvgY,
+} from './engine/vtt-los-and-grid.engine';
+import { getEffectiveTokenVisionFeet } from './engine/vtt-fog-of-war.engine';
 import { extractSceneOccludersFromMapState } from './engine/vtt-scene-occluders.helper';
 import { VttBattleStateService } from './services/vtt-battle-state.service';
 import { VttCombatService } from './services/vtt-combat.service';
+import { VttCombatWorkflowService } from './services/vtt-combat-workflow.service';
 import { VttDisplaySettingsService } from './services/vtt-display-settings.service';
 import { VttMapView2dService } from './services/vtt-map-view-2d.service';
 
@@ -47,6 +57,7 @@ export const ARCANE_SCREEN_PAGE_IMPORTS = [
   VttSettingsPanelComponent,
   VttHandoutModalComponent,
   VttTokenContextMenuComponent,
+  VttCombatOrderModalComponent,
 ] as const;
 
 export interface CalibStartPoint {
@@ -120,7 +131,8 @@ export function finishGridCalibration(
     const p1 = stage.pickGroundPoint(start.x, start.y);
     const p2 = stage.pickGroundPoint(event.clientX, event.clientY);
     if (p1 && p2) {
-      vttDisplay.applyDrawnSquareCalibration(worldToSvgX(p1.x), worldToSvgY(p1.z), worldToSvgX(p2.x), worldToSvgY(p2.z));
+      vttDisplay.applyDrawnWorldSquareCalibration(p1, p2, stage.has3dSceneLoaded());
+      stage.setGridVisible(true, vttDisplay.gridScale(), vttDisplay.gridOffsetX(), vttDisplay.gridOffsetY());
       return true;
     }
   }
@@ -164,9 +176,11 @@ export function paintFogBrushAtScreenPoint(
 export function handleVttWindowKeydown(
   event: KeyboardEvent,
   battle: VttBattleStateService,
+  vtt: VttCombatService,
   vttDisplay: VttDisplaySettingsService,
   view2d: VttMapView2dService,
   stage: BabylonEffectStageService,
+  serverSync: { publishMove: (k: string, x: number, z: number) => Promise<unknown> },
   toggleGrid: () => void,
   onCastOrSync: (cast: boolean) => void,
 ): void {
@@ -177,6 +191,47 @@ export function handleVttWindowKeydown(
       battle.settingsModalOpen.set(false);
       vttDisplay.calibratingGrid.set(false);
     }
+    return;
+  }
+  if (
+    event.key === 'ArrowUp' ||
+    event.key === 'ArrowDown' ||
+    event.key === 'ArrowLeft' ||
+    event.key === 'ArrowRight'
+  ) {
+    event.preventDefault();
+    const token = battle.activeObserverToken();
+    if (!token) return;
+    const perm = battle.canMoveToken(token);
+    if (!perm.allowed) return;
+    const step = getActiveCellStepWorld();
+    const is3d = stage.has3dSceneLoaded();
+    const maxW = is3d ? 17.5 : 11.5;
+    const maxH = is3d ? 13.0 : 7.5;
+    const zSign = !stage.has3dSceneLoaded() && !battle.mapMode3D() ? -1 : 1;
+    let dx = 0;
+    let dz = 0;
+    if (event.key === 'ArrowLeft') dx = -step;
+    else if (event.key === 'ArrowRight') dx = step;
+    else if (event.key === 'ArrowUp') dz = step * zSign;
+    else if (event.key === 'ArrowDown') dz = -step * zSign;
+
+    const desired = {
+      x: Math.max(-maxW, Math.min(maxW, Math.round((token.x + dx) * 100) / 100)),
+      z: Math.max(-maxH, Math.min(maxH, Math.round((token.z + dz) * 100) / 100)),
+    };
+    const clamped = clampLineToRangeAndWalls({ x: token.x, z: token.z }, desired, 5, battle.walls(), true);
+    if (clamped.blockedByWall) return;
+    vtt.applyRemoteTokenMove(token.key, desired.x, desired.z);
+    if (!battle.canControlToken(token) || token.faction === 'party') {
+      battle.usedMovementFeetByToken.update((prev) => ({ ...prev, [token.key]: (prev[token.key] ?? 0) + 5 }));
+      battle.exploredTrailPoints.update((pts) => [
+        ...pts,
+        { x: desired.x, z: desired.z, radiusFeet: getEffectiveTokenVisionFeet(token, battle.playerSightDistanceFeet(), battle.applyTokenVision()) },
+      ]);
+    }
+    onCastOrSync(false);
+    void serverSync.publishMove(token.key, desired.x, desired.z);
     return;
   }
   if (event.code === 'Space' && !event.repeat) {
@@ -205,20 +260,17 @@ export function handleVttWindowKeydown(
 export async function runPendingAbilityCastAndFx(
   battle: VttBattleStateService,
   vtt: VttCombatService,
-  stage: BabylonEffectStageService,
+  workflow: VttCombatWorkflowService,
   onSync: () => void,
 ): Promise<void> {
   const confirmed = battle.confirmPendingAbilityCast();
   if (!confirmed) return;
   const { ability, targets } = confirmed;
-  const targetList = targets.length > 0 ? targets : [vtt.selectedTarget()];
-  let lastFx: Awaited<ReturnType<typeof vtt.executeActionOnTarget>> = null;
-  for (const target of targetList) {
-    vtt.selectedTargetKey.set(target.key);
-    lastFx = (await vtt.executeActionOnTarget(ability)) ?? lastFx;
-  }
+  const attacker = battle.activeObserverToken() ?? vtt.selectedAttacker();
+  const targetList = targets.length > 0 ? targets : vtt.selectedTarget() ? [vtt.selectedTarget()] : [];
+  if (!attacker || targetList.length === 0) return;
+  workflow.openWorkflow(attacker, ability, targetList, onSync);
   onSync();
-  if (lastFx) stage.playTrajectoryEffect(lastFx.preset, lastFx.startPos, lastFx.endPos);
 }
 
 export function triggerQuickDcCheckRoll(
@@ -350,6 +402,10 @@ export function registerArcaneScreenStageEffects(
     vtt.selectedTargetKey();
     battle.multiTargetKeys();
     battle.queuedTargetSequence();
+    battle.hasActiveTargetTether();
+    battle.pendingAbility();
+    battle.measureEnabled();
+    battle.cursorWorldPos();
     fog.layer();
     fog.opacityByKey();
     untracked(() => host.sync3dStage());

@@ -153,7 +153,9 @@ public sealed record GenerateRandomMerchantRequest(
     string? MerchantType,
     bool PopulateInventory,
     string? LocationName,
-    string? LocationKey
+    string? LocationKey = null,
+    string? StoreName = null,
+    string? MerchantName = null
 );
 
 public sealed record GenerateRandomNpcRequest(

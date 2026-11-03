@@ -6,7 +6,7 @@ import {
 } from "../models/vtt-battle.models";
 
 export const FEET_PER_WORLD_UNIT = 5;
-export const WORLD_UNITS_PER_GRID_CELL = 1; // 1 world unit = 50 SVG px = 1 5-ft square at scale 1.0
+export const WORLD_UNITS_PER_GRID_CELL = 1; // 1 world unit = 50 SVG px = 1 5-ft square at scale 1.0 (1.5m on 3D terrain)
 export const SVG_VIEWBOX_WIDTH = 1200;
 export const SVG_VIEWBOX_HEIGHT = 800;
 export const BASE_GRID_CELL_SVG_PX = 50;
@@ -14,6 +14,15 @@ export const BASE_GRID_CELL_SVG_PX = 50;
 let currentGridScale = 1.0;
 let currentGridOffsetX = 0.0;
 let currentGridOffsetY = 0.0;
+let currentBaseCellWorld = 1.0;
+
+export function setActiveBaseCellWorld(baseMeters: number): void {
+  currentBaseCellWorld = baseMeters > 0.5 ? baseMeters : 1.0;
+}
+
+export function getActiveCellStepWorld(): number {
+  return Math.max(0.25, currentBaseCellWorld * currentGridScale);
+}
 
 export function setActiveGridCalibration(scale: number, offsetX: number, offsetY: number): void {
   currentGridScale = Math.max(0.25, Math.min(3.0, scale || 1.0));
@@ -58,20 +67,24 @@ export function feetToSvgPx(feet: number): number {
 }
 
 export function distanceInFeet(a: VttPoint2D, b: VttPoint2D): number {
-  const cellWorld = 1.0 * currentGridScale;
+  const cellWorld = getActiveCellStepWorld();
   const squares = Math.hypot(b.x - a.x, b.z - a.z) / cellWorld;
   return Math.round(squares * 5 * 10) / 10;
 }
 
 export function snapToFiveFootGrid(pt: VttPoint2D): VttPoint2D {
-  const stepWorld = Math.max(0.25, WORLD_UNITS_PER_GRID_CELL * currentGridScale);
-  const offXWorld = (currentGridOffsetX / BASE_GRID_CELL_SVG_PX) * WORLD_UNITS_PER_GRID_CELL;
-  const offZWorld = (currentGridOffsetY / BASE_GRID_CELL_SVG_PX) * WORLD_UNITS_PER_GRID_CELL;
-  const snappedX = Math.round((pt.x - offXWorld) / stepWorld) * stepWorld + offXWorld;
-  const snappedZ = Math.round((pt.z - offZWorld) / stepWorld) * stepWorld + offZWorld;
+  const stepWorld = getActiveCellStepWorld();
+  const offXWorld = (currentGridOffsetX / BASE_GRID_CELL_SVG_PX) * currentBaseCellWorld;
+  const offZWorld = (currentGridOffsetY / BASE_GRID_CELL_SVG_PX) * currentBaseCellWorld;
+  const halfW = currentBaseCellWorld > 1.1 ? 18.0 : 12.0;
+  const halfH = currentBaseCellWorld > 1.1 ? 13.5 : 8.0;
+  const startX = -halfW + (((offXWorld % stepWorld) + stepWorld) % stepWorld);
+  const startZ = -halfH + (((offZWorld % stepWorld) + stepWorld) % stepWorld);
+  const snappedX = startX + (Math.floor((pt.x - startX) / stepWorld) + 0.5) * stepWorld;
+  const snappedZ = startZ + (Math.floor((pt.z - startZ) / stepWorld) + 0.5) * stepWorld;
   return {
-    x: Math.max(-17.5, Math.min(17.5, Math.round(snappedX * 100) / 100)),
-    z: Math.max(-13.0, Math.min(13.0, Math.round(snappedZ * 100) / 100)),
+    x: Math.max(-halfW + 0.35, Math.min(halfW - 0.35, Math.round(snappedX * 100) / 100)),
+    z: Math.max(-halfH + 0.35, Math.min(halfH - 0.35, Math.round(snappedZ * 100) / 100)),
   };
 }
 
@@ -120,7 +133,7 @@ export function clampLineToRangeAndWalls(
   const dx = desiredEnd.x - start.x;
   const dz = desiredEnd.z - start.z;
   const rawWorldDist = Math.hypot(dx, dz);
-  const maxWorldDist = (maxRangeFeet / 5) * currentGridScale;
+  const maxWorldDist = (maxRangeFeet / 5) * getActiveCellStepWorld();
 
   let clampedEnd: VttPoint2D = desiredEnd;
   if (rawWorldDist > maxWorldDist && rawWorldDist > 1e-5) {
@@ -192,7 +205,7 @@ export function computeVisibilityPolygonSvgPoints(
   walls: readonly VttWallSegmentVm[],
   rayCount = 96,
 ): string {
-  const maxWorldDist = (sightDistanceFeet / 5) * currentGridScale;
+  const maxWorldDist = (sightDistanceFeet / 5) * getActiveCellStepWorld();
   const pts: string[] = [];
 
   for (let i = 0; i < rayCount; i++) {
@@ -301,14 +314,9 @@ export function findTokensInAoe(
   aoeRadiusFeet: number,
   tokens: readonly VttTokenVm[],
 ): readonly VttTokenVm[] {
-  const centerSvgX = worldToSvgX(aoeCenter.x);
-  const centerSvgY = worldToSvgY(aoeCenter.z);
-  const circleRadiusPx = feetToSvgPx(aoeRadiusFeet);
-  const tokenBodyAllowancePx = aoeRadiusFeet <= 5 ? 8 : 16;
-
+  const allowanceFeet = aoeRadiusFeet <= 5 ? 2.6 : 2.5;
   return tokens.filter((t) => {
-    const dx = worldToSvgX(t.x) - centerSvgX;
-    const dy = worldToSvgY(t.z) - centerSvgY;
-    return Math.hypot(dx, dy) <= circleRadiusPx + tokenBodyAllowancePx;
+    const distFeet = distanceInFeet(aoeCenter, { x: t.x, z: t.z });
+    return distFeet <= aoeRadiusFeet + allowanceFeet;
   });
 }

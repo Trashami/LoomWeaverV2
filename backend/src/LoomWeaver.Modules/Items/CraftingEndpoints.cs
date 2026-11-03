@@ -103,10 +103,12 @@ public static class CraftingEndpoints
             var outputName = Text(outputObj, "name");
             if (string.IsNullOrWhiteSpace(outputName)) outputName = recipeName;
 
+            var durationSeconds = req["durationSeconds"]?.GetValue<int>() ?? 0;
             var durationMins = req["durationMinutes"]?.GetValue<int>() ?? 0;
+            if (durationSeconds <= 0 && durationMins > 0) durationSeconds = durationMins * 60;
             var now = DateTime.UtcNow;
-            var completesAt = now.AddMinutes(durationMins);
-            var isInstant = durationMins <= 0;
+            var completesAt = now.AddSeconds(durationSeconds);
+            var isInstant = durationSeconds <= 0;
             var projectId = $"proj-{Guid.NewGuid():N}";
 
             var roll = req["craftCheckRoll"]?.GetValue<int>() ?? (new Random().Next(1, 21));
@@ -183,7 +185,8 @@ public static class CraftingEndpoints
                 ["outputItemName"] = outputName,
                 ["category"] = Text(req, "category"),
                 ["status"] = isInstant ? (isSuccess ? "completed" : "failed") : "pending",
-                ["durationMinutes"] = durationMins,
+                ["durationSeconds"] = durationSeconds,
+                ["durationMinutes"] = Math.Max(0, (int)Math.Ceiling(durationSeconds / 60.0)),
                 ["startedAt"] = now.ToString("o"),
                 ["completesAt"] = completesAt.ToString("o"),
                 ["materialsConsumed"] = consumedList?.DeepClone(),
@@ -275,6 +278,69 @@ public static class CraftingEndpoints
             return Results.Ok(new { project, equipmentAdded = equipment, isSuccess });
         });
 
+        api.MapPost("/campaigns/{campaignId:int}/crafting/projects/{projectId}/complete-now", async (int campaignId, string projectId, HttpContext ctx, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
+        {
+            var user = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
+            if (user is null) return Results.Unauthorized();
+            await using var db = await OpenAsync(repo, ct);
+            var member = await MemberAsync(db, campaignId, user.Id, ct);
+            if (member is null) return Results.Forbid();
+
+            var rows = await ReadCampaignAsync(db, "crafting_project", campaignId, ct);
+            var project = rows.FirstOrDefault(r => Text(r, "id") == projectId);
+            if (project is null) return Results.NotFound(new { error = "Project not found." });
+
+            var charKey = Text(project, "characterKey");
+            if (member.Value.Role != "gm" && !ItemAccessPolicy.CanManageCharacter(member.Value.Role, member.Value.Character, charKey))
+                return Results.Forbid();
+
+            var roll = project["craftCheckRoll"]?.GetValue<int>() ?? 10;
+            var mod = project["craftModifier"]?.GetValue<int>() ?? 0;
+            var dc = project["recipeDc"]?.GetValue<int>() ?? 10;
+            var checkTotal = project["craftCheckTotal"]?.GetValue<int>() ?? (roll + mod);
+            var isSuccess = (roll == 20) || (checkTotal >= dc && roll != 1);
+
+            var now = DateTime.UtcNow;
+            project["completesAt"] = now.ToString("o");
+            project["autoCompletedAt"] = now.ToString("o");
+
+            JsonObject equipment;
+            if (isSuccess)
+            {
+                project["status"] = "completed";
+                if (roll == 20) project["isCritSuccess"] = true;
+                var output = project["outputItem"] as JsonObject ?? new JsonObject();
+                equipment = new JsonObject
+                {
+                    ["id"] = $"inv-{Guid.NewGuid():N}",
+                    ["name"] = Text(output, "name"),
+                    ["slot"] = string.IsNullOrWhiteSpace(Text(output, "slot")) ? "Gear" : Text(output, "slot"),
+                    ["summary"] = (roll == 20) ? $"{Text(output, "summary")} (Masterwork Craft: Natural 20!)" : Text(output, "summary"),
+                    ["bonusLabel"] = (roll == 20) ? $"{Text(output, "bonusLabel")} · Masterwork" : Text(output, "bonusLabel"),
+                    ["equipped"] = false,
+                    ["entitlement"] = "free",
+                    ["icon"] = string.IsNullOrWhiteSpace(Text(output, "icon")) ? "inventory_2" : Text(output, "icon"),
+                    ["weightLb"] = output["weightLb"]?.DeepClone() ?? (JsonNode)1.0,
+                    ["valueGp"] = output["valueGp"]?.DeepClone() ?? (JsonNode)25.0,
+                    ["rarity"] = string.IsNullOrWhiteSpace(Text(output, "rarity")) ? "Common" : Text(output, "rarity"),
+                    ["source"] = (roll == 20) ? "Crafted (Masterwork)" : "Crafted Project"
+                };
+            }
+            else
+            {
+                project["status"] = "failed";
+                equipment = GenerateCraftingMishapItem(Text(project, "category"), dc, checkTotal);
+                project["mishapItem"] = equipment;
+                project["failureReason"] = $"Check total {checkTotal} (d20: {roll} + {mod}) failed DC {dc}. Ruined materials yielded {Text(equipment, "name")}.";
+            }
+
+            var invRow = new JsonObject { ["id"] = Text(equipment, "id"), ["characterKey"] = CharacterKey(charKey), ["equipment"] = equipment };
+            await SaveAsync(db, "inventory", user.Id, campaignId, invRow, ct);
+            await SaveAsync(db, "crafting_project", user.Id, campaignId, project, ct);
+
+            return Results.Ok(new { project, equipmentAdded = equipment, isSuccess });
+        });
+
         api.MapPost("/campaigns/{campaignId:int}/crafting/forage-harvest", async (int campaignId, JsonObject req, HttpContext ctx, LoomWeaverMySqlRepository repo, CancellationToken ct) =>
         {
             var user = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
@@ -323,113 +389,26 @@ public static class CraftingEndpoints
         });
     }
 
+    private static JsonObject Mishap(string name, string slot, string summary, string bonus, string icon, double wt, double gp, string rarity) => new()
+    {
+        ["id"] = $"inv-{Guid.NewGuid():N}", ["name"] = name, ["slot"] = slot, ["summary"] = summary,
+        ["bonusLabel"] = bonus, ["equipped"] = false, ["entitlement"] = "free", ["icon"] = icon,
+        ["weightLb"] = wt, ["valueGp"] = gp, ["rarity"] = rarity, ["source"] = "Crafting Mishap"
+    };
+
     private static JsonObject GenerateCraftingMishapItem(string category, int dc, int rollTotal)
     {
         var cat = (category ?? "").ToLowerInvariant();
         if (cat.Contains("herb") || cat.Contains("heal"))
-        {
-            return new JsonObject
-            {
-                ["id"] = $"inv-{Guid.NewGuid():N}",
-                ["name"] = "Tainted Toxic Draft",
-                ["slot"] = "Gear",
-                ["summary"] = $"Noxious bubbling concoction produced from botched herbalism (Roll {rollTotal} vs DC {dc}). Inflicts Poisoned for 1 hour if ingested.",
-                ["bonusLabel"] = "Poison Hazard",
-                ["equipped"] = false,
-                ["entitlement"] = "free",
-                ["icon"] = "science",
-                ["weightLb"] = 0.5,
-                ["valueGp"] = 5.0,
-                ["rarity"] = "Hazardous",
-                ["source"] = "Crafting Mishap"
-            };
-        }
+            return Mishap("Tainted Toxic Draft", "Gear", $"Noxious bubbling concoction produced from botched herbalism (Roll {rollTotal} vs DC {dc}). Inflicts Poisoned for 1 hour if ingested.", "Poison Hazard", "science", 0.5, 5.0, "Hazardous");
         if (cat.Contains("alchem"))
-        {
-            return new JsonObject
-            {
-                ["id"] = $"inv-{Guid.NewGuid():N}",
-                ["name"] = "Volatile Caustic Slag",
-                ["slot"] = "Gear",
-                ["summary"] = $"Unstable smoldering residue from a failed chemical reaction (Roll {rollTotal} vs DC {dc}). Deals 1d6 acid/fire damage if dropped.",
-                ["bonusLabel"] = "Acid Hazard",
-                ["equipped"] = false,
-                ["entitlement"] = "free",
-                ["icon"] = "local_fire_department",
-                ["weightLb"] = 1.0,
-                ["valueGp"] = 6.0,
-                ["rarity"] = "Hazardous",
-                ["source"] = "Crafting Mishap"
-            };
-        }
+            return Mishap("Volatile Caustic Slag", "Gear", $"Unstable smoldering residue from a failed chemical reaction (Roll {rollTotal} vs DC {dc}). Deals 1d6 acid/fire damage if dropped.", "Acid Hazard", "local_fire_department", 1.0, 6.0, "Hazardous");
         if (cat.Contains("smith"))
-        {
-            return new JsonObject
-            {
-                ["id"] = $"inv-{Guid.NewGuid():N}",
-                ["name"] = "Brittle Shattered Slag",
-                ["slot"] = "Gear",
-                ["summary"] = $"Improperly quenched iron that cracked under stress (Roll {rollTotal} vs DC {dc}). Can be melted down as 5 gp scrap metal.",
-                ["bonusLabel"] = "Scrap Metal",
-                ["equipped"] = false,
-                ["entitlement"] = "free",
-                ["icon"] = "hardware",
-                ["weightLb"] = 4.0,
-                ["valueGp"] = 5.0,
-                ["rarity"] = "Flawed",
-                ["source"] = "Crafting Mishap"
-            };
-        }
+            return Mishap("Brittle Shattered Slag", "Gear", $"Improperly quenched iron that cracked under stress (Roll {rollTotal} vs DC {dc}). Can be melted down as 5 gp scrap metal.", "Scrap Metal", "hardware", 4.0, 5.0, "Flawed");
         if (cat.Contains("arcane"))
-        {
-            return new JsonObject
-            {
-                ["id"] = $"inv-{Guid.NewGuid():N}",
-                ["name"] = "Arcane Fallout Ash",
-                ["slot"] = "Gear",
-                ["summary"] = $"Scorched vellum soot emitting crackling sparks (Roll {rollTotal} vs DC {dc}). Touching it discharges 1d4 static shock.",
-                ["bonusLabel"] = "Wild Magic Hazard",
-                ["equipped"] = false,
-                ["entitlement"] = "free",
-                ["icon"] = "bolt",
-                ["weightLb"] = 0.25,
-                ["valueGp"] = 10.0,
-                ["rarity"] = "Hazardous",
-                ["source"] = "Crafting Mishap"
-            };
-        }
+            return Mishap("Arcane Fallout Ash", "Gear", $"Scorched vellum soot emitting crackling sparks (Roll {rollTotal} vs DC {dc}). Touching it discharges 1d4 static shock.", "Wild Magic Hazard", "bolt", 0.25, 10.0, "Hazardous");
         if (cat.Contains("leather"))
-        {
-            return new JsonObject
-            {
-                ["id"] = $"inv-{Guid.NewGuid():N}",
-                ["name"] = "Ruined Shriveled Hide",
-                ["slot"] = "Gear",
-                ["summary"] = $"Brittle, cracked hide ruined by flawed tannin ratios (Roll {rollTotal} vs DC {dc}). Worthless scrap.",
-                ["bonusLabel"] = "Ruined Hide",
-                ["equipped"] = false,
-                ["entitlement"] = "free",
-                ["icon"] = "content_cut",
-                ["weightLb"] = 2.0,
-                ["valueGp"] = 2.0,
-                ["rarity"] = "Flawed",
-                ["source"] = "Crafting Mishap"
-            };
-        }
-        return new JsonObject
-        {
-            ["id"] = $"inv-{Guid.NewGuid():N}",
-            ["name"] = "Spoiled Rancid Provisions",
-            ["slot"] = "Gear",
-            ["summary"] = $"Foul-smelling, spoiled concoction unfit for consumption (Roll {rollTotal} vs DC {dc}).",
-            ["bonusLabel"] = "Spoiled Rations",
-            ["equipped"] = false,
-            ["entitlement"] = "free",
-            ["icon"] = "restaurant",
-            ["weightLb"] = 1.0,
-            ["valueGp"] = 0.1,
-            ["rarity"] = "Flawed",
-            ["source"] = "Crafting Mishap"
-        };
+            return Mishap("Ruined Shriveled Hide", "Gear", $"Brittle, cracked hide ruined by flawed tannin ratios (Roll {rollTotal} vs DC {dc}). Worthless scrap.", "Ruined Hide", "content_cut", 2.0, 2.0, "Flawed");
+        return Mishap("Spoiled Rancid Provisions", "Gear", $"Foul-smelling, spoiled concoction unfit for consumption (Roll {rollTotal} vs DC {dc}).", "Spoiled Rations", "restaurant", 1.0, 0.1, "Flawed");
     }
 }

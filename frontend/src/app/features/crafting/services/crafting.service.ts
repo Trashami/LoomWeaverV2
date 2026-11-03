@@ -31,7 +31,7 @@ export class CraftingService {
   private readonly studio = inject(CharacterStudioService);
   private readonly alertify = inject(LwAlertifyService);
   private readonly diceOverlay = inject(FullscreenDiceOverlayService);
-  private readonly tableSync = inject(TableRealtimeSyncService);
+  readonly tableSync = inject(TableRealtimeSyncService);
 
   readonly activeTab = signal<CraftingPageTab>('workshop');
   readonly recipes = signal<readonly CraftingRecipe[]>(CRAFTING_RECIPES);
@@ -50,11 +50,15 @@ export class CraftingService {
   readonly manualItemCategory = signal<string>('herb');
   readonly manualItemRarity = signal<string>('Common');
 
-  readonly focusedCharacterKey = signal<string>('char-dal');
-  readonly characterInventoryMap = signal<Record<string, readonly EquipmentLoadoutItemVm[]>>({});
+  readonly isGm = computed(() => {
+    return this.store.viewerRole() === 'gm' || this.store.isUserGmForCampaign(this.store.activeCampaign());
+  });
 
   readonly availableCharacters = computed(() => {
-    return this.studio.sheets().map((s) => ({
+    const list = this.isGm()
+      ? this.studio.campaignSheets()
+      : this.studio.authorizedSheetsForActiveCampaign();
+    return list.map((s) => ({
       key: s.characterKey,
       name: s.name,
       level: s.level,
@@ -64,22 +68,26 @@ export class CraftingService {
     }));
   });
 
+  readonly focusedCharacterKey = signal<string>('char-dal');
+  readonly characterInventoryMap = signal<Record<string, readonly EquipmentLoadoutItemVm[]>>({});
+
   readonly activeCharacter = computed(() => {
     const key = this.focusedCharacterKey();
-    const sheets = this.studio.sheets();
+    const sheets = this.isGm()
+      ? this.studio.campaignSheets()
+      : this.studio.authorizedSheetsForActiveCampaign();
     return sheets.find((s) => s.characterKey === key) ?? sheets[0] ?? null;
   });
-
-  readonly isGm = computed(() => this.store.viewerRole() === 'gm' || this.store.isGmForActiveCampaign());
 
   readonly characterInventory = computed<readonly EquipmentLoadoutItemVm[]>(() => {
     const char = this.activeCharacter();
     if (!char) return [];
     const key = char.characterKey;
-    const baseEquipment = char.equipment ?? [];
-    const dbItems = this.characterInventoryMap()[key] ?? [];
-    const dbIds = new Set(dbItems.map((i) => i.id));
-    return [...dbItems, ...baseEquipment.filter((i) => !dbIds.has(i.id))];
+    const dbItems = this.characterInventoryMap()[key];
+    if (dbItems !== undefined) {
+      return dbItems;
+    }
+    return (char.equipment ?? []).filter((e) => !e.id.startsWith('inv-'));
   });
 
   readonly filteredRecipes = computed(() => {
@@ -102,9 +110,10 @@ export class CraftingService {
 
   constructor() {
     effect(() => {
-      const char = this.studio.activeSheet();
-      if (char?.characterKey && char.characterKey !== this.focusedCharacterKey()) {
-        this.focusedCharacterKey.set(char.characterKey);
+      const chars = this.availableCharacters();
+      const current = this.focusedCharacterKey();
+      if (chars.length > 0 && !chars.some((c) => c.key === current)) {
+        this.focusedCharacterKey.set(chars[0].key);
       }
     });
 
@@ -123,6 +132,7 @@ export class CraftingService {
   setFocusedCharacter(key: string): void {
     if (!key) return;
     this.focusedCharacterKey.set(key);
+    this.studio.selectCharacter(key);
     const cid = this.store.activeCampaignId();
     if (cid > 0) {
       this.loadCharacterInventory(cid, key, true);
@@ -137,7 +147,7 @@ export class CraftingService {
 
   loadCharacterInventory(campaignId: number, characterKey: string, force = false): void {
     if (campaignId <= 0 || !characterKey) return;
-    if (!force && this.characterInventoryMap()[characterKey]) return;
+    if (!force && this.characterInventoryMap()[characterKey] !== undefined) return;
 
     this.http.get<readonly EquipmentLoadoutItemVm[]>(
       `/api/v2/campaigns/${campaignId}/characters/${encodeURIComponent(characterKey)}/items`,
@@ -145,9 +155,6 @@ export class CraftingService {
       next: (items) => {
         const list = items ?? [];
         this.characterInventoryMap.update((map) => ({ ...map, [characterKey]: list }));
-        if (list.length > 0) {
-          this.studio.mergeCatalogInventory(campaignId, characterKey, list);
-        }
       },
       error: () => {
         this.characterInventoryMap.update((map) => ({ ...map, [characterKey]: [] }));
@@ -158,13 +165,11 @@ export class CraftingService {
   loadProjects(campaignId?: number): void {
     const cid = campaignId ?? this.store.activeCampaignId();
     if (cid <= 0) return;
-    this.loading.set(true);
     this.http.get<readonly CraftingProjectVm[]>(`/api/v2/campaigns/${cid}/crafting/projects`).subscribe({
       next: (projects) => {
         this.activeProjects.set(projects ?? []);
-        this.loading.set(false);
       },
-      error: () => this.loading.set(false),
+      error: () => {},
     });
   }
 
@@ -185,7 +190,7 @@ export class CraftingService {
     return getMaterialStatus(recipe, this.characterInventory());
   }
 
-  startCrafting(recipe: CraftingRecipe, bastionDiscount = false): void {
+  startCrafting(recipe: CraftingRecipe, durationSecondsOverride?: number): void {
     const cid = this.store.activeCampaignId();
     const char = this.activeCharacter();
     if (cid <= 0 || !char) {
@@ -198,8 +203,10 @@ export class CraftingService {
       return;
     }
 
-    const durationMinutes = bastionDiscount && recipe.bastionBonusEligible ? Math.floor(recipe.durationMinutes / 2) : recipe.durationMinutes;
-    const isInstant = durationMinutes <= 0;
+    const durationSeconds = durationSecondsOverride !== undefined
+      ? durationSecondsOverride
+      : (recipe.durationMinutes * 60);
+    const isInstant = durationSeconds <= 0;
     const stats = this.getCharacterRecipeModifier(char.characterKey, recipe);
     const d20 = Math.floor(Math.random() * 20) + 1;
     const checkTotal = d20 + stats.totalMod;
@@ -210,7 +217,8 @@ export class CraftingService {
       recipeId: recipe.id,
       recipeName: recipe.name,
       category: recipe.categoryLabel,
-      durationMinutes,
+      durationSeconds,
+      durationMinutes: Math.max(0, Math.ceil(durationSeconds / 60)),
       materialsConsumed: recipe.ingredients,
       outputItem: recipe.output,
       craftCheckRoll: d20,
@@ -240,7 +248,7 @@ export class CraftingService {
           this.alertify.notifyStatus(
             char.name,
             'Project Started',
-            `${recipe.name} in progress (${recipe.durationLabel}). Check: ${d20}+${stats.totalMod} (${checkTotal}) vs DC ${stats.dc}.`,
+            `${recipe.name} in progress. Check: ${d20}+${stats.totalMod} (${checkTotal}) vs DC ${stats.dc}.`,
             'gold',
             5000,
           );
@@ -249,6 +257,33 @@ export class CraftingService {
       error: () => {
         this.loading.set(false);
         this.alertify.notifyStatus('Workshop', 'Crafting Error', 'Unable to start project. Check permissions.', 'crimson');
+      },
+    });
+  }
+
+  completeProjectNow(project: CraftingProjectVm): void {
+    const cid = this.store.activeCampaignId();
+    if (cid <= 0) return;
+
+    this.loading.set(true);
+    this.http.post<{ project: CraftingProjectVm; equipmentAdded?: EquipmentLoadoutItemVm; isSuccess?: boolean }>(
+      `/api/v2/campaigns/${cid}/crafting/projects/${project.id}/complete-now`,
+      {},
+    ).subscribe({
+      next: (res) => {
+        this.loading.set(false);
+        this.loadProjects(cid);
+        this.loadCharacterInventory(cid, project.characterKey, true);
+
+        const title = res.isSuccess ? 'Crafting Finished' : 'Crafting Mishap';
+        const msg = res.isSuccess
+          ? `${project.outputItemName} successfully forged for ${project.characterName}!`
+          : `Project suffered a mishap. Byproduct placed in ${project.characterName}'s inventory.`;
+        this.alertify.notifyStatus(project.characterName, title, msg, res.isSuccess ? 'emerald' : 'crimson', 5000);
+      },
+      error: () => {
+        this.loading.set(false);
+        this.loadProjects(cid);
       },
     });
   }
@@ -328,13 +363,7 @@ export class CraftingService {
         this.foragingResult.set(harvest);
 
         if (!harvest.success) {
-          this.alertify.notifyStatus(
-            charName,
-            'Sparse Harvest',
-            `Survival roll ${total} did not meet DC ${dc}. Only barren ground or picked-over roots found.`,
-            'gold',
-            5000,
-          );
+          this.alertify.notifyStatus(charName, 'Sparse Harvest', `Survival roll ${total} did not meet DC ${dc}. Only barren ground found.`, 'gold', 5000);
         }
       },
     });
@@ -374,18 +403,8 @@ export class CraftingService {
         res.depositedTo = charName;
         this.foragingResult.set({ ...res });
 
-        this.alertify.notifyStatus(
-          charName,
-          'Foraged Bounty Received',
-          `Added to ${charName}'s inventory: ${itemNames}`,
-          'emerald',
-          6500,
-        );
-
-        this.tableSync.publishTableEvent('forage_harvest', charName, `${charName} foraged: ${itemNames}`, {
-          characterKey: charKey,
-          items: itemsToGrant,
-        });
+        this.alertify.notifyStatus(charName, 'Foraged Bounty Received', `Added to ${charName}'s inventory: ${itemNames}`, 'emerald', 6500);
+        this.tableSync.publishTableEvent('forage_harvest', charName, `${charName} foraged: ${itemNames}`, { characterKey: charKey, items: itemsToGrant });
       },
       error: () => {
         this.loading.set(false);

@@ -53,6 +53,7 @@ export interface CraftingProjectVm {
   readonly category: string;
   readonly status: 'pending' | 'completed' | 'failed';
   readonly durationMinutes: number;
+  readonly durationSeconds?: number;
   readonly startedAt: string;
   readonly completesAt: string;
   readonly materialsConsumed: readonly { name: string; count: number }[];

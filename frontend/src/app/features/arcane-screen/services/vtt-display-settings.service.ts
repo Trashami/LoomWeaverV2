@@ -155,6 +155,46 @@ export class VttDisplaySettingsService {
     this.persistAccountPreferences();
   }
 
+  /**
+   * 3D/2D Babylon world-space "Draw 1 Square" calibration:
+   * Given two picked ground corners `p1` and `p2` in Babylon world meters,
+   * computes `gridScale` and phase offsets so the 5-foot terrain grid (`1.5m` base on 3D terrain, `1.0m` on flat)
+   * matches the drawn square across the entire floor and elevation contours.
+   */
+  applyDrawnWorldSquareCalibration(
+    p1: { x: number; z: number },
+    p2: { x: number; z: number },
+    is3dTerrain: boolean,
+  ): void {
+    const dx = Math.abs(p2.x - p1.x);
+    const dz = Math.abs(p2.z - p1.z);
+    const avgWorldSide = (dx + dz) / 2;
+    if (avgWorldSide < 0.2) return;
+
+    const baseMeters = is3dTerrain ? 1.5 : 1.0;
+    const newScale = Math.max(0.25, Math.min(3.0, Math.round((avgWorldSide / baseMeters) * 100) / 100));
+    const stepWorld = baseMeters * newScale;
+    const halfW = is3dTerrain ? 18.0 : 12.0;
+    const halfH = is3dTerrain ? 13.5 : 8.0;
+    const minX = Math.min(p1.x, p2.x) + halfW;
+    const minZ = Math.min(p1.z, p2.z) + halfH;
+    const remXWorld = ((minX % stepWorld) + stepWorld) % stepWorld;
+    const remZWorld = ((minZ % stepWorld) + stepWorld) % stepWorld;
+    const offsetX = Math.round((remXWorld / baseMeters) * BASE_GRID_CELL_SVG_PX * 10) / 10;
+    const offsetY = Math.round((remZWorld / baseMeters) * BASE_GRID_CELL_SVG_PX * 10) / 10;
+
+    this.gridScale.set(newScale);
+    this.gridOffsetX.set(offsetX);
+    this.gridOffsetY.set(offsetY);
+    this.calibratingGrid.set(false);
+
+    writeStorage(GRID_SCALE_STORAGE_KEY, newScale.toString());
+    writeStorage(GRID_OFFSET_X_STORAGE_KEY, offsetX.toString());
+    writeStorage(GRID_OFFSET_Y_STORAGE_KEY, offsetY.toString());
+    this.syncCalibrationEngine();
+    this.persistAccountPreferences();
+  }
+
   backdropUrl(baseUrl: string | null | undefined): string {
     if (!baseUrl) return '';
     const variant = mapVariantUrl(baseUrl, QUALITY_SUFFIX[this.mapQuality()]);

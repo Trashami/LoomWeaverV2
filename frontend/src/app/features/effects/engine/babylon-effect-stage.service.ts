@@ -18,22 +18,23 @@ import {
 } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
 import { EffectTimelinePresetVm, VttTokenVm } from './effect-timeline.contract';
-import {
-  TokenDragController,
-  TokenPlacement,
-  TokenRightClickEvent,
-} from './token-drag-controller';
+import { TokenDragController, TokenPlacement, TokenRightClickEvent } from './token-drag-controller';
 import { BabylonFogPlane } from './babylon-fog-plane';
-import {
-  BabylonVttMapSceneBuilder,
-  VttMapSceneDataPayload,
-} from './babylon-vtt-map-scene.builder';
+import { BabylonVttMapSceneBuilder, VttMapSceneDataPayload } from './babylon-vtt-map-scene.builder';
 import { BabylonTokenMeshBuilder } from './babylon-token-mesh.builder';
 import { BabylonFxTrajectoryPlayer } from './babylon-fx-trajectory.player';
 import { MapSceneGraphState } from '../../maps/engine/map-scene-contract';
 import { SceneLightingController } from '../../maps/engine/lighting/scene-lighting.controller';
+import { TerrainMeshBuilder } from '../../maps/engine/terrain/terrain-mesh.builder';
 import { WallMeshBuilder } from '../../maps/engine/walls/wall-mesh.builder';
 import { StampSceneBuilder } from '../../maps/engine/rendering/stamp-scene.builder';
+import { setActiveBaseCellWorld } from '../../arcane-screen/engine/vtt-los-and-grid.engine';
+import {
+  animateBabylonSpellAndTetherPulse,
+  BabylonSpellTemplateState,
+  BabylonTargetTetherEndpoint,
+  syncBabylonSpellAndTetherMeshes,
+} from './babylon-spell-template.helper';
 import {
   attach2dTopDownPanningObserver,
   clear3dMapSceneGraph,
@@ -45,9 +46,7 @@ import {
 } from './babylon-vtt-3d-scene-graph.helper';
 
 if (typeof window !== 'undefined') {
-  MeshoptCompression.Configuration = {
-    decoder: { url: '/assets/object-library/meshopt_decoder.js' },
-  };
+  MeshoptCompression.Configuration = { decoder: { url: '/assets/object-library/meshopt_decoder.js' } };
 }
 
 @Injectable({ providedIn: 'root' })
@@ -77,6 +76,10 @@ export class BabylonEffectStageService {
   private latestTargetedKeys: readonly string[] = [];
   private latestOpacityByKey: ReadonlyMap<string, number> = new Map();
   private latestGridScale = 1.0;
+  private latestGridOffsetX = 0.0;
+  private latestGridOffsetY = 0.0;
+  private latestSpellTemplate: BabylonSpellTemplateState | null = null;
+  private latestTetherTargets: readonly BabylonTargetTetherEndpoint[] = [];
 
   private readonly mapSceneBuilder = new BabylonVttMapSceneBuilder();
   private readonly tokenBuilder = new BabylonTokenMeshBuilder();
@@ -92,16 +95,11 @@ export class BabylonEffectStageService {
   readonly tokenDropped: Observable<TokenPlacement> = this.droppedSubject.asObservable();
   readonly tokenRightClicked: Observable<TokenRightClickEvent> = this.rightClickedSubject.asObservable();
 
-  resize(): void {
-    this.engine?.resize();
-  }
+  resize(): void { this.engine?.resize(); }
 
   zoomCamera(delta: number): void {
     if (this.camera) {
-      this.camera.radius = Math.max(
-        this.camera.lowerRadiusLimit ?? 6,
-        Math.min(this.camera.upperRadiusLimit ?? 58, this.camera.radius + delta),
-      );
+      this.camera.radius = Math.max(this.camera.lowerRadiusLimit ?? 6, Math.min(this.camera.upperRadiusLimit ?? 58, this.camera.radius + delta));
       this.updateZoomPercent();
     }
   }
@@ -118,22 +116,18 @@ export class BabylonEffectStageService {
     if (!this.camera) return;
     const minR = this.camera.lowerRadiusLimit ?? 6;
     const maxR = this.camera.upperRadiusLimit ?? 58;
-    const pct = Math.round(100 + ((maxR - this.camera.radius) / (maxR - minR)) * 250);
-    this.zoomPercent.set(Math.max(100, Math.min(350, pct)));
+    this.zoomPercent.set(Math.max(100, Math.min(350, Math.round(100 + ((maxR - this.camera.radius) / (maxR - minR)) * 250))));
   }
 
   setBackdrop(url: string): void {
     this.latestBackdropUrl = url || '';
-    if (this.has3dSceneLoaded()) return;
-    if (!this.scene || !this.ground || !this.groundMat || !url || url === this.backdropUrl) return;
+    if (this.has3dSceneLoaded() || !this.scene || !this.ground || !this.groundMat || !url || url === this.backdropUrl) return;
     this.backdropUrl = url;
     const tex = new Texture(url, this.scene);
     const ground = this.ground;
     tex.onLoadObservable.addOnce(() => {
       const size = tex.getSize();
-      if (size.width > 0 && size.height > 0) {
-        ground.scaling.z = size.height / size.width / (16 / 24);
-      }
+      if (size.width > 0 && size.height > 0) ground.scaling.z = size.height / size.width / (16 / 24);
     });
     this.groundMat.diffuseTexture = tex;
     this.groundMat.diffuseColor = Color3.White();
@@ -153,59 +147,41 @@ export class BabylonEffectStageService {
     if (!this.scene) return;
     this.last3dSceneState = state;
     this.has3dSceneLoaded.set(true);
-    sync3dMapSceneGraph(this.scene, state, this.ground, this.latestGridVisible, () =>
-      this.schedule3dSceneResync(),
-    );
+    setActiveBaseCellWorld(1.5);
+    sync3dMapSceneGraph(this.scene, state, this.ground, this.latestGridVisible, () => this.schedule3dSceneResync(), this.latestGridScale, this.latestGridOffsetX, this.latestGridOffsetY);
     if (this.latestTokens.length > 0) this.refreshTokens();
   }
 
   private clear3dSceneGraph(): void {
     this.last3dSceneState = null;
     this.has3dSceneLoaded.set(false);
+    setActiveBaseCellWorld(1.0);
     clear3dMapSceneGraph(this.scene, this.ground);
   }
 
-  loadMapScene(
-    sceneData?: VttMapSceneDataPayload | MapSceneGraphState | string | null,
-    backdropUrl?: string,
-  ): void {
+  loadMapScene(sceneData?: VttMapSceneDataPayload | MapSceneGraphState | string | null, backdropUrl?: string): void {
     this.latestSceneData = sceneData ?? null;
     if (backdropUrl !== undefined) this.latestBackdropUrl = backdropUrl;
     if (!this.scene) return;
 
     let parsed: VttMapSceneDataPayload | MapSceneGraphState | null = null;
     if (sceneData) {
-      if (typeof sceneData === 'string') {
-        try { parsed = JSON.parse(sceneData); } catch {}
-      } else {
-        parsed = sceneData;
-      }
+      if (typeof sceneData === 'string') { try { parsed = JSON.parse(sceneData); } catch {} }
+      else parsed = sceneData;
     }
 
     if (parsed && isMapSceneGraphStatePayload(parsed)) {
       this.mapSceneBuilder.clear(this.scene);
-      if (this.gridLines) {
-        this.gridLines.dispose();
-        this.gridLines = null;
-      }
+      if (this.gridLines) { this.gridLines.dispose(); this.gridLines = null; }
       this.sync3dSceneGraph(parsed);
       return;
     }
 
     if (this.has3dSceneLoaded()) this.clear3dSceneGraph();
     if (this.latestBackdropUrl) this.setBackdrop(this.latestBackdropUrl);
-    if (parsed) {
-      this.mapSceneBuilder.buildScene(this.scene, parsed as VttMapSceneDataPayload);
-    } else {
-      this.mapSceneBuilder.clear(this.scene);
-    }
-    SceneLightingController.syncCelestialDirectionalLight(this.scene, {
-      mode: 'sun',
-      azimuthDeg: 135,
-      altitudeDeg: 42,
-      shadowDarkness: 72,
-      showSkyOrb: false,
-    });
+    if (parsed) this.mapSceneBuilder.buildScene(this.scene, parsed as VttMapSceneDataPayload);
+    else this.mapSceneBuilder.clear(this.scene);
+    SceneLightingController.syncCelestialDirectionalLight(this.scene, { mode: 'sun', azimuthDeg: 135, altitudeDeg: 42, shadowDarkness: 72, showSkyOrb: false });
     SceneLightingController.refreshShadowCasters(this.scene);
   }
 
@@ -249,13 +225,21 @@ export class BabylonEffectStageService {
   ): void {
     this.latestGridVisible = visible;
     this.latestGridScale = gridScale;
+    this.latestGridOffsetX = gridOffsetX;
+    this.latestGridOffsetY = gridOffsetY;
     if (!this.scene) return;
     if (this.gridLines) {
       this.gridLines.dispose();
       this.gridLines = null;
     }
-    const terrainGrid = this.scene.getMeshByName('lw-terrain-grid');
     if (this.has3dSceneLoaded()) {
+      TerrainMeshBuilder.configureGrid(this.scene, {
+        mode: visible ? '5 ft' : 'Off',
+        scaleFactor: gridScale,
+        offsetX: (gridOffsetX / 50) * 1.5,
+        offsetZ: (gridOffsetY / 50) * 1.5,
+      });
+      const terrainGrid = this.scene.getMeshByName('lw-terrain-grid');
       if (terrainGrid) {
         terrainGrid.isVisible = visible;
         terrainGrid.isPickable = false;
@@ -327,6 +311,7 @@ export class BabylonEffectStageService {
       const pointers = camera.inputs.attached['pointers'] as ArcRotateCameraPointersInput | undefined;
       if (pointers) pointers.buttons = [0, 1, 2];
       camera.inputs.removeByType('ArcRotateCameraMouseWheelInput');
+      camera.inputs.removeByType('ArcRotateCameraKeyboardMoveInput');
       this.setForcedTopDown(this.isForcedTopDown);
       this.updateZoomPercent();
 
@@ -410,8 +395,10 @@ export class BabylonEffectStageService {
           this.camera.target.y = 0;
           this.updateZoomPercent();
         }
-        this.mapSceneBuilder.updateLightFlicker(performance.now(), this.reducedMotion());
+        const nowMs = performance.now();
+        this.mapSceneBuilder.updateLightFlicker(nowMs, this.reducedMotion());
         if (this.reducedMotion()) return;
+        animateBabylonSpellAndTetherPulse(this.scene, nowMs);
         for (const m of this.scene.meshes) {
           if (m.name.startsWith('lw-target-reticle-root-')) m.rotation.y += 0.022;
         }
@@ -422,9 +409,7 @@ export class BabylonEffectStageService {
     }
   }
 
-  syncFog(layer: HTMLCanvasElement | null): void {
-    this.fogPlane?.setLayer(layer);
-  }
+  syncFog(layer: HTMLCanvasElement | null): void { this.fogPlane?.setLayer(layer); }
 
   syncTokens(
     tokens: readonly VttTokenVm[],
@@ -443,27 +428,26 @@ export class BabylonEffectStageService {
     this.refreshTokens();
   }
 
+  syncSpellTemplateAndTethers(
+    attackerPos: { x: number; z: number } | null,
+    tetherTargets: readonly BabylonTargetTetherEndpoint[],
+    templateState: BabylonSpellTemplateState | null,
+  ): void {
+    this.latestTetherTargets = tetherTargets;
+    this.latestSpellTemplate = templateState;
+    if (!this.scene) return;
+    syncBabylonSpellAndTetherMeshes(this.scene, attackerPos, tetherTargets, templateState);
+  }
+
   private refreshTokens(): void {
     if (!this.scene) return;
-    this.tokenBuilder.syncTokens(
-      this.scene,
-      this.latestTokens,
-      this.isForcedTopDown,
-      this.latestAttackerKey,
-      this.latestTargetKey,
-      this.latestTargetedKeys,
-      this.latestOpacityByKey,
-      this.latestGridScale,
-      () => this.refreshTokens(),
-    );
+    this.tokenBuilder.syncTokens(this.scene, this.latestTokens, this.isForcedTopDown, this.latestAttackerKey, this.latestTargetKey, this.latestTargetedKeys, this.latestOpacityByKey, this.latestGridScale, () => this.refreshTokens());
+    const src = this.latestTokens.find((t) => t.key === this.latestAttackerKey);
+    syncBabylonSpellAndTetherMeshes(this.scene, src ? { x: src.x, z: src.z } : null, this.latestTetherTargets, this.latestSpellTemplate);
     SceneLightingController.refreshShadowCasters(this.scene);
   }
 
-  playTrajectoryEffect(
-    preset: EffectTimelinePresetVm,
-    startPos: { x: number; z: number } = { x: -5, z: 0 },
-    endPos: { x: number; z: number } = { x: 5, z: 0 },
-  ): void {
+  playTrajectoryEffect(preset: EffectTimelinePresetVm, startPos: { x: number; z: number } = { x: -5, z: 0 }, endPos: { x: number; z: number } = { x: 5, z: 0 }): void {
     if (!this.scene) return;
     this.fxPlayer.play(this.scene, preset, startPos, endPos, this.reducedMotion(), this.activeKeyframeLabel);
   }

@@ -1,14 +1,6 @@
 import {
-  AfterViewInit,
-  ChangeDetectionStrategy,
-  Component,
-  ElementRef,
-  HostListener,
-  OnDestroy,
-  ViewChild,
-  computed,
-  inject,
-  signal,
+  AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, HostListener,
+  OnDestroy, ViewChild, computed, inject, signal,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AdventureGuideService } from '../../core/services/adventure-guide.service';
@@ -18,17 +10,14 @@ import { LwContextSwitcherOption } from '../../shared/ui/public-api';
 import { WebAudioAmbienceService } from '../assets/engine/web-audio-ambience.service';
 import { FullscreenDiceOverlayService } from '../dice/engine/fullscreen-dice-overlay.service';
 import { BabylonEffectStageService } from '../effects/engine/babylon-effect-stage.service';
-import {
-  getDndSizeScale,
-  getTokenBaseColorHex,
-  VttTokenVm,
-} from '../effects/engine/effect-timeline.contract';
+import { getDndSizeScale, getTokenBaseColorHex, VttTokenVm } from '../effects/engine/effect-timeline.contract';
 import { feetToSvgPx, worldToSvgX, worldToSvgY } from './engine/vtt-los-and-grid.engine';
 import { VttRightTabId, VttTacticalAbilityVm } from './models/vtt-battle.models';
 import { toDockAction, toDockToken } from './components/vtt-action-dock/vtt-action-dock.adapter';
 import type { DockAction, DockToken } from './components/vtt-action-dock/vtt-action-dock.models';
 import { VttBattleStateService } from './services/vtt-battle-state.service';
 import { VttCombatService } from './services/vtt-combat.service';
+import { VttCombatWorkflowService } from './services/vtt-combat-workflow.service';
 import { VttDisplaySettingsService } from './services/vtt-display-settings.service';
 import { VttEncounterTimerService } from './services/vtt-encounter-timer.service';
 import { VttFogService } from './services/vtt-fog.service';
@@ -36,21 +25,11 @@ import { VttHandoutService } from './services/vtt-handout.service';
 import { VttMapView2dService } from './services/vtt-map-view-2d.service';
 import { VttServerSyncService } from './services/vtt-server-sync.service';
 import {
-  ARCANE_SCREEN_PAGE_IMPORTS,
-  buildVttSessionSwitcherOptions,
-  CalibStartPoint,
-  computeCalibDragBox,
-  computeSvgGridLines,
-  executeBattlefieldDiceRoll,
-  finishGridCalibration,
-  handleVttWindowKeydown,
-  openDockTokenContextMenu,
-  paintFogBrushAtScreenPoint,
-  registerArcaneScreenStageEffects,
-  runPendingAbilityCastAndFx,
-  triggerQuickDcCheckRoll,
-  update2dMapPointerPosition,
-  VTT_RIGHT_TAB_TITLES,
+  ARCANE_SCREEN_PAGE_IMPORTS, buildVttSessionSwitcherOptions, CalibStartPoint,
+  computeCalibDragBox, computeSvgGridLines, executeBattlefieldDiceRoll, finishGridCalibration,
+  handleVttWindowKeydown, openDockTokenContextMenu, paintFogBrushAtScreenPoint,
+  registerArcaneScreenStageEffects, runPendingAbilityCastAndFx, triggerQuickDcCheckRoll,
+  update2dMapPointerPosition, VTT_RIGHT_TAB_TITLES,
 } from './arcane-screen.helpers';
 
 @Component({
@@ -70,6 +49,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   readonly adventureGuide = inject(AdventureGuideService);
   private readonly route = inject(ActivatedRoute);
   readonly battle = inject(VttBattleStateService);
+  readonly workflow = inject(VttCombatWorkflowService);
   readonly fog = inject(VttFogService);
   readonly stage = inject(BabylonEffectStageService);
   readonly audio = inject(WebAudioAmbienceService);
@@ -87,6 +67,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   private dragMoved = false;
   private fogBrushPainting = false;
   private calibStartClient: CalibStartPoint | null = null;
+  private mapDownClient: { x: number; y: number } | null = null;
 
   readonly gridEnabled = signal<boolean>(false);
   readonly gmRailOpen = signal<boolean>(false);
@@ -177,19 +158,11 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  openMapStudio(): void {
-    void this.router.navigate(['/maps']);
-  }
-  openCharactersPage(): void {
-    void this.router.navigate(['/characters']);
-  }
-
-  onMapWheel(event: WheelEvent): void {
-    event.preventDefault();
-    if (!this.isHighPerformance2d()) this.stage.zoomCamera(event.deltaY * 0.05);
-    else this.view2d.wheel(event.deltaY);
-  }
+  openMapStudio(): void { void this.router.navigate(['/maps']); }
+  openCharactersPage(): void { void this.router.navigate(['/characters']); }
+  onMapWheel(event: WheelEvent): void { event.preventDefault(); if (!this.isHighPerformance2d()) this.stage.zoomCamera(event.deltaY * 0.05); else this.view2d.wheel(event.deltaY); }
   onMapMouseDown(event: MouseEvent): void {
+    this.mapDownClient = { x: event.clientX, y: event.clientY };
     if (event.button === 0 && this.battle.fogBrushMode() !== 'none') {
       this.fogBrushPainting = true;
       paintFogBrushAtScreenPoint(event.clientX, event.clientY, this.isHighPerformance2d(), this.stage, this.battle, this.battleSvgRef?.nativeElement, () => this.sync3dStage());
@@ -202,36 +175,34 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       paintFogBrushAtScreenPoint(event.clientX, event.clientY, this.isHighPerformance2d(), this.stage, this.battle, this.battleSvgRef?.nativeElement, () => this.sync3dStage());
       return;
     }
+    if (!this.isHighPerformance2d() && (this.battle.pendingAbility() || this.battle.measureEnabled())) {
+      const pt = this.stage.pickGroundPoint(event.clientX, event.clientY);
+      if (pt) this.battle.cursorWorldPos.set(pt);
+    }
     if (this.isHighPerformance2d()) this.view2d.move(event);
   }
-  onMapMouseUp(): void {
+  onMapMouseUp(event?: MouseEvent): void {
+    const down = this.mapDownClient;
+    this.mapDownClient = null;
     this.fogBrushPainting = false;
-    if (this.isHighPerformance2d()) this.view2d.end();
+    if (this.isHighPerformance2d()) { this.view2d.end(); return; }
+    if (event && event.button === 0 && down && Math.hypot(event.clientX - down.x, event.clientY - down.y) < 7 && this.battle.pendingAbility() && !this.battle.isSingleOrMultiTargetAbility(this.battle.pendingAbility()!)) {
+      const pt = this.stage.pickGroundPoint(event.clientX, event.clientY);
+      if (pt) this.battle.cursorWorldPos.set(pt);
+      const step = this.battle.recordPendingAbilityTargetClick();
+      this.sync3dStage();
+      if (step.shouldExecuteNow) void this.executePendingAbilityCast();
+    }
   }
-
-  changeZoom(amount: number): void {
-    if (!this.isHighPerformance2d()) this.stage.zoomCamera(-amount * 0.4);
-    else this.view2d.zoomBy(amount);
-  }
-  resetZoom(): void {
-    if (!this.isHighPerformance2d()) this.stage.resetCamera();
-    else this.view2d.reset();
-  }
-
-  getTokenBaseFill(token: VttTokenVm): string {
-    return getTokenBaseColorHex(token);
-  }
+  changeZoom(amount: number): void { if (!this.isHighPerformance2d()) this.stage.zoomCamera(-amount * 0.4); else this.view2d.zoomBy(amount); }
+  resetZoom(): void { if (!this.isHighPerformance2d()) this.stage.resetCamera(); else this.view2d.reset(); }
+  getTokenBaseFill(token: VttTokenVm): string { return getTokenBaseColorHex(token); }
   getTokenBaseStroke(token: VttTokenVm): string {
     if (this.battle.isTokenTargetedWithReticle(token.key)) return '#991b1b';
-    if (this.battle.activeInitiativeToken().key === token.key) return '#c9a66b';
-    return token.colorHex || '#26302c';
+    return this.battle.activeInitiativeToken().key === token.key ? '#c9a66b' : token.colorHex || '#26302c';
   }
-  getTokenRadius2D(token: VttTokenVm): number {
-    return Math.max(8, Math.round(20 * this.vttDisplay.gridScale() * getDndSizeScale(token.sizeCategory)));
-  }
-  getTokenAvatarRadius2D(token: VttTokenVm): number {
-    return Math.max(6, Math.round(18 * this.vttDisplay.gridScale() * getDndSizeScale(token.sizeCategory)));
-  }
+  getTokenRadius2D(token: VttTokenVm): number { return Math.max(8, Math.round(20 * this.vttDisplay.gridScale() * getDndSizeScale(token.sizeCategory))); }
+  getTokenAvatarRadius2D(token: VttTokenVm): number { return Math.max(6, Math.round(18 * this.vttDisplay.gridScale() * getDndSizeScale(token.sizeCategory))); }
 
   mountStageIfReady(): void {
     if (this.stageMounted || !this.hasConfiguredMap() || !this.vttCanvasRef?.nativeElement) return;
@@ -279,14 +250,14 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   }
 
   sync3dStage(): void {
-    this.stage.syncTokens(
-      this.vtt.tokens(),
-      this.vtt.selectedAttackerKey(),
-      this.vtt.selectedTargetKey(),
-      this.battle.allReticleTargetKeys(),
-      this.fog.opacityByKey(),
-      this.vttDisplay.gridScale(),
+    const obs = this.battle.activeObserverToken();
+    const preview = this.battle.activeRangeAndAoePreview();
+    this.stage.syncSpellTemplateAndTethers(
+      obs ? { x: obs.x, z: obs.z } : null,
+      this.battle.activeTetherTargetPoints(),
+      preview ? { active: true, casterPos: preview.clamped.start, endPos: preview.clamped.end, isSingleOrMulti: preview.isSingleOrMulti, aoeRadiusFeet: preview.aoeRadiusFeet, blockedByWall: preview.clamped.blockedByWall } : null,
     );
+    this.stage.syncTokens(this.vtt.tokens(), this.vtt.selectedAttackerKey(), this.vtt.selectedTargetKey(), this.battle.allReticleTargetKeys(), this.fog.opacityByKey(), this.vttDisplay.gridScale());
     this.stage.syncFog(this.fog.layer());
   }
 
@@ -330,9 +301,11 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     handleVttWindowKeydown(
       event,
       this.battle,
+      this.vtt,
       this.vttDisplay,
       this.view2d,
       this.stage,
+      this.serverSync,
       () => this.gridEnabled.update((v) => !v),
       (cast) => (cast ? void this.executePendingAbilityCast() : this.sync3dStage()),
     );
@@ -416,10 +389,24 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     void this.serverSync.publishMove(moved.key, moved.x, moved.z);
   }
 
-  selectDockAction(action: DockAction): void { this.battle.triggerDockAction(action); }
+  selectDockAction(action: DockAction): void {
+    const ab = this.battle.triggerDockAction(action);
+    this.tryOpenWorkflowWithPreselectedTargets(ab);
+  }
   onDockMenuAction(detail: { action: DockAction; token: DockToken }): void {
     if (typeof detail.token.sheetRef === 'string') this.vtt.selectedAttackerKey.set(detail.token.sheetRef);
-    this.battle.triggerDockAction(detail.action);
+    const ab = this.battle.triggerDockAction(detail.action);
+    this.tryOpenWorkflowWithPreselectedTargets(ab);
+  }
+  private tryOpenWorkflowWithPreselectedTargets(ability: VttTacticalAbilityVm | null): void {
+    this.sync3dStage();
+    if (!ability || !this.battle.isSingleOrMultiTargetAbility(ability) || !this.battle.hasActiveTargetTether()) return;
+    const obs = this.battle.activeObserverToken();
+    const keys = this.battle.queuedTargetSequence().length > 0 ? this.battle.queuedTargetSequence() : this.battle.multiTargetKeys();
+    const targets = keys.filter((k) => !obs || k !== obs.key).map((k) => this.vtt.tokens().find((t) => t.key === k)).filter((t): t is VttTokenVm => !!t);
+    if (obs && targets.length > 0 && targets.length >= Math.max(1, ability.maxTargets || 1)) {
+      this.workflow.openWorkflow(obs, ability, targets, () => this.sync3dStage());
+    }
   }
   dockStandardAction(detail: { action: { name: string }; token: DockToken }): void { this.dmToolReadout.set(`${detail.token.name} uses ${detail.action.name}.`); }
   dockCheck(label: string, token: DockToken): void {
@@ -432,10 +419,11 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     if (!this.battle.isAbilityAvailableOnTurn(ability)) return;
     if (this.battle.pendingAbility()?.id === ability.id) { void this.executePendingAbilityCast(); return; }
     this.battle.beginAbilityTargeting(ability);
+    this.tryOpenWorkflowWithPreselectedTargets(ability);
   }
 
   async executePendingAbilityCast(): Promise<void> {
-    await runPendingAbilityCastAndFx(this.battle, this.vtt, this.stage, () => this.sync3dStage());
+    await runPendingAbilityCastAndFx(this.battle, this.vtt, this.workflow, () => this.sync3dStage());
   }
 
   nextTurn(): void {

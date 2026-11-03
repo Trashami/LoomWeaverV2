@@ -12,18 +12,39 @@
     <!-- Character Selector -->
     <div class="lw-character-selector">
       <label class="lw-input-label" for="charSelect">Active Crafter</label>
-      <select
-        id="charSelect"
-        class="lw-select-input"
-        [value]="crafting.focusedCharacterKey()"
-        (change)="onCharacterChanged($event)"
-      >
-        @for (char of crafting.availableCharacters(); track char.key) {
-          <option [value]="char.key">
-            {{ char.name }} (Lvl {{ char.level }} {{ char.characterClass }})
-          </option>
-        }
-      </select>
+      @if (crafting.isGm()) {
+        <select
+          id="charSelect"
+          class="lw-select-input"
+          (change)="onCharacterChanged($event)"
+        >
+          @for (char of crafting.availableCharacters(); track char.key) {
+            <option [value]="char.key" [selected]="char.key === crafting.focusedCharacterKey()">
+              {{ char.name }} (Lvl {{ char.level }} {{ char.characterClass }})
+            </option>
+          }
+        </select>
+        <div class="lw-dm-token-quickselect">
+          @for (char of crafting.availableCharacters(); track char.key) {
+            <button
+              type="button"
+              class="lw-dm-token-btn"
+              [class.lw-dm-token-btn--active]="char.key === crafting.focusedCharacterKey()"
+              (click)="crafting.setFocusedCharacter(char.key)"
+            >
+              {{ char.name.split(' ')[0] }}
+            </button>
+          }
+        </div>
+      } @else {
+        <div class="lw-crafter-locked-badge">
+          <lw-icon name="shield" [size]="16" tone="gold" />
+          <div class="lw-crafter-locked-info">
+            <span class="lw-crafter-name">{{ crafting.activeCharacter()?.name }}</span>
+            <span class="lw-crafter-sub">Lvl {{ crafting.activeCharacter()?.level }} {{ crafting.activeCharacter()?.classOrArchetype }}</span>
+          </div>
+        </div>
+      }
     </div>
 
     <!-- Inventory Filter & Materials List -->
@@ -91,15 +112,36 @@
         />
       </div>
 
-      <!-- Bastion Workshop bonus toggle -->
-      <label class="lw-checkbox-label">
-        <input
-          type="checkbox"
-          [checked]="bastionBonusActive()"
-          (change)="bastionBonusActive.set(!bastionBonusActive())"
-        />
-        <span>Bastion Workshop (50% Time Reduction)</span>
-      </label>
+      <div class="lw-pacing-group">
+        <label class="lw-checkbox-label">
+          <input
+            type="checkbox"
+            [checked]="bastionBonusActive()"
+            (change)="bastionBonusActive.set(!bastionBonusActive())"
+          />
+          <span>Bastion (50% Off)</span>
+        </label>
+        <div class="lw-pacing-buttons">
+          <button
+            type="button"
+            class="lw-pacing-btn"
+            [class.lw-pacing-btn--active]="craftPacing() === 'session'"
+            (click)="craftPacing.set('session')"
+            title="Real-world 2-minute live timer for game sessions"
+          >
+            Session Live (2m)
+          </button>
+          <button
+            type="button"
+            class="lw-pacing-btn"
+            [class.lw-pacing-btn--active]="craftPacing() === 'standard'"
+            (click)="craftPacing.set('standard')"
+            title="Full 5e downtime hours"
+          >
+            Full Downtime
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Category Filters -->
@@ -217,7 +259,7 @@
               type="button"
               class="lw-craft-btn"
               [disabled]="!crafting.hasRequiredMaterials(recipe) || crafting.loading()"
-              (click)="crafting.startCrafting(recipe, bastionBonusActive())"
+              (click)="onCraftRecipe(recipe)"
             >
               <lw-icon name="wrench" [size]="15" />
               <span>{{ recipe.durationMinutes === 0 ? 'Craft Instant' : 'Start Project' }}</span>

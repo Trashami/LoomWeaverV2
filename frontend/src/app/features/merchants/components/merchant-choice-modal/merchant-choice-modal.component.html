@@ -1,0 +1,36 @@
+<lw-modal
+  [(open)]="open"
+  title="Establish Campaign Merchant"
+  subtitle="Select your preferred method for establishing this merchant"
+  size="md"
+>
+  <div class="choice-container">
+    <div class="choice-card" (click)="onSelectRandom()">
+      <div class="choice-card__icon random">
+        <lw-icon name="dices" [size]="28" tone="gold" />
+      </div>
+      <div class="choice-card__content">
+        <h3>Procedural Random Generation</h3>
+        <p>Instantly roll an authentic D&D fantasy store name, NPC shopkeeper with stats and traits, and preview starter inventory wares.</p>
+        <button ngpButton type="button" class="lw-btn lw-btn--primary">
+          <lw-icon name="dices" [size]="14" />
+          <span>Generate Random Merchant</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="choice-card" (click)="onSelectManual()">
+      <div class="choice-card__icon manual">
+        <lw-icon name="edit" [size]="28" tone="emerald" />
+      </div>
+      <div class="choice-card__content">
+        <h3>Manual Custom Creation</h3>
+        <p>Custom build your merchant from scratch. Select settlements and NPCs from campaign data sources with drop-downs.</p>
+        <button ngpButton type="button" class="lw-btn lw-btn--secondary">
+          <lw-icon name="plus" [size]="14" />
+          <span>Build Manually</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</lw-modal>

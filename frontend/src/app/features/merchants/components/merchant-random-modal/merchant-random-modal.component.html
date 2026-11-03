@@ -1,0 +1,167 @@
+<lw-modal
+  [(open)]="open"
+  title="Forge Random Fantasy Merchant"
+  subtitle="Procedurally rolled store name, NPC shopkeeper, and initial wares"
+  size="lg"
+>
+  <div class="random-forge-modal">
+    <!-- Generation Filter Bar -->
+    <div class="config-bar">
+      <div class="config-field">
+        <label for="randomTypeSelect">Specialization / Type</label>
+        <select
+          id="randomTypeSelect"
+          [ngModel]="selectedType()"
+          (ngModelChange)="onTypeChange($event)"
+        >
+          <option value="random">Random Fantasy Type (Any)</option>
+          @for (type of merchantTypes; track type) {
+            <option [value]="type">{{ type }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="config-field">
+        <label for="randomLocSelect">Settlement Location</label>
+        <select
+          id="randomLocSelect"
+          [ngModel]="selectedLocation()"
+          (ngModelChange)="onLocationChange($event)"
+        >
+          @for (loc of campaignLocations(); track loc) {
+            <option [value]="loc">{{ loc }}</option>
+          }
+        </select>
+      </div>
+
+      <button
+        ngpButton
+        type="button"
+        class="reroll-btn"
+        (click)="rollNewPreview()"
+        title="Roll another random combination"
+      >
+        <lw-icon name="dices" [size]="15" tone="gold" />
+        <span>Reroll Merchant</span>
+      </button>
+    </div>
+
+    <!-- Generated Results Showcase -->
+    @if (preview(); as p) {
+      <div class="preview-card">
+        <div class="preview-header">
+          <div class="preview-title-row">
+            <h3 class="store-name">{{ p.storeName }}</h3>
+            <span class="type-pill">{{ p.merchantType }}</span>
+            <span class="loc-pill">
+              <lw-icon name="map-pin" [size]="12" />
+              <span>{{ p.locationName }}</span>
+            </span>
+          </div>
+          <p class="tagline">{{ p.tagline }}</p>
+        </div>
+
+        <div class="proprietor-dossier">
+          <div class="avatar-ring">
+            <lw-icon name="account-circle" [size]="30" tone="emerald" />
+          </div>
+          <div class="dossier-info">
+            <div class="dossier-name-row">
+              <strong class="dossier-name">{{ p.npcName }}</strong>
+              <span class="dossier-meta">{{ p.npcRace }} &bull; {{ p.npcDemeanor }}</span>
+              <span class="dc-pill">Persuasion DC {{ p.persuasionDc }}</span>
+            </div>
+            <p class="dossier-quirk"><em>Quirk:</em> {{ p.npcQuirk }}</p>
+            <p class="dossier-quote">"{{ p.greeting }}"</p>
+          </div>
+        </div>
+
+        <!-- Stock Option -->
+        <div class="stock-toggle-bar">
+          <span class="stock-label">Inventory Mode:</span>
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="popOption"
+              [value]="true"
+              [checked]="populateInventory()"
+              (change)="populateInventory.set(true)"
+            />
+            <span>Populate Themed Starter Stock ({{ p.inventory.length }} items)</span>
+          </label>
+          <label class="radio-label">
+            <input
+              type="radio"
+              name="popOption"
+              [value]="false"
+              [checked]="!populateInventory()"
+              (change)="populateInventory.set(false)"
+            />
+            <span>Start Empty</span>
+          </label>
+        </div>
+
+        <!-- Inventory Wares Table -->
+        @if (populateInventory()) {
+          <div class="wares-preview">
+            <div class="wares-header">
+              <span>Item Wares Preview</span>
+              <span class="wares-sub">Thematic starter stock for {{ p.merchantType }}</span>
+            </div>
+
+            <div class="wares-table">
+              <div class="wares-thead">
+                <span>Item</span>
+                <span>Type</span>
+                <span>Rarity</span>
+                <span>Stock</span>
+                <span>Price (GP)</span>
+              </div>
+              @for (item of p.inventory; track item.name) {
+                <div class="wares-row">
+                  <span class="col-name">{{ item.name }}</span>
+                  <span class="col-type">{{ item.itemType }}</span>
+                  <span class="col-rarity" [attr.data-rarity]="item.rarity.toLowerCase()">{{ item.rarity }}</span>
+                  <span class="col-qty">{{ item.quantity }}</span>
+                  <span class="col-price">{{ item.priceGp }} GP</span>
+                </div>
+              }
+            </div>
+          </div>
+        } @else {
+          <div class="empty-stock-note">
+            <lw-icon name="inventory_2" [size]="20" tone="muted" />
+            <span>Store shelves will be blank upon establishment. You can manually stock goods or apply roll tables later.</span>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Modal Actions -->
+    <div class="modal-footer">
+      <button
+        ngpButton
+        type="button"
+        class="lw-btn lw-btn--subtle"
+        (click)="close()"
+      >
+        Cancel
+      </button>
+
+      <button
+        ngpButton
+        type="button"
+        class="lw-btn lw-btn--primary"
+        [disabled]="generating()"
+        (click)="onConfirm()"
+      >
+        @if (generating()) {
+          <span>Establishing Merchant...</span>
+        } @else {
+          <lw-icon name="storefront" [size]="15" />
+          <span>Confirm & Establish Store</span>
+        }
+      </button>
+    </div>
+  </div>
+</lw-modal>

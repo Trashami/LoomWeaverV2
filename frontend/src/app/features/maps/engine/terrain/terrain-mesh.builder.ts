@@ -114,7 +114,7 @@ export class TerrainMeshBuilder {
 
   static getCellStepMeters(): number {
     const base = this.activeGridMode === '10 ft' ? 3.0 : 1.5;
-    return Math.max(0.6, Math.min(4.5, base * this.gridScaleFactor));
+    return Math.max(0.35, Math.min(4.5, base * this.gridScaleFactor));
   }
 
   static getGridScaleFactor(): number {
@@ -263,13 +263,13 @@ export class TerrainMeshBuilder {
           : '5 ft';
     }
     if (config.scaleFactor !== undefined && Number.isFinite(config.scaleFactor)) {
-      this.gridScaleFactor = Math.max(0.5, Math.min(2.5, config.scaleFactor));
+      this.gridScaleFactor = Math.max(0.25, Math.min(3.0, config.scaleFactor));
     }
     if (config.offsetX !== undefined && Number.isFinite(config.offsetX)) {
-      this.gridOffsetX = Math.max(-2.0, Math.min(2.0, config.offsetX));
+      this.gridOffsetX = Math.max(-6.0, Math.min(6.0, config.offsetX));
     }
     if (config.offsetZ !== undefined && Number.isFinite(config.offsetZ)) {
-      this.gridOffsetZ = Math.max(-2.0, Math.min(2.0, config.offsetZ));
+      this.gridOffsetZ = Math.max(-6.0, Math.min(6.0, config.offsetZ));
     }
     if (config.opacity !== undefined && Number.isFinite(config.opacity)) {
       this.gridOpacity = Math.max(0.15, Math.min(1.0, config.opacity));

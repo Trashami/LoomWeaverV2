@@ -1,0 +1,168 @@
+<lw-modal
+  [(open)]="open"
+  title="Establish Campaign Merchant"
+  subtitle="Manual storefront construction with campaign locations and NPCs"
+  size="lg"
+>
+  <form class="create-form" (ngSubmit)="onSubmit()">
+    <div class="form-row">
+      <label>
+        <span>Store Name *</span>
+        <input
+          type="text"
+          placeholder="e.g. The Iron Anvil Armory, Moonlit Phials..."
+          [ngModel]="storeName()"
+          (ngModelChange)="storeName.set($event)"
+          name="storeName"
+          required
+        />
+      </label>
+
+      <label>
+        <span>Merchant Specialization</span>
+        <select
+          [ngModel]="merchantType()"
+          (ngModelChange)="merchantType.set($event)"
+          name="merchantType"
+        >
+          @for (type of merchantTypes; track type) {
+            <option [value]="type">{{ type }}</option>
+          }
+        </select>
+      </label>
+    </div>
+
+    <!-- Campaign Data Sources: Location & NPC Dropdowns -->
+    <div class="form-row">
+      <div class="field-combo">
+        <label>
+          <span>Settlement / Location (Campaign Source) *</span>
+          <select
+            [ngModel]="locationName()"
+            (ngModelChange)="locationName.set($event)"
+            name="locationSelect"
+          >
+            @for (loc of campaignLocations(); track loc) {
+              <option [value]="loc">{{ loc }}</option>
+            }
+          </select>
+        </label>
+        <input
+          type="text"
+          placeholder="Or enter custom settlement..."
+          [ngModel]="locationName()"
+          (ngModelChange)="locationName.set($event)"
+          name="customLocation"
+          class="sub-input"
+        />
+      </div>
+
+      <div class="field-combo">
+        <label>
+          <span>Proprietor / NPC (Campaign Source) *</span>
+          <select
+            [ngModel]="merchantName()"
+            (ngModelChange)="merchantName.set($event)"
+            name="npcSelect"
+          >
+            @for (npc of campaignNpcs(); track npc) {
+              <option [value]="npc">{{ npc }}</option>
+            }
+          </select>
+        </label>
+        <input
+          type="text"
+          placeholder="Or enter custom NPC name..."
+          [ngModel]="merchantName()"
+          (ngModelChange)="merchantName.set($event)"
+          name="customNpc"
+          class="sub-input"
+        />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label class="full-width">
+        <span>Tagline / Specialty</span>
+        <input
+          type="text"
+          placeholder="e.g. Fine forged dwarven blades and climbing supplies"
+          [ngModel]="tagline()"
+          (ngModelChange)="tagline.set($event)"
+          name="tagline"
+        />
+      </label>
+    </div>
+
+    <label>
+      <span>Store Description & Atmosphere</span>
+      <textarea
+        rows="2"
+        placeholder="Describe the sights, sounds, smells, and atmosphere of the shop..."
+        [ngModel]="description()"
+        (ngModelChange)="description.set($event)"
+        name="description"
+      ></textarea>
+    </label>
+
+    <label>
+      <span>Spoken Greeting to Visiting Players</span>
+      <input
+        type="text"
+        placeholder="Quote spoken when entering..."
+        [ngModel]="greeting()"
+        (ngModelChange)="greeting.set($event)"
+        name="greeting"
+      />
+    </label>
+
+    <div class="form-row">
+      <label>
+        <span>Price Markup (%)</span>
+        <input
+          type="number"
+          min="50"
+          max="300"
+          [ngModel]="markup()"
+          (ngModelChange)="markup.set($event)"
+          name="markup"
+        />
+      </label>
+      <label>
+        <span>Player Buyback Rate (%)</span>
+        <input
+          type="number"
+          min="10"
+          max="100"
+          [ngModel]="buyRate()"
+          (ngModelChange)="buyRate.set($event)"
+          name="buyRate"
+        />
+      </label>
+    </div>
+
+    <div class="modal-actions">
+      <button
+        ngpButton
+        type="button"
+        class="lw-btn lw-btn--subtle"
+        (click)="close()"
+      >
+        Cancel
+      </button>
+      <button
+        ngpButton
+        type="submit"
+        class="lw-btn lw-btn--primary"
+        [disabled]="!storeName().trim() || creating()"
+      >
+        @if (creating()) {
+          <span>Creating Merchant...</span>
+        } @else {
+          <lw-icon name="plus" [size]="14" />
+          <span>Establish Merchant</span>
+        }
+      </button>
+    </div>
+  </form>
+</lw-modal>

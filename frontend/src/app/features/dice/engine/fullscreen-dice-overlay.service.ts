@@ -55,6 +55,31 @@ export class FullscreenDiceOverlayService {
     }
   }
 
+  /**
+   * Triggers a 3D fullscreen dice roll and resolves the returned Promise once the
+   * 3D dice have settled AND completely faded out from the screen (`hidden` phase),
+   * so sequential combat steps (Attack Roll -> Hit/Miss Modal -> Damage Roll -> EffectBuilder FX)
+   * never overlap or stutter.
+   */
+  triggerFullScreenRollAndWait(req: FullscreenDiceRollRequest): Promise<void> {
+    return new Promise<void>((resolve) => {
+      let resolved = false;
+      const done = () => {
+        if (resolved) return;
+        resolved = true;
+        resolve();
+      };
+      this.triggerFullScreenRoll({
+        ...req,
+        onComplete: () => {
+          req.onComplete?.();
+          this.schedule(1850, done);
+        },
+      });
+      this.schedule(4200, done);
+    });
+  }
+
   triggerFullScreenRoll(req: FullscreenDiceRollRequest): void {
     this.clearTimers();
 

@@ -25,22 +25,12 @@
         <button
           ngpButton
           type="button"
-          class="lw-btn lw-btn--secondary"
-          (click)="openRandomModal()"
-          title="Forge a random D&D fantasy merchant with store name and NPC shopkeeper"
-        >
-          <lw-icon name="dices" [size]="14" tone="gold" />
-          <span>Generate Random Merchant</span>
-        </button>
-
-        <button
-          ngpButton
-          type="button"
           class="lw-btn lw-btn--primary"
-          (click)="openCreateModal()"
+          (click)="openAddMerchantChoice()"
+          title="Establish a new merchant via random generation or manual construction"
         >
           <lw-icon name="plus" [size]="14" />
-          <span>New Merchant</span>
+          <span>Add Merchant</span>
         </button>
       }
 
@@ -103,349 +93,156 @@
     </div>
   </div>
 
-  @if (errorMessage()) {
+  @if (loading()) {
+    <div class="loading-state">
+      <lw-icon name="refresh" [size]="28" tone="emerald" />
+      <span>Consulting regional merchant guild ledgers...</span>
+    </div>
+  } @else if (errorMessage()) {
     <div class="error-banner">
       <lw-icon name="alert-circle" [size]="16" tone="crimson" />
       <span>{{ errorMessage() }}</span>
     </div>
-  }
-
-  @if (loading()) {
-    <div class="loading-state">
-      <div class="spinner"></div>
-      <p>Consulting local quartermasters and trade guilds...</p>
-    </div>
   } @else if (filteredMerchants().length === 0) {
     <div class="empty-state">
-      <lw-icon name="storefront" [size]="48" tone="muted" />
-      <h3>No Merchants Found</h3>
-      <p>No registered stores match the active filter for this region.</p>
+      <div class="empty-icon-ring">
+        <lw-icon name="storefront" [size]="48" tone="muted" />
+      </div>
+      <h3>No Merchants In This Market</h3>
+      <p>
+        @if (activeTab() === 'near') {
+          No established merchants are stationed in <strong>{{ currentLocation() }}</strong> yet.
+        } @else if (activeTab() === 'visited') {
+          Your party has not completed any transactions at campaign storefronts yet.
+        } @else {
+          No merchants match your active filters. Establish a merchant or broaden your search.
+        }
+      </p>
       @if (isGm()) {
-        <button ngpButton class="lw-btn lw-btn--primary" (click)="openCreateModal()">
-          Create Merchant
+        <button
+          ngpButton
+          type="button"
+          class="lw-btn lw-btn--primary"
+          (click)="openAddMerchantChoice()"
+        >
+          <lw-icon name="plus" [size]="14" />
+          <span>Add Merchant</span>
         </button>
       }
     </div>
   } @else {
-    <div class="merchant-grid">
+    <div class="merchants-grid">
       @for (m of filteredMerchants(); track m.id) {
         <article
           class="merchant-card"
+          [class.merchant-card--distant]="!m.isAtCurrentLocation"
           [class.merchant-card--near]="m.isAtCurrentLocation"
-          [class.merchant-card--far]="!m.isAtCurrentLocation"
           (click)="openMerchantStore(m)"
         >
-          <div class="card-banner">
-            <div class="banner-gradient"></div>
-            <div class="badge-cluster">
-              @if (m.isAtCurrentLocation) {
-                <span class="status-badge status-badge--near">
-                  <lw-icon name="check" [size]="12" />
-                  <span>At Party Location</span>
-                </span>
-              } @else {
-                <span class="status-badge status-badge--far">
-                  <lw-icon name="lock" [size]="12" />
-                  <span>Far Away</span>
-                </span>
-              }
+          <div class="merchant-card__banner">
+            <div class="store-badge-row">
+              <span class="location-pill" [class.location-pill--local]="m.isAtCurrentLocation">
+                <lw-icon name="map-pin" [size]="12" />
+                <span>{{ m.locationName }}</span>
+              </span>
 
-              @if (m.hasVisited) {
-                <span class="status-badge status-badge--visited">
-                  <lw-icon name="bookmark" [size]="12" />
-                  <span>Visited ({{ m.pastPurchasesCount }})</span>
-                </span>
+              @if (m.isAtCurrentLocation) {
+                <span class="status-pill status-pill--open">Open Locally</span>
+              } @else {
+                <span class="status-pill status-pill--distant">Distant Outpost</span>
               }
             </div>
 
-            @if (isGm() && isGmMode()) {
-              <div class="gm-card-actions">
+            <div class="merchant-avatar-wrap">
+              <div class="avatar-ring">
+                <lw-icon name="storefront" [size]="28" tone="emerald" />
+              </div>
+            </div>
+          </div>
+
+          <div class="merchant-card__body">
+            <div class="title-row">
+              <h3 class="store-title">{{ m.storeName }}</h3>
+              @if (isGm() && isGmMode()) {
                 <button
                   type="button"
-                  class="card-action-btn delete"
-                  title="Delete Merchant"
+                  class="card-delete-btn"
+                  title="Remove Merchant"
                   (click)="deleteMerchant(m, $event)"
                 >
                   <lw-icon name="trash" [size]="14" tone="crimson" />
                 </button>
-              </div>
-            }
-          </div>
-
-          <div class="card-content">
-            <div class="shopkeeper-row">
-              <div class="avatar-ring" [class.avatar-ring--near]="m.isAtCurrentLocation">
-                <lw-icon name="storefront" [size]="20" [tone]="m.isAtCurrentLocation ? 'emerald' : 'muted'" />
-              </div>
-              <div class="shop-ident">
-                <h3 class="store-name">{{ m.storeName }}</h3>
-                <p class="merchant-name">{{ m.merchantName }}</p>
-              </div>
-            </div>
-
-            <p class="tagline">{{ m.tagline }}</p>
-
-            <div class="location-tag">
-              <lw-icon name="map-pin" [size]="13" tone="muted" />
-              <span>{{ m.locationName }}</span>
-            </div>
-
-            <div class="card-meta">
-              <div class="meta-item">
-                <span class="meta-label">Inventory</span>
-                <span class="meta-val">{{ m.inventoryCount }} items</span>
-              </div>
-              @if (m.rollTableName) {
-                <div class="meta-item">
-                  <span class="meta-label">Loot Table</span>
-                  <span class="meta-val roll-table-pill">{{ m.rollTableName }}</span>
-                </div>
               }
             </div>
 
-            <div class="card-footer">
-              <button
-                ngpButton
-                type="button"
-                class="enter-store-btn"
-                [class.enter-store-btn--near]="m.isAtCurrentLocation"
-              >
-                <span>{{ m.isAtCurrentLocation ? 'Enter Store' : 'Browse Wares (Preview)' }}</span>
-                <lw-icon name="arrow-right" [size]="14" />
-              </button>
+            <p class="shopkeeper">
+              Proprietor: <strong>{{ m.merchantName }}</strong>
+            </p>
+
+            <p class="tagline">{{ m.tagline }}</p>
+
+            <div class="meta-row">
+              <div class="meta-item">
+                <lw-icon name="inventory_2" [size]="13" tone="muted" />
+                <span>{{ m.inventoryCount }} Wares</span>
+              </div>
+
+              @if (m.pastPurchasesCount > 0) {
+                <div class="meta-item patron">
+                  <lw-icon name="shopping-bag" [size]="13" tone="gold" />
+                  <span>{{ m.pastPurchasesCount }} Visits</span>
+                </div>
+              }
+
+              @if (m.rollTableName) {
+                <div class="meta-item table" title="Attached Roll Table">
+                  <lw-icon name="table-chart" [size]="13" tone="gold" />
+                  <span class="table-name">{{ m.rollTableName }}</span>
+                </div>
+              }
             </div>
+          </div>
+
+          <div class="merchant-card__footer">
+            <span class="action-hint">
+              @if (m.isAtCurrentLocation) {
+                <span>Enter Storefront</span>
+              } @else {
+                <span>Browse Distant Catalog</span>
+              }
+            </span>
+            <lw-icon name="chevron-right" [size]="16" tone="emerald" />
           </div>
         </article>
       }
     </div>
   }
 
-  @if (createModalOpen()) {
-    <lw-modal
-      title="Establish New Campaign Merchant"
-      [open]="true"
-      (closed)="createModalOpen.set(false)"
-    >
-      <form class="merchant-form" (ngSubmit)="submitCreateMerchant()">
-        <div class="form-row">
-          <label>
-            <span>Store Name *</span>
-            <input
-              type="text"
-              required
-              placeholder="e.g. The Gilded Rose Emporium"
-              [ngModel]="newStoreName()"
-              (ngModelChange)="newStoreName.set($event)"
-              name="storeName"
-            />
-          </label>
-          <label>
-            <span>Shopkeeper / NPC Name</span>
-            <input
-              type="text"
-              placeholder="e.g. Master Brom Ironhand"
-              [ngModel]="newMerchantName()"
-              (ngModelChange)="newMerchantName.set($event)"
-              name="merchantName"
-            />
-          </label>
-        </div>
+  <!-- CHOICE MODAL: Random vs Manual -->
+  @if (isGm()) {
+    <lw-merchant-choice-modal
+      [(open)]="choiceModalOpen"
+      (chooseRandom)="onChoiceRandom()"
+      (chooseManual)="onChoiceManual()"
+    />
 
-        <div class="form-row">
-          <label>
-            <span>City or Location *</span>
-            <input
-              type="text"
-              placeholder="e.g. Vandia, Cinth, Whispering Grove"
-              [ngModel]="newLocationName()"
-              (ngModelChange)="newLocationName.set($event)"
-              name="locationName"
-            />
-          </label>
-          <label>
-            <span>Tagline / Specialty</span>
-            <input
-              type="text"
-              placeholder="e.g. Rare coastal blades and climbing gear"
-              [ngModel]="newTagline()"
-              (ngModelChange)="newTagline.set($event)"
-              name="tagline"
-            />
-          </label>
-        </div>
-
-        <label>
-          <span>Store Description & Atmosphere</span>
-          <textarea
-            rows="2"
-            placeholder="Describe the sight, smells, and atmosphere of the store..."
-            [ngModel]="newDescription()"
-            (ngModelChange)="newDescription.set($event)"
-            name="description"
-          ></textarea>
-        </label>
-
-        <label>
-          <span>Spoken Greeting to Players</span>
-          <input
-            type="text"
-            placeholder="Quote spoken when entering..."
-            [ngModel]="newGreeting()"
-            (ngModelChange)="newGreeting.set($event)"
-            name="greeting"
-          />
-        </label>
-
-        <div class="form-row">
-          <label>
-            <span>Attached Roll / Loot Table</span>
-            <input
-              type="text"
-              placeholder="e.g. Magic Item Table A, Trinkets"
-              [ngModel]="newRollTableName()"
-              (ngModelChange)="newRollTableName.set($event)"
-              name="rollTableName"
-            />
-          </label>
-          <label>
-            <span>Price Markup (%)</span>
-            <input
-              type="number"
-              min="50"
-              max="300"
-              [ngModel]="newMarkup()"
-              (ngModelChange)="newMarkup.set($event)"
-              name="markup"
-            />
-          </label>
-          <label>
-            <span>Player Buyback Rate (%)</span>
-            <input
-              type="number"
-              min="10"
-              max="100"
-              [ngModel]="newBuyRate()"
-              (ngModelChange)="newBuyRate.set($event)"
-              name="buyRate"
-            />
-          </label>
-        </div>
-
-        <div class="modal-actions">
-          <button
-            ngpButton
-            type="button"
-            class="lw-btn lw-btn--subtle"
-            (click)="createModalOpen.set(false)"
-          >
-            Cancel
-          </button>
-          <button
-            ngpButton
-            type="submit"
-            class="lw-btn lw-btn--primary"
-            [disabled]="!newStoreName().trim()"
-          >
-            Create Merchant
-          </button>
-        </div>
-      </form>
-    </lw-modal>
-
-    <!-- GENERATE RANDOM MERCHANT MODAL -->
-    <lw-modal
+    <!-- RANDOM GENERATOR MODAL -->
+    <lw-merchant-random-modal
       [(open)]="randomModalOpen"
-      title="Forge Random Fantasy Merchant"
-      subtitle="Generates an authentic D&D shop, fantasy store name, and NPC proprietor"
-      size="md"
-    >
-      <form class="create-form" (ngSubmit)="submitGenerateRandom()">
-        <p class="modal-hint">
-          Pulls from a database of fantasy store names, generates a customized NPC shopkeeper with D&D stats, race, demeanor, and quirk, and optionally stocks their shelves with themed 5e items.
-        </p>
+      [campaignLocations]="campaignLocations()"
+      [currentLocation]="currentLocation()"
+      [generating]="actionBusy()"
+      (confirmGeneration)="onRandomConfirmed($event)"
+    />
 
-        <div class="form-grid">
-          <label>
-            <span>Merchant & Store Type</span>
-            <select
-              [ngModel]="randomMerchantType()"
-              (ngModelChange)="randomMerchantType.set($event)"
-              name="merchantType"
-            >
-              <option value="random">Random Fantasy Type (Any)</option>
-              @for (type of merchantTypes; track type) {
-                <option [value]="type">{{ type }}</option>
-              }
-            </select>
-          </label>
-
-          <label>
-            <span>Merchant & NPC Location</span>
-            <input
-              type="text"
-              placeholder="e.g. Vandia, Cinth, Port of Forgotten Treasures"
-              [ngModel]="randomLocation()"
-              (ngModelChange)="randomLocation.set($event)"
-              name="merchantLocation"
-            />
-          </label>
-        </div>
-
-        <div class="stock-option-box">
-          <span class="stock-title">Initial Inventory</span>
-          <label class="stock-radio">
-            <input
-              type="radio"
-              name="popStock"
-              [value]="true"
-              [checked]="randomPopulateInventory()"
-              (change)="randomPopulateInventory.set(true)"
-            />
-            <div>
-              <strong>Fully Populated with Wares</strong>
-              <p>Generates thematic starter stock tailored to this merchant type (weapons, potions, gear, relics).</p>
-            </div>
-          </label>
-
-          <label class="stock-radio">
-            <input
-              type="radio"
-              name="popStock"
-              [value]="false"
-              [checked]="!randomPopulateInventory()"
-              (change)="randomPopulateInventory.set(false)"
-            />
-            <div>
-              <strong>Empty Store</strong>
-              <p>Leaves inventory blank so you can manually add custom items or dump a roll table later.</p>
-            </div>
-          </label>
-        </div>
-
-        <div class="modal-actions">
-          <button
-            ngpButton
-            type="button"
-            class="lw-btn lw-btn--subtle"
-            (click)="randomModalOpen.set(false)"
-          >
-            Cancel
-          </button>
-          <button
-            ngpButton
-            type="submit"
-            class="lw-btn lw-btn--primary"
-            [disabled]="generatingRandom()"
-          >
-            @if (generatingRandom()) {
-              <span>Forging Merchant...</span>
-            } @else {
-              <lw-icon name="dices" [size]="14" />
-              <span>Forge Merchant</span>
-            }
-          </button>
-        </div>
-      </form>
-    </lw-modal>
+    <!-- MANUAL CREATION MODAL -->
+    <lw-merchant-create-modal
+      [(open)]="createModalOpen"
+      [campaignLocations]="campaignLocations()"
+      [campaignNpcs]="campaignNpcs()"
+      [currentLocation]="currentLocation()"
+      [creating]="actionBusy()"
+      (createMerchant)="onManualCreated($event)"
+    />
   }
 </section>

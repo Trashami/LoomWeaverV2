@@ -65,7 +65,7 @@
         </div>
       </div>
     } @else {
-      <section class="lw-vtt-map-stage" [class.lw-vtt-map-stage--3d]="battle.mapMode3D()" (wheel)="onMapWheel($event)" (mousedown)="onMapMouseDown($event)" (mousemove)="onMapMouseMove($event)" (mouseup)="onMapMouseUp()" (mouseleave)="onMapMouseUp()" aria-label="Interactive Encounter Battle Map">
+      <section class="lw-vtt-map-stage" [class.lw-vtt-map-stage--3d]="battle.mapMode3D()" (wheel)="onMapWheel($event)" (mousedown)="onMapMouseDown($event)" (mousemove)="onMapMouseMove($event)" (mouseup)="onMapMouseUp($event)" (mouseleave)="onMapMouseUp()" aria-label="Interactive Encounter Battle Map">
         <canvas #vttCanvas class="lw-vtt-babylon-canvas" [class.lw-vtt-babylon-canvas--active]="!isHighPerformance2d()"></canvas>
 
         <div class="lw-vtt-2d-viewport" [class.lw-vtt-2d-viewport--hidden]="!isHighPerformance2d()" [style.transform]="view2d.transform()" [style.transformOrigin]="'center center'">
@@ -104,6 +104,12 @@
                   <circle class="lw-vtt-aoe-circle" [class.blocked]="aoe.clamped.blockedByWall" [attr.cx]="toSvgX(aoe.clamped.end.x)" [attr.cy]="toSvgY(aoe.clamped.end.z)" [attr.r]="toSvgPx(aoe.aoeRadiusFeet)" />
                 }
               </g>
+            }
+
+            @for (tp of battle.activeTetherTargetPoints(); track $index) {
+              @if (battle.activeObserverToken(); as caster) {
+                <line class="lw-vtt-cast-line" [attr.x1]="toSvgX(caster.x)" [attr.y1]="toSvgY(caster.z)" [attr.x2]="toSvgX(tp.x)" [attr.y2]="toSvgY(tp.z)" />
+              }
             }
 
             @if (battle.activeMovementPreview(); as mv) {
@@ -283,6 +289,7 @@
         @if (battle.settingsModalOpen()) { <lw-vtt-settings-modal /> }
         <lw-vtt-handout-modal />
         <lw-vtt-token-context-menu (openCharacterSheet)="openCharactersPage()" />
+        <lw-vtt-combat-order-modal />
 
         <lw-vtt-action-dock
           [activeDisplayToken]="dockActiveToken()" [activeInitiativeTokenId]="dockInitiativeTokenId()"

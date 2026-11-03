@@ -72,7 +72,7 @@ export class BabylonTokenMeshBuilder {
       const isAttacker = t.key === attackerKey;
 
       const sizeScale = getDndSizeScale(t.sizeCategory);
-      const effectiveScale = Math.max(0.25, gridScale) * sizeScale;
+      const effectiveScale = sizeScale;
       const baseDiameter = 0.82 * effectiveScale;
       const baseHeight = isDead ? 0.028 : 0.06;
       const footprintRadius = baseDiameter * 0.42;
@@ -157,29 +157,6 @@ export class BabylonTokenMeshBuilder {
       if (isTargeted && pickable) {
         createSpinningBaseTargetReticleMesh(scene, t.key, t.x, groundY, t.z, effectiveScale);
       }
-    }
-
-    const src = tokens.find((t) => t.key === attackerKey && (opacityByKey.get(t.key) ?? 1) > 0.05);
-    const dst = tokens.find((t) => t.key === targetKey && (opacityByKey.get(t.key) ?? 1) > 0.05);
-    if (src && dst && src.key !== dst.key) {
-      const srcY = TerrainMeshBuilder.sampleElevationAt(scene, src.x, src.z);
-      const dstY = TerrainMeshBuilder.sampleElevationAt(scene, dst.x, dst.z);
-      const midY = Math.max(srcY, dstY) + (isTopDown2D ? 0.45 : 1.15);
-      const tether = MeshBuilder.CreateLines(
-        'lw-tether-line',
-        {
-          points: [
-            new Vector3(src.x, srcY + 0.35, src.z),
-            new Vector3((src.x + dst.x) / 2, midY, (src.z + dst.z) / 2),
-            new Vector3(dst.x, dstY + 0.35, dst.z),
-          ],
-        },
-        scene,
-      );
-      tether.color = Color3.FromHexString('#2d8a56');
-      tether.renderingGroupId = 2;
-      tether.alphaIndex = 10;
-      tether.isPickable = false;
     }
   }
 

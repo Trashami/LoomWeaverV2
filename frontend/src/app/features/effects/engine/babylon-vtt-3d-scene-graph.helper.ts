@@ -40,6 +40,9 @@ export function sync3dMapSceneGraph(
   ground: Mesh | null,
   gridVisible: boolean,
   onScheduleResync: () => void,
+  gridScale: number = 1.0,
+  gridOffsetX: number = 0.0,
+  gridOffsetY: number = 0.0,
 ): void {
   if (ground) {
     ground.isVisible = false;
@@ -84,6 +87,12 @@ export function sync3dMapSceneGraph(
     state.terrainRelief ?? 0.35,
     state.waterSplines?.length ?? 0,
   );
+  TerrainMeshBuilder.configureGrid(scene, {
+    mode: gridVisible ? '5 ft' : 'Off',
+    scaleFactor: gridScale,
+    offsetX: (gridOffsetX / 50) * 1.5,
+    offsetZ: (gridOffsetY / 50) * 1.5,
+  });
 
   const terrainGrid = scene.getMeshByName('lw-terrain-grid');
   if (terrainGrid) {
@@ -227,6 +236,8 @@ export function restoreCameraAfterTokenDrag(
     camera.upperBetaLimit = Math.PI / 2.05;
   }
   camera.attachControl(canvas, true);
+  camera.inputs.removeByType('ArcRotateCameraKeyboardMoveInput');
+  camera.inputs.removeByType('ArcRotateCameraMouseWheelInput');
   const p = camera.inputs.attached['pointers'] as ArcRotateCameraPointersInput | undefined;
   if (p) p.buttons = [0, 1, 2];
 }

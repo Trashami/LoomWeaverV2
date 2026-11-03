@@ -6,10 +6,10 @@
         <lw-icon name="alert-circle" [size]="20" tone="gold" />
         <div>
           <h4 class="lw-dm-alert-banner__title">
-            {{ crafting.pendingProjectsForGm().length }} Crafting Project(s) Awaiting Review
+            {{ crafting.pendingProjectsForGm().length }} Crafting Project(s) In Progress / Review
           </h4>
           <p class="lw-dm-alert-banner__sub">
-            Players have queued projects. You can resolve them immediately as success or mishap below.
+            Track real-world crafting progress, fast-forward completion, or rule on complications below.
           </p>
         </div>
       </div>
@@ -19,29 +19,56 @@
   <!-- Active Projects Section -->
   <section class="lw-projects-section">
     <div class="lw-section-header">
-      <h3 class="lw-section-title">
-        <lw-icon name="clock" [size]="18" tone="gold" />
-        <span>Active &amp; Historical Projects ({{ activeProjects().length }})</span>
-      </h3>
-      <button
-        type="button"
-        class="lw-refresh-btn"
-        (click)="crafting.loadProjects()"
-      >
-        <lw-icon name="undo" [size]="14" />
-        <span>Refresh Status</span>
-      </button>
+      <div class="lw-section-header__title-group">
+        <h3 class="lw-section-title">
+          <lw-icon name="clock" [size]="18" tone="gold" />
+          <span>Crafting Projects ({{ activeProjects().length }})</span>
+        </h3>
+        <!-- Live SignalR Badge -->
+        <div class="lw-signalr-status-badge">
+          <span class="lw-live-pulse-dot"></span>
+          <span>Realtime Server Sync · {{ tableSync.syncProtocolLabel() }}</span>
+        </div>
+      </div>
+
+      <div class="lw-section-controls">
+        @if (crafting.isGm()) {
+          <div class="lw-dm-char-filter">
+            <label class="lw-filter-lbl" for="filterCharSelect">Filter:</label>
+            <select
+              id="filterCharSelect"
+              class="lw-select-input lw-select-input--sm"
+              [value]="selectedCharFilter()"
+              (change)="selectedCharFilter.set($any($event.target).value)"
+            >
+              <option value="all">All Characters</option>
+              @for (char of crafting.availableCharacters(); track char.key) {
+                <option [value]="char.key">{{ char.name }}</option>
+              }
+            </select>
+          </div>
+        }
+        <button
+          type="button"
+          class="lw-refresh-btn"
+          (click)="crafting.loadProjects()"
+        >
+          <lw-icon name="undo" [size]="14" />
+          <span>Refresh</span>
+        </button>
+      </div>
     </div>
 
     @if (activeProjects().length === 0) {
       <div class="lw-empty-projects">
         <lw-icon name="info" [size]="24" tone="muted" />
-        <h4>No Active Projects in the Campaign</h4>
+        <h4>No Active Projects Found</h4>
         <p>Start a crafting project in the Workshop tab to begin forging weapons, brewing potions, or scribing scrolls.</p>
       </div>
     } @else {
       <div class="lw-projects-grid">
         @for (project of activeProjects(); track project.id) {
+          @let timer = getProjectTimer(project);
           <article
             class="lw-project-card"
             [class.lw-project-card--pending]="project.status === 'pending'"
@@ -53,11 +80,14 @@
                 <span class="lw-tag lw-tag--gold">{{ project.category }}</span>
                 @switch (project.status) {
                   @case ('pending') {
-                    <span class="lw-tag lw-tag--amber">In Progress</span>
+                    <span class="lw-tag lw-tag--amber">
+                      <span class="lw-spinning-gear">⚙</span>
+                      <span>In Progress</span>
+                    </span>
                   }
                   @case ('completed') {
                     <span class="lw-tag lw-tag--emerald">
-                      {{ project.isCritSuccess ? 'Masterwork (Nat 20)' : 'Crafting Success' }}
+                      {{ project.isCritSuccess ? 'Masterwork (Nat 20)' : 'Crafting Succeeded' }}
                     </span>
                   }
                   @case ('failed') {
@@ -82,17 +112,42 @@
                 </span>
               </div>
 
-              <!-- Time Info -->
-              <div class="lw-time-row">
-                <div class="lw-time-col">
-                  <span class="lw-time-label">Started:</span>
-                  <span class="lw-time-val">{{ formatTime(project.startedAt) }}</span>
+              <!-- Animated Real-World Timer Widget (for Pending Projects) -->
+              @if (project.status === 'pending') {
+                <div class="lw-realtime-timer-box">
+                  <div class="lw-timer-top">
+                    <span class="lw-timer-lbl">
+                      <span class="lw-timer-pulse"></span>
+                      <span>Real-World Crafting Clock</span>
+                    </span>
+                    <span class="lw-timer-remaining">{{ timer.remainingFormatted }}</span>
+                  </div>
+                  <div class="lw-progress-track">
+                    <div
+                      class="lw-progress-fill"
+                      [style.width.%]="timer.percent"
+                    ></div>
+                  </div>
+                  <div class="lw-timer-meta">
+                    <span>Started: {{ formatTime(project.startedAt) }}</span>
+                    <span>Finishes: {{ formatTime(project.completesAt) }}</span>
+                  </div>
                 </div>
-                <div class="lw-time-col">
-                  <span class="lw-time-label">Target Completion:</span>
-                  <span class="lw-time-val">{{ formatTime(project.completesAt) }}</span>
+              }
+
+              <!-- Time Info for Finished Projects -->
+              @if (project.status !== 'pending') {
+                <div class="lw-time-row">
+                  <div class="lw-time-col">
+                    <span class="lw-time-label">Started:</span>
+                    <span class="lw-time-val">{{ formatTime(project.startedAt) }}</span>
+                  </div>
+                  <div class="lw-time-col">
+                    <span class="lw-time-label">Completed:</span>
+                    <span class="lw-time-val">{{ formatTime(project.completesAt) }}</span>
+                  </div>
                 </div>
-              </div>
+              }
 
               <!-- Failure / Mishap Result -->
               @if (project.status === 'failed') {
@@ -125,6 +180,16 @@
                 @if (crafting.isGm()) {
                   <div class="lw-gm-btn-row">
                     <button
+                      type="button"
+                      class="lw-fast-forward-btn"
+                      [disabled]="crafting.loading()"
+                      (click)="crafting.completeProjectNow(project)"
+                      title="Advance real time to finish immediately"
+                    >
+                      <lw-icon name="clock" [size]="14" />
+                      <span>Complete Now</span>
+                    </button>
+                    <button
                       ngpButton
                       type="button"
                       class="lw-approve-btn"
@@ -132,7 +197,7 @@
                       (click)="crafting.approveProject(project, 'success', 'DM approved success')"
                     >
                       <lw-icon name="check" [size]="14" />
-                      <span>Approve Success</span>
+                      <span>Approve</span>
                     </button>
                     <button
                       type="button"
@@ -141,19 +206,19 @@
                       (click)="crafting.approveProject(project, 'mishap', 'DM triggered mishap')"
                     >
                       <lw-icon name="alert-circle" [size]="14" />
-                      <span>Trigger Mishap</span>
+                      <span>Mishap</span>
                     </button>
                   </div>
                 } @else {
-                  <span class="lw-pending-note">
-                    <lw-icon name="clock" [size]="14" tone="gold" />
-                    <span>Resolves upon timer elapsed or DM review</span>
-                  </span>
+                  <div class="lw-player-timer-note">
+                    <span class="lw-spinning-gear">⚙</span>
+                    <span>In Progress · Resolves automatically when timer reaches zero</span>
+                  </div>
                 }
               } @else if (project.status === 'completed') {
                 <span class="lw-completed-badge">
                   <lw-icon name="check" [size]="15" tone="emerald" />
-                  <span>Item Delivered to {{ project.characterName }}</span>
+                  <span>Item Delivered to {{ project.characterName }}'s Inventory</span>
                 </span>
               } @else {
                 <span class="lw-failed-badge">

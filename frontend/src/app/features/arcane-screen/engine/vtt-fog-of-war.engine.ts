@@ -14,8 +14,8 @@ export const FOG_WORLD_MAX_Z = 13.5;
 export const FOG_WORLD_WIDTH = FOG_WORLD_MAX_X - FOG_WORLD_MIN_X; // 36
 export const FOG_WORLD_HEIGHT = FOG_WORLD_MAX_Z - FOG_WORLD_MIN_Z; // 27
 
-const CANVAS_W = 540;
-const CANVAS_H = 405;
+const CANVAS_W = 360;
+const CANVAS_H = 270;
 
 export interface VttFogRenderInput {
   readonly encounterId: string;
@@ -269,7 +269,7 @@ export class VttFogOfWarEngine {
     }
 
     const rawAngles: number[] = [];
-    const circleSteps = 120;
+    const circleSteps = 72;
     for (let i = 0; i < circleSteps; i++) {
       rawAngles.push(-Math.PI + (i / circleSteps) * (Math.PI * 2));
     }

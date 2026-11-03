@@ -97,11 +97,17 @@ export class BabylonTokenMeshBuilder {
       const groundY = sampleTokenFootprintElevation(scene, t.x, t.z, footprintRadius);
 
       const glbReady = Boolean(!isTopDown2D && t.glbUrl && this.glbContainerCache.has(t.glbUrl));
-      const renderSig = `${isTopDown2D ? '2d' : '3d'}|${t.glbUrl ?? ''}|${glbReady ? 1 : 0}|${t.avatarUrl ?? ''}|${t.sizeCategory ?? 'medium'}|${isDead ? 1 : 0}|${isAttacker ? 1 : 0}|${isTargeted ? 1 : 0}|${t.faction}|${t.colorHex ?? ''}|${t.emitsLight ? 1 : 0}|${t.lightColorHex ?? ''}|${t.lightDimFeet ?? 0}|${t.ambientGlowEnabled ? 1 : 0}|${t.ambientGlowColorHex ?? ''}|${t.ambientGlowRadiusFeet ?? 0}|${t.ambientGlowIntensity ?? 0}|${gridScale.toFixed(2)}`;
+      const renderSig = `${isTopDown2D ? '2d' : '3d'}|${t.glbUrl ?? ''}|${glbReady ? 1 : 0}|${t.avatarUrl ?? ''}|${t.sizeCategory ?? 'medium'}|${isDead ? 1 : 0}|${t.faction}|${t.colorHex ?? ''}|${t.emitsLight ? 1 : 0}|${t.lightColorHex ?? ''}|${t.lightDimFeet ?? 0}|${t.ambientGlowEnabled ? 1 : 0}|${t.ambientGlowColorHex ?? ''}|${t.ambientGlowRadiusFeet ?? 0}|${t.ambientGlowIntensity ?? 0}|${gridScale.toFixed(2)}`;
 
       const existingBase = scene.getMeshByName(`lw-token-${t.key}`) as Mesh | null;
       if (existingBase && existingBase.metadata?.renderSig === renderSig) {
         existingBase.position.set(t.x, groundY + baseHeight / 2 + 0.01, t.z);
+        const rimMat = scene.getMaterialByName(`lw-mat-rim-${t.key}`) as StandardMaterial | null;
+        if (rimMat) {
+          const rimHex = isTargeted ? '#ef4444' : isAttacker ? '#f59e0b' : t.colorHex || (t.faction === 'party' ? '#2ee66b' : t.faction === 'hostile' ? '#ef5d72' : '#94a3b8');
+          rimMat.diffuseColor = Color3.FromHexString(rimHex);
+          rimMat.emissiveColor = Color3.FromHexString(rimHex).scale(isTargeted || isAttacker ? 0.55 : 0.38);
+        }
         const pickable = tokenOpacity > 0.05;
         existingBase.visibility = tokenOpacity;
         existingBase.isPickable = pickable;

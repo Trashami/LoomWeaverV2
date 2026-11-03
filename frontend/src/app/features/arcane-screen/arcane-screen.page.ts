@@ -168,14 +168,19 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     }
     if (this.isHighPerformance2d()) this.view2d.start(event);
   }
+  private lastPickMs = 0;
   onMapMouseMove(event: MouseEvent): void {
     if (this.fogBrushPainting && this.battle.fogBrushMode() !== 'none') {
       paintFogBrushAtScreenPoint(event.clientX, event.clientY, this.isHighPerformance2d(), this.stage, this.battle, this.battleSvgRef?.nativeElement, () => this.sync3dStage());
       return;
     }
     if (!this.isHighPerformance2d() && (this.battle.pendingAbility() || this.battle.measureEnabled() || this.battle.targetSelectionMode())) {
+      const now = performance.now();
+      if (now - this.lastPickMs < 16) return;
+      this.lastPickMs = now;
       const pt = this.stage.pickGroundPoint(event.clientX, event.clientY);
-      if (pt) this.battle.cursorWorldPos.set(pt);
+      const cur = this.battle.cursorWorldPos();
+      if (pt && Math.hypot(pt.x - cur.x, pt.z - cur.z) > 0.04) this.battle.cursorWorldPos.set(pt);
     }
     if (this.isHighPerformance2d()) this.view2d.move(event);
   }

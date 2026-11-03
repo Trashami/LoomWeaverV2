@@ -16,11 +16,11 @@ import { syncSceneVolumetricFogMaterials } from './babylon-volumetric-fog.plugin
 const FOG_HALF_X = 18;
 const FOG_HALF_Z = 13.5;
 const FOG_HEIGHT_OFFSET = 0.055;
-const FOG_SUBDIV = 64;
-const FOG_TEXTURE_WIDTH = 540;
-const FOG_TEXTURE_HEIGHT = 405;
-const FOG_ALPHA_GRID_W = 180;
-const FOG_ALPHA_GRID_H = 135;
+const FOG_SUBDIV = 48;
+const FOG_TEXTURE_WIDTH = 360;
+const FOG_TEXTURE_HEIGHT = 270;
+const FOG_ALPHA_GRID_W = 144;
+const FOG_ALPHA_GRID_H = 108;
 
 /**
  * Volumetric, view-angle-independent 3D Fog of War system.
@@ -59,7 +59,8 @@ export class BabylonFogPlane {
     this.ensureMesh();
 
     const layerRev = (layer as HTMLCanvasElement & { _lwFogRev?: number })._lwFogRev ?? -1;
-    if (layerRev < 0 || layerRev !== this.lastLayerRevision) {
+    const revisionChanged = layerRev < 0 || layerRev !== this.lastLayerRevision;
+    if (revisionChanged) {
       this.lastLayerRevision = layerRev;
       const ctx = this.texture?.getContext();
       if (this.texture && ctx) {
@@ -70,8 +71,6 @@ export class BabylonFogPlane {
       this.updateAlphaSampleGrid(layer);
     }
 
-    // In 3D mode (`lw-terrain-ground` present), `VolumetricFogMaterialPlugin` applies fog directly
-    // to every 3D mesh per-pixel so no elevated fog plane can block tilted camera views.
     const has3dTerrain = Boolean(this.scene.getMeshByName('lw-terrain-ground'));
     this.mesh?.setEnabled(!has3dTerrain);
     if (!has3dTerrain) {
@@ -79,7 +78,9 @@ export class BabylonFogPlane {
     }
 
     syncSceneVolumetricFogMaterials(this.scene, this.texture, true);
-    this.applyVolumetricSceneMasking();
+    if (revisionChanged) {
+      this.applyVolumetricSceneMasking();
+    }
   }
 
   /** Re-applies volumetric 3D material plugins and particle/light masking when async GLB models finish loading. */

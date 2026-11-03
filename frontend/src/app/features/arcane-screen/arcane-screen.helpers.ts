@@ -443,17 +443,24 @@ export function registerArcaneScreenStageEffects(
   effect(() => {
     if (!host.hasConfiguredMap()) return;
     const url = host.activeBattlemapBackdropUrl();
+    const sceneJson = serverSync.activeSceneResponse()?.sceneDataJson;
+    untracked(() => {
+      battle.walls.set(extractSceneOccludersFromMapState(sceneJson));
+      stage.loadMapScene(sceneJson, url);
+      stage.setGridVisible(host.gridEnabled(), vttDisplay.gridScale(), vttDisplay.gridOffsetX(), vttDisplay.gridOffsetY());
+      vtt.snapAllTokensToActiveGrid();
+      host.sync3dStage();
+    });
+  });
+  effect(() => {
+    if (!host.hasConfiguredMap()) return;
     const visible = host.gridEnabled();
     const scale = vttDisplay.gridScale();
     const offX = vttDisplay.gridOffsetX();
     const offY = vttDisplay.gridOffsetY();
-    const sceneResp = serverSync.activeSceneResponse();
     untracked(() => {
-      battle.walls.set(extractSceneOccludersFromMapState(sceneResp?.sceneDataJson));
-      stage.loadMapScene(sceneResp?.sceneDataJson, url);
       stage.setGridVisible(visible, scale, offX, offY);
       vtt.snapAllTokensToActiveGrid();
-      host.sync3dStage();
     });
   });
   effect(() => {

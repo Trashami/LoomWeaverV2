@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, NgZone, inject, signal } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 import {
   ArcRotateCamera, ArcRotateCameraPointersInput, Color3, Color4, Engine,
@@ -33,6 +33,7 @@ if (typeof window !== 'undefined') {
 
 @Injectable({ providedIn: 'root' })
 export class BabylonEffectStageService {
+  private readonly zone = inject(NgZone);
   private engine: Engine | null = null;
   private scene: Scene | null = null;
   private dragController: TokenDragController | null = null;
@@ -104,7 +105,8 @@ export class BabylonEffectStageService {
     if (!this.camera) return;
     const minR = this.camera.lowerRadiusLimit ?? 6;
     const maxR = this.camera.upperRadiusLimit ?? 58;
-    this.zoomPercent.set(Math.max(100, Math.min(350, Math.round(100 + ((maxR - this.camera.radius) / (maxR - minR)) * 250))));
+    const next = Math.max(100, Math.min(350, Math.round(100 + ((maxR - this.camera.radius) / (maxR - minR)) * 250)));
+    if (next !== this.zoomPercent()) this.zoomPercent.set(next);
   }
 
   setBackdrop(url: string): void {
@@ -130,6 +132,9 @@ export class BabylonEffectStageService {
       if (!this.scene) return;
       this.fogPlane?.refreshVolumetricMasking();
       SceneLightingController.refreshShadowCasters(this.scene);
+      for (const m of this.scene.meshes) {
+        if (m.name.startsWith('lw-stamp-') || m.name.startsWith('lw-wall-') || m.name === 'lw-terrain-ground') m.freezeWorldMatrix();
+      }
       if (this.latestTokens.length > 0) this.refreshTokens();
     }, 150);
   }
@@ -262,17 +267,16 @@ export class BabylonEffectStageService {
     onGroundClicked?: (point: { x: number; z: number }, evt: PointerEvent) => void,
   ): void {
     this.dispose();
+    this.zone.runOutsideAngular(() => {
     try {
-      this.engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+      this.engine = new Engine(canvas, true, { preserveDrawingBuffer: false, stencil: true, powerPreference: 'high-performance' });
+      this.engine.setHardwareScalingLevel(1 / Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 1.35));
       this.scene = new Scene(this.engine);
+      this.scene.skipPointerMovePicking = true;
       this.scene.clearColor = new Color4(3 / 255, 8 / 255, 6 / 255, 1);
       this.scene.shadowsEnabled = true;
 
-      const onResize = () => {
-        if (canvas.clientWidth > 0 && canvas.clientHeight > 0) {
-          this.engine?.resize();
-        }
-      };
+      const onResize = () => { if (canvas.clientWidth > 0 && canvas.clientHeight > 0) this.engine?.resize(); };
       if (typeof window !== 'undefined') {
         window.addEventListener('resize', onResize);
         this.cleanupHandlers.push(() => window.removeEventListener('resize', onResize));
@@ -287,11 +291,7 @@ export class BabylonEffectStageService {
       const onContextMenu = (e: MouseEvent) => {
         e.preventDefault();
         const key = this.pickTokenAtScreenPoint(e.clientX, e.clientY);
-        if (key) {
-          const ev: TokenRightClickEvent = { key, clientX: e.clientX, clientY: e.clientY };
-          this.rightClickedSubject.next(ev);
-          onTokenRightClicked?.(ev);
-        }
+        if (key) this.zone.run(() => { const ev: TokenRightClickEvent = { key, clientX: e.clientX, clientY: e.clientY }; this.rightClickedSubject.next(ev); onTokenRightClicked?.(ev); });
       };
       canvas.addEventListener('contextmenu', onContextMenu);
       this.cleanupHandlers.push(() => canvas.removeEventListener('contextmenu', onContextMenu));
@@ -353,20 +353,15 @@ export class BabylonEffectStageService {
           camera.alpha = savedAlpha;
           camera.beta = savedBeta;
           setTimeout(() => {
-            if (this.camera === camera) {
-              restoreCameraAfterTokenDrag(camera, canvas, savedAlpha, savedBeta, this.isForcedTopDown);
-            }
+            if (this.camera === camera) restoreCameraAfterTokenDrag(camera, canvas, savedAlpha, savedBeta, this.isForcedTopDown);
           }, 0);
         },
         canStartTokenDrag: (key, evt) => (canStartTokenDrag ? canStartTokenDrag(key, evt) : true),
-        onTokenSelected: (key, shiftKey, ctrlKey) => onTokenClicked?.(key, shiftKey, ctrlKey),
-        onGroundClicked: (pt, evt) => onGroundClicked?.(pt, evt),
-        onTokenRightClicked: (event) => {
-          this.rightClickedSubject.next(event);
-          onTokenRightClicked?.(event);
-        },
-        onDragged: (placement) => this.draggedSubject.next(placement),
-        onDropped: (placement) => this.droppedSubject.next(placement),
+        onTokenSelected: (key, shiftKey, ctrlKey) => this.zone.run(() => onTokenClicked?.(key, shiftKey, ctrlKey)),
+        onGroundClicked: (pt, evt) => this.zone.run(() => onGroundClicked?.(pt, evt)),
+        onTokenRightClicked: (event) => this.zone.run(() => { this.rightClickedSubject.next(event); onTokenRightClicked?.(event); }),
+        onDragged: (placement) => this.zone.run(() => this.draggedSubject.next(placement)),
+        onDropped: (placement) => this.zone.run(() => this.droppedSubject.next(placement)),
       });
       this.dragController.attach();
 
@@ -386,11 +381,6 @@ export class BabylonEffectStageService {
 
       this.scene.registerBeforeRender(() => {
         if (!this.scene) return;
-        const cw = canvas.clientWidth;
-        const ch = canvas.clientHeight;
-        if (cw > 0 && ch > 0 && (canvas.width !== cw || canvas.height !== ch)) {
-          this.engine?.resize();
-        }
         if (this.camera) {
           const maxX = this.has3dSceneLoaded() ? 18 : 12;
           const maxZ = this.has3dSceneLoaded() ? 13.5 : 8;
@@ -403,14 +393,17 @@ export class BabylonEffectStageService {
         this.mapSceneBuilder.updateLightFlicker(nowMs, this.reducedMotion());
         if (this.reducedMotion()) return;
         animateBabylonSpellAndTetherPulse(this.scene, nowMs);
-        for (const m of this.scene.meshes) {
-          if (m.name.startsWith('lw-target-reticle-root-')) m.rotation.y += 0.022;
+        if (this.latestTargetedKeys.length > 0 || this.latestTargetKey) {
+          for (const m of this.scene.meshes) {
+            if (m.name.startsWith('lw-target-reticle-root-')) m.rotation.y += 0.022;
+          }
         }
       });
       this.engine.runRenderLoop(() => this.scene?.render());
     } catch {
       // Headless fallback
     }
+    });
   }
 
   syncFog(layer: HTMLCanvasElement | null): void { this.fogPlane?.setLayer(layer); }

@@ -27,8 +27,10 @@ export interface BabylonTargetTetherEndpoint {
 const LOOM_GREEN_HEX = '#2ee66b';
 const LOOM_GREEN_CORE_HEX = '#86efac';
 const BLOCKED_RED_HEX = '#ef4444';
+const lastSyncSigByScene = new WeakMap<Scene, string>();
 
 export function disposeBabylonSpellAndTetherMeshes(scene: Scene): void {
+  lastSyncSigByScene.delete(scene);
   scene.meshes
     .filter(
       (m) =>
@@ -45,7 +47,10 @@ export function syncBabylonSpellAndTetherMeshes(
   tetherTargets: readonly BabylonTargetTetherEndpoint[],
   templateState: BabylonSpellTemplateState | null,
 ): void {
+  const sig = `${attackerPos ? `${attackerPos.x.toFixed(2)},${attackerPos.z.toFixed(2)}` : ''}|${tetherTargets.map((t) => `${t.x.toFixed(2)},${t.z.toFixed(2)}`).join(';')}|${templateState ? `${templateState.active ? 1 : 0}:${templateState.casterPos.x.toFixed(2)},${templateState.casterPos.z.toFixed(2)}:${templateState.endPos.x.toFixed(2)},${templateState.endPos.z.toFixed(2)}:${templateState.isSingleOrMulti ? 1 : 0}:${templateState.aoeRadiusFeet}:${templateState.blockedByWall ? 1 : 0}` : ''}`;
+  if (lastSyncSigByScene.get(scene) === sig) return;
   disposeBabylonSpellAndTetherMeshes(scene);
+  lastSyncSigByScene.set(scene, sig);
 
   // 1. Straight, thicker, pulsing LoomWeaver-green target lines from caster to each selected target
   if (attackerPos && tetherTargets.length > 0) {

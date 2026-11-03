@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { NgpButton } from 'ng-primitives/button';
 import { LwIconComponent } from '../../../../shared/ui/icon/icon.component';
+import { CharacterStudioService } from '../../../characters/services/character-studio.service';
 import { FORAGE_LOOT_TABLE, FORAGING_ABUNDANCE_LEVELS, FORAGING_BIOMES } from '../../data/foraging-tables.data';
 import { CraftingService } from '../../services/crafting.service';
 
@@ -14,6 +15,7 @@ import { CraftingService } from '../../services/crafting.service';
 })
 export class ForagingStudioComponent {
   readonly crafting = inject(CraftingService);
+  private readonly studio = inject(CharacterStudioService);
 
   readonly biomes = FORAGING_BIOMES;
   readonly abundanceLevels = FORAGING_ABUNDANCE_LEVELS;
@@ -50,10 +52,21 @@ export class ForagingStudioComponent {
     return char?.name ?? this.crafting.getCharacterName();
   }
 
-  onCharacterSelect(event: Event): void {
-    const key = (event.target as HTMLSelectElement).value;
+  getWisMod(charKey: string): number {
+    const sheet = this.studio.sheets().find((s) => s.characterKey === charKey);
+    return sheet?.abilities?.find((a) => a.code === 'WIS')?.modifier ?? 2;
+  }
+
+  selectToken(key: string): void {
     if (key) {
       this.crafting.setFocusedCharacter(key);
+    }
+  }
+
+  applyHarvestToActiveCharacter(): void {
+    const key = this.crafting.focusedCharacterKey();
+    if (key) {
+      this.crafting.assignForagedHarvestToCharacter(key);
     }
   }
 

@@ -1,28 +1,26 @@
 <div class="lw-foraging-station">
-  <!-- Top Bar: Expedition Lead & Quick Nav -->
+  <!-- Top Bar: Expedition Lead & Party Token Selector -->
   <header class="lw-station-header">
     <div class="lw-station-lead">
       <div class="lw-lead-icon">
         <lw-icon name="compass" [size]="20" tone="emerald" />
       </div>
-      <div class="lw-lead-select-wrap">
-        <label class="lw-lead-label" for="forageLeadSelect">Expedition Explorer</label>
-        <select
-          id="forageLeadSelect"
-          class="lw-select-input lw-select-input--lead"
-          [value]="crafting.focusedCharacterKey()"
-          (change)="onCharacterSelect($event)"
-        >
-          @for (char of crafting.availableCharacters(); track char.key) {
-            <option [value]="char.key">
-              {{ char.name }} (Lvl {{ char.level }} {{ char.characterClass }})
-            </option>
-          }
-        </select>
-      </div>
-      <div class="lw-lead-stat">
-        <span class="lw-lead-stat__val">+{{ survivalMod() }}</span>
-        <span class="lw-lead-stat__lbl">WIS Survival</span>
+      <div class="lw-tokens-ribbon">
+        @for (char of crafting.availableCharacters(); track char.key) {
+          <button
+            type="button"
+            class="lw-token-chip"
+            [class.lw-token-chip--active]="crafting.focusedCharacterKey() === char.key"
+            (click)="selectToken(char.key)"
+            [title]="char.name + ' (' + char.characterClass + ')'"
+          >
+            <span class="lw-token-initial">{{ char.name.charAt(0) }}</span>
+            <div class="lw-token-text">
+              <span class="lw-token-name">{{ char.name }}</span>
+              <span class="lw-token-mod">+{{ getWisMod(char.key) }} WIS</span>
+            </div>
+          </button>
+        }
       </div>
     </div>
 
@@ -230,16 +228,18 @@
               </span>
             </div>
             <span class="lw-tag" [class.lw-tag--emerald]="res?.success" [class.lw-tag--crimson]="!res?.success">
-              {{ res?.success ? 'Harvest Deposited' : 'Unmet' }}
+              {{ res?.success ? (res?.deposited ? 'Harvest Deposited' : 'Harvest Ready') : 'Unmet' }}
             </span>
           </div>
 
           @if (res?.success) {
-            <!-- Auto Deposit Confirmation Ribbon -->
-            <div class="lw-deposit-confirm-ribbon">
-              <lw-icon name="check-circle" [size]="16" tone="emerald" />
-              <span>Bounty automatically assigned and deposited to <strong>{{ getActiveCharName() }}'s</strong> inventory.</span>
-            </div>
+            @if (res?.deposited) {
+              <!-- Deposit Confirmation Ribbon -->
+              <div class="lw-deposit-confirm-ribbon">
+                <lw-icon name="check-circle" [size]="16" tone="emerald" />
+                <span>Bounty successfully deposited to <strong>{{ res?.depositedTo || getActiveCharName() }}'s</strong> inventory.</span>
+              </div>
+            }
 
             <!-- Sustenance Yields -->
             <div class="lw-sustenance-row">
@@ -290,15 +290,28 @@
 
             <!-- Action Buttons Footer -->
             <div class="lw-harvest-actions">
-              <button
-                ngpButton
-                type="button"
-                class="lw-action-cta-btn"
-                (click)="goToWorkshop()"
-              >
-                <lw-icon name="wrench" [size]="16" />
-                <span>Open in Crafting Workshop</span>
-              </button>
+              @if (!res?.deposited) {
+                <button
+                  ngpButton
+                  type="button"
+                  class="lw-action-apply-btn"
+                  [disabled]="crafting.loading()"
+                  (click)="applyHarvestToActiveCharacter()"
+                >
+                  <lw-icon name="backpack" [size]="16" />
+                  <span>Apply to {{ getActiveCharName() }}</span>
+                </button>
+              } @else {
+                <button
+                  ngpButton
+                  type="button"
+                  class="lw-action-cta-btn"
+                  (click)="goToWorkshop()"
+                >
+                  <lw-icon name="wrench" [size]="16" />
+                  <span>Open in Crafting Workshop</span>
+                </button>
+              }
               <button
                 type="button"
                 class="lw-action-secondary-btn"

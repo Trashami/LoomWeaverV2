@@ -258,6 +258,97 @@
   font-weight: 500;
 }
 
+.lw-craft-check-box {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(4, 16, 12, 0.7);
+  border: 1px solid rgba(73, 232, 146, 0.15);
+  border-radius: 4px;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.76rem;
+}
+
+.lw-check-stat-lbl {
+  color: #8da499;
+}
+
+.lw-check-stat-val {
+  color: #49e892;
+
+  strong {
+    color: #e5fbf0;
+  }
+}
+
+.lw-mishap-box {
+  background: rgba(235, 87, 87, 0.1);
+  border: 1px solid rgba(235, 87, 87, 0.3);
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.lw-mishap-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  color: #eb5757;
+  font-weight: 600;
+}
+
+.lw-mishap-item-name {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #f7d2d2;
+}
+
+.lw-mishap-reason {
+  font-size: 0.72rem;
+  color: #c99e9e;
+  font-style: italic;
+}
+
+.lw-gm-btn-row {
+  display: flex;
+  gap: 0.45rem;
+  width: 100%;
+}
+
+.lw-mishap-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.65rem;
+  background: rgba(235, 87, 87, 0.2);
+  border: 1px solid rgba(235, 87, 87, 0.4);
+  color: #eb5757;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: rgba(235, 87, 87, 0.35);
+  }
+}
+
+.lw-failed-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: #eb5757;
+  font-weight: 500;
+}
+
 .lw-tag {
   display: inline-block;
   padding: 0.15rem 0.45rem;
@@ -281,5 +372,11 @@
     background: rgba(245, 158, 11, 0.15);
     color: #fbbf24;
     border: 1px solid rgba(245, 158, 11, 0.3);
+  }
+
+  &--crimson {
+    background: rgba(235, 87, 87, 0.15);
+    color: #eb5757;
+    border: 1px solid rgba(235, 87, 87, 0.3);
   }
 }

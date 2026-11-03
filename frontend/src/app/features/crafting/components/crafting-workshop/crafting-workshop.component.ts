@@ -58,4 +58,8 @@ export class CraftingWorkshopComponent {
     const query = (event.target as HTMLInputElement).value;
     this.crafting.searchQuery.set(query);
   }
+
+  getRecipeMod(recipe: import('../../models/crafting.models').CraftingRecipe) {
+    return this.crafting.getCharacterRecipeModifier(this.crafting.focusedCharacterKey(), recipe);
+  }
 }

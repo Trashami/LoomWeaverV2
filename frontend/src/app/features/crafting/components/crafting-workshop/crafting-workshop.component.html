@@ -178,6 +178,7 @@
 
           <!-- Recipe Details & Ingredients -->
           <div class="lw-recipe-card__body">
+            @let statInfo = getRecipeMod(recipe);
             <div class="lw-recipe-card__meta">
               <div class="lw-meta-pair">
                 <span class="lw-meta-label">Duration</span>
@@ -186,8 +187,8 @@
                 </span>
               </div>
               <div class="lw-meta-pair">
-                <span class="lw-meta-label">Cost / Check</span>
-                <span class="lw-meta-val">{{ recipe.gpCost }} gp · {{ recipe.dcSkill || 'None' }}</span>
+                <span class="lw-meta-label">Check &amp; DC</span>
+                <span class="lw-meta-val">+{{ statInfo.totalMod }} {{ statInfo.ability }} vs DC {{ statInfo.dc }}</span>
               </div>
             </div>
 

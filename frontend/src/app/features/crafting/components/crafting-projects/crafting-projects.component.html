@@ -9,7 +9,7 @@
             {{ crafting.pendingProjectsForGm().length }} Crafting Project(s) Awaiting Review
           </h4>
           <p class="lw-dm-alert-banner__sub">
-            Players have queued projects. You can approve or expedite them immediately below.
+            Players have queued projects. You can resolve them immediately as success or mishap below.
           </p>
         </div>
       </div>
@@ -21,7 +21,7 @@
     <div class="lw-section-header">
       <h3 class="lw-section-title">
         <lw-icon name="clock" [size]="18" tone="gold" />
-        <span>Active &amp; Pending Projects ({{ activeProjects().length }})</span>
+        <span>Active &amp; Historical Projects ({{ activeProjects().length }})</span>
       </h3>
       <button
         type="button"
@@ -42,17 +42,28 @@
     } @else {
       <div class="lw-projects-grid">
         @for (project of activeProjects(); track project.id) {
-          <article class="lw-project-card" [class.lw-project-card--pending]="project.status === 'pending'">
+          <article
+            class="lw-project-card"
+            [class.lw-project-card--pending]="project.status === 'pending'"
+            [class.lw-project-card--failed]="project.status === 'failed'"
+            [class.lw-project-card--completed]="project.status === 'completed'"
+          >
             <div class="lw-project-card__top">
               <div class="lw-project-badges">
                 <span class="lw-tag lw-tag--gold">{{ project.category }}</span>
-                <span
-                  class="lw-tag"
-                  [class.lw-tag--amber]="project.status === 'pending'"
-                  [class.lw-tag--emerald]="project.status === 'completed'"
-                >
-                  {{ project.status === 'pending' ? 'In Progress' : 'Completed' }}
-                </span>
+                @switch (project.status) {
+                  @case ('pending') {
+                    <span class="lw-tag lw-tag--amber">In Progress</span>
+                  }
+                  @case ('completed') {
+                    <span class="lw-tag lw-tag--emerald">
+                      {{ project.isCritSuccess ? 'Masterwork (Nat 20)' : 'Crafting Success' }}
+                    </span>
+                  }
+                  @case ('failed') {
+                    <span class="lw-tag lw-tag--crimson">Crafting Mishap</span>
+                  }
+                }
               </div>
               <span class="lw-project-crafter">Crafter: <strong>{{ project.characterName }}</strong></span>
             </div>
@@ -60,8 +71,16 @@
             <div class="lw-project-card__main">
               <h4 class="lw-project-title">{{ project.recipeName }}</h4>
               <p class="lw-project-sub">
-                Output: <strong>{{ project.outputItemName }}</strong>
+                Target Yield: <strong>{{ project.outputItemName }}</strong>
               </p>
+
+              <!-- Crafting Check Breakdown -->
+              <div class="lw-craft-check-box">
+                <span class="lw-check-stat-lbl">{{ project.dcSkill || 'Craft Check' }}:</span>
+                <span class="lw-check-stat-val">
+                  d20 ({{ project.craftCheckRoll ?? 10 }}) + {{ project.craftModifier ?? 0 }} = <strong>{{ project.craftCheckTotal ?? 10 }}</strong> vs DC {{ project.recipeDc ?? 10 }}
+                </span>
+              </div>
 
               <!-- Time Info -->
               <div class="lw-time-row">
@@ -74,6 +93,18 @@
                   <span class="lw-time-val">{{ formatTime(project.completesAt) }}</span>
                 </div>
               </div>
+
+              <!-- Failure / Mishap Result -->
+              @if (project.status === 'failed') {
+                <div class="lw-mishap-box">
+                  <div class="lw-mishap-header">
+                    <lw-icon name="alert-circle" [size]="15" tone="crimson" />
+                    <span>Hazardous Mishap Produced:</span>
+                  </div>
+                  <p class="lw-mishap-item-name">{{ project.mishapItem?.name || 'Volatile Chemical Residue' }}</p>
+                  <span class="lw-mishap-reason">{{ project.failureReason || 'Check failed to beat DC.' }}</span>
+                </div>
+              }
 
               <!-- Materials Consumed List -->
               @if (project.materialsConsumed && project.materialsConsumed.length > 0) {
@@ -92,26 +123,42 @@
             <div class="lw-project-card__footer">
               @if (project.status === 'pending') {
                 @if (crafting.isGm()) {
-                  <button
-                    ngpButton
-                    type="button"
-                    class="lw-approve-btn"
-                    [disabled]="crafting.loading()"
-                    (click)="crafting.approveProject(project, 'DM expedited completion')"
-                  >
-                    <lw-icon name="check" [size]="15" />
-                    <span>Approve &amp; Finish Now</span>
-                  </button>
+                  <div class="lw-gm-btn-row">
+                    <button
+                      ngpButton
+                      type="button"
+                      class="lw-approve-btn"
+                      [disabled]="crafting.loading()"
+                      (click)="crafting.approveProject(project, 'success', 'DM approved success')"
+                    >
+                      <lw-icon name="check" [size]="14" />
+                      <span>Approve Success</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="lw-mishap-btn"
+                      [disabled]="crafting.loading()"
+                      (click)="crafting.approveProject(project, 'mishap', 'DM triggered mishap')"
+                    >
+                      <lw-icon name="alert-circle" [size]="14" />
+                      <span>Trigger Mishap</span>
+                    </button>
+                  </div>
                 } @else {
                   <span class="lw-pending-note">
                     <lw-icon name="clock" [size]="14" tone="gold" />
-                    <span>Pending completion or DM review</span>
+                    <span>Resolves upon timer elapsed or DM review</span>
                   </span>
                 }
-              } @else {
+              } @else if (project.status === 'completed') {
                 <span class="lw-completed-badge">
                   <lw-icon name="check" [size]="15" tone="emerald" />
-                  <span>Delivered to Character Inventory</span>
+                  <span>Item Delivered to {{ project.characterName }}</span>
+                </span>
+              } @else {
+                <span class="lw-failed-badge">
+                  <lw-icon name="alert-circle" [size]="15" tone="crimson" />
+                  <span>Mishap Item Deposited to {{ project.characterName }}</span>
                 </span>
               }
             </div>

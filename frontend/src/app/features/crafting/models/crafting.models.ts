@@ -60,6 +60,13 @@ export interface CraftingProjectVm {
   readonly creatorAccountId: string;
   readonly creatorUsername: string;
   readonly craftCheckRoll?: number;
+  readonly craftModifier?: number;
+  readonly craftCheckTotal?: number;
+  readonly recipeDc?: number;
+  readonly dcSkill?: string;
+  readonly mishapItem?: RecipeOutputItem;
+  readonly failureReason?: string;
+  readonly isCritSuccess?: boolean;
   readonly dmApprovedAt?: string;
   readonly approvedBy?: string;
   readonly dmNotes?: string;

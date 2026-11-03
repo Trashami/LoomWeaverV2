@@ -23,6 +23,7 @@ import {
   attachTokenLightAndGlowMeshes,
   createSpinningBaseTargetReticleMesh,
 } from './babylon-token-light-aura.helper';
+import { attachVolumetricFogToMaterial } from './babylon-volumetric-fog.plugin';
 
 export class BabylonTokenMeshBuilder {
   private readonly glbContainerCache = new Map<string, AssetContainer>();
@@ -132,7 +133,7 @@ export class BabylonTokenMeshBuilder {
       );
       baseMesh.position.set(t.x, groundY + baseHeight / 2 + 0.01, t.z);
       baseMesh.metadata = { tokenKey: t.key, baseHeight, footprintRadius, renderSig };
-      baseMesh.renderingGroupId = 2;
+      baseMesh.renderingGroupId = 0;
       baseMesh.alphaIndex = 10;
       baseMesh.isPickable = true;
       baseMesh.receiveShadows = true;
@@ -146,7 +147,7 @@ export class BabylonTokenMeshBuilder {
       );
       hitbox.parent = baseMesh;
       hitbox.position.set(0, hitboxHeight / 2, 0);
-      hitbox.renderingGroupId = 2;
+      hitbox.renderingGroupId = 0;
       hitbox.alphaIndex = 10;
       hitbox.visibility = 0;
       hitbox.isPickable = true;
@@ -193,7 +194,7 @@ export class BabylonTokenMeshBuilder {
       baseMesh.visibility = tokenOpacity;
       baseMesh.isPickable = pickable;
       for (const child of baseMesh.getChildMeshes()) {
-        child.renderingGroupId = 2;
+        child.renderingGroupId = 0;
         child.alphaIndex = 10;
         if (!child.name.startsWith('lw-token-hitbox-')) {
           child.visibility = tokenOpacity;
@@ -327,6 +328,7 @@ export class BabylonTokenMeshBuilder {
   private applyMatteFinishToMiniatureMesh(mesh: AbstractMesh): void {
     const mat = mesh.material;
     if (!mat) return;
+    attachVolumetricFogToMaterial(mat);
     if (mat instanceof PBRMaterial) {
       mat.maxSimultaneousLights = 8;
       mat.roughness = Math.max(0.88, mat.roughness ?? 0.92);

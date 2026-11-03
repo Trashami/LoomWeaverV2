@@ -1,127 +1,90 @@
-import { WritableSignal } from '@angular/core';
-import {
-  Color3,
-  Mesh,
-  MeshBuilder,
-  Scene,
-  StandardMaterial,
-} from '@babylonjs/core';
+import { Scene, Vector3 } from '@babylonjs/core';
+import { playNativeEffect } from '@effectbuilder/babylon/native-runtime';
+import { effectDuration } from '@effectbuilder/effect-definition';
+import { TerrainMeshBuilder } from '../../maps/engine/terrain/terrain-mesh.builder';
 import { EffectTimelinePresetVm } from './effect-timeline.contract';
+import { EffectBuilderVttResolver } from './effectbuilder-vtt-resolver';
+
+export interface PlayVttSpellEffectOptions {
+  readonly abilityName?: string;
+  readonly characterId?: number;
+  readonly campaignId?: number;
+  readonly targets?: readonly { x: number; z: number }[];
+  readonly onPlayStateChange?: (playing: boolean) => void;
+}
 
 export class BabylonFxTrajectoryPlayer {
-  private animHandle: number | null = null;
+  private readonly resolver = new EffectBuilderVttResolver();
+  private readonly activeHandles = new Set<{ dispose: () => void }>();
 
-  stop(): void {
-    if (this.animHandle !== null) {
-      cancelAnimationFrame(this.animHandle);
-      this.animHandle = null;
-    }
+  prefetchCampaignEffects(campaignId: number): void {
+    this.resolver.prefetchForCampaign(campaignId);
   }
 
   play(
-    scene: Scene,
+    scene: Scene | null,
     preset: EffectTimelinePresetVm,
-    startPos: { x: number; z: number },
-    endPos: { x: number; z: number },
-    reducedMotion: boolean,
-    activeKeyframeLabel: WritableSignal<string>,
+    caster: { x: number; z: number },
+    target: { x: number; z: number },
+    options?: PlayVttSpellEffectOptions,
   ): void {
-    this.stop();
+    if (!scene) return;
 
-    scene.meshes
-      .filter((m) => m.name.startsWith('lw-fx-'))
-      .forEach((m) => m.dispose());
+    const definition = this.resolver.resolveEffectDefinition({
+      abilityName: options?.abilityName,
+      characterId: options?.characterId,
+      campaignId: options?.campaignId,
+      preset,
+    });
 
-    const primary = Color3.FromHexString(preset.primaryColorHex);
-    const secondary = Color3.FromHexString(preset.secondaryColorHex);
-    const mat = new StandardMaterial('lw-fx-mat', scene);
-    mat.diffuseColor = primary;
-    mat.emissiveColor = primary.scale(0.85);
-    mat.specularColor = secondary;
-    mat.alpha = 0.88;
+    const casterGroundY = TerrainMeshBuilder.sampleElevationAt(scene, caster.x, caster.z);
+    const casterVec = new Vector3(caster.x, casterGroundY + 0.65, caster.z);
 
-    const fxMeshes: Mesh[] = [];
+    const rawTargets =
+      options?.targets && options.targets.length > 0 ? options.targets : [target];
 
-    if (preset.trajectoryType === 'arc') {
-      const orb = MeshBuilder.CreateSphere('lw-fx-orb', { diameter: 0.9, segments: 12 }, scene);
-      orb.material = mat;
-      fxMeshes.push(orb);
-    } else if (preset.trajectoryType === 'cone') {
-      const cone = MeshBuilder.CreateCylinder(
-        'lw-fx-cone',
-        { height: 6, diameterTop: 3.8, diameterBottom: 0.35, tessellation: 18 },
-        scene,
-      );
-      cone.rotation.z = -Math.PI / 2;
-      cone.position.set((startPos.x + endPos.x) / 2, 1.1, (startPos.z + endPos.z) / 2);
-      cone.material = mat;
-      fxMeshes.push(cone);
-    } else if (preset.trajectoryType === 'beam') {
-      const beam = MeshBuilder.CreateCylinder(
-        'lw-fx-beam',
-        { height: 10, diameter: 1.6, tessellation: 20 },
-        scene,
-      );
-      beam.position.set(endPos.x, 5, endPos.z);
-      beam.material = mat;
-      fxMeshes.push(beam);
-    } else {
-      const sigil = MeshBuilder.CreateTorus(
-        'lw-fx-sigil',
-        { diameter: 5.5, thickness: 0.28, tessellation: 6 },
-        scene,
-      );
-      sigil.position.set(endPos.x, 0.25, endPos.z);
-      sigil.material = mat;
-      fxMeshes.push(sigil);
-    }
+    const targetVecs = rawTargets.map((pt, idx) => {
+      let tx = pt.x;
+      let tz = pt.z;
+      if (Math.hypot(tx - caster.x, tz - caster.z) < 0.05) {
+        const angle = (idx * Math.PI * 2) / Math.max(1, rawTargets.length);
+        tx += Math.cos(angle) * 0.35;
+        tz += Math.sin(angle) * 0.35;
+      }
+      const ty = TerrainMeshBuilder.sampleElevationAt(scene, tx, tz);
+      return new Vector3(tx, ty + 0.65, tz);
+    });
 
-    const ring = MeshBuilder.CreateTorus(
-      'lw-fx-ring',
-      { diameter: 2.2, thickness: 0.14, tessellation: 24 },
+    options?.onPlayStateChange?.(true);
+
+    const handle = playNativeEffect(
       scene,
+      definition,
+      () => casterVec,
+      () => targetVecs,
+      {
+        pixelsPerUnit: 42,
+        elevationAt: (x: number, z: number) =>
+          TerrainMeshBuilder.sampleElevationAt(scene, x, z) + 0.32,
+        lightGain: 1.35,
+      },
     );
-    ring.position.set(endPos.x, 0.2, endPos.z);
-    ring.material = mat;
-    fxMeshes.push(ring);
 
-    if (reducedMotion) {
-      activeKeyframeLabel.set(`${preset.name} (Static Reduced-Motion Preview)`);
-      return;
+    this.activeHandles.add(handle);
+    const totalMs = Math.max(900, Math.min(6000, effectDuration(definition) + 120));
+    setTimeout(() => {
+      handle.dispose();
+      this.activeHandles.delete(handle);
+      if (this.activeHandles.size === 0) {
+        options?.onPlayStateChange?.(false);
+      }
+    }, totalMs);
+  }
+
+  disposeAll(): void {
+    for (const h of this.activeHandles) {
+      h.dispose();
     }
-
-    const startTime = performance.now();
-    const duration = Math.max(600, preset.durationMs);
-
-    const step = (now: number): void => {
-      const t = Math.min(1, (now - startTime) / duration);
-      const kfIdx = Math.min(
-        preset.keyframes.length - 1,
-        Math.floor(t * preset.keyframes.length),
-      );
-      activeKeyframeLabel.set(preset.keyframes[kfIdx] ?? 'Playing');
-
-      const orb = fxMeshes[0];
-      if (orb && preset.trajectoryType === 'arc') {
-        const x = startPos.x + (endPos.x - startPos.x) * t;
-        const z = startPos.z + (endPos.z - startPos.z) * t;
-        const y = 0.8 + Math.sin(t * Math.PI) * 3.8;
-        orb.position.set(x, y, z);
-      } else if (orb) {
-        orb.rotation.y += 0.08;
-        const s = 0.75 + Math.sin(t * Math.PI) * 0.45;
-        orb.scaling.set(s, 1, s);
-      }
-
-      ring.scaling.set(0.5 + t * 1.4, 1, 0.5 + t * 1.4);
-
-      if (t < 1) {
-        this.animHandle = requestAnimationFrame(step);
-      } else {
-        activeKeyframeLabel.set('Complete');
-      }
-    };
-
-    this.animHandle = requestAnimationFrame(step);
+    this.activeHandles.clear();
   }
 }

@@ -93,6 +93,7 @@ export class VttCombatWorkflowService {
   openWorkflow(attacker: VttTokenVm, ability: VttTacticalAbilityVm, targets: readonly VttTokenVm[], onStageSync?: () => void): void {
     if (targets.length === 0) return;
     this.onStageSyncCallback = onStageSync ?? null;
+    this.stage.prefetchCampaignEffects(this.store.activeCampaignId());
     const requiresSave = ability.saveDc > 0 && ability.targetMode === 'aoe';
     this.state.set({
       phase: 'declare-attack', attacker, ability, targets, advantageMode: 'normal',
@@ -369,15 +370,14 @@ export class VttCombatWorkflowService {
 
     this.onStageSyncCallback?.();
 
-    // Play EffectBuilder 3D animation from caster to each target
-    if (preset) {
-      for (const out of updatedOutcomes) {
-        this.stage.playTrajectoryEffect(
-          preset,
-          { x: s.attacker.x, z: s.attacker.z },
-          { x: out.target.x, z: out.target.z },
-        );
-      }
+    // Play EffectBuilder 3D animation from caster to all targets
+    if (preset && updatedOutcomes.length > 0) {
+      const targetPts = updatedOutcomes.map((out) => ({ x: out.target.x, z: out.target.z }));
+      this.stage.playTrajectoryEffect(preset, { x: s.attacker.x, z: s.attacker.z }, targetPts[0], {
+        abilityName: s.ability.name,
+        campaignId: this.store.activeCampaignId(),
+        targets: targetPts,
+      });
     }
 
     // Add concise, unified entries to the Combat Roll Log & persist to SQL + The Loom

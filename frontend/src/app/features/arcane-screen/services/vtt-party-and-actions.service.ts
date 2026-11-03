@@ -26,6 +26,8 @@ const PARTY_FORMATION_SLOTS: readonly { x: number; z: number }[] = [
 @Injectable({ providedIn: 'root' })
 export class VttPartyAndActionsService {
   private readonly characterStudio = inject(CharacterStudioService);
+  private readonly abilitiesCache = new Map<string, VttTacticalAbilityVm[]>();
+  private readonly dockActionsCache = new Map<string, DockAction[]>();
 
   resolveSheetForToken(token: VttTokenVm | null | undefined): CharacterSheetVm | null {
     if (!token) return null;
@@ -168,10 +170,18 @@ export class VttPartyAndActionsService {
   ): VttTacticalAbilityVm[] {
     if (!token) return [];
     const sheet = this.resolveSheetForToken(token);
-    if (sheet) {
-      return buildCharacterSheetAbilities(token.key, sheet);
-    }
-    return buildCreatureOrNpcAbilities(token, creatures);
+    const cacheKey = sheet
+      ? `sheet:${token.key}:${sheet.compositeKey}:${sheet.level}:${sheet.features.length}`
+      : `creat:${token.key}:${token.name}:${creatures.length}`;
+    const cached = this.abilitiesCache.get(cacheKey);
+    if (cached) return cached;
+
+    const result = sheet
+      ? buildCharacterSheetAbilities(token.key, sheet)
+      : buildCreatureOrNpcAbilities(token, creatures);
+    if (this.abilitiesCache.size > 64) this.abilitiesCache.clear();
+    this.abilitiesCache.set(cacheKey, result);
+    return result;
   }
 
   getDockActionsForToken(
@@ -179,8 +189,17 @@ export class VttPartyAndActionsService {
     category: Exclude<VttTurnActionCategory, 'all' | 'free'>,
     creatures: readonly CreatureCardVm[] = [],
   ): DockAction[] {
-    return this.resolveTacticalAbilitiesForToken(token, creatures)
+    if (!token) return [];
+    const sheet = this.resolveSheetForToken(token);
+    const cacheKey = `${category}:${token.key}:${sheet?.compositeKey ?? token.name}:${sheet?.level ?? 0}:${sheet?.features.length ?? 0}:${creatures.length}`;
+    const cached = this.dockActionsCache.get(cacheKey);
+    if (cached) return cached;
+
+    const result = this.resolveTacticalAbilitiesForToken(token, creatures)
       .filter((a) => a.turnCategory === category)
       .map(toDockAction);
+    if (this.dockActionsCache.size > 128) this.dockActionsCache.clear();
+    this.dockActionsCache.set(cacheKey, result);
+    return result;
   }
 }

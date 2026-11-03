@@ -1,38 +1,35 @@
 import {
-  AbstractMesh,
   Color3,
   DynamicTexture,
   Mesh,
   ParticleSystem,
+  PointLight,
   Scene,
   StandardMaterial,
   Texture,
-  TransformNode,
   VertexData,
 } from '@babylonjs/core';
 import { TerrainMeshBuilder } from '../../maps/engine/terrain/terrain-mesh.builder';
+import { syncSceneVolumetricFogMaterials } from './babylon-volumetric-fog.plugin';
 
 /** World extents covered by the fog canvas: x in [-18, 18], z in [-13.5, 13.5]. */
 const FOG_HALF_X = 18;
 const FOG_HALF_Z = 13.5;
-/** Outer pure-black horizon skirt so tilted 3D camera angles never see past map borders. */
-const FOG_SKIRT_HALF_X = 64;
-const FOG_SKIRT_HALF_Z = 56;
-const FOG_HEIGHT_OFFSET = 0.018;
-/** Match TerrainMeshBuilder.SUBDIV (64) on the inner map [-18, 18] x [-13.5, 13.5] plus 1 outer ring each side (66 total). */
-const FOG_INNER_SUBDIV = 64;
-const FOG_TOTAL_SUBDIV = FOG_INNER_SUBDIV + 2;
-const FOG_TEXTURE_WIDTH = 1080;
-const FOG_TEXTURE_HEIGHT = 810;
+const FOG_HEIGHT_OFFSET = 0.055;
+const FOG_SUBDIV = 64;
+const FOG_TEXTURE_WIDTH = 540;
+const FOG_TEXTURE_HEIGHT = 405;
 const FOG_ALPHA_GRID_W = 180;
 const FOG_ALPHA_GRID_H = 135;
 
 /**
  * Volumetric, view-angle-independent 3D Fog of War system.
- * - Inner 64x64 vertex grid matches `lw-terrain-ground` vertex-for-vertex with `renderingGroupId = 0`
- *   and `zOffset = -2` so tilting/rotating the 3D camera never causes parallax drift or reveals hidden slopes.
- * - Samples the fog alpha grid to volumetrically hide 3D objects (stamps, castle walls, portals,
- *   scatter trees, particle systems, and animated point lights) located inside unrevealed fog.
+ * - Injects `VolumetricFogMaterialPlugin` into all scene materials (`StandardMaterial`,
+ *   `PBRMaterial`, and `WaterSurfaceMaterial`) so terrain, water, grid lines, castle walls,
+ *   glowing mushrooms, trees, portals, and tokens are fogged per-pixel in world `(x, z)` space.
+ * - Eliminates camera-angle parallax, prevents unrevealed foreground hills from blocking
+ *   tilted 3D camera views, and ensures no 3D asset or token ever sticks out above the fog.
+ * - Pauses particle systems and disables point lights located inside unrevealed fog.
  */
 export class BabylonFogPlane {
   private mesh: Mesh | null = null;
@@ -42,6 +39,8 @@ export class BabylonFogPlane {
   private sampleCtx: CanvasRenderingContext2D | null = null;
   private alphaGrid: Uint8Array | null = null;
   private hasActiveFog = false;
+  private lastLayerRevision = -1;
+  private lastElevationVersion = -1;
 
   constructor(private readonly scene: Scene) {}
 
@@ -49,27 +48,46 @@ export class BabylonFogPlane {
     if (!layer) {
       this.hasActiveFog = false;
       this.alphaGrid = null;
+      this.lastLayerRevision = -1;
       this.mesh?.setEnabled(false);
+      syncSceneVolumetricFogMaterials(this.scene, this.texture, false);
       this.restoreAllSceneObjectsVisible();
       return;
     }
+
     this.hasActiveFog = true;
     this.ensureMesh();
-    this.conformToTerrain();
-    const ctx = this.texture?.getContext();
-    if (!this.texture || !ctx) return;
-    ctx.clearRect(0, 0, FOG_TEXTURE_WIDTH, FOG_TEXTURE_HEIGHT);
-    ctx.drawImage(layer, 0, 0, FOG_TEXTURE_WIDTH, FOG_TEXTURE_HEIGHT);
-    this.texture.update();
-    this.mesh?.setEnabled(true);
-    this.updateAlphaSampleGrid(layer);
+
+    const layerRev = (layer as HTMLCanvasElement & { _lwFogRev?: number })._lwFogRev ?? -1;
+    if (layerRev < 0 || layerRev !== this.lastLayerRevision) {
+      this.lastLayerRevision = layerRev;
+      const ctx = this.texture?.getContext();
+      if (this.texture && ctx) {
+        ctx.clearRect(0, 0, FOG_TEXTURE_WIDTH, FOG_TEXTURE_HEIGHT);
+        ctx.drawImage(layer, 0, 0, FOG_TEXTURE_WIDTH, FOG_TEXTURE_HEIGHT);
+        this.texture.update();
+      }
+      this.updateAlphaSampleGrid(layer);
+    }
+
+    // In 3D mode (`lw-terrain-ground` present), `VolumetricFogMaterialPlugin` applies fog directly
+    // to every 3D mesh per-pixel so no elevated fog plane can block tilted camera views.
+    const has3dTerrain = Boolean(this.scene.getMeshByName('lw-terrain-ground'));
+    this.mesh?.setEnabled(!has3dTerrain);
+    if (!has3dTerrain) {
+      this.conformToTerrainIfNeeded();
+    }
+
+    syncSceneVolumetricFogMaterials(this.scene, this.texture, true);
     this.applyVolumetricSceneMasking();
   }
 
-  /** Re-applies volumetric 3D object masking when async 3D GLB stamps/walls/trees finish loading. */
+  /** Re-applies volumetric 3D material plugins and particle/light masking when async GLB models finish loading. */
   refreshVolumetricMasking(): void {
+    syncSceneVolumetricFogMaterials(this.scene, this.texture, this.hasActiveFog);
     if (!this.hasActiveFog || !this.alphaGrid) return;
-    this.conformToTerrain();
+    const has3dTerrain = Boolean(this.scene.getMeshByName('lw-terrain-ground'));
+    this.mesh?.setEnabled(!has3dTerrain);
     this.applyVolumetricSceneMasking();
   }
 
@@ -91,7 +109,16 @@ export class BabylonFogPlane {
   }
 
   conformToTerrain(): void {
+    this.lastElevationVersion = -1;
+    this.conformToTerrainIfNeeded();
+  }
+
+  private conformToTerrainIfNeeded(): void {
     if (!this.mesh) return;
+    const currentElevVer = TerrainMeshBuilder.getElevationVersion();
+    if (currentElevVer === this.lastElevationVersion) return;
+    this.lastElevationVersion = currentElevVer;
+
     const positions = this.mesh.getVerticesData('position');
     if (!positions) return;
     for (let i = 0; i < positions.length; i += 3) {
@@ -105,6 +132,7 @@ export class BabylonFogPlane {
   }
 
   dispose(): void {
+    syncSceneVolumetricFogMaterials(this.scene, null, false);
     this.restoreAllSceneObjectsVisible();
     this.mesh?.dispose();
     this.material?.dispose();
@@ -138,29 +166,9 @@ export class BabylonFogPlane {
 
   private applyVolumetricSceneMasking(): void {
     if (!this.alphaGrid) return;
-    const maskedViaNode = new Set<AbstractMesh>();
-
-    for (const node of this.scene.transformNodes) {
-      if (!this.isMaskableTransformNode(node.name)) continue;
-      const pos = node.getAbsolutePosition();
-      const alpha = this.sampleNodeBestVisibilityFogAlpha(pos.x, pos.z, 0.9);
-      const visible = alpha < 0.78;
-      for (const child of node.getChildMeshes(false)) {
-        maskedViaNode.add(child);
-        child.isVisible = visible;
-      }
-    }
-
-    for (const mesh of this.scene.meshes) {
-      if (maskedViaNode.has(mesh) || !this.isMaskableStandaloneMesh(mesh.name)) continue;
-      const center = mesh.getBoundingInfo().boundingSphere.centerWorld;
-      const px = Number.isFinite(center.x) ? center.x : mesh.position.x;
-      const pz = Number.isFinite(center.z) ? center.z : mesh.position.z;
-      const alpha = this.sampleNodeBestVisibilityFogAlpha(px, pz, 1.1);
-      mesh.isVisible = alpha < 0.78;
-    }
 
     for (const ps of this.scene.particleSystems) {
+      if (ps.name.startsWith('eb-')) continue;
       const emitter = ps.emitter;
       if (!emitter) continue;
       let ex = 0;
@@ -173,7 +181,7 @@ export class BabylonFogPlane {
         ex = emitter.x;
         ez = emitter.z;
       }
-      const hidden = this.sampleNodeBestVisibilityFogAlpha(ex, ez, 0.9) >= 0.78;
+      const hidden = this.sampleNodeBestVisibilityFogAlpha(ex, ez, 0.75) >= 0.72;
       const sys = ps as ParticleSystem & { _lwFogPaused?: boolean };
       if (hidden && ps.isStarted()) {
         ps.stop();
@@ -182,6 +190,21 @@ export class BabylonFogPlane {
       } else if (!hidden && sys._lwFogPaused) {
         ps.start();
         sys._lwFogPaused = false;
+      }
+    }
+
+    for (const light of this.scene.lights) {
+      if (!(light instanceof PointLight)) continue;
+      if (light.name === 'lw-vtt-pt' || light.name.startsWith('lw-token-light-')) continue;
+      const pos = light.getAbsolutePosition();
+      const hidden = this.sampleNodeBestVisibilityFogAlpha(pos.x, pos.z, 0.75) >= 0.72;
+      const anyLight = light as PointLight & { _lwFogDisabled?: boolean };
+      if (hidden && light.isEnabled()) {
+        light.setEnabled(false);
+        anyLight._lwFogDisabled = true;
+      } else if (!hidden && anyLight._lwFogDisabled) {
+        light.setEnabled(true);
+        anyLight._lwFogDisabled = false;
       }
     }
   }
@@ -200,16 +223,6 @@ export class BabylonFogPlane {
   }
 
   private restoreAllSceneObjectsVisible(): void {
-    for (const node of this.scene.transformNodes) {
-      if (!this.isMaskableTransformNode(node.name)) continue;
-      for (const child of node.getChildMeshes(false)) {
-        child.isVisible = true;
-      }
-    }
-    for (const mesh of this.scene.meshes) {
-      if (!this.isMaskableStandaloneMesh(mesh.name)) continue;
-      mesh.isVisible = true;
-    }
     for (const ps of this.scene.particleSystems) {
       const sys = ps as ParticleSystem & { _lwFogPaused?: boolean };
       if (sys._lwFogPaused) {
@@ -217,21 +230,13 @@ export class BabylonFogPlane {
         sys._lwFogPaused = false;
       }
     }
-  }
-
-  private isMaskableTransformNode(name: string): boolean {
-    return /^lw-(stamp-node|wall-node|door-node|scatter-node|portal-node)-/.test(name);
-  }
-
-  private isMaskableStandaloneMesh(name: string): boolean {
-    return /^lw-(stamp-|wall-|portal-|door-|scatter-|map-wall-|map-door-|map-flame-)/.test(name);
-  }
-
-  private coordinateForIndex(idx: number, innerHalf: number, skirtHalf: number): number {
-    if (idx <= 0) return -skirtHalf;
-    if (idx >= FOG_TOTAL_SUBDIV) return skirtHalf;
-    const t = (idx - 1) / FOG_INNER_SUBDIV;
-    return -innerHalf + t * (innerHalf * 2);
+    for (const light of this.scene.lights) {
+      const anyLight = light as PointLight & { _lwFogDisabled?: boolean };
+      if (anyLight._lwFogDisabled) {
+        light.setEnabled(true);
+        anyLight._lwFogDisabled = false;
+      }
+    }
   }
 
   private ensureMesh(): void {
@@ -243,25 +248,24 @@ export class BabylonFogPlane {
     const uvs: number[] = [];
     const indices: number[] = [];
 
-    for (let iz = 0; iz <= FOG_TOTAL_SUBDIV; iz++) {
-      const z = this.coordinateForIndex(iz, FOG_HALF_Z, FOG_SKIRT_HALF_Z);
-      const tzUv = (z + FOG_HALF_Z) / (FOG_HALF_Z * 2);
-      const v = 1 - tzUv;
-      for (let ix = 0; ix <= FOG_TOTAL_SUBDIV; ix++) {
-        const x = this.coordinateForIndex(ix, FOG_HALF_X, FOG_SKIRT_HALF_X);
-        const u = (x + FOG_HALF_X) / (FOG_HALF_X * 2);
-        const clampedX = Math.max(-FOG_HALF_X, Math.min(FOG_HALF_X, x));
-        const clampedZ = Math.max(-FOG_HALF_Z, Math.min(FOG_HALF_Z, z));
-        const groundY = TerrainMeshBuilder.sampleElevationAt(this.scene, clampedX, clampedZ);
+    for (let iz = 0; iz <= FOG_SUBDIV; iz++) {
+      const tz = iz / FOG_SUBDIV;
+      const z = -FOG_HALF_Z + tz * (FOG_HALF_Z * 2);
+      const v = 1 - tz;
+      for (let ix = 0; ix <= FOG_SUBDIV; ix++) {
+        const tx = ix / FOG_SUBDIV;
+        const x = -FOG_HALF_X + tx * (FOG_HALF_X * 2);
+        const u = tx;
+        const groundY = TerrainMeshBuilder.sampleElevationAt(this.scene, x, z);
         positions.push(x, groundY + FOG_HEIGHT_OFFSET, z);
         normals.push(0, 1, 0);
         uvs.push(u, v);
       }
     }
 
-    const rowStride = FOG_TOTAL_SUBDIV + 1;
-    for (let iz = 0; iz < FOG_TOTAL_SUBDIV; iz++) {
-      for (let ix = 0; ix < FOG_TOTAL_SUBDIV; ix++) {
+    const rowStride = FOG_SUBDIV + 1;
+    for (let iz = 0; iz < FOG_SUBDIV; iz++) {
+      for (let ix = 0; ix < FOG_SUBDIV; ix++) {
         const i0 = iz * rowStride + ix;
         const i1 = i0 + 1;
         const i2 = (iz + 1) * rowStride + ix;
@@ -283,29 +287,29 @@ export class BabylonFogPlane {
       { width: FOG_TEXTURE_WIDTH, height: FOG_TEXTURE_HEIGHT },
       this.scene,
       false,
+      Texture.BILINEAR_SAMPLINGMODE,
     );
     texture.hasAlpha = true;
     texture.wrapU = Texture.CLAMP_ADDRESSMODE;
     texture.wrapV = Texture.CLAMP_ADDRESSMODE;
 
-    const material = new StandardMaterial('lw-fog-mat', this.scene);
-    material.disableLighting = true;
-    material.disableDepthWrite = false;
-    material.zOffset = -2;
-    material.diffuseTexture = texture;
-    material.useAlphaFromDiffuseTexture = true;
-    material.diffuseColor = Color3.Black();
-    material.emissiveColor = Color3.Black();
-    material.specularColor = Color3.Black();
-    material.backFaceCulling = false;
+    const mat = new StandardMaterial('lw-fog-mat', this.scene);
+    mat.disableLighting = true;
+    const fogColor = new Color3(3 / 255, 8 / 255, 6 / 255);
+    mat.diffuseColor = fogColor;
+    mat.emissiveColor = fogColor;
+    mat.specularColor = Color3.Black();
+    mat.opacityTexture = texture;
+    mat.backFaceCulling = false;
+    mat.zOffset = -2;
 
-    mesh.material = material;
+    mesh.material = mat;
     mesh.renderingGroupId = 0;
-    mesh.alphaIndex = 10;
+    mesh.alphaIndex = 10000;
     mesh.isPickable = false;
 
     this.mesh = mesh;
     this.texture = texture;
-    this.material = material;
+    this.material = mat;
   }
 }

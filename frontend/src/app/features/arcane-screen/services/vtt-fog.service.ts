@@ -79,11 +79,18 @@ export class VttFogService {
     { equal: () => false },
   );
 
-  /** Data URL of the fog layer for the 2D SVG `<image>` element. */
+  /** Data URL of the fog layer for the 2D SVG `<image>` element, cached by `_lwFogRev`. */
   readonly layerHref = computed<string | null>(() => {
-    const canvas = this.layer();
+    const canvas = this.layer() as (HTMLCanvasElement & { _lwFogRev?: number; _lwCachedHrefRev?: number; _lwCachedHref?: string }) | null;
     if (!canvas) return null;
-    return canvas.toDataURL('image/png');
+    const rev = canvas._lwFogRev ?? 0;
+    if (canvas._lwCachedHref && canvas._lwCachedHrefRev === rev) {
+      return canvas._lwCachedHref;
+    }
+    const href = canvas.toDataURL('image/png');
+    canvas._lwCachedHref = href;
+    canvas._lwCachedHrefRev = rev;
+    return href;
   });
 
   /** Per-token opacity for the 3D/2D Babylon stage. Out-of-sight tokens are hidden (0). */

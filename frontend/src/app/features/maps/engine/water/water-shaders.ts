@@ -61,6 +61,8 @@ uniform vec3 deepColor;
 uniform vec3 cameraPosition;
 uniform vec3 lightDirection;
 uniform vec3 lightColor;
+uniform float lwFogActive;
+uniform sampler2D lwFogTex;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
 float noise(vec2 p) {
   vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
@@ -114,4 +116,13 @@ void main() {
 
   float edge = smoothstep(0., .12, depth);
   gl_FragColor = vec4(color, edge * clamp(vShallow.a + fresnel * .14 + whitewater * .15, .0, 1.));
+  if (lwFogActive > 0.5) {
+    vec2 lwFogUv = vec2((vWorld.x + 18.0) / 36.0, 1.0 - (vWorld.z + 13.5) / 27.0);
+    float lwFogOut = step(lwFogUv.x, 0.0) + step(1.0, lwFogUv.x) + step(lwFogUv.y, 0.0) + step(1.0, lwFogUv.y);
+    float lwFogAlpha = lwFogOut > 0.0 ? 1.0 : texture2D(lwFogTex, clamp(lwFogUv, vec2(0.001, 0.001), vec2(0.999, 0.999))).a;
+    if (lwFogAlpha > 0.94) {
+      discard;
+    }
+    gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.012, 0.031, 0.024), clamp(lwFogAlpha, 0.0, 1.0));
+  }
 }`;

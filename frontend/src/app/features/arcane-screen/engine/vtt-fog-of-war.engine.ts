@@ -14,8 +14,8 @@ export const FOG_WORLD_MAX_Z = 13.5;
 export const FOG_WORLD_WIDTH = FOG_WORLD_MAX_X - FOG_WORLD_MIN_X; // 36
 export const FOG_WORLD_HEIGHT = FOG_WORLD_MAX_Z - FOG_WORLD_MIN_Z; // 27
 
-const CANVAS_W = 1080;
-const CANVAS_H = 810;
+const CANVAS_W = 540;
+const CANVAS_H = 405;
 
 export interface VttFogRenderInput {
   readonly encounterId: string;
@@ -59,8 +59,11 @@ export class VttFogOfWarEngine {
   private outputCanvas: HTMLCanvasElement | null = null;
   private liveMaskCanvas: HTMLCanvasElement | null = null;
   private polyScratchCanvas: HTMLCanvasElement | null = null;
+  private lastRenderSig = '';
+  private revisionCounter = 1;
 
   resetExplored(encounterId?: string): void {
+    this.lastRenderSig = '';
     if (encounterId) {
       for (const k of Array.from(this.exploredByEncounter.keys())) {
         if (k === encounterId || k.startsWith(`${encounterId}:`)) {
@@ -90,6 +93,11 @@ export class VttFogOfWarEngine {
   render(input: VttFogRenderInput): HTMLCanvasElement | null {
     if (typeof document === 'undefined' || input.mode === 'no-fog') {
       return null;
+    }
+
+    const sig = this.computeInputSignature(input);
+    if (sig === this.lastRenderSig && this.outputCanvas) {
+      return this.outputCanvas;
     }
 
     const out = this.ensureCanvas('out');
@@ -122,7 +130,7 @@ export class VttFogOfWarEngine {
           if (prev) {
             const moveDist = Math.hypot(observer.x - prev.x, observer.z - prev.z);
             if (moveDist > 0.35 && moveDist < 18) {
-              const steps = Math.min(8, Math.ceil(moveDist / 0.6));
+              const steps = Math.min(4, Math.ceil(moveDist / 0.9));
               for (let s = 1; s < steps; s++) {
                 const ratio = s / steps;
                 const ix = prev.x + (observer.x - prev.x) * ratio;
@@ -135,7 +143,7 @@ export class VttFogOfWarEngine {
                   radiusWorld,
                   stepPoly,
                   input.visionFalloffPct,
-                  input.shadowSoftnessPx,
+                  0,
                 );
               }
             }
@@ -224,7 +232,20 @@ export class VttFogOfWarEngine {
     outCtx.strokeRect(0, 0, CANVAS_W, CANVAS_H);
     outCtx.restore();
 
+    this.lastRenderSig = sig;
+    (out as HTMLCanvasElement & { _lwFogRev?: number })._lwFogRev = ++this.revisionCounter;
     return out;
+  }
+
+  private computeInputSignature(input: VttFogRenderInput): string {
+    const obsPart = input.observers
+      .map(
+        (o) =>
+          `${o.key}:${o.x.toFixed(2)},${o.z.toFixed(2)},${o.sightFeet ?? ''},${o.darkvisionFeet ?? ''},${o.emitsLight ? o.lightDimFeet : 0}`,
+      )
+      .join('|');
+    const lastStroke = input.manualStrokes[input.manualStrokes.length - 1]?.id ?? '';
+    return `${input.encounterId}:${input.mode}:${input.defaultSightFeet}:${input.applyTokenVision}:${input.traveledFogOpacity.toFixed(2)}:${input.unexploredFogOpacity.toFixed(2)}:${input.visionFalloffPct}:${input.shadowSoftnessPx}:${input.walls.length}:${input.manualStrokes.length}:${lastStroke}:${obsPart}`;
   }
 
   computeVisibilityPolygon(
@@ -356,17 +377,13 @@ export class VttFogOfWarEngine {
     drawTarget.restore();
 
     if (scratch && scratchCtx) {
-      const blurPx = Math.max(0, Math.min(36, Math.round(shadowSoftnessPx ?? 14)));
+      const blurPx = Math.max(0, Math.min(18, Math.round((shadowSoftnessPx ?? 14) * 0.5)));
       ctx.save();
       ctx.globalCompositeOperation = 'source-over';
       if (blurPx > 0) {
         ctx.filter = `blur(${blurPx}px)`;
-        ctx.drawImage(scratch, 0, 0);
-        ctx.filter = `blur(${Math.max(1, Math.round(blurPx * 0.25))}px)`;
-        ctx.drawImage(scratch, 0, 0);
-      } else {
-        ctx.drawImage(scratch, 0, 0);
       }
+      ctx.drawImage(scratch, 0, 0);
       ctx.restore();
     }
   }
@@ -416,14 +433,7 @@ export class VttFogOfWarEngine {
       outCtx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
       outCtx.fillRect(center.x - radiusPx, center.y - radiusPx, radiusPx * 2, radiusPx * 2);
     } else {
-      const grad = outCtx.createRadialGradient(
-        center.x,
-        center.y,
-        radiusPx * 0.3,
-        center.x,
-        center.y,
-        radiusPx,
-      );
+      const grad = outCtx.createRadialGradient(center.x, center.y, radiusPx * 0.3, center.x, center.y, radiusPx);
       grad.addColorStop(0.0, `rgba(0, 0, 0, ${alpha})`);
       grad.addColorStop(0.8, `rgba(0, 0, 0, ${alpha * 0.85})`);
       grad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
@@ -436,20 +446,10 @@ export class VttFogOfWarEngine {
   }
 
   private worldToPixel(x: number, z: number): { x: number; y: number } {
-    return {
-      x: ((x - FOG_WORLD_MIN_X) / FOG_WORLD_WIDTH) * CANVAS_W,
-      y: ((z - FOG_WORLD_MIN_Z) / FOG_WORLD_HEIGHT) * CANVAS_H,
-    };
+    return { x: ((x - FOG_WORLD_MIN_X) / FOG_WORLD_WIDTH) * CANVAS_W, y: ((z - FOG_WORLD_MIN_Z) / FOG_WORLD_HEIGHT) * CANVAS_H };
   }
 
-  private distToSegment(
-    px: number,
-    pz: number,
-    x1: number,
-    z1: number,
-    x2: number,
-    z2: number,
-  ): number {
+  private distToSegment(px: number, pz: number, x1: number, z1: number, x2: number, z2: number): number {
     const dx = x2 - x1;
     const dz = z2 - z1;
     const l2 = dx * dx + dz * dz;
@@ -473,27 +473,14 @@ export class VttFogOfWarEngine {
 
   private ensureCanvas(which: 'out' | 'live' | 'scratch'): HTMLCanvasElement | null {
     if (typeof document === 'undefined') return null;
-    if (which === 'out') {
-      if (!this.outputCanvas) {
-        this.outputCanvas = document.createElement('canvas');
-        this.outputCanvas.width = CANVAS_W;
-        this.outputCanvas.height = CANVAS_H;
-      }
-      return this.outputCanvas;
-    }
-    if (which === 'scratch') {
-      if (!this.polyScratchCanvas) {
-        this.polyScratchCanvas = document.createElement('canvas');
-        this.polyScratchCanvas.width = CANVAS_W;
-        this.polyScratchCanvas.height = CANVAS_H;
-      }
-      return this.polyScratchCanvas;
-    }
-    if (!this.liveMaskCanvas) {
-      this.liveMaskCanvas = document.createElement('canvas');
-      this.liveMaskCanvas.width = CANVAS_W;
-      this.liveMaskCanvas.height = CANVAS_H;
-    }
-    return this.liveMaskCanvas;
+    const create = () => {
+      const c = document.createElement('canvas');
+      c.width = CANVAS_W;
+      c.height = CANVAS_H;
+      return c;
+    };
+    if (which === 'out') return (this.outputCanvas ??= create());
+    if (which === 'scratch') return (this.polyScratchCanvas ??= create());
+    return (this.liveMaskCanvas ??= create());
   }
 }

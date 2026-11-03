@@ -93,9 +93,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     () => !!(this.activeBattlemapBackdropUrl() || this.adventureGuide.guide().assignedBattlemap?.sceneKey?.trim()),
   );
 
-  readonly isHighPerformance2d = computed(
-    () => !this.battle.mapMode3D() && !this.stage.has3dSceneLoaded() && this.vttDisplay.mapQuality() === 'performance',
-  );
+  readonly isHighPerformance2d = computed(() => false);
 
   readonly activeSessionTitle = computed(() => {
     const sess = this.store.sessions().find((s) => s.sessionId === this.store.activeSessionId());

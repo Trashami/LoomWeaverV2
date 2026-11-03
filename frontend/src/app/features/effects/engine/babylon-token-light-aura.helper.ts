@@ -35,7 +35,7 @@ export function attachTokenLightAndGlowMeshes(
     );
     glowRing.parent = baseMesh;
     glowRing.position.set(0, 0.02, 0);
-    glowRing.renderingGroupId = 2;
+    glowRing.renderingGroupId = 0;
     glowRing.alphaIndex = 10;
     glowRing.isPickable = false;
     const glowMat = new StandardMaterial(`lw-token-glowmat-${token.key}`, scene);
@@ -71,7 +71,7 @@ export function createSpinningBaseTargetReticleMesh(
   );
   outerRing.parent = root;
   outerRing.material = reticleMat;
-  outerRing.renderingGroupId = 2;
+  outerRing.renderingGroupId = 0;
   outerRing.alphaIndex = 10;
   outerRing.isPickable = false;
 
@@ -82,7 +82,7 @@ export function createSpinningBaseTargetReticleMesh(
   );
   innerRing.parent = root;
   innerRing.material = reticleMat;
-  innerRing.renderingGroupId = 2;
+  innerRing.renderingGroupId = 0;
   innerRing.alphaIndex = 10;
   innerRing.isPickable = false;
 }

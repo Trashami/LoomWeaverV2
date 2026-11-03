@@ -74,144 +74,106 @@
 
         <div class="flyout-sub-section">
           <div class="flyout-row-between">
-            <span class="flyout-sub-label">Viewing Vision For</span>
+            <span class="flyout-sub-label">Token Vision & Line of Sight</span>
             <span class="flyout-badge">{{ vtt.selectedAttacker()?.name || 'All Party' }}</span>
           </div>
-          <span class="flyout-sub-label">Fog of War Mode</span>
-          <div class="flyout-chip-grid-2">
-            @for (fm of fogModeOptions; track fm.id) {
-              <button
-                ngpButton
-                type="button"
-                class="flyout-mode-chip"
-                [class.active]="battle.fogMode() === fm.id"
-                (click)="setFogMode(fm.id)"
-              >
-                {{ fm.label }}
-              </button>
-            }
+          <label class="flyout-check-line">
+            <input type="checkbox" [ngModel]="battle.losVisionEnabled()" (ngModelChange)="battle.losVisionEnabled.set($event)" />
+            <span>Enable Token Vision Circle</span>
+          </label>
+          <label class="flyout-check-line">
+            <input type="checkbox" [ngModel]="battle.losWallShadowsEnabled()" (ngModelChange)="battle.losWallShadowsEnabled.set($event)" />
+            <span>3D Objects & Walls Block Line of Sight</span>
+          </label>
+          <label class="flyout-check-line">
+            <input type="checkbox" [ngModel]="battle.applyTokenVision()" (ngModelChange)="battle.applyTokenVision.set($event)" />
+            <span>Apply Character / Token Sight Stats</span>
+          </label>
+
+          <div class="flyout-row-between">
+            <span class="flyout-mini-label">Base Sight Distance</span>
+            <strong class="flyout-mini-val">{{ battle.playerSightDistanceFeet() }} ft</strong>
           </div>
+          <input type="range" min="10" max="180" step="5" class="flyout-range" [value]="battle.playerSightDistanceFeet()" (input)="onSightDistanceInput($any($event.target).value)" />
+
+          <div class="flyout-row-between">
+            <span class="flyout-mini-label">Vision Circle Feathering (Hard → Soft)</span>
+            <strong class="flyout-mini-val">{{ battle.visionFalloffPct() }}%</strong>
+          </div>
+          <input type="range" min="0" max="100" step="5" class="flyout-range" [value]="battle.visionFalloffPct()" (input)="onVisionFalloffInput($any($event.target).value)" />
+
+          <div class="flyout-row-between">
+            <span class="flyout-mini-label">Falloff Gradient (Far Edge → Quick Drop)</span>
+            <strong class="flyout-mini-val">{{ battle.visionFalloffCurvePct() }}%</strong>
+          </div>
+          <input type="range" min="10" max="90" step="5" class="flyout-range" [value]="battle.visionFalloffCurvePct()" (input)="onVisionFalloffCurveInput($any($event.target).value)" />
+
+          <div class="flyout-row-between">
+            <span class="flyout-mini-label">Obstacle Shadow Edge Softness</span>
+            <strong class="flyout-mini-val">{{ battle.shadowSoftnessPx() }}px</strong>
+          </div>
+          <input type="range" min="0" max="36" step="2" class="flyout-range" [value]="battle.shadowSoftnessPx()" (input)="onShadowSoftnessInput($any($event.target).value)" />
         </div>
 
-        @if (isGm()) {
-          <div class="flyout-divider"></div>
-          <div class="flyout-sub-section">
-            <div class="flyout-row-between">
-              <span class="flyout-sub-label">Manual Fog Brush</span>
-              <span class="flyout-badge">{{ battle.fogBrushMode() === 'none' ? 'OFF' : battle.fogBrushMode().toUpperCase() }}</span>
-            </div>
-            <div class="flyout-chip-grid-3">
-              <button ngpButton type="button" class="flyout-mode-chip" [class.active]="battle.fogBrushMode() === 'reveal'" (click)="setFogBrushMode('reveal')">
-                Clear Fog
-              </button>
-              <button ngpButton type="button" class="flyout-mode-chip" [class.active]="battle.fogBrushMode() === 'cover'" (click)="setFogBrushMode('cover')">
-                Reapply Fog
-              </button>
-              <button ngpButton type="button" class="flyout-mode-chip" [class.active]="battle.fogBrushMode() === 'none'" (click)="battle.fogBrushMode.set('none')">
-                Brush Off
-              </button>
-            </div>
-
-            <div class="flyout-row-between">
-              <span class="flyout-mini-label">Brush Size: {{ battle.fogBrushRadiusFeet() }} ft</span>
-              <div class="flyout-shape-pills">
-                <button type="button" class="flyout-shape-pill" [class.active]="battle.fogBrushShape() === 'circle'" (click)="setFogBrushShape('circle')">Circle</button>
-                <button type="button" class="flyout-shape-pill" [class.active]="battle.fogBrushShape() === 'square'" (click)="setFogBrushShape('square')">Square</button>
-              </div>
-            </div>
-            <input
-              type="range"
-              min="5"
-              max="60"
-              step="5"
-              class="flyout-range"
-              [value]="battle.fogBrushRadiusFeet()"
-              (input)="onFogBrushRadiusInput($any($event.target).value)"
-            />
-
-            <div class="flyout-chip-grid-2">
-              <button ngpButton type="button" class="flyout-mode-chip" (click)="battle.clearAllFog()">Clear Entire Map</button>
-              <button ngpButton type="button" class="flyout-mode-chip" (click)="battle.reapplyAllFog()">Reapply All Fog</button>
-            </div>
+        <div class="flyout-divider"></div>
+        <div class="flyout-sub-section">
+          <span class="flyout-sub-label">Fog of War Mode & Opacity</span>
+          <div class="flyout-chip-grid-2">
+            @for (fm of fogModeOptions; track fm.id) {
+              <button ngpButton type="button" class="flyout-mode-chip" [class.active]="battle.fogMode() === fm.id" (click)="setFogMode(fm.id)">{{ fm.label }}</button>
+            }
           </div>
 
-          <div class="flyout-divider"></div>
-          <div class="flyout-sub-section">
-            <span class="flyout-sub-label">Vision & Fog Opacity</span>
-            <label class="flyout-check-line">
-              <input type="checkbox" [ngModel]="battle.applyTokenVision()" (ngModelChange)="battle.applyTokenVision.set($event)" />
-              <span>Apply Character / Token Vision Settings</span>
-            </label>
-            <label class="flyout-check-line">
-              <input type="checkbox" [ngModel]="battle.showMonstersBeyondVision()" (ngModelChange)="battle.setShowMonstersBeyondVision($event)" />
-              <span>Monsters Visible Beyond Vision Range</span>
-            </label>
-            <label class="flyout-check-line">
-              <input type="checkbox" [ngModel]="battle.showCharactersBeyondVision()" (ngModelChange)="battle.showCharactersBeyondVision.set($event)" />
-              <span>Characters Visible Beyond Vision Range</span>
-            </label>
-            <label class="flyout-check-line">
-              <input type="checkbox" [ngModel]="battle.gmPreviewPlayerVision()" (ngModelChange)="battle.gmPreviewPlayerVision.set($event)" />
-              <span>Preview Player Vision on GM Map</span>
-            </label>
-
-            <div class="flyout-row-between">
-              <span class="flyout-mini-label">Vision Falloff Feathering</span>
-              <strong class="flyout-mini-val">{{ battle.visionFalloffPct() }}%</strong>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="85"
-              step="5"
-              class="flyout-range"
-              [value]="battle.visionFalloffPct()"
-              (input)="onVisionFalloffInput($any($event.target).value)"
-            />
-
-            <div class="flyout-row-between">
-              <span class="flyout-mini-label">Shadow Edge Softness</span>
-              <strong class="flyout-mini-val">{{ battle.shadowSoftnessPx() }}px</strong>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="36"
-              step="2"
-              class="flyout-range"
-              [value]="battle.shadowSoftnessPx()"
-              (input)="onShadowSoftnessInput($any($event.target).value)"
-            />
-
-            <div class="flyout-row-between">
-              <span class="flyout-mini-label">Traveled Fog Opacity</span>
-              <strong class="flyout-mini-val">{{ (battle.traveledFogOpacity() * 100).toFixed(0) }}%</strong>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="95"
-              step="5"
-              class="flyout-range"
-              [value]="battle.traveledFogOpacity() * 100"
-              (input)="onTraveledFogOpacityInput($any($event.target).value)"
-            />
-
-            <div class="flyout-row-between">
-              <span class="flyout-mini-label">Unexplored Fog Blackness</span>
-              <strong class="flyout-mini-val">{{ (battle.gmFogOpacity() * 100).toFixed(0) }}%</strong>
-            </div>
-            <input
-              type="range"
-              min="10"
-              max="100"
-              step="5"
-              class="flyout-range"
-              [value]="battle.gmFogOpacity() * 100"
-              (input)="onGmFogOpacityInput($any($event.target).value)"
-            />
+          <div class="flyout-row-between">
+            <span class="flyout-mini-label">Unexplored Fog Blackness</span>
+            <strong class="flyout-mini-val">{{ (battle.gmFogOpacity() * 100).toFixed(0) }}%</strong>
           </div>
-        }
+          <input type="range" min="10" max="100" step="5" class="flyout-range" [value]="battle.gmFogOpacity() * 100" (input)="onGmFogOpacityInput($any($event.target).value)" />
+
+          <div class="flyout-row-between">
+            <span class="flyout-mini-label">Traveled Fog Opacity</span>
+            <strong class="flyout-mini-val">{{ (battle.traveledFogOpacity() * 100).toFixed(0) }}%</strong>
+          </div>
+          <input type="range" min="0" max="95" step="5" class="flyout-range" [value]="battle.traveledFogOpacity() * 100" (input)="onTraveledFogOpacityInput($any($event.target).value)" />
+
+          <label class="flyout-check-line">
+            <input type="checkbox" [ngModel]="battle.showMonstersBeyondVision()" (ngModelChange)="battle.setShowMonstersBeyondVision($event)" />
+            <span>Monsters Visible Beyond Vision Range</span>
+          </label>
+          <label class="flyout-check-line">
+            <input type="checkbox" [ngModel]="battle.showCharactersBeyondVision()" (ngModelChange)="battle.showCharactersBeyondVision.set($event)" />
+            <span>Characters Visible Beyond Vision Range</span>
+          </label>
+          <label class="flyout-check-line">
+            <input type="checkbox" [ngModel]="battle.gmPreviewPlayerVision()" (ngModelChange)="battle.gmPreviewPlayerVision.set($event)" />
+            <span>Preview Player Vision on GM Map</span>
+          </label>
+        </div>
+
+        <div class="flyout-divider"></div>
+        <div class="flyout-sub-section">
+          <div class="flyout-row-between">
+            <span class="flyout-sub-label">Manual Fog Brush</span>
+            <span class="flyout-badge">{{ battle.fogBrushMode() === 'none' ? 'OFF' : battle.fogBrushMode().toUpperCase() }}</span>
+          </div>
+          <div class="flyout-chip-grid-3">
+            <button ngpButton type="button" class="flyout-mode-chip" [class.active]="battle.fogBrushMode() === 'reveal'" (click)="setFogBrushMode('reveal')">Clear Fog</button>
+            <button ngpButton type="button" class="flyout-mode-chip" [class.active]="battle.fogBrushMode() === 'cover'" (click)="setFogBrushMode('cover')">Reapply Fog</button>
+            <button ngpButton type="button" class="flyout-mode-chip" [class.active]="battle.fogBrushMode() === 'none'" (click)="battle.fogBrushMode.set('none')">Brush Off</button>
+          </div>
+          <div class="flyout-row-between">
+            <span class="flyout-mini-label">Brush Size: {{ battle.fogBrushRadiusFeet() }} ft</span>
+            <div class="flyout-shape-pills">
+              <button type="button" class="flyout-shape-pill" [class.active]="battle.fogBrushShape() === 'circle'" (click)="setFogBrushShape('circle')">Circle</button>
+              <button type="button" class="flyout-shape-pill" [class.active]="battle.fogBrushShape() === 'square'" (click)="setFogBrushShape('square')">Square</button>
+            </div>
+          </div>
+          <input type="range" min="5" max="60" step="5" class="flyout-range" [value]="battle.fogBrushRadiusFeet()" (input)="onFogBrushRadiusInput($any($event.target).value)" />
+          <div class="flyout-chip-grid-2">
+            <button ngpButton type="button" class="flyout-mode-chip" (click)="battle.clearAllFog()">Clear Entire Map</button>
+            <button ngpButton type="button" class="flyout-mode-chip" (click)="battle.reapplyAllFog()">Reapply All Fog</button>
+          </div>
+        </div>
       </div>
     }
 

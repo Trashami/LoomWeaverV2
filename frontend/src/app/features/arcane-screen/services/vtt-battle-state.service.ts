@@ -45,15 +45,18 @@ export class VttBattleStateService {
   });
 
   readonly fogMode = signal<VttFogMode>('explored-los');
+  readonly losVisionEnabled = signal<boolean>(true);
+  readonly losWallShadowsEnabled = signal<boolean>(true);
   readonly applyTokenVision = signal<boolean>(true);
   readonly traveledFogOpacity = signal<number>(0.5);
   readonly gmFogOpacity = signal<number>(1.0);
   readonly visionFalloffPct = signal<number>(45);
-  readonly shadowSoftnessPx = signal<number>(14);
+  readonly visionFalloffCurvePct = signal<number>(50);
+  readonly shadowSoftnessPx = signal<number>(10);
   readonly hideOutOfSightMonsters = signal<boolean>(true);
   readonly showMonstersBeyondVision = computed<boolean>(() => !this.hideOutOfSightMonsters());
   readonly showCharactersBeyondVision = signal<boolean>(false);
-  readonly playerSightDistanceFeet = signal<number>(45);
+  readonly playerSightDistanceFeet = signal<number>(60);
   readonly gmPreviewPlayerVision = signal<boolean>(false);
   readonly previewTokenVisionKey = signal<string | null>(null);
 
@@ -68,9 +71,7 @@ export class VttBattleStateService {
   setShowMonstersBeyondVision(visible: boolean): void { this.hideOutOfSightMonsters.set(!visible); }
 
   readonly walls = signal<readonly VttWallSegmentVm[]>(SEED_VTT_WALL_SEGMENTS);
-  readonly exploredTrailPoints = signal<readonly { x: number; z: number; radiusFeet: number }[]>([
-    { x: -7, z: -3, radiusFeet: 45 }, { x: -4, z: -5, radiusFeet: 45 }, { x: -5, z: 1, radiusFeet: 45 }, { x: 0, z: 0, radiusFeet: 45 },
-  ]);
+  readonly exploredTrailPoints = signal<readonly { x: number; z: number; radiusFeet: number }[]>([]);
 
   readonly cursorWorldPos = signal<VttPoint2D>({ x: 4, z: 1 });
   readonly draggingTokenKey = signal<string | null>(null);
@@ -159,8 +160,8 @@ export class VttBattleStateService {
 
   readonly observerSightPolygonSvg = computed<string>(() => {
     const obs = this.activeObserverToken();
-    if (!obs) return '';
-    return computeVisibilityPolygonSvgPoints({ x: obs.x, z: obs.z }, getEffectiveTokenVisionFeet(obs, this.playerSightDistanceFeet(), this.applyTokenVision()), this.walls(), 96);
+    if (!obs || !this.losVisionEnabled()) return '';
+    return computeVisibilityPolygonSvgPoints({ x: obs.x, z: obs.z }, getEffectiveTokenVisionFeet(obs, this.playerSightDistanceFeet(), this.applyTokenVision()), this.losWallShadowsEnabled() ? this.walls() : [], 96);
   });
 
   isPointRevealedByManualStroke(pt: VttPoint2D): 'revealed' | 'covered' | 'none' {
@@ -172,31 +173,26 @@ export class VttBattleStateService {
   }
 
   tokenOpacity(token: VttTokenVm): number {
-    if (this.fogMode() === 'no-fog') return 1;
+    if (this.fogMode() === 'no-fog' && !this.losVisionEnabled()) return 1;
     if (token.faction === 'party' && this.showCharactersBeyondVision()) return 1;
     if (token.faction === 'hostile' && !this.hideOutOfSightMonsters()) return 1;
     const manualState = this.isPointRevealedByManualStroke({ x: token.x, z: token.z });
     if (manualState === 'revealed') return 1;
     if (manualState === 'covered' || this.fogMode() === 'manual-only') return 0;
+    if (!this.losVisionEnabled()) return this.fogMode() === 'no-fog' ? 1 : 0;
+    const activeWalls = this.losWallShadowsEnabled() ? this.walls() : [];
     for (const obs of this.fogObserverTokens()) {
       if (obs.key === token.key) return 1;
       const sightFeet = getEffectiveTokenVisionFeet(obs, this.playerSightDistanceFeet(), this.applyTokenVision());
-      if (hasLineOfSight({ x: obs.x, z: obs.z }, { x: token.x, z: token.z }, sightFeet, this.walls())) return 1;
+      if (hasLineOfSight({ x: obs.x, z: obs.z }, { x: token.x, z: token.z }, sightFeet, activeWalls)) return 1;
     }
     return 0;
   }
 
   isTokenInPlayerLoS(token: VttTokenVm): boolean { return this.tokenOpacity(token) > 0; }
 
-  readonly visibleMapTokens = computed<readonly VttTokenVm[]>(() =>
-    this.vtt.tokens().filter((t) => this.isTokenInPlayerLoS(t)),
-  );
-
-  readonly filteredTurnAbilities = computed<readonly VttTacticalAbilityVm[]>(() => {
-    const cat = this.activeTurnCategory();
-    const list = this.tacticalAbilities();
-    return cat === 'all' ? list : list.filter((a) => a.turnCategory === cat);
-  });
+  readonly visibleMapTokens = computed<readonly VttTokenVm[]>(() => this.vtt.tokens().filter((t) => this.isTokenInPlayerLoS(t)));
+  readonly filteredTurnAbilities = computed<readonly VttTacticalAbilityVm[]>(() => this.activeTurnCategory() === 'all' ? this.tacticalAbilities() : this.tacticalAbilities().filter((a) => a.turnCategory === this.activeTurnCategory()));
 
   getDockActionsForToken(token: VttTokenVm, category: 'melee' | 'ranged' | 'spell' | 'bonus' | 'reaction'): DockAction[] {
     return this.partyAndActions.getDockActionsForToken(token, category, this.vtt.creatures());
@@ -369,7 +365,8 @@ export class VttBattleStateService {
     const dist = token ? Math.round(distanceInFeet(dragStart, { x: token.x, z: token.z }) / 5) * 5 : 0;
     if (token && dist > 0) {
       if (this.store.viewerRole() === 'players') this.usedMovementFeetByToken.update((prev) => ({ ...prev, [token.key]: (prev[token.key] ?? 0) + dist }));
-      if (token.faction === 'party') this.exploredTrailPoints.update((pts) => [...pts, { x: token.x, z: token.z, radiusFeet: getEffectiveTokenVisionFeet(token, this.playerSightDistanceFeet(), this.applyTokenVision()) }]);
+      const rFt = getEffectiveTokenVisionFeet(token, this.playerSightDistanceFeet(), this.applyTokenVision());
+      this.exploredTrailPoints.update((pts) => [...pts, { x: dragStart.x, z: dragStart.z, radiusFeet: rFt }, { x: token.x, z: token.z, radiusFeet: rFt }]);
     }
     this.draggingTokenKey.set(null);
     this.dragStartWorldPos.set(null);

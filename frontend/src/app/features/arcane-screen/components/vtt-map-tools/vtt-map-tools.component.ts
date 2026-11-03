@@ -250,8 +250,18 @@ export class VttMapToolsComponent {
   }
 
   onVisionFalloffInput(rawPercent: string): void {
-    const pct = Math.max(0, Math.min(85, Math.round(Number(rawPercent) || 0)));
+    const pct = Math.max(0, Math.min(100, Math.round(Number(rawPercent) || 0)));
     this.battle.visionFalloffPct.set(pct);
+  }
+
+  onVisionFalloffCurveInput(rawPercent: string): void {
+    const pct = Math.max(10, Math.min(90, Math.round(Number(rawPercent) || 50)));
+    this.battle.visionFalloffCurvePct.set(pct);
+  }
+
+  onSightDistanceInput(rawFeet: string): void {
+    const ft = Math.max(10, Math.min(180, Math.round(Number(rawFeet) || 60)));
+    this.battle.playerSightDistanceFeet.set(ft);
   }
 
   onShadowSoftnessInput(rawPx: string): void {

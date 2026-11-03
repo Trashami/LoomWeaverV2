@@ -52,7 +52,10 @@ export class VttFogService {
       const isPlayer = this.isPlayerView();
       const traveledOpacity = this.battle.traveledFogOpacity();
       const gmOpacity = this.battle.gmFogOpacity();
+      const losVisionEnabled = this.battle.losVisionEnabled();
+      const losWallShadowsEnabled = this.battle.losWallShadowsEnabled();
       const visionFalloffPct = this.battle.visionFalloffPct();
+      const visionFalloffCurvePct = this.battle.visionFalloffCurvePct();
       const shadowSoftnessPx = this.battle.shadowSoftnessPx();
       void this.combat.selectedAttackerKey();
       void this.battle.fogRevision();
@@ -65,6 +68,8 @@ export class VttFogService {
       return this.engine.render({
         encounterId,
         mode,
+        losVisionEnabled,
+        losWallShadowsEnabled,
         observers,
         walls,
         defaultSightFeet,
@@ -72,6 +77,7 @@ export class VttFogService {
         traveledFogOpacity: effectiveTraveledOpacity,
         unexploredFogOpacity,
         visionFalloffPct,
+        visionFalloffCurvePct,
         shadowSoftnessPx,
         manualStrokes,
       });

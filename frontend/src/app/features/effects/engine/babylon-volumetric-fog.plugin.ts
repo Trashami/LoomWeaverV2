@@ -36,7 +36,7 @@ function resolveDiscardModeForMaterial(matName: string): number {
   if (matName === 'lw-terrain-grid-mat' || matName.startsWith('lw-aoe-') || matName.startsWith('lw-target-reticle-')) {
     return 2.0;
   }
-  if (matName === 'lw-terrain-ground-mat' || matName === 'lw-map-mat') {
+  if (matName === 'lw-terrain-mat' || matName === 'lw-terrain-ground-mat' || matName === 'lw-vtt-gmat' || matName === 'lw-map-mat') {
     return 0.0;
   }
   return 1.0;
@@ -141,10 +141,10 @@ if (lwFogActive > 0.5) {
   vec2 lwFogUv = vec2((vLwFogXZ.x + 18.0) / 36.0, 1.0 - (vLwFogXZ.y + 13.5) / 27.0);
   float lwFogOut = step(lwFogUv.x, 0.0) + step(1.0, lwFogUv.x) + step(lwFogUv.y, 0.0) + step(1.0, lwFogUv.y);
   float lwFogAlpha = lwFogOut > 0.0 ? 1.0 : texture2D(lwFogTex, clamp(lwFogUv, vec2(0.001, 0.001), vec2(0.999, 0.999))).a;
-  if (lwFogDiscardMode > 0.5 && lwFogAlpha > 0.68) {
+  if (lwFogDiscardMode > 0.5 && lwFogAlpha > 0.96) {
     discard;
   }
-  if (lwFogDiscardMode < 0.5 && lwFogAlpha > 0.94) {
+  if (lwFogDiscardMode < 0.5 && lwFogAlpha > 0.992) {
     discard;
   }
   vec3 lwFogVoidColor = vec3(0.012, 0.031, 0.024);

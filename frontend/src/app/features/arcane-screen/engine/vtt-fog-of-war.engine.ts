@@ -20,6 +20,8 @@ const CANVAS_H = 270;
 export interface VttFogRenderInput {
   readonly encounterId: string;
   readonly mode: VttFogMode;
+  readonly losVisionEnabled?: boolean;
+  readonly losWallShadowsEnabled?: boolean;
   readonly observers: readonly VttTokenVm[];
   readonly walls: readonly VttWallSegmentVm[];
   readonly defaultSightFeet: number;
@@ -27,6 +29,7 @@ export interface VttFogRenderInput {
   readonly traveledFogOpacity: number;
   readonly unexploredFogOpacity: number;
   readonly visionFalloffPct: number;
+  readonly visionFalloffCurvePct?: number;
   readonly shadowSoftnessPx: number;
   readonly manualStrokes: readonly VttFogBrushStrokeVm[];
 }
@@ -108,20 +111,17 @@ export class VttFogOfWarEngine {
     const liveCtx = liveMask.getContext('2d');
     if (!outCtx || !liveCtx) return null;
 
-    const blockingWalls = input.walls.filter((w) => w.blocksVision);
+    const blockingWalls = input.losWallShadowsEnabled !== false ? input.walls.filter((w) => w.blocksVision) : [];
+    const curvePct = input.visionFalloffCurvePct ?? 50;
     const scopeKey = `${input.encounterId}:${input.observers.map((o) => o.key).join('|') || 'all'}`;
     const exploredCanvas = this.getOrCreateExploredCanvas(scopeKey);
     const exploredCtx = exploredCanvas?.getContext('2d') ?? null;
 
     // 1. Build live visibility mask from observer tokens (unless manual-only mode)
     liveCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-    if (input.mode !== 'manual-only') {
+    if (input.mode !== 'manual-only' && input.losVisionEnabled !== false) {
       for (const observer of input.observers) {
-        const sightFeet = getEffectiveTokenVisionFeet(
-          observer,
-          input.defaultSightFeet,
-          input.applyTokenVision,
-        );
+        const sightFeet = getEffectiveTokenVisionFeet(observer, input.defaultSightFeet, input.applyTokenVision);
         const radiusWorld = sightFeet / FEET_PER_WORLD_UNIT;
 
         if (input.mode === 'explored-los' && exploredCtx) {
@@ -130,53 +130,23 @@ export class VttFogOfWarEngine {
           if (prev) {
             const moveDist = Math.hypot(observer.x - prev.x, observer.z - prev.z);
             if (moveDist > 0.35 && moveDist < 18) {
-              const steps = Math.min(4, Math.ceil(moveDist / 0.9));
-              for (let s = 1; s < steps; s++) {
+              const steps = Math.min(4, Math.max(1, Math.ceil(moveDist / 0.9)));
+              for (let s = 0; s < steps; s++) {
                 const ratio = s / steps;
                 const ix = prev.x + (observer.x - prev.x) * ratio;
                 const iz = prev.z + (observer.z - prev.z) * ratio;
                 const stepPoly = this.computeVisibilityPolygon(ix, iz, radiusWorld, blockingWalls);
-                this.stampVisibilityPolygon(
-                  exploredCtx,
-                  ix,
-                  iz,
-                  radiusWorld,
-                  stepPoly,
-                  input.visionFalloffPct,
-                  0,
-                );
+                this.stampVisibilityPolygon(exploredCtx, ix, iz, radiusWorld, stepPoly, input.visionFalloffPct, curvePct, 0, blockingWalls.length > 0);
               }
+              this.lastObserverPosByKey.set(posKey, { x: observer.x, z: observer.z });
             }
+          } else {
+            this.lastObserverPosByKey.set(posKey, { x: observer.x, z: observer.z });
           }
-          this.lastObserverPosByKey.set(posKey, { x: observer.x, z: observer.z });
         }
 
-        const poly = this.computeVisibilityPolygon(
-          observer.x,
-          observer.z,
-          radiusWorld,
-          blockingWalls,
-        );
-        this.stampVisibilityPolygon(
-          liveCtx,
-          observer.x,
-          observer.z,
-          radiusWorld,
-          poly,
-          input.visionFalloffPct,
-          input.shadowSoftnessPx,
-        );
-        if (input.mode === 'explored-los' && exploredCtx) {
-          this.stampVisibilityPolygon(
-            exploredCtx,
-            observer.x,
-            observer.z,
-            radiusWorld,
-            poly,
-            input.visionFalloffPct,
-            input.shadowSoftnessPx,
-          );
-        }
+        const poly = this.computeVisibilityPolygon(observer.x, observer.z, radiusWorld, blockingWalls);
+        this.stampVisibilityPolygon(liveCtx, observer.x, observer.z, radiusWorld, poly, input.visionFalloffPct, curvePct, input.shadowSoftnessPx, blockingWalls.length > 0);
       }
     }
 
@@ -245,7 +215,7 @@ export class VttFogOfWarEngine {
       )
       .join('|');
     const lastStroke = input.manualStrokes[input.manualStrokes.length - 1]?.id ?? '';
-    return `${input.encounterId}:${input.mode}:${input.defaultSightFeet}:${input.applyTokenVision}:${input.traveledFogOpacity.toFixed(2)}:${input.unexploredFogOpacity.toFixed(2)}:${input.visionFalloffPct}:${input.shadowSoftnessPx}:${input.walls.length}:${input.manualStrokes.length}:${lastStroke}:${obsPart}`;
+    return `${input.encounterId}:${input.mode}:${input.losVisionEnabled !== false}:${input.losWallShadowsEnabled !== false}:${input.defaultSightFeet}:${input.applyTokenVision}:${input.traveledFogOpacity.toFixed(2)}:${input.unexploredFogOpacity.toFixed(2)}:${input.visionFalloffPct}:${input.visionFalloffCurvePct ?? 50}:${input.shadowSoftnessPx}:${input.walls.length}:${input.manualStrokes.length}:${lastStroke}:${obsPart}`;
   }
 
   computeVisibilityPolygon(
@@ -331,61 +301,81 @@ export class VttFogOfWarEngine {
     radiusWorld: number,
     polygon: readonly VttPoint2D[],
     visionFalloffPct: number,
+    visionFalloffCurvePct: number,
     shadowSoftnessPx: number,
+    hasBlockingWalls = false,
   ): void {
     if (polygon.length < 3) return;
     const center = this.worldToPixel(ox, oz);
     const radiusPx = Math.max(8, (radiusWorld / FOG_WORLD_WIDTH) * CANVAS_W);
-    const falloffFrac = Math.max(0.02, Math.min(0.85, (visionFalloffPct ?? 45) / 100));
-    const coreStop = Math.max(0.12, 1.0 - falloffFrac);
-    const midStop = coreStop + (1.0 - coreStop) * 0.42;
-    const outerStop = coreStop + (1.0 - coreStop) * 0.76;
+    const featherFrac = Math.max(0.0, Math.min(1.0, (visionFalloffPct ?? 45) / 100));
+    const coreStop = Math.max(0.04, 0.985 - featherFrac * 0.945);
+    const curveNorm = Math.max(5, Math.min(95, visionFalloffCurvePct ?? 50));
+    const gamma = Math.pow(3.6, (curveNorm - 50) / 40);
 
-    const scratch = this.ensureCanvas('scratch');
-    const scratchCtx = scratch?.getContext('2d');
-    const drawTarget = scratchCtx ?? ctx;
-
-    if (scratchCtx) {
-      scratchCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-    }
-
-    drawTarget.save();
-    drawTarget.globalCompositeOperation = 'source-over';
-    drawTarget.beginPath();
-    polygon.forEach((pt, idx) => {
-      const p = this.worldToPixel(pt.x, pt.z);
-      if (idx === 0) drawTarget.moveTo(p.x, p.y);
-      else drawTarget.lineTo(p.x, p.y);
-    });
-    drawTarget.closePath();
-
-    const grad = drawTarget.createRadialGradient(
-      center.x,
-      center.y,
-      radiusPx * 0.08,
-      center.x,
-      center.y,
-      radiusPx,
-    );
+    const grad = ctx.createRadialGradient(center.x, center.y, radiusPx * 0.02, center.x, center.y, radiusPx);
     grad.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
     grad.addColorStop(coreStop, 'rgba(255, 255, 255, 1.0)');
-    grad.addColorStop(midStop, 'rgba(255, 255, 255, 0.78)');
-    grad.addColorStop(outerStop, 'rgba(255, 255, 255, 0.34)');
+    const steps = 8;
+    for (let k = 1; k < steps; k++) {
+      const u = k / steps;
+      const s = u * u * (3 - 2 * u);
+      const t = 0.45 * u + 0.55 * s;
+      const alpha = Math.max(0, Math.min(1, Math.pow(1.0 - t, gamma)));
+      const stopPos = Math.min(0.999, coreStop + u * (1.0 - coreStop));
+      grad.addColorStop(stopPos, `rgba(255, 255, 255, ${alpha.toFixed(3)})`);
+    }
     grad.addColorStop(1.0, 'rgba(255, 255, 255, 0.0)');
-    drawTarget.fillStyle = grad;
-    drawTarget.fill();
-    drawTarget.restore();
+
+    const blurPx = hasBlockingWalls ? Math.max(0, Math.min(16, Math.round((shadowSoftnessPx ?? 10) * 0.45))) : 0;
+    const scratch = blurPx > 0 ? this.ensureCanvas('scratch') : null;
+    const scratchCtx = scratch?.getContext('2d') ?? null;
 
     if (scratch && scratchCtx) {
-      const blurPx = Math.max(0, Math.min(18, Math.round((shadowSoftnessPx ?? 14) * 0.5)));
+      scratchCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+      scratchCtx.save();
+      scratchCtx.globalCompositeOperation = 'source-over';
+      scratchCtx.filter = `blur(${blurPx}px)`;
+      scratchCtx.beginPath();
+      polygon.forEach((pt, idx) => {
+        const p = this.worldToPixel(pt.x, pt.z);
+        if (idx === 0) scratchCtx.moveTo(p.x, p.y);
+        else scratchCtx.lineTo(p.x, p.y);
+      });
+      scratchCtx.closePath();
+      scratchCtx.fillStyle = 'rgba(255, 255, 255, 1.0)';
+      scratchCtx.fill();
+      scratchCtx.filter = 'none';
+      scratchCtx.globalCompositeOperation = 'destination-in';
+      scratchCtx.beginPath();
+      scratchCtx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
+      scratchCtx.fillStyle = grad;
+      scratchCtx.fill();
+      scratchCtx.restore();
+
       ctx.save();
       ctx.globalCompositeOperation = 'source-over';
-      if (blurPx > 0) {
-        ctx.filter = `blur(${blurPx}px)`;
-      }
       ctx.drawImage(scratch, 0, 0);
       ctx.restore();
+      return;
     }
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.beginPath();
+    if (!hasBlockingWalls) {
+      ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
+    } else {
+      polygon.forEach((pt, idx) => {
+        const p = this.worldToPixel(pt.x, pt.z);
+        if (idx === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.closePath();
+    }
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.restore();
   }
 
   private applyBrushStroke(ctx: CanvasRenderingContext2D, stroke: VttFogBrushStrokeVm): void {

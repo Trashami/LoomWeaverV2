@@ -478,6 +478,9 @@ export function registerArcaneScreenStageEffects(
     vtt.applyRemoteTokenMove(p.key, p.x, p.z);
   });
   stage.tokenDropped.pipe(takeUntilDestroyed()).subscribe((p) => {
+    const tok = vtt.tokens().find((t) => t.key === p.key);
+    const rFt = tok ? getEffectiveTokenVisionFeet(tok, battle.playerSightDistanceFeet(), battle.applyTokenVision()) : battle.playerSightDistanceFeet();
+    if (tok) battle.exploredTrailPoints.update((pts) => [...pts, { x: tok.x, z: tok.z, radiusFeet: rFt }, { x: p.x, z: p.z, radiusFeet: rFt }]);
     vtt.applyRemoteTokenMove(p.key, p.x, p.z);
     host.sync3dStage();
     void serverSync.publishMove(p.key, p.x, p.z);

@@ -141,7 +141,7 @@ if (lwFogActive > 0.5) {
   vec2 lwFogUv = vec2((vLwFogXZ.x + 18.0) / 36.0, 1.0 - (vLwFogXZ.y + 13.5) / 27.0);
   float lwFogOut = step(lwFogUv.x, 0.0) + step(1.0, lwFogUv.x) + step(lwFogUv.y, 0.0) + step(1.0, lwFogUv.y);
   float lwFogAlpha = lwFogOut > 0.0 ? 1.0 : texture2D(lwFogTex, clamp(lwFogUv, vec2(0.001, 0.001), vec2(0.999, 0.999))).a;
-  if (lwFogDiscardMode > 0.5 && lwFogAlpha > 0.78) {
+  if (lwFogDiscardMode > 0.5 && lwFogAlpha > 0.68) {
     discard;
   }
   if (lwFogDiscardMode < 0.5 && lwFogAlpha > 0.94) {
@@ -198,5 +198,15 @@ export function syncSceneVolumetricFogMaterials(
 
   for (const mat of scene.materials) {
     attachVolumetricFogToMaterial(mat);
+    if (mat.name.startsWith('lw-water-material-')) {
+      const waterMat = mat as Material & {
+        setFloat?: (name: string, val: number) => void;
+        setTexture?: (name: string, tex: Texture) => void;
+      };
+      waterMat.setFloat?.('lwFogActive', meta.lwFogActive);
+      if (meta.lwFogTex) {
+        waterMat.setTexture?.('lwFogTex', meta.lwFogTex);
+      }
+    }
   }
 }

@@ -129,22 +129,24 @@ function buildStraightPulsingTube(
   coreTube.alphaIndex = 15;
   coreTube.isPickable = false;
 
-  // Travelling pulse bead along the straight tether line
-  const bead = MeshBuilder.CreateSphere(
-    `${name}-pulse-bead`,
-    { diameter: radius * 3.1, segments: 10 },
-    scene,
-  );
-  bead.position.copyFrom(start);
-  bead.metadata = { start: start.clone(), end: end.clone() };
-  const beadMat = new StandardMaterial(`${name}-bead-mat`, scene);
-  beadMat.disableLighting = true;
-  beadMat.emissiveColor = Color3.FromHexString(LOOM_GREEN_CORE_HEX);
-  beadMat.alpha = 0.92;
-  bead.material = beadMat;
-  bead.renderingGroupId = 2;
-  bead.alphaIndex = 16;
-  bead.isPickable = false;
+  // 3 staggered directional pulse beads streaming strictly from attacker (start) -> target (end)
+  for (let b = 0; b < 3; b++) {
+    const bead = MeshBuilder.CreateSphere(
+      `${name}-pulse-bead-${b}`,
+      { diameter: radius * (3.2 - b * 0.35), segments: 10 },
+      scene,
+    );
+    bead.position.copyFrom(start);
+    bead.metadata = { start: start.clone(), end: end.clone(), phaseOffset: b / 3 };
+    const beadMat = new StandardMaterial(`${name}-bead-mat-${b}`, scene);
+    beadMat.disableLighting = true;
+    beadMat.emissiveColor = Color3.FromHexString(LOOM_GREEN_CORE_HEX);
+    beadMat.alpha = 0.94;
+    bead.material = beadMat;
+    bead.renderingGroupId = 2;
+    bead.alphaIndex = 16;
+    bead.isPickable = false;
+  }
 }
 
 function buildTerrainConformingRing(
@@ -242,12 +244,14 @@ function buildTerrainConformingDisc(
 
 export function animateBabylonSpellAndTetherPulse(scene: Scene, nowMs: number): void {
   const pulse = 0.65 + 0.35 * Math.sin(nowMs * 0.0065);
-  const travelT = (nowMs * 0.0011) % 1.0;
+  const baseTravelT = (nowMs * 0.00095) % 1.0;
 
   for (const m of scene.meshes) {
-    if (m.name.endsWith('-pulse-bead') && m.metadata?.start && m.metadata?.end) {
+    if (m.name.includes('-pulse-bead') && m.metadata?.start && m.metadata?.end) {
+      const offset = typeof m.metadata.phaseOffset === 'number' ? m.metadata.phaseOffset : 0;
+      const travelT = (baseTravelT + offset) % 1.0;
       Vector3.LerpToRef(m.metadata.start as Vector3, m.metadata.end as Vector3, travelT, m.position);
-      if (m.material) m.material.alpha = 0.55 + 0.45 * Math.sin(travelT * Math.PI);
+      if (m.material) m.material.alpha = 0.45 + 0.55 * Math.sin(travelT * Math.PI);
     } else if (m.name.startsWith('lw-target-tether-') && m.name.endsWith('-outer') && m.material) {
       m.material.alpha = 0.48 + 0.38 * pulse;
     } else if (m.name === 'lw-spell-template-disc' && m.material) {

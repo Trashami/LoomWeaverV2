@@ -173,24 +173,16 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       paintFogBrushAtScreenPoint(event.clientX, event.clientY, this.isHighPerformance2d(), this.stage, this.battle, this.battleSvgRef?.nativeElement, () => this.sync3dStage());
       return;
     }
-    if (!this.isHighPerformance2d() && (this.battle.pendingAbility() || this.battle.measureEnabled())) {
+    if (!this.isHighPerformance2d() && (this.battle.pendingAbility() || this.battle.measureEnabled() || this.battle.targetSelectionMode())) {
       const pt = this.stage.pickGroundPoint(event.clientX, event.clientY);
       if (pt) this.battle.cursorWorldPos.set(pt);
     }
     if (this.isHighPerformance2d()) this.view2d.move(event);
   }
-  onMapMouseUp(event?: MouseEvent): void {
-    const down = this.mapDownClient;
+  onMapMouseUp(_event?: MouseEvent): void {
     this.mapDownClient = null;
     this.fogBrushPainting = false;
     if (this.isHighPerformance2d()) { this.view2d.end(); return; }
-    if (event && event.button === 0 && down && Math.hypot(event.clientX - down.x, event.clientY - down.y) < 10 && this.battle.pendingAbility()) {
-      const pt = this.stage.pickGroundPoint(event.clientX, event.clientY);
-      if (pt) this.battle.cursorWorldPos.set(pt);
-      const step = this.battle.recordPendingAbilityTargetClick();
-      this.sync3dStage();
-      if (step.shouldExecuteNow) void this.executePendingAbilityCast();
-    }
   }
   changeZoom(amount: number): void { if (!this.isHighPerformance2d()) this.stage.zoomCamera(-amount * 0.4); else this.view2d.zoomBy(amount); }
   resetZoom(): void { if (!this.isHighPerformance2d()) this.stage.resetCamera(); else this.view2d.reset(); }
@@ -221,11 +213,17 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
         return tok ? this.battle.canMoveToken(tok).allowed : false;
       },
       (pt) => {
-        if (!this.battle.pendingAbility()) return;
         this.battle.cursorWorldPos.set(pt);
-        const step = this.battle.recordPendingAbilityTargetClick();
-        this.sync3dStage();
-        if (step.shouldExecuteNow) void this.executePendingAbilityCast();
+        if (this.battle.pendingAbility()) {
+          const step = this.battle.recordPendingAbilityTargetClick();
+          this.sync3dStage();
+          if (step.shouldExecuteNow) void this.executePendingAbilityCast();
+          return;
+        }
+        if (this.battle.targetSelectionMode()) {
+          const snapped = this.battle.activeRangeAndAoePreview()?.snappedToken;
+          if (snapped) { this.battle.handleTokenClick(snapped, false, false); this.sync3dStage(); }
+        }
       },
     );
     this.stage.setForcedTopDown(!this.battle.mapMode3D());

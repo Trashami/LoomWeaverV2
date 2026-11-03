@@ -128,7 +128,7 @@
             @switch (activeCat) {
               @case ('melee') {
                 @for (atk of getMeleeAttacks()(token); track atk.id) {
-                  <button type="button" class="category-item-card" [class.is-armed]="pendingAction() === atk.id || selectedAction()?.id === atk.id" (click)="menuActionSelect.emit({ action: atk, token })">
+                  <button type="button" class="category-item-card" [class.is-armed]="pendingAction() === atk.id || selectedAction()?.id === atk.id" (click)="menuActionSelect.emit({ action: atk, token }); closeCategoryPopover()">
                     <div class="item-card-main">
                       <div class="item-name-row">
                         <lw-icon name="gavel" [size]="14" />
@@ -149,7 +149,7 @@
               }
               @case ('ranged') {
                 @for (atk of getRangedAttacks()(token); track atk.id) {
-                  <button type="button" class="category-item-card" [class.is-armed]="pendingAction() === atk.id || selectedAction()?.id === atk.id" (click)="menuActionSelect.emit({ action: atk, token })">
+                  <button type="button" class="category-item-card" [class.is-armed]="pendingAction() === atk.id || selectedAction()?.id === atk.id" (click)="menuActionSelect.emit({ action: atk, token }); closeCategoryPopover()">
                     <div class="item-card-main">
                       <div class="item-name-row">
                         <lw-icon name="gps_fixed" [size]="14" />
@@ -170,7 +170,7 @@
               }
               @case ('spells') {
                 @for (sp of getSpells()(token); track sp.id) {
-                  <button type="button" class="category-item-card is-spell-card" [class.is-armed]="pendingAction() === sp.id || selectedAction()?.id === sp.id" (click)="menuActionSelect.emit({ action: sp, token })">
+                  <button type="button" class="category-item-card is-spell-card" [class.is-armed]="pendingAction() === sp.id || selectedAction()?.id === sp.id" (click)="menuActionSelect.emit({ action: sp, token }); closeCategoryPopover()">
                     <div class="item-card-main">
                       <div class="item-name-row">
                         <lw-icon [name]="spellIcon(sp)" [size]="14" />
@@ -199,7 +199,7 @@
               }
               @case ('bonus') {
                 @for (act of getBonusActions()(token); track act.id) {
-                  <button type="button" class="category-item-card" (click)="menuActionSelect.emit({ action: act, token })">
+                  <button type="button" class="category-item-card" (click)="menuActionSelect.emit({ action: act, token }); closeCategoryPopover()">
                     <div class="item-card-main">
                       <div class="item-name-row">
                         <lw-icon [name]="act.icon || 'bolt'" [size]="14" />
@@ -215,7 +215,7 @@
               }
               @case ('reactions') {
                 @for (react of getReactions()(token); track react.id) {
-                  <button type="button" class="category-item-card" (click)="menuActionSelect.emit({ action: react, token })">
+                  <button type="button" class="category-item-card" (click)="menuActionSelect.emit({ action: react, token }); closeCategoryPopover()">
                     <div class="item-card-main">
                       <div class="item-name-row">
                         <lw-icon [name]="react.icon || 'shield'" [size]="14" />
@@ -330,6 +330,7 @@
 
         <div class="util-divider"></div>
 
+        <button type="button" class="util-icon-btn" [class.active]="isTargeting()" (click)="toggleTargetMode.emit()" title="Target token mode (T) — Esc to exit" aria-label="Target token mode"><lw-icon name="gps_fixed" [size]="14" /></button>
         <button type="button" class="util-icon-btn" [class.active]="isMeasuring()" (click)="toggleMeasure.emit()" title="Distance and spell range ruler (R)" aria-label="Distance ruler">
           <lw-icon name="straighten" [size]="14" />
         </button>

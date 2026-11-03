@@ -60,6 +60,7 @@ export class BabylonEffectStageService {
   private latestGridScale = 1.0;
   private latestGridOffsetX = 0.0;
   private latestGridOffsetY = 0.0;
+  private latestAttackerPos: { x: number; z: number } | null = null;
   private latestSpellTemplate: BabylonSpellTemplateState | null = null;
   private latestTetherTargets: readonly BabylonTargetTetherEndpoint[] = [];
 
@@ -432,6 +433,7 @@ export class BabylonEffectStageService {
     tetherTargets: readonly BabylonTargetTetherEndpoint[],
     templateState: BabylonSpellTemplateState | null,
   ): void {
+    this.latestAttackerPos = attackerPos;
     this.latestTetherTargets = tetherTargets;
     this.latestSpellTemplate = templateState;
     if (this.scene) syncBabylonSpellAndTetherMeshes(this.scene, attackerPos, tetherTargets, templateState);
@@ -441,7 +443,8 @@ export class BabylonEffectStageService {
     if (!this.scene) return;
     this.tokenBuilder.syncTokens(this.scene, this.latestTokens, this.isForcedTopDown, this.latestAttackerKey, this.latestTargetKey, this.latestTargetedKeys, this.latestOpacityByKey, this.latestGridScale, () => this.refreshTokens());
     const src = this.latestTokens.find((t) => t.key === this.latestAttackerKey);
-    syncBabylonSpellAndTetherMeshes(this.scene, src ? { x: src.x, z: src.z } : null, this.latestTetherTargets, this.latestSpellTemplate);
+    const startPos = src ? { x: src.x, z: src.z } : this.latestAttackerPos;
+    syncBabylonSpellAndTetherMeshes(this.scene, startPos, this.latestTetherTargets, this.latestSpellTemplate);
   }
 
   playTrajectoryEffect(

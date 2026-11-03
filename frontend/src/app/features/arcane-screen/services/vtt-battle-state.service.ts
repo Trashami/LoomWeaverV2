@@ -24,12 +24,7 @@ const ACTION_BAR_SKIN_KEY = 'lw.vtt.actionBarSkin';
 export const VTT_FOG_MODES: readonly VttFogMode[] = ['los-only', 'explored-los', 'manual-only', 'no-fog'];
 
 function readSavedActionBarSkin(): ActionBarSkinId {
-  try {
-    const saved = localStorage.getItem(ACTION_BAR_SKIN_KEY);
-    return isActionBarSkin(saved) ? saved : DEFAULT_ACTION_BAR_SKIN;
-  } catch {
-    return DEFAULT_ACTION_BAR_SKIN;
-  }
+  try { const saved = localStorage.getItem(ACTION_BAR_SKIN_KEY); return isActionBarSkin(saved) ? saved : DEFAULT_ACTION_BAR_SKIN; } catch { return DEFAULT_ACTION_BAR_SKIN; }
 }
 
 @Injectable({ providedIn: 'root' })
@@ -109,13 +104,13 @@ export class VttBattleStateService {
   readonly activeInitiativeToken = computed<VttTokenVm>(() => this.vtt.tokens()[this.vtt.activeTurnIndex()] ?? this.vtt.tokens()[0]);
 
   readonly activeObserverToken = computed<VttTokenVm>(() => {
+    const selected = this.vtt.selectedAttacker();
+    if (selected && (this.store.viewerRole() === 'gm' || this.canControlToken(selected))) return selected;
     const previewKey = this.previewTokenVisionKey();
     if (previewKey) {
       const found = this.vtt.tokens().find((t) => t.key === previewKey);
       if (found) return found;
     }
-    const selected = this.vtt.selectedAttacker();
-    if (selected && (this.store.viewerRole() === 'gm' || selected.faction === 'party') && this.canControlToken(selected)) return selected;
     const party = this.vtt.partyTokensInScene();
     return party.find((t) => this.canControlToken(t)) ?? party[0] ?? this.vtt.tokens()[0];
   });
@@ -215,6 +210,7 @@ export class VttBattleStateService {
   }
 
   isAbilityAvailableOnTurn(ability: VttTacticalAbilityVm): boolean {
+    if (this.store.viewerRole() === 'gm') return true;
     const actor = this.activeObserverToken();
     if (!actor) return true;
     if (ability.actionCost === '1 Action') return !actor.actionUsed;
@@ -230,16 +226,17 @@ export class VttBattleStateService {
   readonly activeRangeAndAoePreview = computed(() => {
     const obs = this.activeObserverToken();
     if (!obs) return null;
-    const ability = this.pendingAbility() ? this.pendingAbility() : this.measureEnabled() && this.measureSubMode() === 'spell' ? this.measuredAbility() : null;
+    const ability = this.pendingAbility() ? this.pendingAbility() : this.measureEnabled() && this.measureSubMode() === 'spell' ? this.measuredAbility() : this.targetSelectionMode() ? (this.tacticalAbilities()[0] ?? SEED_TACTICAL_TURN_ABILITIES[0]) : null;
     if (!ability) return null;
-    const isSingleOrMulti = this.isSingleOrMultiTargetAbility(ability);
+    const isSingleOrMulti = this.targetSelectionMode() && !this.pendingAbility() ? true : this.isSingleOrMultiTargetAbility(ability);
     const maxTargets = Math.max(1, ability.maxTargets || 1);
+    const rangeFt = this.targetSelectionMode() && !this.pendingAbility() ? Math.max(120, ability.rangeFeet) : ability.rangeFeet;
 
     if (isSingleOrMulti) {
       const candidates = this.visibleMapTokens().filter((t) => t.key !== obs.key);
-      const snappedToken = findClosestSnapToken({ x: obs.x, z: obs.z }, this.cursorWorldPos(), ability.rangeFeet, this.actionBarSettings().snapSensitivityFeet, candidates, this.walls());
+      const snappedToken = findClosestSnapToken({ x: obs.x, z: obs.z }, this.cursorWorldPos(), rangeFt, this.actionBarSettings().snapSensitivityFeet, candidates, this.walls());
       const desiredEnd: VttPoint2D = snappedToken ? { x: snappedToken.x, z: snappedToken.z } : this.cursorWorldPos();
-      const clamped = clampLineToRangeAndWalls({ x: obs.x, z: obs.z }, desiredEnd, ability.rangeFeet, this.walls(), false);
+      const clamped = clampLineToRangeAndWalls({ x: obs.x, z: obs.z }, desiredEnd, rangeFt, this.walls(), false);
       const highlightedTokens = snappedToken && !clamped.blockedByWall ? [snappedToken] : [];
       return { ability, clamped, isSingleOrMulti: true, maxTargets, snappedToken: !clamped.blockedByWall ? snappedToken : null, aoeRadiusFeet: 5, highlightedTokens, highlightedKeys: new Set(highlightedTokens.map((t) => t.key)) };
     }
@@ -429,14 +426,18 @@ export class VttBattleStateService {
     const obs = this.activeObserverToken();
     if (obs && !this.isTokenInPlayerLoS(token) && this.store.viewerRole() === 'players') return;
     if (shiftKey || ctrlKey || this.targetSelectionMode()) {
-      const next = this.multiTargetKeys().includes(token.key) ? this.multiTargetKeys().filter((k) => k !== token.key) : [...this.multiTargetKeys(), token.key];
+      if (obs && token.key === obs.key) return;
+      const next = (shiftKey || ctrlKey) ? (this.multiTargetKeys().includes(token.key) ? this.multiTargetKeys().filter((k) => k !== token.key) : [...this.multiTargetKeys(), token.key]) : [token.key];
       this.multiTargetKeys.set(next); this.queuedTargetSequence.set(next); this.hasActiveTargetTether.set(next.length > 0);
       if (next.length > 0) this.vtt.selectedTargetKey.set(next[next.length - 1]);
       return;
     }
-    if (token.faction === 'party' && !this.pendingAbility()) { this.vtt.selectedAttackerKey.set(token.key); return; }
     if (!this.pendingAbility()) {
-      if (this.store.viewerRole() === 'gm' && obs && obs.key === token.key) { this.vtt.selectedAttackerKey.set(token.key); return; }
+      if (this.store.viewerRole() === 'gm' || (token.faction === 'party' && this.canControlToken(token))) {
+        this.vtt.selectedAttackerKey.set(token.key);
+        if (this.multiTargetKeys().includes(token.key)) { const rem = this.multiTargetKeys().filter((k) => k !== token.key); this.multiTargetKeys.set(rem); this.queuedTargetSequence.set(rem); this.hasActiveTargetTether.set(rem.length > 0); }
+        return;
+      }
       this.multiTargetKeys.set([token.key]); this.queuedTargetSequence.set([token.key]);
       this.hasActiveTargetTether.set(true); this.vtt.selectedTargetKey.set(token.key);
     }

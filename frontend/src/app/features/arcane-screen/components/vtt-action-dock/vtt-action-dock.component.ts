@@ -44,6 +44,7 @@ export class VttActionDockComponent {
   readonly canEndTurn = input<boolean>(false);
   readonly isGm = input<boolean>(false);
   readonly isMeasuring = input<boolean>(false);
+  readonly isTargeting = input<boolean>(false);
   readonly focusMode = input<boolean>(false);
   readonly zoom = input<number>(100);
   readonly actionMessage = input<string | null>(null);
@@ -72,6 +73,7 @@ export class VttActionDockComponent {
   readonly openSheet = output<DockToken>();
   readonly endTurn = output<void>();
   readonly toggleMeasure = output<void>();
+  readonly toggleTargetMode = output<void>();
   readonly toggleFocus = output<void>();
   readonly changeZoom = output<number>();
   readonly resetZoom = output<void>();

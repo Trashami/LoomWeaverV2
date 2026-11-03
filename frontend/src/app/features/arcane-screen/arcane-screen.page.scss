@@ -191,7 +191,7 @@
 }
 
 .lw-vtt-cast-line {
-  stroke: #49e892; stroke-width: 3.2; stroke-dasharray: 8 4; filter: drop-shadow(0 0 6px rgba(73, 232, 146, 0.7));
+  stroke: #49e892; stroke-width: 3.6; stroke-dasharray: 12 6; filter: drop-shadow(0 0 6px rgba(73, 232, 146, 0.85)); animation: lwAttackPulseFlow 0.7s linear infinite;
   &.blocked { stroke: #ff2438; }
 }
 
@@ -493,3 +493,4 @@
   background: rgba(73, 232, 146, 0.22);
   box-shadow: 0 0 0 1px rgba(5, 16, 12, 0.85);
 }
+@keyframes lwAttackPulseFlow { from { stroke-dashoffset: 18; } to { stroke-dashoffset: 0; } }

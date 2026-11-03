@@ -240,7 +240,11 @@ export function handleVttWindowKeydown(
     stage.setRotateHeld(true);
   } else if (event.key === 'Escape') {
     event.preventDefault();
-    battle.cancelAllInteractiveModes();
+    if (battle.targetSelectionMode() && !battle.pendingAbility()) {
+      battle.targetSelectionMode.set(false);
+    } else {
+      battle.cancelAllInteractiveModes();
+    }
     battle.openDmDrawer.set('none');
     battle.settingsModalOpen.set(false);
     vttDisplay.calibratingGrid.set(false);
@@ -251,6 +255,7 @@ export function handleVttWindowKeydown(
   } else if (event.key === 't' || event.key === 'T') {
     event.preventDefault();
     battle.targetSelectionMode.update((v) => !v);
+    onCastOrSync(false);
   } else if (event.key === 'Enter' && battle.pendingAbility()) {
     event.preventDefault();
     onCastOrSync(true);

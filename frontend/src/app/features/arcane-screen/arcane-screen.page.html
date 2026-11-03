@@ -190,8 +190,14 @@
           </div>
         }
 
-        @if (battle.pendingAbility() || battle.measureEnabled()) {
+        @if (battle.pendingAbility() || battle.measureEnabled() || battle.targetSelectionMode()) {
           <div class="lw-vtt-hud-overlay">
+            @if (battle.targetSelectionMode() && !battle.pendingAbility()) {
+              <div class="lw-vtt-hud-pills">
+                <span class="lw-vtt-subpill lw-vtt-subpill--gold">TARGETING [T] — {{ battle.activeObserverToken().name }} · Click token to target</span>
+                <button ngpButton type="button" class="lw-vtt-subpill" (click)="battle.targetSelectionMode.set(false); sync3dStage()">Select / Pan / Zoom [Esc]</button>
+              </div>
+            }
             @if (battle.pendingAbility(); as pending) {
               <div class="lw-vtt-hud-pills">
                 @if (battle.queuedTargetSequence().length > 0) {
@@ -296,13 +302,13 @@
           [turnActionUsed]="battle.activeObserverToken().actionUsed" [turnBonusActionUsed]="battle.activeObserverToken().bonusUsed"
           [turnReactionUsed]="battle.activeObserverToken().reactionUsed" [turnMovementRemainingFeet]="battle.remainingMovementFeet()"
           [turnMovementMaxFeet]="battle.activeObserverToken().movementFeet" [canEndTurn]="isObserverActiveTurn() || store.viewerRole() === 'gm'"
-          [isGm]="store.viewerRole() === 'gm'" [isMeasuring]="battle.measureEnabled()"
+          [isGm]="store.viewerRole() === 'gm'" [isMeasuring]="battle.measureEnabled()" [isTargeting]="battle.targetSelectionMode()"
           [pendingAction]="battle.pendingAbility()?.name ?? null" [tokenActions]="dockTokenActions()"
           [skin]="battle.actionBarSettings().skin" [zoom]="zoomLevel()" [getTokenHp]="dockHp" [getTokenAc]="dockAc"
           [getMeleeAttacks]="dockMeleeAttacks" [getRangedAttacks]="dockRangedAttacks"
           [getSpells]="dockSpells" [getBonusActions]="dockBonusActions" [getReactions]="dockReactions"
           (chooseAction)="selectDockAction($event)" (menuActionSelect)="onDockMenuAction($event)"
-          (startActionTest)="onDockMenuAction($event)" (endTurn)="nextTurn()" (toggleMeasure)="dockToggleMeasure()"
+          (startActionTest)="onDockMenuAction($event)" (endTurn)="nextTurn()" (toggleMeasure)="dockToggleMeasure()" (toggleTargetMode)="battle.targetSelectionMode.update(v => !v); sync3dStage()"
           (standardAction)="dockStandardAction($event)" (skillCheck)="dockCheck($event.skill.name, $event.token)"
           (saveCheck)="dockCheck($event.save.name, $event.token)" (abilityCheck)="dockCheck($event.stat, $event.token)"
           (savingThrow)="dockCheck($event.stat + ' save', $event.token)" (openSheet)="openCharactersPage()"

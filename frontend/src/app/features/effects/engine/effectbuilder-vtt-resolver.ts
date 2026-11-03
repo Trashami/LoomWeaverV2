@@ -9,6 +9,7 @@ import {
   makePresets,
   parseEffect,
 } from '@effectbuilder/effect-definition';
+import { makeAmbientPresets } from '@effectbuilder/ambient-presets';
 import { makeSpellTemplates } from '@effectbuilder/spell-templates';
 import { EffectTimelinePresetVm } from './effect-timeline.contract';
 
@@ -193,12 +194,13 @@ export class EffectBuilderVttResolver {
   private getBuiltInTemplates(): EffectDefinition[] {
     if (!this.builtInTemplates) {
       this.builtInTemplates = [
+        ...makeSpellTemplates(),
         createFireballComposition(),
         createMagicMissileEffect(),
         createFireHitEffect(),
         createMageHandEffect(),
-        ...makeSpellTemplates(),
         ...makePresets(),
+        ...makeAmbientPresets().map((p) => p.effect),
       ];
     }
     return this.builtInTemplates;
@@ -207,6 +209,16 @@ export class EffectBuilderVttResolver {
   private matchBuiltInTemplate(normAbility: string): EffectDefinition | null {
     const templates = this.getBuiltInTemplates();
 
+    // Exact match first (spellName or name)
+    for (const t of templates) {
+      const sp = normalizeKey(t.spellName);
+      const nm = normalizeKey(t.name);
+      if ((sp && sp === normAbility) || (nm && nm === normAbility)) {
+        return t;
+      }
+    }
+
+    // Substring match second
     for (const t of templates) {
       const sp = normalizeKey(t.spellName);
       const nm = normalizeKey(t.name);

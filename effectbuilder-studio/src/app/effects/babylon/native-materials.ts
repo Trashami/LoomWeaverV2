@@ -22,8 +22,9 @@ const blend = `
   return abs(b-s);
  }
  vec4 finishLayer(vec4 c){
-  c.a*=uLayerAlpha;
+  c.a=clamp(c.a*uLayerAlpha,0.0,1.0);
   if(uBlend>.5){vec3 back=texture2D(uBackdrop,gl_FragCoord.xy/uViewport).rgb;c.rgb=blendColor(back,c.rgb);}
+  else if(uBlend<-.5){vec3 s=1.0-exp(-max(c.rgb,vec3(0.0))*1.15);c.rgb=s*c.a;}
   return c;
  }
 `;

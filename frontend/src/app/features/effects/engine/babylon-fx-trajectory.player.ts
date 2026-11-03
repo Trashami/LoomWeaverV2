@@ -1,5 +1,5 @@
 import { Scene, Vector3 } from '@babylonjs/core';
-import { playNativeEffect } from '@effectbuilder/babylon/native-runtime';
+import { playNativeEffect, prewarmNativeEffectShaders } from '@effectbuilder/babylon/native-runtime';
 import { effectDuration } from '@effectbuilder/effect-definition';
 import { TerrainMeshBuilder } from '../../maps/engine/terrain/terrain-mesh.builder';
 import { EffectTimelinePresetVm } from './effect-timeline.contract';
@@ -21,6 +21,10 @@ export class BabylonFxTrajectoryPlayer {
     this.resolver.prefetchForCampaign(campaignId);
   }
 
+  prewarmStage(scene: Scene): void {
+    prewarmNativeEffectShaders(scene);
+  }
+
   play(
     scene: Scene | null,
     preset: EffectTimelinePresetVm,
@@ -38,7 +42,7 @@ export class BabylonFxTrajectoryPlayer {
     });
 
     const casterGroundY = TerrainMeshBuilder.sampleElevationAt(scene, caster.x, caster.z);
-    const casterVec = new Vector3(caster.x, casterGroundY + 0.65, caster.z);
+    const casterVec = new Vector3(caster.x, casterGroundY + 0.05, caster.z);
 
     const rawTargets =
       options?.targets && options.targets.length > 0 ? options.targets : [target];
@@ -52,22 +56,22 @@ export class BabylonFxTrajectoryPlayer {
         tz += Math.sin(angle) * 0.35;
       }
       const ty = TerrainMeshBuilder.sampleElevationAt(scene, tx, tz);
-      return new Vector3(tx, ty + 0.65, tz);
+      return new Vector3(tx, ty + 0.05, tz);
     });
 
     options?.onPlayStateChange?.(true);
 
-    // Combat spell animations intentionally run 40% slower (timeScale = 0.6) so tactical beats and lighting read clearly
-    const combatTimeScale = 0.6;
+    const combatTimeScale = 1.0;
     const handle = playNativeEffect(
       scene,
       definition,
       () => casterVec,
       () => targetVecs,
       {
-        pixelsPerUnit: 42,
+        pixelsPerUnit: 66,
+        scale: 0.85,
         elevationAt: (x: number, z: number) =>
-          TerrainMeshBuilder.sampleElevationAt(scene, x, z) + 0.32,
+          TerrainMeshBuilder.sampleElevationAt(scene, x, z) + 0.05,
         lightGain: 4.2,
         timeScale: combatTimeScale,
       },

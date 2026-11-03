@@ -281,12 +281,12 @@ function createProjectile3DMaterial(
     eff.setFloat('uLayerAlpha', meta.alpha);
     eff.setColor3('uMainCol', meta.main);
     eff.setColor3('uCoreCol', meta.core);
-    eff.setFloat('uBlend', Math.max(0, nativeBlendModes.indexOf(getBlend() as any)));
+    const backdrop = getBackdrop();
+    eff.setFloat('uBlend', backdrop ? Math.max(0, nativeBlendModes.indexOf(getBlend() as any)) : 0);
     eff.setVector2(
       'uViewport',
       new Vector2(scene.getEngine().getRenderWidth(), scene.getEngine().getRenderHeight())
     );
-    const backdrop = getBackdrop();
     if (backdrop) eff.setTexture('uBackdrop', backdrop);
   });
 

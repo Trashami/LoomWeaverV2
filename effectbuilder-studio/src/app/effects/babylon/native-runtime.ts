@@ -2,7 +2,6 @@ import {
   Color3,
   Color4,
   Constants,
-  DynamicTexture,
   Effect,
   Mesh,
   MeshBuilder,
@@ -11,7 +10,6 @@ import {
   Scene,
   ShaderMaterial,
   StandardMaterial,
-  Texture,
   TransformNode,
   Vector2,
   Vector3,
@@ -61,6 +59,7 @@ interface LayerResources {
 
 export interface NativeWorldOptions {
   pixelsPerUnit?: number;
+  scale?: number;
   elevationAt?: (x: number, z: number) => number;
   lightGain?: number;
   timeScale?: number;
@@ -68,20 +67,62 @@ export interface NativeWorldOptions {
 
 const color = (hex: string) => Color3.FromHexString(hex);
 const ownerId = () => 'eb-native-' + Math.random().toString(36).slice(2);
+const sceneSpellLightPool = new WeakMap<Scene, PointLight[]>();
 
-/** Host-scene runtime. Owns only its meshes, materials, targets and bounded point lights. */
+/**
+ * Ensures 4 permanent spell PointLights exist on `scene` at intensity=0 when idle.
+ * Because the light count on the scene never changes when a spell starts or ends,
+ * Babylon never recompiles ground, wall, or token shaders mid-combat.
+ */
+export function ensureSceneSpellLightPool(scene: Scene): PointLight[] {
+  let pool = sceneSpellLightPool.get(scene);
+  if (pool && pool.length === 4 && pool.every((l) => !l.isDisposed())) {
+    return pool;
+  }
+  pool = [];
+  for (let i = 0; i < 4; i++) {
+    const light = new PointLight(`lw-vtt-spell-light-pool-${i}`, new Vector3(0, -100, 0), scene);
+    light.intensity = 0;
+    light.range = 0.1;
+    light.diffuse = Color3.Black();
+    light.specular = Color3.Black();
+    light.setEnabled(true);
+    pool.push(light);
+  }
+  sceneSpellLightPool.set(scene, pool);
+  return pool;
+}
+
+/** Pre-compiles the core EffectBuilder shader families on `scene` so the first spell cast never stutters. */
+export function prewarmNativeEffectShaders(scene: Scene): void {
+  ensureSceneSpellLightPool(scene);
+  const families: ('particle' | 'ribbon' | 'fire' | 'arcane' | 'cinematic' | 'barrier')[] = [
+    'particle',
+    'ribbon',
+    'fire',
+    'arcane',
+    'cinematic',
+    'barrier',
+  ];
+  for (const fam of families) {
+    const m = createNativeMaterial(scene, fam, `lw-prewarm-${fam}`);
+    m.dispose(false, false);
+  }
+}
+
+/** Host-scene runtime. Owns only its meshes, materials, targets and pooled point lights. */
 export class BabylonEffectRuntime {
   readonly owner = ownerId();
   private layers = new Map<string, LayerResources>();
   private lights: PointLight[] = [];
-  private lightPools: { mesh: Mesh; mat: StandardMaterial }[] = [];
-  private lightPoolTex?: DynamicTexture;
   private disposed = false;
 
   constructor(
     readonly scene: Scene,
     readonly options: NativeWorldOptions = {}
-  ) {}
+  ) {
+    this.lights = ensureSceneSpellLightPool(scene);
+  }
 
   private toWorld(p: NativePoint, from: FxPoint, to: FxPoint, sourceY = 0, targetY = 0): Vector3 {
     const unit = this.options.pixelsPerUnit ?? 66,
@@ -136,6 +177,7 @@ export class BabylonEffectRuntime {
       l.blendMode === 'overlay' ||
       l.blendMode === 'soft-light' ||
       l.blendMode === 'hard-light' ||
+      l.blendMode === 'darken' ||
       l.blendMode === 'difference';
     if (needsCustomBackdrop && !r.backdrop)
       r.backdrop = createBlendBackdrop(this.scene, l.id, order, this.owner);
@@ -150,14 +192,25 @@ export class BabylonEffectRuntime {
       case 'add':
         return Constants.ALPHA_ADD;
       case 'screen':
+      case 'lighten':
         return Constants.ALPHA_SCREENMODE;
       case 'multiply':
         return Constants.ALPHA_MULTIPLY;
-      case 'lighten':
-        return Constants.ALPHA_MAXIMIZED;
       default:
         return Constants.ALPHA_COMBINE;
     }
+  }
+
+  private resolveBlendUniform(blendMode: string, hasBackdrop: boolean): number {
+    if (hasBackdrop) {
+      return nativeBlendModes.indexOf(blendMode as any);
+    }
+    if (blendMode === 'screen' || blendMode === 'lighten' || blendMode === 'multiply') {
+      // Premultiplies c.rgb by c.a in finishLayer so ALPHA_SCREENMODE / ALPHA_MULTIPLY
+      // are 100% transparent where c.a == 0 (never rendering square quad bounds).
+      return -1;
+    }
+    return 0;
   }
 
   private material(
@@ -175,7 +228,7 @@ export class BabylonEffectRuntime {
       fire = l.fireMaterial ?? l.fireHit;
     m.alphaMode = this.resolveAlphaMode(l.blendMode);
     m.setFloat('uLayerAlpha', f.alpha);
-    m.setFloat('uBlend', r.backdrop ? nativeBlendModes.indexOf(l.blendMode) : 0);
+    m.setFloat('uBlend', this.resolveBlendUniform(l.blendMode, !!r.backdrop));
     m.setVector2(
       'uViewport',
       new Vector2(this.scene.getEngine().getRenderWidth(), this.scene.getEngine().getRenderHeight())
@@ -260,7 +313,7 @@ export class BabylonEffectRuntime {
       effect.setFloat('uHandTime', r.root.metadata?.handClock ?? 0);
       effect.setFloat('uLayerAlpha', 1);
       effect.setColor3('uHandColor', mat.diffuseColor.scale(2));
-      effect.setFloat('uBlend', nativeBlendModes.indexOf(r.blend as any));
+      effect.setFloat('uBlend', r.backdrop ? nativeBlendModes.indexOf(r.blend as any) : 0);
       effect.setVector2(
         'uViewport',
         new Vector2(this.scene.getEngine().getRenderWidth(), this.scene.getEngine().getRenderHeight())
@@ -324,7 +377,7 @@ export class BabylonEffectRuntime {
       const effect = mat.getEffect();
       if (!effect) return;
       effect.setFloat('uLayerAlpha', 1);
-      effect.setFloat('uBlend', nativeBlendModes.indexOf(r.blend as any));
+      effect.setFloat('uBlend', r.backdrop ? nativeBlendModes.indexOf(r.blend as any) : 0);
       effect.setVector2(
         'uViewport',
         new Vector2(this.scene.getEngine().getRenderWidth(), this.scene.getEngine().getRenderHeight())
@@ -486,20 +539,16 @@ export class BabylonEffectRuntime {
         colors: number[] = [],
         indices: number[] = [];
       for (const q of f.particles) {
+        if (q.alpha < 0.0001) continue;
         const center = worldPoint(q);
-        const visible = q.alpha >= 0.0001;
-        const sizeScale = visible ? q.size / unit : 0;
         let xAxis: Vector3;
         let yAxis: Vector3;
         if (
-          visible &&
           q.dirX !== undefined &&
           q.dirY !== undefined &&
           q.dirZ !== undefined &&
           q.stretch > 1.04
         ) {
-          // Project 3D world velocity vector onto camera (right, up) basis so stretched sprites
-          // align naturally along their 3D trajectory in perspective view instead of a 2D pinwheel
           const worldVel = new Vector3(q.dirX, q.dirY, q.dirZ);
           const projR = Vector3.Dot(worldVel, right);
           const projU = Vector3.Dot(worldVel, up);
@@ -522,66 +571,56 @@ export class BabylonEffectRuntime {
           yAxis = up.scale(c).subtract(right.scale(s));
         }
         const base = positions.length / 3,
-          tint = color(q.color),
-          aVal = visible ? q.alpha : 0;
+          tint = color(q.color);
         for (const [x, y] of [
           [-1, -1],
           [1, -1],
           [1, 1],
           [-1, 1],
         ]) {
-          const v = center.add(xAxis.scale(x * sizeScale)).add(yAxis.scale(y * sizeScale * q.stretch));
+          const v = center.add(xAxis.scale((x * q.size) / unit)).add(yAxis.scale((y * q.size * q.stretch) / unit));
           positions.push(v.x, v.y, v.z);
           uvs.push(q.tile * 2 + (x + 1) * 0.9999, (y + 1) / 2);
-          colors.push(tint.r, tint.g, tint.b, aVal);
+          colors.push(tint.r, tint.g, tint.b, q.alpha);
         }
         indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
       }
       this.geometry(r.particles, positions, uvs, colors, indices);
       r.particles.material = this.material(r, 'particle', f);
 
-      // 3D Crossed-Ribbon Volume: two orthogonal ribbon strips along each path for 360-degree 3D volume
       const rp: number[] = [],
         ru: number[] = [],
         rc: number[] = [],
         ri: number[] = [];
-      const groundRibbon = f.layer.kind === 'sigil' || f.layer.kind === 'ring';
       for (const ribbon of f.ribbons) {
-        const tint = color(ribbon.color);
-        const passes = groundRibbon ? [0] : [0, 1];
-        for (const pass of passes) {
-          const base = rp.length / 3;
-          for (let i = 0; i < ribbon.points.length; i++) {
-            const center = worldPoint(ribbon.points[i]),
-              before = worldPoint(ribbon.points[Math.max(0, i - 1)]),
-              after = worldPoint(ribbon.points[Math.min(ribbon.points.length - 1, i + 1)]),
-              tangent = after.subtract(before).normalize(),
-              eye = camera?.globalPosition.subtract(center).normalize() ?? Vector3.Up();
-            let side = Vector3.Cross(tangent, eye).normalize();
-            if (side.lengthSquared() < 0.001) side = Vector3.Right();
-            if (pass === 1) {
-              side = Vector3.Cross(tangent, side).normalize();
-            }
-            const u = i / Math.max(1, ribbon.points.length - 1),
-              width = (ribbon.width / unit) * (ribbon.taper ? 0.08 + 0.92 * u : 1) * (pass === 1 ? 0.72 : 1);
-            const alphaMult = pass === 1 ? 0.68 : 1;
-            for (const sign of [-1, 1]) {
-              const v = center.add(side.scale(sign * width));
-              rp.push(v.x, v.y, v.z);
-              ru.push(u, (sign + 1) / 2);
-              rc.push(tint.r, tint.g, tint.b, alphaMult);
-            }
-            if (i > 0) {
-              const a = base + i * 2;
-              ri.push(a - 2, a - 1, a, a - 1, a + 1, a);
-            }
+        const base = rp.length / 3,
+          tint = color(ribbon.color);
+        for (let i = 0; i < ribbon.points.length; i++) {
+          const center = worldPoint(ribbon.points[i]),
+            before = worldPoint(ribbon.points[Math.max(0, i - 1)]),
+            after = worldPoint(ribbon.points[Math.min(ribbon.points.length - 1, i + 1)]),
+            tangent = after.subtract(before).normalize(),
+            eye = camera?.globalPosition.subtract(center).normalize() ?? Vector3.Up();
+          let side = Vector3.Cross(tangent, eye).normalize();
+          if (side.lengthSquared() < 0.001) side = Vector3.Right();
+          const u = i / Math.max(1, ribbon.points.length - 1),
+            width = (ribbon.width / unit) * (ribbon.taper ? 0.08 + 0.92 * u : 1);
+          for (const sign of [-1, 1]) {
+            const v = center.add(side.scale(sign * width));
+            rp.push(v.x, v.y, v.z);
+            ru.push(u, (sign + 1) / 2);
+            rc.push(tint.r, tint.g, tint.b, 1);
+          }
+          if (i > 0) {
+            const a = base + i * 2;
+            ri.push(a - 2, a - 1, a, a - 1, a + 1, a);
           }
         }
       }
       this.geometry(r.ribbons, rp, ru, rc, ri);
       r.ribbons.material = this.material(r, 'ribbon', f);
 
-      // 3D Multi-Plane Volumetric Fields (ground + crossed 3D volume planes so nothing looks like a flat 2D card)
+      const isTopDown = Math.abs(up.y) < 0.25;
       f.fields.forEach((field, i) => {
         let mesh = r.fields[i];
         if (!mesh) {
@@ -609,57 +648,37 @@ export class BabylonEffectRuntime {
               f.layer.kind === 'aura' ||
               f.layer.kind === 'ring' ||
               f.layer.kind === 'sigil'),
+          axisX = field.vertical
+            ? field.family === 'barrier'
+              ? new Vector3(c, 0, s)
+              : right
+            : ground
+              ? new Vector3(c, 0, s)
+              : right,
+          axisY = field.vertical
+            ? isTopDown
+              ? up
+              : Vector3.Up()
+            : ground
+              ? new Vector3(-s, 0, c)
+              : up,
           fp: number[] = [],
           fu: number[] = [],
-          fc: number[] = [],
-          fi: number[] = [];
-
-        const pushQuad = (origin: Vector3, axX: Vector3, axY: Vector3, wScale = 1, dScale = 1, alphaVal = 1) => {
-          const base = fp.length / 3;
-          for (const [x, y] of [
-            [-1, -1],
-            [1, -1],
-            [1, 1],
-            [-1, 1],
-          ]) {
-            const v = origin
-              .add(axX.scale(((x * field.width) / 2 / unit) * wScale))
-              .add(axY.scale(((y * field.depth) / 2 / unit) * dScale));
-            fp.push(v.x, v.y, v.z);
-            fu.push((x + 1) / 2, (y + 1) / 2);
-            fc.push(1, 1, 1, alphaVal);
-          }
-          fi.push(base, base + 1, base + 2, base, base + 2, base + 3);
-        };
-
-        const worldAxisX = new Vector3(c, 0, s);
-        const worldAxisZ = new Vector3(-s, 0, c);
-
-        if (field.vertical) {
-          pushQuad(center, worldAxisX, Vector3.Up(), 1, 1, 1);
-          if (field.family === 'cinematic') {
-            pushQuad(center, worldAxisZ, Vector3.Up(), 1, 1, 0.85);
-          }
-        } else if (ground) {
-          pushQuad(center, worldAxisX, worldAxisZ, 1, 1, 1);
-          if (field.family === 'cinematic' && (field.mode === 0 || field.mode === 1)) {
-            // Add vertical 3D volume plane along cone/beam axis so cones & beams have 3D height
-            pushQuad(center.add(new Vector3(0, 0.18, 0)), worldAxisX, Vector3.Up(), 1, 0.55, 0.72);
-          } else if (field.family === 'cinematic' && field.mode === 3) {
-            // Nova / Pyroclasm 3D Volumetric Hemisphere: add crossed vertical 3D blast planes + camera volume
-            const liftCenter = center.add(new Vector3(0, (field.width / unit) * 0.16, 0));
-            pushQuad(liftCenter, worldAxisX, Vector3.Up(), 0.85, 0.58, 0.68);
-            pushQuad(liftCenter, worldAxisZ, Vector3.Up(), 0.85, 0.58, 0.68);
-          }
-        } else {
-          // 3D Volumetric Fire/Arcane Sphere/Impact:
-          // 1) Crossed vertical 3D world planes
-          pushQuad(center, worldAxisX, Vector3.Up(), 0.88, 0.82, 0.72);
-          pushQuad(center, worldAxisZ, Vector3.Up(), 0.88, 0.82, 0.72);
-          // 2) Horizontal 3D shock/scorch plane through the volume
-          pushQuad(center, worldAxisX, worldAxisZ, 0.96, 0.96, 0.78);
+          fc: number[] = [];
+        for (const [x, y] of [
+          [-1, -1],
+          [1, -1],
+          [1, 1],
+          [-1, 1],
+        ]) {
+          const v = center
+            .add(axisX.scale((x * field.width) / 2 / unit))
+            .add(axisY.scale((y * field.depth) / 2 / unit));
+          fp.push(v.x, v.y, v.z);
+          fu.push((x + 1) / 2, (y + 1) / 2);
+          fc.push(1, 1, 1, 1);
         }
-        this.geometry(mesh, fp, fu, fc, fi);
+        this.geometry(mesh, fp, fu, fc, [0, 1, 2, 0, 2, 3]);
       });
       for (let i = f.fields.length; i < r.fields.length; i++) r.fields[i].setEnabled(false);
 
@@ -694,77 +713,12 @@ export class BabylonEffectRuntime {
       light.diffuse = c;
       light.specular = c;
       light.intensity = s.intensity * (this.options.lightGain ?? 3.6);
-      const worldRadius = Math.max(2.2, (s.radius / unit) * 1.45);
-      light.range = Math.max(3.2, worldRadius * 1.45);
-      light.setEnabled(true);
-
-      // Dynamic Ground Illumination Pool honoring EffectBuilder spell lighting (radius, intensity, color, softness, flicker)
-      const pool = this.ensureLightPool(i);
-      const poolDiameter = worldRadius * 2.0;
-      const surfY = (this.options.elevationAt?.(groundPos.x, groundPos.z) ?? groundPos.y) - 0.26;
-      pool.mesh.position.set(groundPos.x, surfY, groundPos.z);
-      pool.mesh.scaling.set(poolDiameter, 1, poolDiameter);
-      const poolAlpha = Math.max(0.08, Math.min(0.68, s.intensity * 0.34));
-      pool.mat.emissiveColor = c.scale(Math.min(1.5, 0.55 + s.intensity * 0.35));
-      pool.mat.alpha = poolAlpha;
-      pool.mesh.setEnabled(true);
+      light.range = Math.max(2.8, (s.radius / unit) * 1.65);
     });
     for (let i = sources.length; i < this.lights.length; i++) {
-      this.lights[i].setEnabled(false);
+      this.lights[i].intensity = 0;
+      this.lights[i].range = 0.1;
     }
-    for (let i = sources.length; i < this.lightPools.length; i++) {
-      this.lightPools[i].mesh.setEnabled(false);
-    }
-  }
-
-  private ensureLightPool(index: number): { mesh: Mesh; mat: StandardMaterial } {
-    const existing = this.lightPools[index];
-    if (existing) return existing;
-
-    if (!this.lightPoolTex) {
-      const size = 128;
-      const dt = new DynamicTexture(this.owner + '-light-pool-tex', { width: size, height: size }, this.scene, false);
-      dt.hasAlpha = true;
-      const ctx = dt.getContext() as unknown as CanvasRenderingContext2D;
-      ctx.clearRect(0, 0, size, size);
-      const g = ctx.createRadialGradient(size / 2, size / 2, 2, size / 2, size / 2, size / 2);
-      g.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-      g.addColorStop(0.28, 'rgba(255, 255, 255, 0.62)');
-      g.addColorStop(0.65, 'rgba(255, 255, 255, 0.22)');
-      g.addColorStop(1, 'rgba(255, 255, 255, 0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, size, size);
-      dt.update(false);
-      dt.wrapU = Texture.CLAMP_ADDRESSMODE;
-      dt.wrapV = Texture.CLAMP_ADDRESSMODE;
-      this.lightPoolTex = dt;
-    }
-
-    const mesh = MeshBuilder.CreateGround(
-      this.owner + '-light-pool-' + index,
-      { width: 1, height: 1, subdivisions: 2 },
-      this.scene
-    );
-    mesh.isPickable = false;
-    mesh.renderingGroupId = 0;
-    mesh.alphaIndex = 2;
-
-    const mat = new StandardMaterial(this.owner + '-light-pool-mat-' + index, this.scene);
-    mat.disableLighting = true;
-    mat.backFaceCulling = false;
-    mat.disableDepthWrite = true;
-    mat.zOffset = -1.5;
-    mat.alphaMode = Constants.ALPHA_ADD;
-    mat.diffuseTexture = this.lightPoolTex;
-    mat.opacityTexture = this.lightPoolTex;
-    mat.useAlphaFromDiffuseTexture = true;
-    mat.emissiveColor = Color3.White();
-    mat.specularColor = Color3.Black();
-    mesh.material = mat;
-
-    const entry = { mesh, mat };
-    this.lightPools[index] = entry;
-    return entry;
   }
 
   private release(r: LayerResources) {
@@ -782,15 +736,13 @@ export class BabylonEffectRuntime {
     this.disposed = true;
     for (const r of this.layers.values()) this.release(r);
     this.layers.clear();
-    for (const light of this.lights) light.dispose();
-    this.lights = [];
-    for (const pool of this.lightPools) {
-      pool.mesh.dispose(false, false);
-      pool.mat.dispose(false, false);
+    for (const light of this.lights) {
+      if (!light.isDisposed()) {
+        light.intensity = 0;
+        light.range = 0.1;
+      }
     }
-    this.lightPools = [];
-    this.lightPoolTex?.dispose();
-    this.lightPoolTex = undefined;
+    this.lights = [];
   }
 }
 
@@ -844,6 +796,7 @@ export function playNativeEffect(
 ): { dispose: () => void } {
   const runtime = new BabylonEffectRuntime(scene, options),
     unit = options.pixelsPerUnit ?? 66,
+    effectScale = options.scale ?? 0.85,
     timeScale = Math.max(0.1, Math.min(3.0, options.timeScale ?? 1.0)),
     start = performance.now(),
     duration = effectDuration(definition);
@@ -869,7 +822,7 @@ export function playNativeEffect(
       time,
       { x: a.x * unit, y: a.z * unit },
       { x: b.x * unit, y: b.z * unit },
-      1,
+      effectScale,
       ts.map((p) => ({ x: p.x * unit, y: p.z * unit })),
       {},
       a.y,

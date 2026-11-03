@@ -379,7 +379,7 @@ export function registerArcaneScreenStageEffects(
     sync3dStage: () => void;
     disposeStageIfMounted: () => void;
     vtt: VttCombatService;
-    fog: { layer: () => unknown; opacityByKey: () => unknown };
+    fog: { layer: () => HTMLCanvasElement | null; opacityByKey: () => ReadonlyMap<string, number> };
     battle: VttBattleStateService;
     vttDisplay: VttDisplaySettingsService;
     serverSync: { activeSceneResponse: () => { sceneDataJson?: string | null } | null; loadScene: (k: string, t: string, u: string) => Promise<unknown>; publishMove: (k: string, x: number, z: number) => Promise<unknown> };
@@ -397,18 +397,35 @@ export function registerArcaneScreenStageEffects(
   });
   effect(() => {
     if (!host.hasConfiguredMap()) return;
-    vtt.tokens();
-    vtt.selectedAttackerKey();
-    vtt.selectedTargetKey();
-    battle.multiTargetKeys();
-    battle.queuedTargetSequence();
-    battle.hasActiveTargetTether();
-    battle.pendingAbility();
-    battle.measureEnabled();
-    battle.cursorWorldPos();
-    fog.layer();
-    fog.opacityByKey();
-    untracked(() => host.sync3dStage());
+    const obs = battle.activeObserverToken();
+    const preview = battle.activeRangeAndAoePreview();
+    const tethers = battle.activeTetherTargetPoints();
+    untracked(() => {
+      stage.syncSpellTemplateAndTethers(
+        obs ? { x: obs.x, z: obs.z } : null,
+        tethers,
+        preview ? { active: true, casterPos: preview.clamped.start, endPos: preview.clamped.end, isSingleOrMulti: preview.isSingleOrMulti, aoeRadiusFeet: preview.aoeRadiusFeet, blockedByWall: preview.clamped.blockedByWall } : null,
+      );
+    });
+  });
+  effect(() => {
+    if (!host.hasConfiguredMap()) return;
+    const tokens = vtt.tokens();
+    const attackerKey = vtt.selectedAttackerKey();
+    const targetKey = vtt.selectedTargetKey();
+    const reticleKeys = battle.allReticleTargetKeys();
+    const opacities = fog.opacityByKey();
+    const scale = vttDisplay.gridScale();
+    untracked(() => {
+      stage.syncTokens(tokens, attackerKey, targetKey, reticleKeys, opacities, scale);
+    });
+  });
+  effect(() => {
+    if (!host.hasConfiguredMap()) return;
+    const layer = fog.layer();
+    untracked(() => {
+      stage.syncFog(layer);
+    });
   });
   effect(() => {
     if (!host.hasConfiguredMap()) return;
@@ -430,6 +447,7 @@ export function registerArcaneScreenStageEffects(
       battle.walls.set(extractSceneOccludersFromMapState(sceneResp?.sceneDataJson));
       stage.loadMapScene(sceneResp?.sceneDataJson, url);
       stage.setGridVisible(visible, scale, offX, offY);
+      vtt.snapAllTokensToActiveGrid();
       host.sync3dStage();
     });
   });

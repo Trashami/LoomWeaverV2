@@ -412,47 +412,29 @@ export class VttBattleStateService {
     if (!ability || !preview) return { shouldExecuteNow: false, selectedCount: 0, maxTargets: 1 };
     if (!preview.isSingleOrMulti) {
       const aoeKeys = preview.highlightedTokens.map((t) => t.key);
-      if (aoeKeys.length > 0) {
-        this.multiTargetKeys.set(aoeKeys);
-        this.queuedTargetSequence.set(aoeKeys);
-        this.vtt.selectedTargetKey.set(aoeKeys[0]);
-      } else {
-        const fallback = this.visibleMapTokens().find((t) => t.faction === 'hostile') ?? this.visibleMapTokens().find((t) => t.key !== this.activeObserverToken()?.key);
-        if (fallback) {
-          this.multiTargetKeys.set([fallback.key]);
-          this.queuedTargetSequence.set([fallback.key]);
-          this.vtt.selectedTargetKey.set(fallback.key);
-        }
-      }
-      return { shouldExecuteNow: true, selectedCount: Math.max(1, aoeKeys.length), maxTargets: Math.max(1, aoeKeys.length) };
+      const fallback = this.visibleMapTokens().find((t) => t.faction === 'hostile') ?? this.visibleMapTokens().find((t) => t.key !== this.activeObserverToken()?.key);
+      const keys = aoeKeys.length > 0 ? aoeKeys : fallback ? [fallback.key] : [];
+      if (keys.length > 0) { this.multiTargetKeys.set(keys); this.queuedTargetSequence.set(keys); this.vtt.selectedTargetKey.set(keys[0]); }
+      return { shouldExecuteNow: true, selectedCount: Math.max(1, keys.length), maxTargets: Math.max(1, keys.length) };
     }
     const picked = targetToken ?? preview.snappedToken;
     if (!picked) return { shouldExecuteNow: false, selectedCount: this.queuedTargetSequence().length, maxTargets: preview.maxTargets };
     const nextSeq = [...this.queuedTargetSequence(), picked.key];
-    this.queuedTargetSequence.set(nextSeq);
-    this.multiTargetKeys.set(Array.from(new Set(nextSeq)));
-    this.hasActiveTargetTether.set(true);
-    this.vtt.selectedTargetKey.set(picked.key);
+    this.queuedTargetSequence.set(nextSeq); this.multiTargetKeys.set(Array.from(new Set(nextSeq)));
+    this.hasActiveTargetTether.set(true); this.vtt.selectedTargetKey.set(picked.key);
     return { shouldExecuteNow: nextSeq.length >= preview.maxTargets, selectedCount: nextSeq.length, maxTargets: preview.maxTargets };
   }
 
   handleTokenClick(token: VttTokenVm, shiftKey: boolean, ctrlKey = false): void {
     const obs = this.activeObserverToken();
     if (obs && !this.isTokenInPlayerLoS(token) && this.store.viewerRole() === 'players') return;
-    const isMultiToggle = shiftKey || ctrlKey || this.targetSelectionMode();
-    if (isMultiToggle) {
-      const existing = this.multiTargetKeys().includes(token.key);
-      const nextMulti = existing ? this.multiTargetKeys().filter((k) => k !== token.key) : [...this.multiTargetKeys(), token.key];
-      this.multiTargetKeys.set(nextMulti);
-      this.queuedTargetSequence.set(nextMulti);
-      this.hasActiveTargetTether.set(nextMulti.length > 0);
-      if (nextMulti.length > 0) this.vtt.selectedTargetKey.set(nextMulti[nextMulti.length - 1]);
+    if (shiftKey || ctrlKey || this.targetSelectionMode()) {
+      const next = this.multiTargetKeys().includes(token.key) ? this.multiTargetKeys().filter((k) => k !== token.key) : [...this.multiTargetKeys(), token.key];
+      this.multiTargetKeys.set(next); this.queuedTargetSequence.set(next); this.hasActiveTargetTether.set(next.length > 0);
+      if (next.length > 0) this.vtt.selectedTargetKey.set(next[next.length - 1]);
       return;
     }
-    if (token.faction === 'party' && !this.pendingAbility()) {
-      this.vtt.selectedAttackerKey.set(token.key);
-      return;
-    }
+    if (token.faction === 'party' && !this.pendingAbility()) { this.vtt.selectedAttackerKey.set(token.key); return; }
     if (!this.pendingAbility()) {
       if (this.store.viewerRole() === 'gm' && obs && obs.key === token.key) { this.vtt.selectedAttackerKey.set(token.key); return; }
       this.multiTargetKeys.set([token.key]); this.queuedTargetSequence.set([token.key]);

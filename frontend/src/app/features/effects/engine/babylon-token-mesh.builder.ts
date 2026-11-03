@@ -36,38 +36,13 @@ export class BabylonTokenMeshBuilder {
   }
 
   private disposeTokenArtifacts(scene: Scene, tokenKey: string): void {
-    scene.lights
-      .filter((l) => l.name === `lw-token-light-${tokenKey}`)
-      .forEach((l) => l.dispose());
-    scene.meshes
-      .filter(
-        (m) =>
-          m.name === `lw-token-${tokenKey}` ||
-          m.name.startsWith(`lw-token-hitbox-${tokenKey}`) ||
-          m.name.startsWith(`lw-token-puck-disc-${tokenKey}`) ||
-          m.name.startsWith(`lw-token-puck-rim-${tokenKey}`) ||
-          m.name.startsWith(`lw-token-glow-${tokenKey}`) ||
-          m.name.startsWith(`lw-token-part-${tokenKey}-`) ||
-          m.name.startsWith(`lw-token-mini-${tokenKey}-`) ||
-          m.name.startsWith(`lw-target-reticle-root-${tokenKey}`) ||
-          m.name.startsWith(`lw-target-reticle-outer-${tokenKey}`) ||
-          m.name.startsWith(`lw-target-reticle-inner-${tokenKey}`),
-      )
-      .forEach((m) => m.dispose());
-    scene.transformNodes
-      .filter((n) => n.name === `lw-token-root-${tokenKey}`)
-      .forEach((n) => n.dispose());
+    scene.lights.filter((l) => l.name === `lw-token-light-${tokenKey}`).forEach((l) => l.dispose());
+    scene.meshes.filter((m) => m.metadata?.tokenKey === tokenKey || m.name.startsWith(`lw-token-glow-${tokenKey}`) || m.name.startsWith(`lw-target-reticle-`) && m.name.endsWith(tokenKey)).forEach((m) => m.dispose());
+    scene.transformNodes.filter((n) => n.name === `lw-token-root-${tokenKey}`).forEach((n) => n.dispose());
   }
 
   private disposeReticle(scene: Scene, tokenKey: string): void {
-    scene.meshes
-      .filter(
-        (m) =>
-          m.name === `lw-target-reticle-root-${tokenKey}` ||
-          m.name === `lw-target-reticle-outer-${tokenKey}` ||
-          m.name === `lw-target-reticle-inner-${tokenKey}`,
-      )
-      .forEach((m) => m.dispose());
+    scene.meshes.filter((m) => m.name.startsWith('lw-target-reticle-') && m.name.endsWith(tokenKey)).forEach((m) => m.dispose());
   }
 
   syncTokens(

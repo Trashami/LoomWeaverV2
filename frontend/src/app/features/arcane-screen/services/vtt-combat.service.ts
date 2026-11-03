@@ -143,42 +143,27 @@ export class VttCombatService {
   private getSavedPositionsMap(): Record<string, { x: number; z: number }> {
     if (typeof localStorage === 'undefined') return {};
     try {
-      const cid = this.store.activeCampaignId() || 1;
-      const eid = this.activeEncounterId() || 'default';
-      const raw = localStorage.getItem(`lw.vtt.tokenPositions.${cid}.${eid}`);
+      const raw = localStorage.getItem(`lw.vtt.tokenPositions.${this.store.activeCampaignId() || 1}.${this.activeEncounterId() || 'default'}`);
       return raw ? (JSON.parse(raw) as Record<string, { x: number; z: number }>) : {};
-    } catch {
-      return {};
-    }
+    } catch { return {}; }
   }
 
   saveTokenPositionsToStorage(list: readonly VttTokenVm[] = this.tokens()): void {
     if (typeof localStorage === 'undefined') return;
     try {
-      const cid = this.store.activeCampaignId() || 1;
-      const eid = this.activeEncounterId() || 'default';
       const map: Record<string, { x: number; z: number }> = {};
-      for (const t of list) {
-        map[t.key] = { x: t.x, z: t.z };
-      }
-      localStorage.setItem(`lw.vtt.tokenPositions.${cid}.${eid}`, JSON.stringify(map));
-    } catch {
-      // Ignore quota errors
-    }
+      for (const t of list) map[t.key] = { x: t.x, z: t.z };
+      localStorage.setItem(`lw.vtt.tokenPositions.${this.store.activeCampaignId() || 1}.${this.activeEncounterId() || 'default'}`, JSON.stringify(map));
+    } catch {}
   }
 
-  /** Snaps all tokens in the scene to the exact center of their nearest active 5-ft grid square. */
   snapAllTokensToActiveGrid(): void {
     const saved = this.getSavedPositionsMap();
     this.tokens.update((list) => {
       let changed = false;
       const next = list.map((t) => {
-        const src = saved[t.key] ?? { x: t.x, z: t.z };
-        const snapped = snapToFiveFootGrid(src);
-        if (Math.abs(snapped.x - t.x) > 0.001 || Math.abs(snapped.z - t.z) > 0.001) {
-          changed = true;
-          return { ...t, x: snapped.x, z: snapped.z };
-        }
+        const snapped = snapToFiveFootGrid(saved[t.key] ?? { x: t.x, z: t.z });
+        if (Math.abs(snapped.x - t.x) > 0.001 || Math.abs(snapped.z - t.z) > 0.001) { changed = true; return { ...t, x: snapped.x, z: snapped.z }; }
         return t;
       });
       if (changed) this.saveTokenPositionsToStorage(next);
@@ -188,13 +173,7 @@ export class VttCombatService {
 
   ensureCampaignPartyTokens(campaignId: number = this.store.activeCampaignId() || 1): void {
     const saved = this.getSavedPositionsMap();
-    const merged = this.partyAndActions
-      .mergeCampaignPartyIntoTokens(this.tokens(), campaignId)
-      .map((t) => {
-        const pos = saved[t.key] ?? { x: t.x, z: t.z };
-        const snapped = snapToFiveFootGrid(pos);
-        return { ...t, x: snapped.x, z: snapped.z };
-      });
+    const merged = this.partyAndActions.mergeCampaignPartyIntoTokens(this.tokens(), campaignId).map((t) => ({ ...t, ...snapToFiveFootGrid(saved[t.key] ?? { x: t.x, z: t.z }) }));
     if (merged.length > 0) {
       this.tokens.set(merged);
       if (!merged.some((t) => t.key === this.selectedAttackerKey())) this.selectedAttackerKey.set(merged[0].key);
@@ -324,19 +303,7 @@ export class VttCombatService {
   setTokenLightPreset(tokenKey: string, preset: VttTokenLightPreset, customColorHex?: string): void {
     const cfg = LIGHT_PRESET_MAP[preset] ?? LIGHT_PRESET_MAP['none'];
     this.tokens.update((list) =>
-      list.map((t) =>
-        t.key === tokenKey
-          ? {
-              ...t,
-              lightPreset: preset,
-              emitsLight: cfg.emitsLight,
-              lightBrightFeet: cfg.bright,
-              lightDimFeet: cfg.dim,
-              lightColorHex: customColorHex || cfg.color,
-              lightFlicker: cfg.flicker,
-            }
-          : t,
-      ),
+      list.map((t) => (t.key === tokenKey ? { ...t, lightPreset: preset, emitsLight: cfg.emitsLight, lightBrightFeet: cfg.bright, lightDimFeet: cfg.dim, lightColorHex: customColorHex || cfg.color, lightFlicker: cfg.flicker } : t)),
     );
   }
 

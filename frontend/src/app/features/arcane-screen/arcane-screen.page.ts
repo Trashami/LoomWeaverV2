@@ -186,7 +186,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     this.mapDownClient = null;
     this.fogBrushPainting = false;
     if (this.isHighPerformance2d()) { this.view2d.end(); return; }
-    if (event && event.button === 0 && down && Math.hypot(event.clientX - down.x, event.clientY - down.y) < 7 && this.battle.pendingAbility() && !this.battle.isSingleOrMultiTargetAbility(this.battle.pendingAbility()!)) {
+    if (event && event.button === 0 && down && Math.hypot(event.clientX - down.x, event.clientY - down.y) < 10 && this.battle.pendingAbility()) {
       const pt = this.stage.pickGroundPoint(event.clientX, event.clientY);
       if (pt) this.battle.cursorWorldPos.set(pt);
       const step = this.battle.recordPendingAbilityTargetClick();
@@ -212,15 +212,28 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       this.vtt.tokens(),
       this.vtt.selectedAttackerKey(),
       this.vtt.selectedTargetKey(),
-      (k, shiftKey) => {
+      (k, shiftKey, ctrlKey) => {
         const tok = this.vtt.tokens().find((t) => t.key === k);
-        if (tok) this.handleTokenSelectionOrCast(tok, shiftKey === true);
+        if (tok) this.handleTokenSelectionOrCast(tok, shiftKey === true, ctrlKey === true);
       },
       (ev) => this.battle.openTokenContextMenu(ev.key, ev.clientX, ev.clientY),
+      (k, evt) => {
+        if (this.battle.pendingAbility() || this.battle.targetSelectionMode() || evt.shiftKey || evt.ctrlKey || evt.metaKey) return false;
+        const tok = this.vtt.tokens().find((t) => t.key === k);
+        return tok ? this.battle.canMoveToken(tok).allowed : false;
+      },
+      (pt) => {
+        if (!this.battle.pendingAbility()) return;
+        this.battle.cursorWorldPos.set(pt);
+        const step = this.battle.recordPendingAbilityTargetClick();
+        this.sync3dStage();
+        if (step.shouldExecuteNow) void this.executePendingAbilityCast();
+      },
     );
     this.stage.setForcedTopDown(!this.battle.mapMode3D());
     this.stage.loadMapScene(this.serverSync.activeSceneResponse()?.sceneDataJson, this.activeBattlemapBackdropUrl());
     this.stage.setGridVisible(this.gridEnabled(), this.vttDisplay.gridScale(), this.vttDisplay.gridOffsetX(), this.vttDisplay.gridOffsetY());
+    this.vtt.snapAllTokensToActiveGrid();
     this.sync3dStage();
   }
 
@@ -366,10 +379,10 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       this.dragMoved = false;
       return;
     }
-    this.handleTokenSelectionOrCast(token, event.shiftKey);
+    this.handleTokenSelectionOrCast(token, event.shiftKey, event.ctrlKey || event.metaKey);
   }
 
-  private handleTokenSelectionOrCast(token: VttTokenVm, shiftKey: boolean): void {
+  private handleTokenSelectionOrCast(token: VttTokenVm, shiftKey: boolean, ctrlKey = false): void {
     if (this.battle.pendingAbility()) {
       this.battle.cursorWorldPos.set({ x: token.x, z: token.z });
       const step = this.battle.recordPendingAbilityTargetClick(token);
@@ -377,7 +390,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       if (step.shouldExecuteNow) void this.executePendingAbilityCast();
       return;
     }
-    this.battle.handleTokenClick(token, shiftKey);
+    this.battle.handleTokenClick(token, shiftKey, ctrlKey);
     this.sync3dStage();
   }
 

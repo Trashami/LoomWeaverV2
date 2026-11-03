@@ -91,7 +91,7 @@
               }
             </g>
 
-            @if (fog.layerHref(); as fogHref) {
+            @if (isHighPerformance2d() && fog.layerHref(); as fogHref) {
               <image class="lw-vtt-svg__fog" [attr.href]="fogHref" x="0" y="0" width="1200" height="800" preserveAspectRatio="none" />
             }
 

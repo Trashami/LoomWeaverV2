@@ -18,9 +18,11 @@ public static class MerchantTradeService
         await using var cmd = new MySqlCommand("""
             INSERT INTO lw_merchants
               (campaign_id, store_name, merchant_name, tagline, description, greeting, image_url, banner_url,
-               location_key, location_name, npc_key, npc_name, roll_table_id, roll_table_name, buy_rate_percent, markup_percent, is_unlocked)
+               location_key, location_name, npc_key, npc_name, roll_table_id, roll_table_name, buy_rate_percent, markup_percent, is_unlocked,
+               merchant_type, standing, npc_details_json)
             VALUES
-              (@cid, @sname, @mname, @tag, @desc, @greet, @img, @bnr, @lkey, @lname, @nkey, @nname, @rtid, @rtname, @buy, @markup, @unlocked);
+              (@cid, @sname, @mname, @tag, @desc, @greet, @img, @bnr, @lkey, @lname, @nkey, @nname, @rtid, @rtname, @buy, @markup, @unlocked,
+               @mtype, @standing, @npcjson);
             SELECT LAST_INSERT_ID();
             """, db);
 
@@ -41,6 +43,9 @@ public static class MerchantTradeService
         cmd.Parameters.AddWithValue("@buy", req.BuyRatePercent ?? 50);
         cmd.Parameters.AddWithValue("@markup", req.MarkupPercent ?? 100);
         cmd.Parameters.AddWithValue("@unlocked", req.IsUnlocked ?? true ? 1 : 0);
+        cmd.Parameters.AddWithValue("@mtype", req.MerchantType?.Trim() ?? "General Goods & Provisions");
+        cmd.Parameters.AddWithValue("@standing", req.Standing ?? 0);
+        cmd.Parameters.AddWithValue("@npcjson", string.IsNullOrWhiteSpace(req.NpcDetailsJson) ? (object)DBNull.Value : req.NpcDetailsJson);
 
         return Convert.ToInt64(await cmd.ExecuteScalarAsync(ct));
     }
@@ -56,7 +61,10 @@ public static class MerchantTradeService
               store_name = @sname, merchant_name = @mname, tagline = @tag, description = @desc,
               greeting = @greet, image_url = @img, banner_url = @bnr, location_key = @lkey,
               location_name = @lname, npc_key = @nkey, npc_name = @nname, roll_table_id = @rtid,
-              roll_table_name = @rtname, buy_rate_percent = @buy, markup_percent = @markup, is_unlocked = @unlocked
+              roll_table_name = @rtname, buy_rate_percent = @buy, markup_percent = @markup, is_unlocked = @unlocked,
+              merchant_type = COALESCE(@mtype, merchant_type),
+              standing = COALESCE(@standing, standing),
+              npc_details_json = COALESCE(@npcjson, npc_details_json)
             WHERE id = @mid AND campaign_id = @cid;
             """, db);
 
@@ -78,6 +86,9 @@ public static class MerchantTradeService
         cmd.Parameters.AddWithValue("@buy", req.BuyRatePercent ?? 50);
         cmd.Parameters.AddWithValue("@markup", req.MarkupPercent ?? 100);
         cmd.Parameters.AddWithValue("@unlocked", req.IsUnlocked ?? true ? 1 : 0);
+        cmd.Parameters.AddWithValue("@mtype", string.IsNullOrWhiteSpace(req.MerchantType) ? (object)DBNull.Value : req.MerchantType.Trim());
+        cmd.Parameters.AddWithValue("@standing", req.Standing.HasValue ? (object)req.Standing.Value : DBNull.Value);
+        cmd.Parameters.AddWithValue("@npcjson", string.IsNullOrWhiteSpace(req.NpcDetailsJson) ? (object)DBNull.Value : req.NpcDetailsJson);
 
         var rows = await cmd.ExecuteNonQueryAsync(ct);
         return rows > 0;

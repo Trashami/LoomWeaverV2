@@ -15,28 +15,67 @@
   p { margin: 0; color: #94a3b8; font-size: 0.85rem; line-height: 1.45; }
 }
 
-.haggle-perks {
-  display: flex;
-  gap: 1rem;
+.haggle-instructions {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+.haggle-target-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
   width: 100%;
-  margin: 0.5rem 0;
+}
 
-  .perk-box {
-    flex: 1;
-    background: rgba(4, 16, 12, 0.8);
-    border: 1px solid rgba(73, 232, 146, 0.25);
-    border-radius: 8px;
-    padding: 0.85rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
+.target-option-btn {
+  background: rgba(4, 16, 12, 0.85);
+  border: 1px solid rgba(73, 232, 146, 0.2);
+  border-radius: 8px;
+  padding: 0.75rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
 
-    .dc { font-weight: 700; color: #49e892; font-size: 1.1rem; }
-    .res { font-size: 0.8rem; color: #cbd5e1; }
+  .pct {
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: #49e892;
+  }
 
-    &.epic {
-      border-color: rgba(217, 183, 122, 0.4);
-      .dc { color: #fcd34d; }
+  .dc {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #fcd34d;
+    background: rgba(217, 183, 122, 0.12);
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+  }
+
+  .lbl {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    text-align: center;
+  }
+
+  &:hover {
+    border-color: rgba(73, 232, 146, 0.45);
+    background: rgba(10, 32, 23, 0.9);
+  }
+
+  &.selected {
+    border-color: #2ee66b;
+    background: rgba(16, 68, 44, 0.7);
+    box-shadow: 0 0 10px rgba(46, 230, 107, 0.2);
+
+    .pct {
+      color: #f0fdf4;
     }
   }
 }
@@ -48,25 +87,72 @@
   background: #10442c;
   border: 1px solid #2ee66b;
   color: #f0fdf4;
-  padding: 0.65rem 1.25rem;
+  padding: 0.75rem 1.5rem;
   border-radius: 8px;
-  font-size: 0.92rem;
+  font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
-  &:hover { background: #165b3b; }
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: #165b3b;
+    box-shadow: 0 0 14px rgba(46, 230, 107, 0.35);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 
-.haggle-result {
-  background: rgba(4, 16, 12, 0.9);
+.haggle-result-card {
+  width: 100%;
+  background: rgba(4, 16, 12, 0.95);
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 8px;
-  padding: 1rem;
-  font-size: 0.88rem;
-  color: #cbd5e1;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  text-align: left;
+
+  .result-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+  }
+
+  .result-desc {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #cbd5e1;
+    line-height: 1.45;
+  }
+
+  .result-meta {
+    font-size: 0.78rem;
+    color: #64748b;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 0.5rem;
+    font-family: monospace;
+  }
 
   &.success {
     border-color: #2ee66b;
-    color: #49e892;
+    background: rgba(10, 36, 24, 0.9);
+    .result-header h3 { color: #49e892; }
+  }
+
+  &.failure {
+    border-color: rgba(239, 68, 68, 0.4);
+    background: rgba(28, 12, 12, 0.9);
+    .result-header h3 { color: #f87171; }
   }
 }
 

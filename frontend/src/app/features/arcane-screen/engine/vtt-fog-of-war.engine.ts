@@ -26,6 +26,8 @@ export interface VttFogRenderInput {
   readonly applyTokenVision: boolean;
   readonly traveledFogOpacity: number;
   readonly unexploredFogOpacity: number;
+  readonly visionFalloffPct: number;
+  readonly shadowSoftnessPx: number;
   readonly manualStrokes: readonly VttFogBrushStrokeVm[];
 }
 
@@ -47,13 +49,16 @@ export function getEffectiveTokenVisionFeet(
 
 /**
  * MythWeaver-style smooth raycasted Fog of War engine.
- * Combines per-token line-of-sight visibility polygons, radial aperture feathering,
- * traveled path memory, and manual GM Reveal/Cover brush strokes.
+ * Combines per-token line-of-sight visibility polygons against walls and 3D objects,
+ * DM-adjustable radial vision falloff feathering, DM-adjustable soft shadow penumbra edges,
+ * continuous traveled path memory, and manual GM Reveal/Cover brush strokes.
  */
 export class VttFogOfWarEngine {
   private readonly exploredByEncounter = new Map<string, HTMLCanvasElement>();
+  private readonly lastObserverPosByKey = new Map<string, { x: number; z: number }>();
   private outputCanvas: HTMLCanvasElement | null = null;
   private liveMaskCanvas: HTMLCanvasElement | null = null;
+  private polyScratchCanvas: HTMLCanvasElement | null = null;
 
   resetExplored(encounterId?: string): void {
     if (encounterId) {
@@ -62,8 +67,14 @@ export class VttFogOfWarEngine {
           this.exploredByEncounter.delete(k);
         }
       }
+      for (const k of Array.from(this.lastObserverPosByKey.keys())) {
+        if (k.startsWith(`${encounterId}:`)) {
+          this.lastObserverPosByKey.delete(k);
+        }
+      }
     } else {
       this.exploredByEncounter.clear();
+      this.lastObserverPosByKey.clear();
     }
   }
 
@@ -104,15 +115,59 @@ export class VttFogOfWarEngine {
           input.applyTokenVision,
         );
         const radiusWorld = sightFeet / FEET_PER_WORLD_UNIT;
+
+        if (input.mode === 'explored-los' && exploredCtx) {
+          const posKey = `${scopeKey}:${observer.key}`;
+          const prev = this.lastObserverPosByKey.get(posKey);
+          if (prev) {
+            const moveDist = Math.hypot(observer.x - prev.x, observer.z - prev.z);
+            if (moveDist > 0.35 && moveDist < 18) {
+              const steps = Math.min(8, Math.ceil(moveDist / 0.6));
+              for (let s = 1; s < steps; s++) {
+                const ratio = s / steps;
+                const ix = prev.x + (observer.x - prev.x) * ratio;
+                const iz = prev.z + (observer.z - prev.z) * ratio;
+                const stepPoly = this.computeVisibilityPolygon(ix, iz, radiusWorld, blockingWalls);
+                this.stampVisibilityPolygon(
+                  exploredCtx,
+                  ix,
+                  iz,
+                  radiusWorld,
+                  stepPoly,
+                  input.visionFalloffPct,
+                  input.shadowSoftnessPx,
+                );
+              }
+            }
+          }
+          this.lastObserverPosByKey.set(posKey, { x: observer.x, z: observer.z });
+        }
+
         const poly = this.computeVisibilityPolygon(
           observer.x,
           observer.z,
           radiusWorld,
           blockingWalls,
         );
-        this.stampVisibilityPolygon(liveCtx, observer.x, observer.z, radiusWorld, poly);
+        this.stampVisibilityPolygon(
+          liveCtx,
+          observer.x,
+          observer.z,
+          radiusWorld,
+          poly,
+          input.visionFalloffPct,
+          input.shadowSoftnessPx,
+        );
         if (input.mode === 'explored-los' && exploredCtx) {
-          this.stampVisibilityPolygon(exploredCtx, observer.x, observer.z, radiusWorld, poly);
+          this.stampVisibilityPolygon(
+            exploredCtx,
+            observer.x,
+            observer.z,
+            radiusWorld,
+            poly,
+            input.visionFalloffPct,
+            input.shadowSoftnessPx,
+          );
         }
       }
     }
@@ -125,13 +180,13 @@ export class VttFogOfWarEngine {
       }
     }
 
-    // 3. Compose final Fog of War layer
-    const unexploredAlpha = Math.max(0.08, Math.min(0.98, input.unexploredFogOpacity));
-    const traveledAlpha = Math.max(0.05, Math.min(0.92, input.traveledFogOpacity));
+    // 3. Compose final Fog of War layer (pure #000000 black base)
+    const unexploredAlpha = Math.max(0.08, Math.min(1.0, input.unexploredFogOpacity));
+    const traveledAlpha = Math.max(0.0, Math.min(0.95, input.traveledFogOpacity));
 
     outCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     outCtx.globalCompositeOperation = 'source-over';
-    outCtx.fillStyle = `rgba(3, 8, 6, ${unexploredAlpha})`;
+    outCtx.fillStyle = `rgba(0, 0, 0, ${unexploredAlpha})`;
     outCtx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
     // If keeping traveled areas cleared, reduce alpha in explored regions down to traveledAlpha
@@ -147,7 +202,7 @@ export class VttFogOfWarEngine {
       outCtx.restore();
     }
 
-    // Punch out currently visible areas completely (alpha -> 0)
+    // Punch out currently visible areas completely (alpha -> 0) so active LoS is crystal clear
     outCtx.save();
     outCtx.globalCompositeOperation = 'destination-out';
     outCtx.globalAlpha = 1.0;
@@ -161,6 +216,14 @@ export class VttFogOfWarEngine {
       }
     }
 
+    // Keep a 2px black perimeter rim so clamped UVs outside map bounds remain black
+    outCtx.save();
+    outCtx.globalCompositeOperation = 'source-over';
+    outCtx.strokeStyle = `rgba(0, 0, 0, ${unexploredAlpha})`;
+    outCtx.lineWidth = 4;
+    outCtx.strokeRect(0, 0, CANVAS_W, CANVAS_H);
+    outCtx.restore();
+
     return out;
   }
 
@@ -171,12 +234,12 @@ export class VttFogOfWarEngine {
     walls: readonly VttWallSegmentVm[],
   ): VttPoint2D[] {
     const activeWalls = walls.filter(
-      (w) => this.distToSegment(ox, oz, w.x1, w.z1, w.x2, w.z2) <= radiusWorld,
+      (w) => this.distToSegment(ox, oz, w.x1, w.z1, w.x2, w.z2) <= radiusWorld + 0.5,
     );
 
     if (activeWalls.length === 0) {
       const pts: VttPoint2D[] = [];
-      const steps = 56;
+      const steps = 72;
       for (let i = 0; i <= steps; i++) {
         const a = (i / steps) * Math.PI * 2;
         pts.push({ x: ox + Math.cos(a) * radiusWorld, z: oz + Math.sin(a) * radiusWorld });
@@ -185,7 +248,7 @@ export class VttFogOfWarEngine {
     }
 
     const rawAngles: number[] = [];
-    const circleSteps = 96;
+    const circleSteps = 120;
     for (let i = 0; i < circleSteps; i++) {
       rawAngles.push(-Math.PI + (i / circleSteps) * (Math.PI * 2));
     }
@@ -197,9 +260,9 @@ export class VttFogOfWarEngine {
       ]) {
         const dx = px - ox;
         const dz = pz - oz;
-        if (Math.hypot(dx, dz) > 0.001) {
+        if (Math.hypot(dx, dz) > 0.05) {
           const base = Math.atan2(dz, dx);
-          rawAngles.push(base - 0.0003, base, base + 0.0003);
+          rawAngles.push(base - 0.0004, base, base + 0.0004);
         }
       }
     }
@@ -230,7 +293,7 @@ export class VttFogOfWarEngine {
           const qz = w.z1 - oz;
           const t1 = (qx * sz - qz * sx) / cross;
           const t2 = (qx * dz - qz * dx) / cross;
-          if (t1 >= 0.001 && t2 >= 0 && t2 <= 1 && t1 < minT) {
+          if (t1 >= 0.14 && t2 >= -0.001 && t2 <= 1.001 && t1 < minT) {
             minT = t1;
           }
         }
@@ -246,36 +309,66 @@ export class VttFogOfWarEngine {
     oz: number,
     radiusWorld: number,
     polygon: readonly VttPoint2D[],
+    visionFalloffPct: number,
+    shadowSoftnessPx: number,
   ): void {
     if (polygon.length < 3) return;
     const center = this.worldToPixel(ox, oz);
     const radiusPx = Math.max(8, (radiusWorld / FOG_WORLD_WIDTH) * CANVAS_W);
+    const falloffFrac = Math.max(0.02, Math.min(0.85, (visionFalloffPct ?? 45) / 100));
+    const coreStop = Math.max(0.12, 1.0 - falloffFrac);
+    const midStop = coreStop + (1.0 - coreStop) * 0.42;
+    const outerStop = coreStop + (1.0 - coreStop) * 0.76;
 
-    ctx.save();
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.beginPath();
+    const scratch = this.ensureCanvas('scratch');
+    const scratchCtx = scratch?.getContext('2d');
+    const drawTarget = scratchCtx ?? ctx;
+
+    if (scratchCtx) {
+      scratchCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    }
+
+    drawTarget.save();
+    drawTarget.globalCompositeOperation = 'source-over';
+    drawTarget.beginPath();
     polygon.forEach((pt, idx) => {
       const p = this.worldToPixel(pt.x, pt.z);
-      if (idx === 0) ctx.moveTo(p.x, p.y);
-      else ctx.lineTo(p.x, p.y);
+      if (idx === 0) drawTarget.moveTo(p.x, p.y);
+      else drawTarget.lineTo(p.x, p.y);
     });
-    ctx.closePath();
+    drawTarget.closePath();
 
-    const grad = ctx.createRadialGradient(
+    const grad = drawTarget.createRadialGradient(
       center.x,
       center.y,
-      radiusPx * 0.15,
+      radiusPx * 0.08,
       center.x,
       center.y,
       radiusPx,
     );
     grad.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
-    grad.addColorStop(0.68, 'rgba(255, 255, 255, 0.96)');
-    grad.addColorStop(0.88, 'rgba(255, 255, 255, 0.55)');
+    grad.addColorStop(coreStop, 'rgba(255, 255, 255, 1.0)');
+    grad.addColorStop(midStop, 'rgba(255, 255, 255, 0.78)');
+    grad.addColorStop(outerStop, 'rgba(255, 255, 255, 0.34)');
     grad.addColorStop(1.0, 'rgba(255, 255, 255, 0.0)');
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.restore();
+    drawTarget.fillStyle = grad;
+    drawTarget.fill();
+    drawTarget.restore();
+
+    if (scratch && scratchCtx) {
+      const blurPx = Math.max(0, Math.min(36, Math.round(shadowSoftnessPx ?? 14)));
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-over';
+      if (blurPx > 0) {
+        ctx.filter = `blur(${blurPx}px)`;
+        ctx.drawImage(scratch, 0, 0);
+        ctx.filter = `blur(${Math.max(1, Math.round(blurPx * 0.25))}px)`;
+        ctx.drawImage(scratch, 0, 0);
+      } else {
+        ctx.drawImage(scratch, 0, 0);
+      }
+      ctx.restore();
+    }
   }
 
   private applyBrushStroke(ctx: CanvasRenderingContext2D, stroke: VttFogBrushStrokeVm): void {
@@ -320,7 +413,7 @@ export class VttFogOfWarEngine {
     outCtx.save();
     outCtx.globalCompositeOperation = 'source-over';
     if (stroke.shape === 'square') {
-      outCtx.fillStyle = `rgba(3, 8, 6, ${alpha})`;
+      outCtx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
       outCtx.fillRect(center.x - radiusPx, center.y - radiusPx, radiusPx * 2, radiusPx * 2);
     } else {
       const grad = outCtx.createRadialGradient(
@@ -331,9 +424,9 @@ export class VttFogOfWarEngine {
         center.y,
         radiusPx,
       );
-      grad.addColorStop(0.0, `rgba(3, 8, 6, ${alpha})`);
-      grad.addColorStop(0.8, `rgba(3, 8, 6, ${alpha * 0.85})`);
-      grad.addColorStop(1.0, 'rgba(3, 8, 6, 0.0)');
+      grad.addColorStop(0.0, `rgba(0, 0, 0, ${alpha})`);
+      grad.addColorStop(0.8, `rgba(0, 0, 0, ${alpha * 0.85})`);
+      grad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
       outCtx.fillStyle = grad;
       outCtx.beginPath();
       outCtx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
@@ -378,7 +471,7 @@ export class VttFogOfWarEngine {
     return canvas;
   }
 
-  private ensureCanvas(which: 'out' | 'live'): HTMLCanvasElement | null {
+  private ensureCanvas(which: 'out' | 'live' | 'scratch'): HTMLCanvasElement | null {
     if (typeof document === 'undefined') return null;
     if (which === 'out') {
       if (!this.outputCanvas) {
@@ -387,6 +480,14 @@ export class VttFogOfWarEngine {
         this.outputCanvas.height = CANVAS_H;
       }
       return this.outputCanvas;
+    }
+    if (which === 'scratch') {
+      if (!this.polyScratchCanvas) {
+        this.polyScratchCanvas = document.createElement('canvas');
+        this.polyScratchCanvas.width = CANVAS_W;
+        this.polyScratchCanvas.height = CANVAS_H;
+      }
+      return this.polyScratchCanvas;
     }
     if (!this.liveMaskCanvas) {
       this.liveMaskCanvas = document.createElement('canvas');

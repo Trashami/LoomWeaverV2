@@ -5,7 +5,7 @@ import {
   VttWallSegmentVm,
 } from "../models/vtt-battle.models";
 
-export const FEET_PER_WORLD_UNIT = 2.5;
+export const FEET_PER_WORLD_UNIT = 5;
 export const WORLD_UNITS_PER_GRID_CELL = 1; // 1 world unit = 50 SVG px = 1 5-ft square at scale 1.0
 export const SVG_VIEWBOX_WIDTH = 1200;
 export const SVG_VIEWBOX_HEIGHT = 800;
@@ -64,20 +64,15 @@ export function distanceInFeet(a: VttPoint2D, b: VttPoint2D): number {
 }
 
 export function snapToFiveFootGrid(pt: VttPoint2D): VttPoint2D {
-  const stepPx = BASE_GRID_CELL_SVG_PX * currentGridScale;
-  const modX = ((currentGridOffsetX % stepPx) + stepPx) % stepPx;
-  const modY = ((currentGridOffsetY % stepPx) + stepPx) % stepPx;
-
-  const svgX = worldToSvgX(pt.x);
-  const svgY = worldToSvgY(pt.z);
-
-  const col = Math.round((svgX - modX - stepPx * 0.5) / stepPx);
-  const row = Math.round((svgY - modY - stepPx * 0.5) / stepPx);
-
-  const snappedSvgX = Math.max(stepPx * 0.5, Math.min(SVG_VIEWBOX_WIDTH - stepPx * 0.5, modX + (col + 0.5) * stepPx));
-  const snappedSvgY = Math.max(stepPx * 0.5, Math.min(SVG_VIEWBOX_HEIGHT - stepPx * 0.5, modY + (row + 0.5) * stepPx));
-
-  return svgToWorldPoint(snappedSvgX, snappedSvgY);
+  const stepWorld = Math.max(0.25, WORLD_UNITS_PER_GRID_CELL * currentGridScale);
+  const offXWorld = (currentGridOffsetX / BASE_GRID_CELL_SVG_PX) * WORLD_UNITS_PER_GRID_CELL;
+  const offZWorld = (currentGridOffsetY / BASE_GRID_CELL_SVG_PX) * WORLD_UNITS_PER_GRID_CELL;
+  const snappedX = Math.round((pt.x - offXWorld) / stepWorld) * stepWorld + offXWorld;
+  const snappedZ = Math.round((pt.z - offZWorld) / stepWorld) * stepWorld + offZWorld;
+  return {
+    x: Math.max(-17.5, Math.min(17.5, Math.round(snappedX * 100) / 100)),
+    z: Math.max(-13.0, Math.min(13.0, Math.round(snappedZ * 100) / 100)),
+  };
 }
 
 export function intersectSegmentWithWall(
@@ -87,6 +82,7 @@ export function intersectSegmentWithWall(
 ): { t: number; point: VttPoint2D } | null {
   const rX = b.x - a.x;
   const rZ = b.z - a.z;
+  const segLen = Math.hypot(rX, rZ);
   const sX = wall.x2 - wall.x1;
   const sZ = wall.z2 - wall.z1;
 
@@ -100,8 +96,9 @@ export function intersectSegmentWithWall(
 
   const t = (qpX * sZ - qpZ * sX) / denom;
   const u = (qpX * rZ - qpZ * rX) / denom;
+  const minT = segLen > 0.25 ? 0.12 / segLen : 0.01;
 
-  if (t >= 0.001 && t <= 1 && u >= 0 && u <= 1) {
+  if (t >= minT && t <= 1 && u >= 0 && u <= 1) {
     return {
       t,
       point: {

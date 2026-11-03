@@ -416,32 +416,21 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     void this.serverSync.publishMove(moved.key, moved.x, moved.z);
   }
 
-  selectDockAction(action: DockAction): void {
-    this.battle.triggerDockAction(action);
-  }
+  selectDockAction(action: DockAction): void { this.battle.triggerDockAction(action); }
   onDockMenuAction(detail: { action: DockAction; token: DockToken }): void {
-    if (typeof detail.token.sheetRef === 'string') {
-      this.vtt.selectedAttackerKey.set(detail.token.sheetRef);
-    }
+    if (typeof detail.token.sheetRef === 'string') this.vtt.selectedAttackerKey.set(detail.token.sheetRef);
     this.battle.triggerDockAction(detail.action);
   }
-  dockStandardAction(detail: { action: { name: string }; token: DockToken }): void {
-    this.dmToolReadout.set(`${detail.token.name} uses ${detail.action.name}.`);
-  }
+  dockStandardAction(detail: { action: { name: string }; token: DockToken }): void { this.dmToolReadout.set(`${detail.token.name} uses ${detail.action.name}.`); }
   dockCheck(label: string, token: DockToken): void {
     this.rollQuickDcCheck(12, label);
     this.dmToolReadout.set(`${token.name}: ${label} check rolled.`);
   }
-  dockToggleMeasure(): void {
-    this.battle.toggleMeasureTool();
-  }
+  dockToggleMeasure(): void { this.battle.toggleMeasureTool(); }
 
   selectTurnAbility(ability: VttTacticalAbilityVm): void {
     if (!this.battle.isAbilityAvailableOnTurn(ability)) return;
-    if (this.battle.pendingAbility()?.id === ability.id) {
-      void this.executePendingAbilityCast();
-      return;
-    }
+    if (this.battle.pendingAbility()?.id === ability.id) { void this.executePendingAbilityCast(); return; }
     this.battle.beginAbilityTargeting(ability);
   }
 
@@ -459,20 +448,11 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
 
   spawnSelectedBestiaryMonster(): void {
     const pick = this.vtt.creatures().find((c) => c.id === this.quickAddMonsterId()) ?? this.vtt.creatures()[0];
-    if (pick) {
-      this.vtt.spawnCreatureIntoVtt(pick);
-      this.sync3dStage();
-    }
+    if (pick) { this.vtt.spawnCreatureIntoVtt(pick); this.sync3dStage(); }
   }
 
   addQuickNpcToMap(): void {
-    this.battle.quickAddNpcToEncounter(
-      this.quickAddNpcName(),
-      this.quickAddNpcTitle(),
-      this.quickAddNpcScope(),
-      this.quickAddNpcDisposition(),
-      true,
-    );
+    this.battle.quickAddNpcToEncounter(this.quickAddNpcName(), this.quickAddNpcTitle(), this.quickAddNpcScope(), this.quickAddNpcDisposition(), true);
     this.quickAddNpcName.set('');
     this.sync3dStage();
   }
@@ -482,12 +462,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   }
 
   rollSelectedDice(): void {
-    const entry = executeBattlefieldDiceRoll(
-      this.selectedDiceFormula(),
-      this.vtt.selectedAttacker()?.name ?? 'Combatant',
-      this.vtt.activeRound(),
-      this.fullscreenDice,
-    );
+    const entry = executeBattlefieldDiceRoll(this.selectedDiceFormula(), this.vtt.selectedAttacker()?.name ?? 'Combatant', this.vtt.activeRound(), this.fullscreenDice);
     this.vtt.combatLogs.update((logs) => [entry, ...logs]);
   }
 
@@ -502,7 +477,5 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   }
 
   readonly rightTabTitle = computed(() => VTT_RIGHT_TAB_TITLES[this.battle.activeRightTab()] ?? 'Encounter Drawer');
-  openHandoutModal(): void {
-    this.handouts.composeOpen.set(true);
-  }
+  openHandoutModal(): void { this.handouts.composeOpen.set(true); }
 }

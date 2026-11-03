@@ -30,6 +30,17 @@
               <lw-icon name="calendar-days" [size]="14" tone="gold" />
               <span>Assign to Session</span>
             </button>
+
+            <button
+              ngpButton
+              type="button"
+              class="action-btn attach-btn merchant-stock-btn"
+              (click)="openApplyToMerchantModal()"
+              title="Apply all items from this roll table directly to a merchant's inventory"
+            >
+              <lw-icon name="storefront" [size]="14" tone="gold" />
+              <span>Apply Table to Merchant</span>
+            </button>
           </div>
         }
       </div>
@@ -315,6 +326,55 @@
         <div class="modal-actions">
           <button ngpButton class="lw-btn lw-btn--subtle" (click)="attachModalOpen.set(false)">Cancel</button>
           <button ngpButton class="lw-btn lw-btn--primary" (click)="confirmAttach()">Confirm Attachment</button>
+        </div>
+      </div>
+    </lw-modal>
+
+    <!-- APPLY INVENTORY TO MERCHANT MODAL -->
+    <lw-modal [(open)]="applyToMerchantModalOpen" title="Apply Table Inventory to Merchant" subtitle="Stock merchant shop with all items from this table" size="md">
+      <div class="attach-modal-content">
+        <p class="attach-hint">
+          Extract all <strong>{{ t.rows.length }}</strong> outcomes from <em>{{ t.name }}</em> directly into the chosen merchant store as sellable inventory items.
+        </p>
+
+        <div class="form-grid">
+          <label class="form-label">
+            <span>Select Target Merchant:</span>
+            <select
+              [ngModel]="applyTargetMerchantId()"
+              (ngModelChange)="applyTargetMerchantId.set($event)"
+            >
+              @for (m of merchants(); track m.id) {
+                <option [value]="m.id">{{ m.storeName }} ({{ m.merchantName }} · {{ m.locationName }})</option>
+              }
+            </select>
+          </label>
+
+          <label class="checkbox-option">
+            <input
+              type="checkbox"
+              [ngModel]="applyClearExisting()"
+              (ngModelChange)="applyClearExisting.set($event)"
+            />
+            <span>Clear existing store stock first (replace inventory completely)</span>
+          </label>
+        </div>
+
+        <div class="modal-actions">
+          <button ngpButton class="lw-btn lw-btn--subtle" (click)="applyToMerchantModalOpen.set(false)">Cancel</button>
+          <button
+            ngpButton
+            class="lw-btn lw-btn--primary"
+            [disabled]="applyingInventory() || !applyTargetMerchantId()"
+            (click)="confirmApplyToMerchant()"
+          >
+            @if (applyingInventory()) {
+              <span>Adding Items...</span>
+            } @else {
+              <lw-icon name="storefront" [size]="14" />
+              <span>Apply All Items to Merchant</span>
+            }
+          </button>
         </div>
       </div>
     </lw-modal>

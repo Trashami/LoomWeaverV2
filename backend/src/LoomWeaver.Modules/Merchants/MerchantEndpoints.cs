@@ -185,6 +185,51 @@ public static class MerchantEndpoints
             return ok ? Results.NoContent() : Results.NotFound();
         });
 
+        api.MapPost("/campaigns/{campaignId:int}/merchants/generate-random", async (
+            int campaignId, GenerateRandomMerchantRequest req, HttpContext ctx, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
+        {
+            var caller = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
+            if (caller is null) return Results.Unauthorized();
+
+            var merchant = await MerchantGenerationService.GenerateRandomMerchantAsync(mysql, campaignId, req, ct);
+            return Results.Created($"/campaigns/{campaignId}/merchants/{merchant.Id}", merchant);
+        });
+
+        api.MapPost("/campaigns/{campaignId:int}/merchants/{merchantId:long}/generate-npc", async (
+            int campaignId, long merchantId, GenerateRandomNpcRequest req, HttpContext ctx, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
+        {
+            var caller = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
+            if (caller is null) return Results.Unauthorized();
+
+            var updated = await MerchantGenerationService.GenerateRandomNpcAsync(mysql, campaignId, merchantId, req, ct);
+            return updated is not null ? Results.Ok(updated) : Results.NotFound();
+        });
+
+        api.MapPost("/campaigns/{campaignId:int}/merchants/{merchantId:long}/apply-table-inventory", async (
+            int campaignId, long merchantId, ApplyTableInventoryRequest req, HttpContext ctx, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
+        {
+            var caller = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
+            if (caller is null) return Results.Unauthorized();
+
+            var result = await MerchantGenerationService.ApplyTableInventoryAsync(mysql, campaignId, merchantId, req.RollTableId, req.ClearExisting, ct);
+            if (!result.Success)
+            {
+                return Results.BadRequest(new { message = result.Message });
+            }
+            var inventory = await MerchantRepository.ListInventoryAsync(mysql, merchantId, ct);
+            return Results.Ok(new { success = true, itemsAdded = result.ItemsAdded, merchantName = result.MerchantName, message = result.Message, inventory });
+        });
+
+        api.MapPost("/campaigns/{campaignId:int}/merchants/{merchantId:long}/standing", async (
+            int campaignId, long merchantId, int delta, HttpContext ctx, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
+        {
+            var caller = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
+            if (caller is null) return Results.Unauthorized();
+
+            var ok = await MerchantGenerationService.AdjustStandingAsync(mysql, campaignId, merchantId, delta, ct);
+            return ok ? Results.Ok(new { standingAdjusted = delta }) : Results.NotFound();
+        });
+
         return api;
     }
 }

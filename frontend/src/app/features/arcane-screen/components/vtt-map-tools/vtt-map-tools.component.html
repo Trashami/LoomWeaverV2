@@ -156,13 +156,41 @@
             </label>
 
             <div class="flyout-row-between">
+              <span class="flyout-mini-label">Vision Falloff Feathering</span>
+              <strong class="flyout-mini-val">{{ battle.visionFalloffPct() }}%</strong>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="85"
+              step="5"
+              class="flyout-range"
+              [value]="battle.visionFalloffPct()"
+              (input)="onVisionFalloffInput($any($event.target).value)"
+            />
+
+            <div class="flyout-row-between">
+              <span class="flyout-mini-label">Shadow Edge Softness</span>
+              <strong class="flyout-mini-val">{{ battle.shadowSoftnessPx() }}px</strong>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="36"
+              step="2"
+              class="flyout-range"
+              [value]="battle.shadowSoftnessPx()"
+              (input)="onShadowSoftnessInput($any($event.target).value)"
+            />
+
+            <div class="flyout-row-between">
               <span class="flyout-mini-label">Traveled Fog Opacity</span>
               <strong class="flyout-mini-val">{{ (battle.traveledFogOpacity() * 100).toFixed(0) }}%</strong>
             </div>
             <input
               type="range"
-              min="5"
-              max="90"
+              min="0"
+              max="95"
               step="5"
               class="flyout-range"
               [value]="battle.traveledFogOpacity() * 100"
@@ -170,13 +198,13 @@
             />
 
             <div class="flyout-row-between">
-              <span class="flyout-mini-label">GM Fog Overlay Opacity</span>
+              <span class="flyout-mini-label">Unexplored Fog Blackness</span>
               <strong class="flyout-mini-val">{{ (battle.gmFogOpacity() * 100).toFixed(0) }}%</strong>
             </div>
             <input
               type="range"
               min="10"
-              max="85"
+              max="100"
               step="5"
               class="flyout-range"
               [value]="battle.gmFogOpacity() * 100"

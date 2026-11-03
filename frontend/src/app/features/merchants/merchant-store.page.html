@@ -324,29 +324,47 @@
         <p>Attempt a Charisma (Persuasion) check to negotiate better prices on store inventory for this visit.</p>
 
         @if (!haggleAttempted()) {
-          <div class="haggle-perks">
-            <div class="perk-box">
-              <span class="dc">DC 10</span>
-              <span class="res">10% Store Discount</span>
-            </div>
-            <div class="perk-box epic">
-              <span class="dc">DC 14</span>
-              <span class="res">15% Store Discount</span>
-            </div>
+          <div class="haggle-instructions">
+            <span>Choose Your Target Discount:</span>
+          </div>
+
+          <div class="haggle-target-grid">
+            @for (opt of targetDiscounts; track opt.percent) {
+              <button
+                type="button"
+                class="target-option-btn"
+                [class.selected]="selectedDiscountPercent() === opt.percent"
+                (click)="selectedDiscountPercent.set(opt.percent)"
+              >
+                <span class="pct">{{ opt.percent }}% OFF</span>
+                <span class="dc">DC {{ opt.dc - (m.standing || 0) }}</span>
+                <span class="lbl">{{ opt.label }}</span>
+              </button>
+            }
           </div>
 
           <button
             ngpButton
             type="button"
             class="haggle-roll-btn"
+            [disabled]="rollingHaggle()"
             (click)="attemptHaggle()"
           >
             <lw-icon name="casino" [size]="16" />
-            <span>Roll Persuasion (1d20 + 4)</span>
+            <span>Roll Persuasion on 3D Dice (1d20 + 4)</span>
           </button>
         } @else {
-          <div class="haggle-result" [class.success]="haggleDiscountPercent() > 0">
-            <p>{{ haggleResultMessage() }}</p>
+          <div class="haggle-result-card" [class.success]="haggleDiscountPercent() > 0" [class.failure]="haggleDiscountPercent() === 0">
+            @if (haggleEvent(); as ev) {
+              <div class="result-header">
+                <lw-icon [name]="ev.type === 'success' ? 'check' : 'alert-circle'" [size]="20" [tone]="ev.type === 'success' ? 'emerald' : 'crimson'" />
+                <h3>{{ ev.title }}</h3>
+              </div>
+              <p class="result-desc">{{ ev.desc }}</p>
+            }
+            <div class="result-meta">
+              <span>{{ haggleResultMessage() }}</span>
+            </div>
           </div>
         }
       </div>
@@ -389,61 +407,21 @@
 
     <!-- DM MANAGEMENT TAB -->
     @if (activeTab() === 'manage' && isGm()) {
-      <div class="dm-view">
-        <div class="dm-controls-bar">
-          <h3>Store Inventory & Pricing Tuning</h3>
-          <div class="dm-btn-group">
-            <button
-              ngpButton
-              type="button"
-              class="lw-btn lw-btn--secondary"
-              (click)="restockStore(false)"
-            >
-              <lw-icon name="refresh" [size]="14" />
-              <span>Roll & Restock from Attached Table</span>
-            </button>
-            <button
-              ngpButton
-              type="button"
-              class="lw-btn lw-btn--primary"
-              (click)="openAddItemModal()"
-            >
-              <lw-icon name="plus" [size]="14" />
-              <span>Add Custom Item</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="inventory-table">
-          <div class="inv-header">
-            <span>Item Name</span>
-            <span>Category</span>
-            <span>Rarity</span>
-            <span>Stock</span>
-            <span>Price (GP)</span>
-            <span>Actions</span>
-          </div>
-          @for (item of inventory(); track item.id) {
-            <div class="inv-row">
-              <span class="inv-name">{{ item.name }}</span>
-              <span class="inv-cat">{{ item.itemType }}</span>
-              <span class="inv-rarity" [attr.data-rarity]="item.rarity.toLowerCase()">{{ item.rarity }}</span>
-              <span class="inv-qty">{{ item.quantity === -1 ? 'Infinite' : item.quantity }}</span>
-              <span class="inv-price">{{ item.priceGp }} GP</span>
-              <span class="inv-actions">
-                <button
-                  type="button"
-                  class="action-icon-btn"
-                  title="Remove Item"
-                  (click)="deleteItem(item)"
-                >
-                  <lw-icon name="trash" [size]="14" tone="crimson" />
-                </button>
-              </span>
-            </div>
-          }
-        </div>
-      </div>
+      <lw-merchant-dm-panel
+        [merchant]="m"
+        [parsedNpc]="parsedNpc()"
+        [inventory]="inventory()"
+        [campaignTables]="campaignTables()"
+        [merchantTypes]="merchantTypes"
+        [actionBusy]="actionBusy()"
+        (saveLocation)="saveLocation($event)"
+        (saveMerchantType)="saveMerchantType($event)"
+        (generateNpc)="generateNewNpc()"
+        (applyRollTable)="applySelectedRollTable()"
+        (restockFromTable)="restockStore($event)"
+        (openAddItemModal)="openAddItemModal()"
+        (deleteItem)="deleteItem($event)"
+      />
     }
 
     <!-- CHECKOUT MODALS -->

@@ -19,8 +19,16 @@
         <input type="number" min="15" max="120" step="5" [ngModel]="battle.playerSightDistanceFeet()" (ngModelChange)="battle.playerSightDistanceFeet.set(+$event)" />
       </label>
       <label class="lw-vtt-field">
+        <span>Vision Falloff Feathering ({{ battle.visionFalloffPct() }}%)</span>
+        <input type="range" min="0" max="85" step="5" [ngModel]="battle.visionFalloffPct()" (ngModelChange)="battle.visionFalloffPct.set(+$event)" />
+      </label>
+      <label class="lw-vtt-field">
+        <span>Shadow Edge Softness ({{ battle.shadowSoftnessPx() }}px)</span>
+        <input type="range" min="0" max="36" step="2" [ngModel]="battle.shadowSoftnessPx()" (ngModelChange)="battle.shadowSoftnessPx.set(+$event)" />
+      </label>
+      <label class="lw-vtt-field">
         <span>Traveled Fog of War Opacity ({{ (battle.traveledFogOpacity() * 100).toFixed(0) }}%)</span>
-        <input type="range" min="0.05" max="0.90" step="0.05" [ngModel]="battle.traveledFogOpacity()" (ngModelChange)="battle.traveledFogOpacity.set(+$event)" />
+        <input type="range" min="0" max="0.95" step="0.05" [ngModel]="battle.traveledFogOpacity()" (ngModelChange)="battle.traveledFogOpacity.set(+$event)" />
       </label>
       <label class="lw-vtt-check">
         <input type="checkbox" [ngModel]="battle.applyTokenVision()" (ngModelChange)="battle.applyTokenVision.set($event)" />

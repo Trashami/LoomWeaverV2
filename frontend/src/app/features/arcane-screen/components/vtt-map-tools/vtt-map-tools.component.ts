@@ -240,13 +240,23 @@ export class VttMapToolsComponent {
   }
 
   onTraveledFogOpacityInput(rawPercent: string): void {
-    const pct = Math.max(5, Math.min(92, Number(rawPercent) || 58));
+    const pct = Math.max(0, Math.min(95, Number(rawPercent) || 50));
     this.battle.traveledFogOpacity.set(Number((pct / 100).toFixed(2)));
   }
 
   onGmFogOpacityInput(rawPercent: string): void {
-    const pct = Math.max(10, Math.min(88, Number(rawPercent) || 48));
+    const pct = Math.max(10, Math.min(100, Number(rawPercent) || 100));
     this.battle.gmFogOpacity.set(Number((pct / 100).toFixed(2)));
+  }
+
+  onVisionFalloffInput(rawPercent: string): void {
+    const pct = Math.max(0, Math.min(85, Math.round(Number(rawPercent) || 0)));
+    this.battle.visionFalloffPct.set(pct);
+  }
+
+  onShadowSoftnessInput(rawPx: string): void {
+    const px = Math.max(0, Math.min(36, Math.round(Number(rawPx) || 0)));
+    this.battle.shadowSoftnessPx.set(px);
   }
 
   deselectAll(): void {

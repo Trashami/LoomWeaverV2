@@ -51,12 +51,14 @@ export class VttBattleStateService {
 
   readonly fogMode = signal<VttFogMode>('explored-los');
   readonly applyTokenVision = signal<boolean>(true);
-  readonly traveledFogOpacity = signal<number>(0.62);
-  readonly gmFogOpacity = signal<number>(0.56);
+  readonly traveledFogOpacity = signal<number>(0.5);
+  readonly gmFogOpacity = signal<number>(1.0);
+  readonly visionFalloffPct = signal<number>(45);
+  readonly shadowSoftnessPx = signal<number>(14);
   readonly hideOutOfSightMonsters = signal<boolean>(true);
   readonly showMonstersBeyondVision = computed<boolean>(() => !this.hideOutOfSightMonsters());
   readonly showCharactersBeyondVision = signal<boolean>(false);
-  readonly playerSightDistanceFeet = signal<number>(60);
+  readonly playerSightDistanceFeet = signal<number>(45);
   readonly gmPreviewPlayerVision = signal<boolean>(false);
   readonly previewTokenVisionKey = signal<string | null>(null);
 
@@ -190,15 +192,9 @@ export class VttBattleStateService {
 
   isTokenInPlayerLoS(token: VttTokenVm): boolean { return this.tokenOpacity(token) > 0; }
 
-  readonly visibleMapTokens = computed<readonly VttTokenVm[]>(() => {
-    const all = this.vtt.tokens();
-    if (this.store.viewerRole() !== 'players' && !this.gmPreviewPlayerVision()) return all;
-    return all.filter((t) => {
-      if (t.faction === 'party' && this.showCharactersBeyondVision()) return true;
-      if (t.faction === 'hostile' && !this.hideOutOfSightMonsters()) return true;
-      return this.isTokenInPlayerLoS(t);
-    });
-  });
+  readonly visibleMapTokens = computed<readonly VttTokenVm[]>(() =>
+    this.vtt.tokens().filter((t) => this.isTokenInPlayerLoS(t)),
+  );
 
   readonly filteredTurnAbilities = computed<readonly VttTacticalAbilityVm[]>(() => {
     const cat = this.activeTurnCategory();

@@ -63,10 +63,13 @@ export class BabylonTokenMeshBuilder {
     );
 
     for (const t of tokens) {
+      const tokenOpacity = opacityByKey.get(t.key) ?? 1;
+      if (tokenOpacity <= 0.05) {
+        continue;
+      }
       const isDead = t.currentHp <= 0;
       const isTargeted = activeTargetSet.has(t.key);
       const isAttacker = t.key === attackerKey;
-      const tokenOpacity = opacityByKey.get(t.key) ?? 1;
 
       const sizeScale = getDndSizeScale(t.sizeCategory);
       const effectiveScale = Math.max(0.25, gridScale) * sizeScale;
@@ -82,6 +85,8 @@ export class BabylonTokenMeshBuilder {
       );
       baseMesh.position.set(t.x, groundY + baseHeight / 2 + 0.01, t.z);
       baseMesh.metadata = { tokenKey: t.key, baseHeight, footprintRadius };
+      baseMesh.renderingGroupId = 2;
+      baseMesh.alphaIndex = 10;
       baseMesh.isPickable = true;
       baseMesh.receiveShadows = true;
       baseMesh.visibility = tokenOpacity;
@@ -94,6 +99,8 @@ export class BabylonTokenMeshBuilder {
       );
       hitbox.parent = baseMesh;
       hitbox.position.set(0, hitboxHeight / 2, 0);
+      hitbox.renderingGroupId = 2;
+      hitbox.alphaIndex = 10;
       hitbox.visibility = 0;
       hitbox.isPickable = true;
       hitbox.metadata = { tokenKey: t.key };
@@ -139,6 +146,8 @@ export class BabylonTokenMeshBuilder {
       baseMesh.visibility = tokenOpacity;
       baseMesh.isPickable = pickable;
       for (const child of baseMesh.getChildMeshes()) {
+        child.renderingGroupId = 2;
+        child.alphaIndex = 10;
         if (!child.name.startsWith('lw-token-hitbox-')) {
           child.visibility = tokenOpacity;
         }
@@ -150,8 +159,8 @@ export class BabylonTokenMeshBuilder {
       }
     }
 
-    const src = tokens.find((t) => t.key === attackerKey);
-    const dst = tokens.find((t) => t.key === targetKey);
+    const src = tokens.find((t) => t.key === attackerKey && (opacityByKey.get(t.key) ?? 1) > 0.05);
+    const dst = tokens.find((t) => t.key === targetKey && (opacityByKey.get(t.key) ?? 1) > 0.05);
     if (src && dst && src.key !== dst.key) {
       const srcY = TerrainMeshBuilder.sampleElevationAt(scene, src.x, src.z);
       const dstY = TerrainMeshBuilder.sampleElevationAt(scene, dst.x, dst.z);
@@ -168,6 +177,8 @@ export class BabylonTokenMeshBuilder {
         scene,
       );
       tether.color = Color3.FromHexString('#2d8a56');
+      tether.renderingGroupId = 2;
+      tether.alphaIndex = 10;
       tether.isPickable = false;
     }
   }

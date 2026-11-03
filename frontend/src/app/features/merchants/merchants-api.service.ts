@@ -2,6 +2,24 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
+export interface LwMerchantNpcVm {
+  readonly name: string;
+  readonly race: string;
+  readonly merchantType: string;
+  readonly demeanor: string;
+  readonly quirk: string;
+  readonly persuasionDc: number;
+  readonly strength: number;
+  readonly dexterity: number;
+  readonly constitution: number;
+  readonly intelligence: number;
+  readonly wisdom: number;
+  readonly charisma: number;
+  readonly armorClass: number;
+  readonly hitPoints: number;
+  readonly locationName: string;
+}
+
 export interface LwMerchantSummaryVm {
   readonly id: number;
   readonly campaignId: number;
@@ -18,6 +36,8 @@ export interface LwMerchantSummaryVm {
   readonly hasVisited: boolean;
   readonly pastPurchasesCount: number;
   readonly inventoryCount: number;
+  readonly merchantType?: string;
+  readonly standing?: number;
 }
 
 export interface LwMerchantDetailVm {
@@ -41,6 +61,10 @@ export interface LwMerchantDetailVm {
   readonly isUnlocked: boolean;
   readonly isAtCurrentLocation: boolean;
   readonly pastPurchasesCount: number;
+  readonly merchantType?: string;
+  readonly standing?: number;
+  readonly npcDetailsJson?: string | null;
+  readonly npc?: LwMerchantNpcVm | null;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -127,6 +151,39 @@ export class MerchantsApiService {
 
   createMerchant(campaignId: number, payload: Partial<LwMerchantDetailVm>): Observable<LwMerchantDetailVm> {
     return this.http.post<LwMerchantDetailVm>(`/api/v2/campaigns/${campaignId}/merchants`, payload);
+  }
+
+  generateRandomMerchant(campaignId: number, payload: {
+    merchantType?: string;
+    populateInventory: boolean;
+    locationName?: string;
+    locationKey?: string;
+  }): Observable<LwMerchantDetailVm> {
+    return this.http.post<LwMerchantDetailVm>(`/api/v2/campaigns/${campaignId}/merchants/generate-random`, payload);
+  }
+
+  generateRandomNpc(campaignId: number, merchantId: number, merchantType?: string): Observable<LwMerchantDetailVm> {
+    return this.http.post<LwMerchantDetailVm>(`/api/v2/campaigns/${campaignId}/merchants/${merchantId}/generate-npc`, { merchantType });
+  }
+
+  applyTableInventory(campaignId: number, merchantId: number, rollTableId: number, clearExisting = false): Observable<{
+    success: boolean;
+    itemsAdded: number;
+    merchantName: string;
+    message: string;
+    inventory?: readonly LwMerchantInventoryItemVm[];
+  }> {
+    return this.http.post<{
+      success: boolean;
+      itemsAdded: number;
+      merchantName: string;
+      message: string;
+      inventory?: readonly LwMerchantInventoryItemVm[];
+    }>(`/api/v2/campaigns/${campaignId}/merchants/${merchantId}/apply-table-inventory`, { rollTableId, clearExisting });
+  }
+
+  adjustStanding(campaignId: number, merchantId: number, delta: number): Observable<{ standingAdjusted: number }> {
+    return this.http.post<{ standingAdjusted: number }>(`/api/v2/campaigns/${campaignId}/merchants/${merchantId}/standing`, delta);
   }
 
   updateMerchant(campaignId: number, merchantId: number, payload: Partial<LwMerchantDetailVm>): Observable<LwMerchantDetailVm> {

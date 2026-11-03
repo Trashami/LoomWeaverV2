@@ -50,6 +50,26 @@ export class MerchantsPageComponent {
   readonly createModalOpen = signal(false);
   readonly isGmMode = signal(false);
 
+  // Random Forge Modal state
+  readonly randomModalOpen = signal(false);
+  readonly randomMerchantType = signal('random');
+  readonly randomPopulateInventory = signal(true);
+  readonly randomLocation = signal('');
+  readonly generatingRandom = signal(false);
+
+  readonly merchantTypes: readonly string[] = [
+    'Blacksmith & Armory',
+    'Alchemist & Apothecary',
+    'Arcane & Wandmaker',
+    'General Goods & Provisions',
+    'Jeweler & Gemcutter',
+    'Curios & Antiquities',
+    'Tavern & Brewer',
+    'Fletcher & Bowyer',
+    'Tailor & Weaver',
+    'Wandering Exotic Trader',
+  ];
+
   // New merchant form model
   readonly newStoreName = signal('');
   readonly newMerchantName = signal('');
@@ -157,6 +177,38 @@ export class MerchantsPageComponent {
         },
         error: () => {
           this.errorMessage.set('Could not create merchant.');
+        },
+      });
+  }
+
+  openRandomModal(): void {
+    this.randomMerchantType.set('random');
+    this.randomPopulateInventory.set(true);
+    this.randomLocation.set(this.currentLocation());
+    this.randomModalOpen.set(true);
+  }
+
+  submitGenerateRandom(): void {
+    const cid = this.store.activeCampaignId() || 1;
+    this.generatingRandom.set(true);
+
+    const type = this.randomMerchantType();
+    this.api
+      .generateRandomMerchant(cid, {
+        merchantType: type === 'random' ? undefined : type,
+        populateInventory: this.randomPopulateInventory(),
+        locationName: this.randomLocation().trim() || this.currentLocation(),
+      })
+      .subscribe({
+        next: (created) => {
+          this.generatingRandom.set(false);
+          this.randomModalOpen.set(false);
+          this.loadMerchants();
+          this.router.navigate(['/merchants', created.id]);
+        },
+        error: () => {
+          this.generatingRandom.set(false);
+          this.errorMessage.set('Could not forge random merchant.');
         },
       });
   }

@@ -59,6 +59,12 @@ export class RollTablePageComponent {
   readonly selectedMerchantId = signal<number | null>(null);
   readonly attachNotes = signal('');
 
+  // Apply to merchant state
+  readonly applyToMerchantModalOpen = signal(false);
+  readonly applyTargetMerchantId = signal<number | null>(null);
+  readonly applyClearExisting = signal(false);
+  readonly applyingInventory = signal(false);
+
   readonly campaignEncounters = signal<Array<{ id: string; name: string }>>([
     { id: 'enc-goblin-ambush', name: 'Goblin Ambush & Roadblock' },
     { id: 'enc-crypt-guardian', name: 'Crypt Guardian & Sarcophagus' },
@@ -222,6 +228,49 @@ export class RollTablePageComponent {
           setTimeout(() => this.successMessage.set(''), 4000);
         },
         error: () => this.errorMessage.set('Could not attach roll table.'),
+      });
+  }
+
+  openApplyToMerchantModal(): void {
+    if (this.merchants().length === 0) {
+      const cid = this.store.activeCampaignId() || 1;
+      this.merchantApi.listMerchants(cid).subscribe({
+        next: (data) => {
+          this.merchants.set(data);
+          if (data.length > 0 && !this.applyTargetMerchantId()) {
+            this.applyTargetMerchantId.set(data[0].id);
+          }
+        },
+      });
+    } else if (!this.applyTargetMerchantId() && this.merchants().length > 0) {
+      this.applyTargetMerchantId.set(this.merchants()[0].id);
+    }
+    this.applyToMerchantModalOpen.set(true);
+  }
+
+  confirmApplyToMerchant(): void {
+    const t = this.table();
+    const mid = this.applyTargetMerchantId();
+    if (!t || !mid) return;
+
+    const cid = this.store.activeCampaignId() || 1;
+    this.applyingInventory.set(true);
+
+    this.merchantApi
+      .applyTableInventory(cid, mid, t.id, this.applyClearExisting())
+      .subscribe({
+        next: (res) => {
+          this.applyingInventory.set(false);
+          this.applyToMerchantModalOpen.set(false);
+          this.successMessage.set(res.message);
+          this.loadAttachments(t.id);
+          setTimeout(() => this.successMessage.set(''), 6000);
+        },
+        error: (err) => {
+          this.applyingInventory.set(false);
+          this.errorMessage.set(err.error?.message || 'Could not apply table inventory to merchant.');
+          setTimeout(() => this.errorMessage.set(''), 6000);
+        },
       });
   }
 

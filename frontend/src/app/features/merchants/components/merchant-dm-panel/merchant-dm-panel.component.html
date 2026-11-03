@@ -1,0 +1,235 @@
+<section class="dm-panel">
+  <!-- Store Configuration & Location -->
+  <div class="dm-settings-grid">
+    <div class="dm-card">
+      <div class="dm-card__header">
+        <lw-icon name="storefront" [size]="16" tone="emerald" />
+        <h4>Store Classification & Settlement</h4>
+      </div>
+
+      <div class="dm-field-group">
+        <label for="dmStoreType">Merchant Specialization</label>
+        <div class="input-with-action">
+          <select id="dmStoreType" [ngModel]="localType()" (ngModelChange)="localType.set($event)">
+            @for (type of merchantTypes(); track type) {
+              <option [value]="type">{{ type }}</option>
+            }
+          </select>
+          <button
+            ngpButton
+            type="button"
+            class="dm-action-sm"
+            [disabled]="actionBusy()"
+            (click)="onSaveType()"
+          >
+            Update Type
+          </button>
+        </div>
+      </div>
+
+      <div class="dm-field-group">
+        <label for="dmLocation">Settlement / Location Assignment</label>
+        <div class="input-with-action">
+          <input
+            id="dmLocation"
+            type="text"
+            placeholder="e.g. Vandia Harbor, Cinth High Market..."
+            [ngModel]="localLocation()"
+            (ngModelChange)="localLocation.set($event)"
+          />
+          <button
+            ngpButton
+            type="button"
+            class="dm-action-sm"
+            [disabled]="actionBusy()"
+            (click)="onSaveLocation()"
+          >
+            Assign Location
+          </button>
+        </div>
+        <span class="field-hint">The merchant and their NPC shopkeeper will be stationed at this location.</span>
+      </div>
+    </div>
+
+    <!-- Apply Roll Table Inventory -->
+    <div class="dm-card">
+      <div class="dm-card__header">
+        <lw-icon name="table-chart" [size]="16" tone="gold" />
+        <h4>Apply Roll Table to Inventory</h4>
+      </div>
+      <p class="dm-card__desc">Extract all items from a 5e roll table directly into this merchant's available stock.</p>
+
+      <div class="dm-field-group">
+        <label for="dmTableSelect">Select Campaign Roll Table</label>
+        <select
+          id="dmTableSelect"
+          [ngModel]="selectedTableId()"
+          (ngModelChange)="selectedTableId.set($event)"
+        >
+          @for (table of campaignTables(); track table.id) {
+            <option [value]="table.id">{{ table.name }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="dm-checkbox-row">
+        <input
+          type="checkbox"
+          id="dmClearStock"
+          [ngModel]="clearExisting()"
+          (ngModelChange)="clearExisting.set($event)"
+        />
+        <label for="dmClearStock">Clear existing stock before loading table items</label>
+      </div>
+
+      <button
+        ngpButton
+        type="button"
+        class="lw-btn lw-btn--primary apply-btn"
+        [disabled]="!selectedTableId() || actionBusy()"
+        (click)="onApplyTable()"
+      >
+        <lw-icon name="table-chart" [size]="14" />
+        <span>Apply Table Wares to Merchant</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- NPC Shopkeeper Dossier -->
+  <div class="dm-card npc-dossier-card">
+    <div class="npc-header-row">
+      <div class="npc-ident-block">
+        <div class="npc-avatar">
+          <lw-icon name="account-circle" [size]="32" tone="emerald" />
+        </div>
+        <div>
+          <h4 class="npc-name">{{ merchant().merchantName }}</h4>
+          <span class="npc-sub">
+            @if (parsedNpc(); as npc) {
+              {{ npc.race }} &bull; {{ npc.demeanor }} &bull; Persuasion DC {{ npc.persuasionDc }}
+            } @else {
+              Proprietor of {{ merchant().storeName }} &bull; Stationed in {{ merchant().locationName }}
+            }
+          </span>
+        </div>
+      </div>
+
+      <button
+        ngpButton
+        type="button"
+        class="lw-btn lw-btn--secondary"
+        [disabled]="actionBusy()"
+        (click)="generateNpc.emit()"
+      >
+        <lw-icon name="casino" [size]="14" />
+        <span>Generate Random D&D NPC Shopkeeper</span>
+      </button>
+    </div>
+
+    @if (parsedNpc(); as npc) {
+      <div class="npc-stats-grid">
+        <div class="stat-pill">
+          <span class="stat-label">STR</span>
+          <span class="stat-val">{{ npc.strength }}</span>
+          <span class="stat-mod">{{ npc.strength >= 10 ? '+' : '' }}{{ (npc.strength - 10) / 2 | number:'1.0-0' }}</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">DEX</span>
+          <span class="stat-val">{{ npc.dexterity }}</span>
+          <span class="stat-mod">{{ npc.dexterity >= 10 ? '+' : '' }}{{ (npc.dexterity - 10) / 2 | number:'1.0-0' }}</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">CON</span>
+          <span class="stat-val">{{ npc.constitution }}</span>
+          <span class="stat-mod">{{ npc.constitution >= 10 ? '+' : '' }}{{ (npc.constitution - 10) / 2 | number:'1.0-0' }}</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">INT</span>
+          <span class="stat-val">{{ npc.intelligence }}</span>
+          <span class="stat-mod">{{ npc.intelligence >= 10 ? '+' : '' }}{{ (npc.intelligence - 10) / 2 | number:'1.0-0' }}</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">WIS</span>
+          <span class="stat-val">{{ npc.wisdom }}</span>
+          <span class="stat-mod">{{ npc.wisdom >= 10 ? '+' : '' }}{{ (npc.wisdom - 10) / 2 | number:'1.0-0' }}</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">CHA</span>
+          <span class="stat-val">{{ npc.charisma }}</span>
+          <span class="stat-mod">{{ npc.charisma >= 10 ? '+' : '' }}{{ (npc.charisma - 10) / 2 | number:'1.0-0' }}</span>
+        </div>
+      </div>
+
+      <div class="npc-lore-row">
+        <div class="lore-item">
+          <strong>Quirk:</strong> <span>{{ npc.quirk }}</span>
+        </div>
+        <div class="lore-item">
+          <strong>Demeanor:</strong> <span>{{ npc.demeanor }}</span>
+        </div>
+        <div class="lore-item">
+          <strong>Combat Readiness:</strong> <span>AC {{ npc.armorClass }}, {{ npc.hitPoints }} HP</span>
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- Inventory & Pricing Tuning -->
+  <div class="dm-card">
+    <div class="dm-controls-bar">
+      <h4>Store Inventory & Custom Pricing ({{ inventory().length }} Items)</h4>
+      <div class="dm-btn-group">
+        <button
+          ngpButton
+          type="button"
+          class="lw-btn lw-btn--secondary"
+          [disabled]="actionBusy()"
+          (click)="restockFromTable.emit(false)"
+        >
+          <lw-icon name="refresh" [size]="14" />
+          <span>Roll & Restock from Table</span>
+        </button>
+        <button
+          ngpButton
+          type="button"
+          class="lw-btn lw-btn--primary"
+          [disabled]="actionBusy()"
+          (click)="openAddItemModal.emit()"
+        >
+          <lw-icon name="plus" [size]="14" />
+          <span>Add Custom Item</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="inventory-table">
+      <div class="inv-header">
+        <span>Item Name</span>
+        <span>Category</span>
+        <span>Rarity</span>
+        <span>Stock</span>
+        <span>Price (GP)</span>
+        <span>Actions</span>
+      </div>
+      @for (item of inventory(); track item.id) {
+        <div class="inv-row">
+          <span class="inv-name">{{ item.name }}</span>
+          <span class="inv-cat">{{ item.itemType }}</span>
+          <span class="inv-rarity" [attr.data-rarity]="item.rarity.toLowerCase()">{{ item.rarity }}</span>
+          <span class="inv-qty">{{ item.quantity === -1 ? 'Infinite' : item.quantity }}</span>
+          <span class="inv-price">{{ item.priceGp }} GP</span>
+          <span class="inv-actions">
+            <button
+              type="button"
+              class="action-icon-btn"
+              title="Remove Item"
+              (click)="deleteItem.emit(item)"
+            >
+              <lw-icon name="trash" [size]="14" tone="crimson" />
+            </button>
+          </span>
+        </div>
+      }
+    </div>
+  </div>
+</section>

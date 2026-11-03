@@ -21,6 +21,9 @@ public sealed record MerchantDto(
     bool IsUnlocked,
     bool IsAtCurrentLocation,
     int PastPurchasesCount,
+    string MerchantType,
+    int Standing,
+    string? NpcDetailsJson,
     DateTime CreatedAt,
     DateTime UpdatedAt
 );
@@ -40,7 +43,9 @@ public sealed record MerchantSummaryDto(
     bool IsAtCurrentLocation,
     bool HasVisited,
     int PastPurchasesCount,
-    int InventoryCount
+    int InventoryCount,
+    string MerchantType,
+    int Standing
 );
 
 public sealed record MerchantInventoryItemDto(
@@ -82,6 +87,24 @@ public sealed record WalletDto(
     decimal PartyCopperCp
 );
 
+public sealed record MerchantNpcDto(
+    string Name,
+    string Race,
+    string MerchantType,
+    string Demeanor,
+    string Quirk,
+    int PersuasionDc,
+    int Strength,
+    int Dexterity,
+    int Constitution,
+    int Intelligence,
+    int Wisdom,
+    int Charisma,
+    int ArmorClass,
+    int HitPoints,
+    string LocationName
+);
+
 public sealed record CreateMerchantRequest(
     string StoreName,
     string? MerchantName,
@@ -98,7 +121,10 @@ public sealed record CreateMerchantRequest(
     string? RollTableName,
     int? BuyRatePercent,
     int? MarkupPercent,
-    bool? IsUnlocked
+    bool? IsUnlocked,
+    string? MerchantType = null,
+    int? Standing = 0,
+    string? NpcDetailsJson = null
 );
 
 public sealed record UpdateMerchantRequest(
@@ -117,7 +143,26 @@ public sealed record UpdateMerchantRequest(
     string? RollTableName,
     int? BuyRatePercent,
     int? MarkupPercent,
-    bool? IsUnlocked
+    bool? IsUnlocked,
+    string? MerchantType = null,
+    int? Standing = null,
+    string? NpcDetailsJson = null
+);
+
+public sealed record GenerateRandomMerchantRequest(
+    string? MerchantType,
+    bool PopulateInventory,
+    string? LocationName,
+    string? LocationKey
+);
+
+public sealed record GenerateRandomNpcRequest(
+    string? MerchantType
+);
+
+public sealed record ApplyTableInventoryRequest(
+    long RollTableId,
+    bool ClearExisting = false
 );
 
 public sealed record CreateInventoryItemRequest(

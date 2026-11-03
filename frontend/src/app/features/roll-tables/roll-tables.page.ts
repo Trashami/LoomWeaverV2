@@ -44,6 +44,13 @@ export class RollTablesPageComponent {
   readonly selectedMerchantId = signal<number | null>(null);
   readonly attachNotes = signal('');
 
+  // Stock merchant modal state
+  readonly applyToMerchantModalOpen = signal(false);
+  readonly selectedTableForStock = signal<LwRollTableSummaryVm | null>(null);
+  readonly applyTargetMerchantId = signal<number | null>(null);
+  readonly applyClearExisting = signal(false);
+  readonly applyingInventory = signal(false);
+
   readonly campaignEncounters = signal<Array<{ id: string; name: string }>>([
     { id: 'enc-goblin-ambush', name: 'Goblin Ambush & Roadblock' },
     { id: 'enc-crypt-guardian', name: 'Crypt Guardian & Sarcophagus' },
@@ -170,6 +177,41 @@ export class RollTablesPageComponent {
         },
         error: () => {
           this.errorMessage.set('Could not attach roll table.');
+        },
+      });
+  }
+
+  openApplyToMerchant(table: LwRollTableSummaryVm, event?: Event): void {
+    if (event) event.stopPropagation();
+    this.selectedTableForStock.set(table);
+    if (this.merchants().length > 0 && !this.applyTargetMerchantId()) {
+      this.applyTargetMerchantId.set(this.merchants()[0].id);
+    }
+    this.applyToMerchantModalOpen.set(true);
+  }
+
+  confirmApplyToMerchant(): void {
+    const table = this.selectedTableForStock();
+    const mid = this.applyTargetMerchantId();
+    if (!table || !mid) return;
+
+    const cid = this.store.activeCampaignId() || 1;
+    this.applyingInventory.set(true);
+
+    this.merchantApi
+      .applyTableInventory(cid, mid, table.id, this.applyClearExisting())
+      .subscribe({
+        next: (res) => {
+          this.applyingInventory.set(false);
+          this.applyToMerchantModalOpen.set(false);
+          this.successMessage.set(res.message);
+          this.loadCampaignAttachments();
+          setTimeout(() => this.successMessage.set(''), 6000);
+        },
+        error: (err) => {
+          this.applyingInventory.set(false);
+          this.errorMessage.set(err.error?.message || 'Could not apply inventory to merchant.');
+          setTimeout(() => this.errorMessage.set(''), 6000);
         },
       });
   }

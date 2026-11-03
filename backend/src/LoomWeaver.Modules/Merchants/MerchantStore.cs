@@ -39,6 +39,9 @@ public static class MerchantStore
                   buy_rate_percent INT NOT NULL DEFAULT 50,
                   markup_percent INT NOT NULL DEFAULT 100,
                   is_unlocked TINYINT(1) NOT NULL DEFAULT 1,
+                  merchant_type VARCHAR(64) NOT NULL DEFAULT 'General Goods',
+                  standing INT NOT NULL DEFAULT 0,
+                  npc_details_json JSON NULL,
                   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                   KEY ix_merchant_campaign (campaign_id),
@@ -125,6 +128,14 @@ public static class MerchantStore
                     ADD COLUMN IF NOT EXISTS encounter_title VARCHAR(160) NOT NULL DEFAULT '';
                 """, db);
                 await alterCmd.ExecuteNonQueryAsync(ct);
+
+                await using var alterMerchantsCmd = new MySqlCommand("""
+                    ALTER TABLE lw_merchants
+                    ADD COLUMN IF NOT EXISTS merchant_type VARCHAR(64) NOT NULL DEFAULT 'General Goods',
+                    ADD COLUMN IF NOT EXISTS standing INT NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS npc_details_json JSON NULL;
+                """, db);
+                await alterMerchantsCmd.ExecuteNonQueryAsync(ct);
             }
             catch { /* columns already exist on newer schema */ }
 
@@ -150,7 +161,8 @@ public static class MerchantStore
             "A salty, fortified shop tucked under the sea cliffs of Vandia.",
             "Mind the blades on the counter. If you have gold or something strange from the coast, we can talk.",
             "/portraits/garek.png", "/campaigns/vandia-bay.jpg",
-            "loc-vandia", "Vandia", "npc-garek", "Old Garek", 1, "Magic Item Table A", 55, 100, ct);
+            "loc-vandia", "Vandia", "npc-garek", "Old Garek", 1, "Magic Item Table A", 55, 100,
+            "Curios & Antiquities", 0, null, ct);
 
         await InsertItemAsync(db, m1Id, "potion-heal", "Potion of Healing", "Potion", "common", "Regains 2d4+2 hit points when consumed.", 50, 50, 8, true, ct);
         await InsertItemAsync(db, m1Id, "cloak-elvenkind", "Cloak of Elvenkind", "Wondrous Item", "uncommon", "Grants advantage on Stealth checks to hide.", 350, 350, 1, true, ct);
@@ -164,7 +176,8 @@ public static class MerchantStore
             "A bustling brass workshop vibrating with gears and steam pistons in inland Cinth.",
             "Mind your fingers around the dynamo. Everything here is tested against Council magic, guaranteed.",
             "/portraits/valen.png", "/campaigns/cinth-gates.jpg",
-            "loc-cinth", "Cinth", "npc-valen", "Master Artificer Valen", 2, "Magic Item Table B", 60, 110, ct);
+            "loc-cinth", "Cinth", "npc-valen", "Master Artificer Valen", 2, "Magic Item Table B", 60, 110,
+            "Blacksmith & Armory", 0, null, ct);
 
         await InsertItemAsync(db, m2Id, "goggles-night", "Goggles of Night", "Wondrous Item", "uncommon", "Grants 60ft darkvision or extends existing darkvision.", 400, 440, 1, true, ct);
         await InsertItemAsync(db, m2Id, "clockwork-decoy", "Clockwork Runic Decoy", "Adventuring Gear", "uncommon", "Wind-up mechanical decoy that creates deceptive footfalls.", 180, 200, 2, false, ct);
@@ -177,7 +190,8 @@ public static class MerchantStore
             "A colorful ramshackle wagon resting on the edge of the Plains of Red.",
             "Pip has things! Little shiny things, big toothy things! No cursed items, only lightly haunted!",
             "/portraits/pip.png", "/campaigns/plains-of-red.jpg",
-            "loc-plains-of-red", "The Plains of Red", "npc-pip", "Pip the Goblin Trader", 3, "Trinkets", 50, 90, ct);
+            "loc-plains-of-red", "The Plains of Red", "npc-pip", "Pip the Goblin Trader", 3, "Trinkets", 50, 90,
+            "Wandering Exotic Trader", 0, null, ct);
 
         await InsertItemAsync(db, m3Id, "bag-holding", "Bag of Holding", "Wondrous Item", "uncommon", "Spacious interior pouch that holds up to 500 lbs in an extra-dimensional pocket.", 500, 450, 1, true, ct);
         await InsertItemAsync(db, m3Id, "jar-teeth", "Jar of Preserved Dragon Teeth", "Valuables", "rare", "Smooth, ancient teeth humming with dormant elemental heat.", 250, 225, 4, false, ct);
@@ -203,18 +217,22 @@ public static class MerchantStore
         await rtCmd.ExecuteNonQueryAsync(ct);
     }
 
-    private static async Task<long> InsertMerchantAsync(
+    public static async Task<long> InsertMerchantAsync(
         MySqlConnection db, int campaignId, string storeName, string merchantName, string tagline,
         string description, string greeting, string imageUrl, string bannerUrl,
         string locationKey, string locationName, string npcKey, string npcName,
-        long rollTableId, string rollTableName, int buyRate, int markup, CancellationToken ct)
+        long rollTableId, string rollTableName, int buyRate, int markup,
+        string merchantType = "General Goods & Provisions", int standing = 0, string? npcDetailsJson = null,
+        CancellationToken ct = default)
     {
         await using var cmd = new MySqlCommand("""
             INSERT INTO lw_merchants
               (campaign_id, store_name, merchant_name, tagline, description, greeting, image_url, banner_url,
-               location_key, location_name, npc_key, npc_name, roll_table_id, roll_table_name, buy_rate_percent, markup_percent, is_unlocked)
+               location_key, location_name, npc_key, npc_name, roll_table_id, roll_table_name, buy_rate_percent, markup_percent, is_unlocked,
+               merchant_type, standing, npc_details_json)
             VALUES
-              (@cid, @sname, @mname, @tag, @desc, @greet, @img, @bnr, @lkey, @lname, @nkey, @nname, @rtid, @rtname, @buy, @markup, 1);
+              (@cid, @sname, @mname, @tag, @desc, @greet, @img, @bnr, @lkey, @lname, @nkey, @nname, @rtid, @rtname, @buy, @markup, 1,
+               @mtype, @standing, @npcjson);
             SELECT LAST_INSERT_ID();
             """, db);
         cmd.Parameters.AddWithValue("@cid", campaignId);
@@ -233,6 +251,9 @@ public static class MerchantStore
         cmd.Parameters.AddWithValue("@rtname", rollTableName);
         cmd.Parameters.AddWithValue("@buy", buyRate);
         cmd.Parameters.AddWithValue("@markup", markup);
+        cmd.Parameters.AddWithValue("@mtype", merchantType);
+        cmd.Parameters.AddWithValue("@standing", standing);
+        cmd.Parameters.AddWithValue("@npcjson", string.IsNullOrWhiteSpace(npcDetailsJson) ? (object)DBNull.Value : npcDetailsJson);
         return Convert.ToInt64(await cmd.ExecuteScalarAsync(ct));
     }
 

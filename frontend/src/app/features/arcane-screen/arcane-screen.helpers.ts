@@ -24,6 +24,7 @@ import { VttSettingsModalComponent } from './components/vtt-settings-modal/vtt-s
 import { VttSettingsPanelComponent } from './components/vtt-settings-panel/vtt-settings-panel.component';
 import { VttTokenContextMenuComponent } from './components/vtt-token-context-menu/vtt-token-context-menu.component';
 import { BASE_GRID_CELL_SVG_PX, svgToWorldPoint, worldToSvgX, worldToSvgY } from './engine/vtt-los-and-grid.engine';
+import { extractSceneOccludersFromMapState } from './engine/vtt-scene-occluders.helper';
 import { VttBattleStateService } from './services/vtt-battle-state.service';
 import { VttCombatService } from './services/vtt-combat.service';
 import { VttDisplaySettingsService } from './services/vtt-display-settings.service';
@@ -370,6 +371,7 @@ export function registerArcaneScreenStageEffects(
     const offY = vttDisplay.gridOffsetY();
     const sceneResp = serverSync.activeSceneResponse();
     untracked(() => {
+      battle.walls.set(extractSceneOccludersFromMapState(sceneResp?.sceneDataJson));
       stage.loadMapScene(sceneResp?.sceneDataJson, url);
       stage.setGridVisible(visible, scale, offX, offY);
       host.sync3dStage();
@@ -385,6 +387,9 @@ export function registerArcaneScreenStageEffects(
       lastLoadedSceneKey = loadKey;
       untracked(() => void serverSync.loadScene(targetScene, title, artUrl));
     }
+  });
+  stage.tokenDragged.pipe(takeUntilDestroyed()).subscribe((p) => {
+    vtt.applyRemoteTokenMove(p.key, p.x, p.z);
   });
   stage.tokenDropped.pipe(takeUntilDestroyed()).subscribe((p) => {
     vtt.applyRemoteTokenMove(p.key, p.x, p.z);

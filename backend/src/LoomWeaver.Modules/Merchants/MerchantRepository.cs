@@ -20,6 +20,8 @@ public static class MerchantRepository
         var sql = """
             SELECT m.id, m.campaign_id, m.store_name, m.merchant_name, m.tagline, m.image_url,
                    m.location_key, m.location_name, m.roll_table_id, m.roll_table_name, m.is_unlocked,
+                   COALESCE(m.merchant_type, 'General Goods & Provisions') AS merchant_type,
+                   COALESCE(m.standing, 0) AS standing,
                    COALESCE(inv.item_count, 0) AS item_count,
                    COALESCE(tx.tx_count, 0) AS tx_count
             FROM lw_merchants m
@@ -65,7 +67,9 @@ public static class MerchantRepository
                 isCurrent,
                 txCount > 0,
                 txCount,
-                Convert.ToInt32(r.GetValue(r.GetOrdinal("item_count")))
+                Convert.ToInt32(r.GetValue(r.GetOrdinal("item_count"))),
+                r.GetString(r.GetOrdinal("merchant_type")),
+                Convert.ToInt32(r.GetValue(r.GetOrdinal("standing")))
             ));
         }
 
@@ -84,6 +88,9 @@ public static class MerchantRepository
             SELECT id, campaign_id, store_name, merchant_name, tagline, description, greeting,
                    image_url, banner_url, location_key, location_name, npc_key, npc_name,
                    roll_table_id, roll_table_name, buy_rate_percent, markup_percent, is_unlocked,
+                   COALESCE(merchant_type, 'General Goods & Provisions') AS merchant_type,
+                   COALESCE(standing, 0) AS standing,
+                   npc_details_json,
                    created_at, updated_at
             FROM lw_merchants
             WHERE id = @mid AND campaign_id = @cid
@@ -121,6 +128,9 @@ public static class MerchantRepository
             r.GetBoolean(r.GetOrdinal("is_unlocked")),
             isCurrent,
             0,
+            r.GetString(r.GetOrdinal("merchant_type")),
+            r.GetInt32(r.GetOrdinal("standing")),
+            r.IsDBNull(r.GetOrdinal("npc_details_json")) ? null : r.GetString(r.GetOrdinal("npc_details_json")),
             r.GetDateTime(r.GetOrdinal("created_at")),
             r.GetDateTime(r.GetOrdinal("updated_at"))
         );

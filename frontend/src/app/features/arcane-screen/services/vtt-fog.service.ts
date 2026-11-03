@@ -7,10 +7,10 @@ import { VttCombatService } from './vtt-combat.service';
 /**
  * MythWeaver-style Fog of War service shared by the 2D SVG overlay and the 3D
  * terrain-conforming Babylon fog plane.
- * - Players see full dark fog (`0.96` alpha) with traveled areas at `traveledFogOpacity`.
- * - GMs see translucent tactical fog (`gmFogOpacity`, default `0.48`) unless
- *   `fogMode === 'no-fog'`, so GMs can see token vision apertures and paint
- *   with the manual Fog Brush while still seeing the map beneath.
+ * - Unexplored areas render pure black (`1.0` alpha for players, or `gmFogOpacity` default `1.0`).
+ * - Active Line-of-Sight areas are 100% clear (`0.0` fog alpha) with configurable
+ *   feathered vision falloff (`visionFalloffPct`) and soft shadow edges (`shadowSoftnessPx`).
+ * - Traveled areas in `explored-los` mode clear out to `traveledFogOpacity`.
  */
 @Injectable({ providedIn: 'root' })
 export class VttFogService {
@@ -52,13 +52,15 @@ export class VttFogService {
       const isPlayer = this.isPlayerView();
       const traveledOpacity = this.battle.traveledFogOpacity();
       const gmOpacity = this.battle.gmFogOpacity();
+      const visionFalloffPct = this.battle.visionFalloffPct();
+      const shadowSoftnessPx = this.battle.shadowSoftnessPx();
       void this.combat.selectedAttackerKey();
       void this.battle.fogRevision();
 
-      const unexploredFogOpacity = isPlayer ? 0.96 : gmOpacity;
+      const unexploredFogOpacity = isPlayer ? 1.0 : gmOpacity;
       const effectiveTraveledOpacity = isPlayer
         ? traveledOpacity
-        : Math.min(gmOpacity * 0.65, traveledOpacity);
+        : Math.min(gmOpacity, traveledOpacity);
 
       return this.engine.render({
         encounterId,
@@ -69,6 +71,8 @@ export class VttFogService {
         applyTokenVision,
         traveledFogOpacity: effectiveTraveledOpacity,
         unexploredFogOpacity,
+        visionFalloffPct,
+        shadowSoftnessPx,
         manualStrokes,
       });
     },
@@ -82,13 +86,11 @@ export class VttFogService {
     return canvas.toDataURL('image/png');
   });
 
-  /** Per-token opacity for the 3D/2D Babylon stage. */
+  /** Per-token opacity for the 3D/2D Babylon stage. Out-of-sight tokens are hidden (0). */
   readonly opacityByKey = computed<ReadonlyMap<string, number>>(() => {
     const map = new Map<string, number>();
-    const isPlayer = this.isPlayerView();
     for (const t of this.combat.tokens()) {
-      const vis = this.battle.tokenOpacity(t);
-      map.set(t.key, isPlayer ? vis : vis > 0 ? 1 : 0.42);
+      map.set(t.key, this.battle.tokenOpacity(t));
     }
     return map;
   });

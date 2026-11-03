@@ -11,15 +11,25 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { NgpButton } from 'ng-primitives/button';
 import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
 import { LwIconComponent } from '../../shared/ui/public-api';
+import { FullscreenDiceOverlayService } from '../dice/engine/fullscreen-dice-overlay.service';
+import {
+  HaggleOutcomeEvent,
+  MERCHANT_TYPES_CATALOG,
+  pickRandomHaggleFailure,
+  pickRandomHaggleSuccess,
+  TARGET_HAGGLE_OPTIONS,
+} from './merchant-haggle.helpers';
 import {
   LwCharacterInventoryItemVm,
   LwMerchantDetailVm,
   LwMerchantInventoryItemVm,
+  LwMerchantNpcVm,
   LwMerchantTransactionVm,
   LwWalletVm,
   MerchantsApiService,
 } from './merchants-api.service';
 import { MerchantCheckoutModalsComponent } from './components/merchant-checkout-modals/merchant-checkout-modals.component';
+import { MerchantDmPanelComponent } from './components/merchant-dm-panel/merchant-dm-panel.component';
 
 type StoreTab = 'buy' | 'sell' | 'haggle' | 'ledger' | 'manage';
 type ItemCategoryFilter = 'all' | 'weapon' | 'armor' | 'potion' | 'wondrous' | 'gear';
@@ -35,6 +45,7 @@ type ItemCategoryFilter = 'all' | 'weapon' | 'armor' | 'potion' | 'wondrous' | '
     NgpButton,
     LwIconComponent,
     MerchantCheckoutModalsComponent,
+    MerchantDmPanelComponent,
   ],
   templateUrl: './merchant-store.page.html',
   styleUrl: './merchant-store.page.scss',
@@ -44,6 +55,7 @@ export class MerchantStorePageComponent {
   private readonly route = inject(ActivatedRoute);
   readonly store = inject(LoomWeaverStoreService);
   private readonly api = inject(MerchantsApiService);
+  private readonly overlay = inject(FullscreenDiceOverlayService);
 
   readonly merchant = signal<LwMerchantDetailVm | null>(null);
   readonly inventory = signal<readonly LwMerchantInventoryItemVm[]>([]);
@@ -67,9 +79,32 @@ export class MerchantStorePageComponent {
   readonly searchFilter = signal('');
 
   // Haggling
+  readonly targetDiscounts = TARGET_HAGGLE_OPTIONS;
+  readonly selectedDiscountPercent = signal(10);
   readonly haggleDiscountPercent = signal(0);
+  readonly priceHikePercent = signal(0);
   readonly haggleAttempted = signal(false);
+  readonly rollingHaggle = signal(false);
   readonly haggleResultMessage = signal('');
+  readonly haggleEvent = signal<HaggleOutcomeEvent | null>(null);
+
+  // DM Management
+  readonly merchantTypes = MERCHANT_TYPES_CATALOG;
+  readonly selectedTypeToChange = signal('');
+  readonly locationToChange = signal('');
+  readonly campaignTables = signal<readonly { id: number; name: string }[]>([]);
+  readonly selectedTableToApply = signal<number | null>(null);
+  readonly clearExistingOnApply = signal(false);
+
+  readonly parsedNpc = computed<LwMerchantNpcVm | null>(() => {
+    const raw = this.merchant()?.npcDetailsJson;
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  });
 
   // Modals
   readonly buyModalOpen = signal(false);
@@ -134,11 +169,22 @@ export class MerchantStorePageComponent {
     this.api.getMerchant(cid, merchantId, ckey).subscribe({
       next: (m) => {
         this.merchant.set(m);
+        this.locationToChange.set(m.locationName);
+        this.selectedTypeToChange.set(m.merchantType || 'General Goods & Provisions');
         this.loading.set(false);
       },
       error: () => {
         this.errorMessage.set('Could not load merchant details.');
         this.loading.set(false);
+      },
+    });
+
+    this.api.listCampaignRollTables(cid).subscribe({
+      next: (tables) => {
+        this.campaignTables.set(tables.map((t) => ({ id: t.rollTableId, name: t.tableName })));
+        if (tables.length > 0 && !this.selectedTableToApply()) {
+          this.selectedTableToApply.set(tables[0].rollTableId);
+        }
       },
     });
 
@@ -156,8 +202,10 @@ export class MerchantStorePageComponent {
 
   effectivePrice(basePrice: number): number {
     const discount = this.haggleDiscountPercent();
-    if (discount <= 0) return basePrice;
-    return Math.max(1, Math.round(basePrice * (1 - discount / 100)));
+    const hike = this.priceHikePercent();
+    if (discount > 0) return Math.max(1, Math.round(basePrice * (1 - discount / 100)));
+    if (hike > 0) return Math.round(basePrice * (1 + hike / 100));
+    return basePrice;
   }
 
   openBuyModal(item: LwMerchantInventoryItemVm): void {
@@ -236,29 +284,142 @@ export class MerchantStorePageComponent {
   }
 
   attemptHaggle(): void {
-    if (this.haggleAttempted()) return;
+    const m = this.merchant();
+    if (!m || this.haggleAttempted() || this.rollingHaggle()) return;
 
-    const roll = Math.floor(Math.random() * 20) + 1;
-    const bonus = 4;
-    const total = roll + bonus;
-    this.haggleAttempted.set(true);
+    const opt = this.targetDiscounts.find((o) => o.percent === this.selectedDiscountPercent()) ?? this.targetDiscounts[1];
+    const standingModifier = m.standing ? -m.standing : 0;
+    const effectiveDc = Math.max(8, opt.dc + standingModifier);
+    const persuasionBonus = 4;
 
-    if (total >= 14) {
-      this.haggleDiscountPercent.set(15);
-      this.haggleResultMessage.set(
-        `Persuasion check ${total} (d20:${roll} + 4). Success! The merchant is charmed and grants a 15% discount for this visit!`
-      );
-    } else if (total >= 10) {
-      this.haggleDiscountPercent.set(10);
-      this.haggleResultMessage.set(
-        `Persuasion check ${total} (d20:${roll} + 4). Modest success! The merchant shaves 10% off your purchases.`
-      );
-    } else {
-      this.haggleDiscountPercent.set(0);
-      this.haggleResultMessage.set(
-        `Persuasion check ${total} (d20:${roll} + 4). The merchant scoffs: "These prices are already rock-bottom, traveler!" No discount granted.`
-      );
-    }
+    this.rollingHaggle.set(true);
+    const d20 = Math.floor(Math.random() * 20) + 1;
+    const total = d20 + persuasionBonus;
+    const isSuccess = total >= effectiveDc;
+
+    this.overlay.triggerFullScreenRoll({
+      label: `Haggling with ${m.merchantName}`,
+      actorName: this.activeCharacterName(),
+      expression: `1d20 + ${persuasionBonus} (Persuasion)`,
+      diceValues: [d20],
+      modifier: persuasionBonus,
+      total,
+      outcomeBadge: isSuccess ? 'DEAL STRUCK' : 'REJECTED',
+      isNat20: d20 === 20,
+      isCritFail: d20 === 1,
+      onComplete: () => {
+        this.rollingHaggle.set(false);
+        this.haggleAttempted.set(true);
+
+        if (isSuccess) {
+          this.haggleDiscountPercent.set(opt.percent);
+          this.priceHikePercent.set(0);
+          const ev = pickRandomHaggleSuccess(opt.percent);
+          this.haggleEvent.set(ev);
+          this.haggleResultMessage.set(`Persuasion: ${total} (d20:${d20} + ${persuasionBonus}) vs DC ${effectiveDc}. SUCCESS! ${ev.desc}`);
+
+          if (ev.standingDelta) {
+            const cid = this.store.activeCampaignId() || 1;
+            this.api.adjustStanding(cid, m.id, ev.standingDelta).subscribe({
+              next: () => this.loadStoreData(m.id),
+            });
+          }
+        } else {
+          this.haggleDiscountPercent.set(0);
+          const ev = pickRandomHaggleFailure();
+          if (ev.priceHikePercent) {
+            this.priceHikePercent.set(ev.priceHikePercent);
+          }
+          this.haggleEvent.set(ev);
+          this.haggleResultMessage.set(`Persuasion: ${total} (d20:${d20} + ${persuasionBonus}) vs DC ${effectiveDc}. REJECTED! ${ev.desc}`);
+
+          if (ev.standingDelta) {
+            const cid = this.store.activeCampaignId() || 1;
+            this.api.adjustStanding(cid, m.id, ev.standingDelta).subscribe({
+              next: () => this.loadStoreData(m.id),
+            });
+          }
+        }
+      },
+    });
+  }
+
+  generateNewNpc(): void {
+    const m = this.merchant();
+    if (!m) return;
+    const cid = this.store.activeCampaignId() || 1;
+    this.actionBusy.set(true);
+    this.api.generateRandomNpc(cid, m.id, m.merchantType).subscribe({
+      next: (updated) => {
+        this.actionBusy.set(false);
+        this.merchant.set(updated);
+        this.statusMessage.set(`Generated new proprietor: ${updated.merchantName}!`);
+        setTimeout(() => this.statusMessage.set(''), 4000);
+      },
+      error: () => {
+        this.actionBusy.set(false);
+        this.errorMessage.set('Could not generate NPC shopkeeper.');
+      },
+    });
+  }
+
+  saveLocation(newLocation: string): void {
+    const m = this.merchant();
+    if (!m || !newLocation.trim()) return;
+    const cid = this.store.activeCampaignId() || 1;
+    this.actionBusy.set(true);
+    this.api.updateMerchant(cid, m.id, { locationName: newLocation.trim() }).subscribe({
+      next: (updated) => {
+        this.actionBusy.set(false);
+        this.merchant.set(updated);
+        this.statusMessage.set(`Location updated to "${newLocation}". NPC shopkeeper bound to location.`);
+        setTimeout(() => this.statusMessage.set(''), 4000);
+      },
+      error: () => {
+        this.actionBusy.set(false);
+        this.errorMessage.set('Could not update location.');
+      },
+    });
+  }
+
+  saveMerchantType(newType: string): void {
+    const m = this.merchant();
+    if (!m || !newType.trim()) return;
+    const cid = this.store.activeCampaignId() || 1;
+    this.actionBusy.set(true);
+    this.api.updateMerchant(cid, m.id, { merchantType: newType.trim() }).subscribe({
+      next: (updated) => {
+        this.actionBusy.set(false);
+        this.merchant.set(updated);
+        this.statusMessage.set(`Store category updated to "${newType}".`);
+        setTimeout(() => this.statusMessage.set(''), 4000);
+      },
+      error: () => {
+        this.actionBusy.set(false);
+        this.errorMessage.set('Could not update merchant type.');
+      },
+    });
+  }
+
+  applySelectedRollTable(): void {
+    const m = this.merchant();
+    const tableId = this.selectedTableToApply();
+    if (!m || !tableId) return;
+
+    const cid = this.store.activeCampaignId() || 1;
+    this.actionBusy.set(true);
+    this.api.applyTableInventory(cid, m.id, tableId, this.clearExistingOnApply()).subscribe({
+      next: (res) => {
+        this.actionBusy.set(false);
+        this.statusMessage.set(res.message);
+        this.loadStoreData(m.id);
+        setTimeout(() => this.statusMessage.set(''), 5000);
+      },
+      error: (err) => {
+        this.actionBusy.set(false);
+        this.errorMessage.set(err.error?.message || 'Could not apply table inventory.');
+      },
+    });
   }
 
   restockStore(clear: boolean): void {
@@ -294,7 +455,7 @@ export class MerchantStorePageComponent {
     const cid = this.store.activeCampaignId() || 1;
     this.api
       .addInventoryItem(cid, m.id, {
-        itemKey: `custom-${Guid()}`,
+        itemKey: `custom-${Math.random().toString(36).substring(2, 10)}`,
         name: payload.name,
         itemType: payload.itemType,
         rarity: payload.rarity,
@@ -323,8 +484,4 @@ export class MerchantStorePageComponent {
       error: () => this.errorMessage.set('Could not remove item.'),
     });
   }
-}
-
-function Guid(): string {
-  return Math.random().toString(36).substring(2, 10);
 }

@@ -25,6 +25,17 @@
         <button
           ngpButton
           type="button"
+          class="lw-btn lw-btn--secondary"
+          (click)="openRandomModal()"
+          title="Forge a random D&D fantasy merchant with store name and NPC shopkeeper"
+        >
+          <lw-icon name="dices" [size]="14" tone="gold" />
+          <span>Generate Random Merchant</span>
+        </button>
+
+        <button
+          ngpButton
+          type="button"
           class="lw-btn lw-btn--primary"
           (click)="openCreateModal()"
         >
@@ -336,6 +347,102 @@
             [disabled]="!newStoreName().trim()"
           >
             Create Merchant
+          </button>
+        </div>
+      </form>
+    </lw-modal>
+
+    <!-- GENERATE RANDOM MERCHANT MODAL -->
+    <lw-modal
+      [(open)]="randomModalOpen"
+      title="Forge Random Fantasy Merchant"
+      subtitle="Generates an authentic D&D shop, fantasy store name, and NPC proprietor"
+      size="md"
+    >
+      <form class="create-form" (ngSubmit)="submitGenerateRandom()">
+        <p class="modal-hint">
+          Pulls from a database of fantasy store names, generates a customized NPC shopkeeper with D&D stats, race, demeanor, and quirk, and optionally stocks their shelves with themed 5e items.
+        </p>
+
+        <div class="form-grid">
+          <label>
+            <span>Merchant & Store Type</span>
+            <select
+              [ngModel]="randomMerchantType()"
+              (ngModelChange)="randomMerchantType.set($event)"
+              name="merchantType"
+            >
+              <option value="random">Random Fantasy Type (Any)</option>
+              @for (type of merchantTypes; track type) {
+                <option [value]="type">{{ type }}</option>
+              }
+            </select>
+          </label>
+
+          <label>
+            <span>Merchant & NPC Location</span>
+            <input
+              type="text"
+              placeholder="e.g. Vandia, Cinth, Port of Forgotten Treasures"
+              [ngModel]="randomLocation()"
+              (ngModelChange)="randomLocation.set($event)"
+              name="merchantLocation"
+            />
+          </label>
+        </div>
+
+        <div class="stock-option-box">
+          <span class="stock-title">Initial Inventory</span>
+          <label class="stock-radio">
+            <input
+              type="radio"
+              name="popStock"
+              [value]="true"
+              [checked]="randomPopulateInventory()"
+              (change)="randomPopulateInventory.set(true)"
+            />
+            <div>
+              <strong>Fully Populated with Wares</strong>
+              <p>Generates thematic starter stock tailored to this merchant type (weapons, potions, gear, relics).</p>
+            </div>
+          </label>
+
+          <label class="stock-radio">
+            <input
+              type="radio"
+              name="popStock"
+              [value]="false"
+              [checked]="!randomPopulateInventory()"
+              (change)="randomPopulateInventory.set(false)"
+            />
+            <div>
+              <strong>Empty Store</strong>
+              <p>Leaves inventory blank so you can manually add custom items or dump a roll table later.</p>
+            </div>
+          </label>
+        </div>
+
+        <div class="modal-actions">
+          <button
+            ngpButton
+            type="button"
+            class="lw-btn lw-btn--subtle"
+            (click)="randomModalOpen.set(false)"
+          >
+            Cancel
+          </button>
+          <button
+            ngpButton
+            type="submit"
+            class="lw-btn lw-btn--primary"
+            [disabled]="generatingRandom()"
+          >
+            @if (generatingRandom()) {
+              <span>Forging Merchant...</span>
+            } @else {
+              <lw-icon name="dices" [size]="14" />
+              <span>Forge Merchant</span>
+            }
           </button>
         </div>
       </form>

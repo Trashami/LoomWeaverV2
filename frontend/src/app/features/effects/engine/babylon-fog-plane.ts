@@ -291,6 +291,9 @@ export class BabylonFogPlane {
       Texture.BILINEAR_SAMPLINGMODE,
     );
     texture.hasAlpha = true;
+    const initCtx = texture.getContext() as unknown as CanvasRenderingContext2D;
+    initCtx.clearRect(0, 0, FOG_TEXTURE_WIDTH, FOG_TEXTURE_HEIGHT);
+    texture.update(false);
     texture.wrapU = Texture.CLAMP_ADDRESSMODE;
     texture.wrapV = Texture.CLAMP_ADDRESSMODE;
 

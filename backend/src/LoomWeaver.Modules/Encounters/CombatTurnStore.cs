@@ -55,9 +55,9 @@ public static class CombatTurnStore
         {
             await using var insert = new MySqlCommand("""
                 INSERT INTO lw_combat_tokens
-                  (campaign_id, token_key, name, subtitle, faction, pos_x, pos_z, current_hp, max_hp, armor_class, initiative, speed_feet, movement_feet, revision)
+                  (campaign_id, token_key, name, role_label, faction, pos_x, pos_z, current_hp, max_hp, armor_class, initiative, movement_feet, revision)
                 VALUES
-                  (@c, @k, @n, 'Combatant', 'Party', @x, @z, 20, 20, 14, 10, 30, 30, 1)
+                  (@c, @k, @n, 'Combatant', 'party', @x, @z, 20, 20, 14, 10, 30, 1)
                 ON DUPLICATE KEY UPDATE pos_x=@x, pos_z=@z, revision=revision+1;
                 """, db, tx);
             insert.Parameters.AddWithValue("@c", campaignId);
@@ -128,7 +128,7 @@ public static class CombatTurnStore
         }
 
         await using (var move = new MySqlCommand(
-            "UPDATE lw_combat_tokens SET movement_feet=speed_feet WHERE campaign_id=@c AND token_key=@k", db, tx))
+            "UPDATE lw_combat_tokens SET movement_feet=30 WHERE campaign_id=@c AND token_key=@k", db, tx))
         {
             move.Parameters.AddWithValue("@c", campaignId);
             move.Parameters.AddWithValue("@k", order[next]);

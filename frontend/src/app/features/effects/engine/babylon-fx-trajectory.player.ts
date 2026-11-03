@@ -57,6 +57,8 @@ export class BabylonFxTrajectoryPlayer {
 
     options?.onPlayStateChange?.(true);
 
+    // Combat spell animations intentionally run 40% slower (timeScale = 0.6) so tactical beats and lighting read clearly
+    const combatTimeScale = 0.6;
     const handle = playNativeEffect(
       scene,
       definition,
@@ -66,12 +68,16 @@ export class BabylonFxTrajectoryPlayer {
         pixelsPerUnit: 42,
         elevationAt: (x: number, z: number) =>
           TerrainMeshBuilder.sampleElevationAt(scene, x, z) + 0.32,
-        lightGain: 1.35,
+        lightGain: 4.2,
+        timeScale: combatTimeScale,
       },
     );
 
     this.activeHandles.add(handle);
-    const totalMs = Math.max(900, Math.min(6000, effectDuration(definition) + 120));
+    const totalMs = Math.max(
+      1400,
+      Math.min(10000, Math.round(effectDuration(definition) / combatTimeScale) + 220),
+    );
     setTimeout(() => {
       handle.dispose();
       this.activeHandles.delete(handle);

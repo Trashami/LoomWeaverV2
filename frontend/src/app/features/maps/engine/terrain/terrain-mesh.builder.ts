@@ -908,6 +908,7 @@ export class TerrainMeshBuilder {
     if (!mat) {
       mat = new StandardMaterial('lw-terrain-mat', scene);
     }
+    mat.maxSimultaneousLights = 12;
 
     // Standard 3D Surface Finish (Matte, Semi-Glossy, Shiny) + Roughness & Specular controls
     const roughnessFrac = Math.max(0.04, Math.min(1.0, this.floorRoughness / 100));

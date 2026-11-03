@@ -101,7 +101,13 @@ export class BabylonTokenMeshBuilder {
 
       const existingBase = scene.getMeshByName(`lw-token-${t.key}`) as Mesh | null;
       if (existingBase && existingBase.metadata?.renderSig === renderSig) {
-        existingBase.position.set(t.x, groundY + baseHeight / 2 + 0.01, t.z);
+        if (!existingBase.metadata?.isLiftedOrWobbling) {
+          existingBase.position.set(t.x, groundY + baseHeight / 2 + 0.01, t.z);
+          existingBase.rotation.set(0, existingBase.rotation.y, 0);
+        } else {
+          existingBase.position.x = t.x;
+          existingBase.position.z = t.z;
+        }
         const rimMat = scene.getMaterialByName(`lw-mat-rim-${t.key}`) as StandardMaterial | null;
         if (rimMat) {
           const rimHex = isTargeted ? '#ef4444' : isAttacker ? '#f59e0b' : t.colorHex || (t.faction === 'party' ? '#2ee66b' : t.faction === 'hostile' ? '#ef5d72' : '#94a3b8');

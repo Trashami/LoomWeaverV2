@@ -122,11 +122,11 @@ export class BabylonDiceStageService {
     }
   }
 
-  syncUserPreferencesFromServer(campaignId = 1, userId?: number | string | null): void {
+  syncUserPreferencesFromServer(_campaignId = 1, userId?: number | string | null): void {
     const uid = userId ?? this.resolveCurrentUserId();
     this.http
       .get<{ activeLoadout?: Record<string, unknown> & { skinId?: string; customConfig?: unknown }; activeCustomConfig?: unknown }>(
-        `/api/v2/campaigns/${campaignId}/dice-forge/state`
+        '/api/v2/dice-forge/state'
       )
       .subscribe({
         next: state => {
@@ -160,14 +160,14 @@ export class BabylonDiceStageService {
     });
   }
 
-  persistActiveUserDicePreference(config?: DiceCustomRuntimeConfig, campaignId = 1): void {
+  persistActiveUserDicePreference(config?: DiceCustomRuntimeConfig, _campaignId = 1): void {
     const next = normalizeCustomRuntimeConfig(config ?? this.currentCustom) ?? this.currentCustom;
     this.currentSkin = resolveDiceSkin(next.skinId);
     this.currentCustom = next;
     this.hasLoadedUserConfig = true;
     writeStoredActiveDiceConfig(next, this.resolveCurrentUserId());
     this.notifyConfigListeners();
-    this.http.put(`/api/v2/campaigns/${campaignId}/dice-forge/loadout`, buildServerLoadoutPayload(next)).subscribe({ error: () => {} });
+    this.http.put('/api/v2/dice-forge/loadout', buildServerLoadoutPayload(next)).subscribe({ error: () => {} });
   }
 
   triggerCritScreenVignette(outcome: 'nat20' | 'critfail'): void {

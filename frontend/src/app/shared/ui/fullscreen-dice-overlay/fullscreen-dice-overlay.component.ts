@@ -4,6 +4,7 @@ import {
   Component,
   ElementRef,
   HostListener,
+  effect,
   inject,
   viewChild,
 } from '@angular/core';
@@ -19,6 +20,18 @@ import { FullscreenDiceOverlayService } from '../../../features/dice/engine/full
 export class LwFullscreenDiceOverlayComponent implements AfterViewInit {
   readonly overlay = inject(FullscreenDiceOverlayService);
   private readonly diceCanvas = viewChild<ElementRef<HTMLCanvasElement>>('fullscreenDiceCanvas');
+
+  constructor() {
+    effect(() => {
+      if (this.overlay.overlayPhase() === 'hidden' && typeof document !== 'undefined') {
+        const canvasEl = this.diceCanvas()?.nativeElement;
+        const active = document.activeElement as HTMLElement | null;
+        if (active && (active === canvasEl || canvasEl?.parentElement?.contains(active))) {
+          active.blur();
+        }
+      }
+    });
+  }
 
   ngAfterViewInit(): void {
     const canvasEl = this.diceCanvas()?.nativeElement;

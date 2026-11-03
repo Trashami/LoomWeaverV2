@@ -226,6 +226,34 @@ public static class DiceForgeEndpoints
         api.MapGet("/campaigns/{campaignId:int}/dice-skins", (int campaignId) =>
             Results.Ok(GetCuratedSkins()));
 
+        api.MapGet("/dice-forge/state", async (HttpContext ctx, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
+        {
+            var u = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
+            var mem = await LoadUserPreferencesAsync(u?.Id, mysql, ct);
+            return Results.Ok(BuildStateSnapshot(1, mem));
+        });
+
+        api.MapPut("/dice-forge/loadout", async (DiceForgeLoadoutContract loadout, HttpContext ctx, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
+        {
+            var u = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
+            var mem = await LoadUserPreferencesAsync(u?.Id, mysql, ct);
+            lock (StateLock)
+            {
+                ActiveLoadout = loadout;
+                if (loadout.CustomConfig is not null)
+                {
+                    ActiveCustomConfigGlobal = loadout.CustomConfig;
+                }
+            }
+            mem.ActiveLoadout = loadout;
+            if (loadout.CustomConfig is not null)
+            {
+                mem.ActiveCustomConfig = loadout.CustomConfig;
+            }
+            await SaveUserPreferencesAsync(u?.Id, mem, mysql, ct);
+            return Results.Ok(BuildStateSnapshot(1, mem));
+        });
+
         api.MapGet("/campaigns/{campaignId:int}/dice-forge/state", async (int campaignId, HttpContext ctx, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
         {
             var u = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);

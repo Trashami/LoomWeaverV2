@@ -91,17 +91,6 @@ export class WaterSurfaceMaterial {
       if (fogMeta?.lwFogTex) {
         mat.setTexture('lwFogTex', fogMeta.lwFogTex);
       }
-      const eff = mat.getEffect();
-      if (eff) {
-        eff.setFloat('time', nowSec);
-        eff.setVector3('cameraPosition', camPos);
-        eff.setVector3('lightDirection', lightDir);
-        eff.setColor3('lightColor', lightCol);
-        eff.setFloat('lwFogActive', fogActive);
-        if (fogMeta?.lwFogTex) {
-          eff.setTexture('lwFogTex', fogMeta.lwFogTex);
-        }
-      }
     };
 
     const beforeRenderObs = scene.onBeforeRenderObservable.add(syncUniforms);

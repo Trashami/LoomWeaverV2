@@ -254,6 +254,16 @@ export class EffectBuilderVttResolver {
         secondaryColor: secondary,
         size: 16,
         duration: 850,
+        lighting: {
+          enabled: true,
+          followColor: true,
+          color: primary,
+          intensity: 1.65,
+          radiusFeet: 15,
+          heightFeet: 3,
+          softness: 0.85,
+          flicker: 0.14,
+        },
       });
       const impact = createLayer('burst');
       Object.assign(impact, {
@@ -264,6 +274,16 @@ export class EffectBuilderVttResolver {
         delay: 180,
         duration: 750,
         size: 46,
+        lighting: {
+          enabled: true,
+          followColor: false,
+          color: secondary,
+          intensity: 2.1,
+          radiusFeet: 18,
+          heightFeet: 3.5,
+          softness: 0.82,
+          flicker: 0.18,
+        },
       });
       e.layers.push(impact);
       return e;
@@ -278,6 +298,16 @@ export class EffectBuilderVttResolver {
         secondaryColor: secondary,
         size: 56,
         duration: 950,
+        lighting: {
+          enabled: true,
+          followColor: true,
+          color: primary,
+          intensity: 1.85,
+          radiusFeet: 18,
+          heightFeet: 3.5,
+          softness: 0.85,
+          flicker: 0.22,
+        },
       });
       return e;
     }
@@ -292,6 +322,16 @@ export class EffectBuilderVttResolver {
         secondaryColor: secondary,
         size: 72,
         duration: 950,
+        lighting: {
+          enabled: true,
+          followColor: true,
+          color: primary,
+          intensity: 1.75,
+          radiusFeet: 18,
+          heightFeet: 3,
+          softness: 0.88,
+          flicker: 0.1,
+        },
       });
       const ring = createLayer('ring');
       Object.assign(ring, {
@@ -301,6 +341,16 @@ export class EffectBuilderVttResolver {
         secondaryColor: primary,
         size: 78,
         duration: 800,
+        lighting: {
+          enabled: true,
+          followColor: true,
+          color: secondary,
+          intensity: 1.4,
+          radiusFeet: 20,
+          heightFeet: 2.5,
+          softness: 0.9,
+          flicker: 0.08,
+        },
       });
       e.layers.push(ring);
       return e;
@@ -317,6 +367,16 @@ export class EffectBuilderVttResolver {
       secondaryColor: secondary,
       size: isWeapon ? 18 : 26,
       duration: 620,
+      lighting: {
+        enabled: true,
+        followColor: true,
+        color: primary,
+        intensity: isWeapon ? 1.15 : 1.7,
+        radiusFeet: isWeapon ? 10 : 14,
+        heightFeet: 3,
+        softness: 0.82,
+        flicker: isWeapon ? 0.06 : 0.16,
+      },
     });
     const hit = createLayer('burst');
     Object.assign(hit, {
@@ -327,6 +387,16 @@ export class EffectBuilderVttResolver {
       delay: 540,
       duration: 650,
       size: 44,
+      lighting: {
+        enabled: true,
+        followColor: false,
+        color: secondary,
+        intensity: isWeapon ? 1.45 : 2.2,
+        radiusFeet: isWeapon ? 12 : 18,
+        heightFeet: 3.5,
+        softness: 0.85,
+        flicker: 0.18,
+      },
     });
     const sparks = createLayer('sparks');
     Object.assign(sparks, {
@@ -338,6 +408,16 @@ export class EffectBuilderVttResolver {
       duration: 720,
       size: 10,
       count: 32,
+      lighting: {
+        enabled: false,
+        followColor: true,
+        color: secondary,
+        intensity: 0.8,
+        radiusFeet: 8,
+        heightFeet: 2,
+        softness: 0.8,
+        flicker: 0.2,
+      },
     });
     e.layers.push(hit, sparks);
     return e;

@@ -1,6 +1,8 @@
 import {
   Color3,
   Color4,
+  Constants,
+  DynamicTexture,
   Effect,
   Mesh,
   MeshBuilder,
@@ -9,6 +11,7 @@ import {
   Scene,
   ShaderMaterial,
   StandardMaterial,
+  Texture,
   TransformNode,
   Vector2,
   Vector3,
@@ -60,6 +63,7 @@ export interface NativeWorldOptions {
   pixelsPerUnit?: number;
   elevationAt?: (x: number, z: number) => number;
   lightGain?: number;
+  timeScale?: number;
 }
 
 const color = (hex: string) => Color3.FromHexString(hex);
@@ -70,6 +74,8 @@ export class BabylonEffectRuntime {
   readonly owner = ownerId();
   private layers = new Map<string, LayerResources>();
   private lights: PointLight[] = [];
+  private lightPools: { mesh: Mesh; mat: StandardMaterial }[] = [];
+  private lightPoolTex?: DynamicTexture;
   private disposed = false;
 
   constructor(
@@ -126,12 +132,32 @@ export class BabylonEffectRuntime {
       r.backdrop = undefined;
       r.blend = l.blendMode;
     }
-    if (l.blendMode !== 'normal' && !r.backdrop)
+    const needsCustomBackdrop =
+      l.blendMode === 'overlay' ||
+      l.blendMode === 'soft-light' ||
+      l.blendMode === 'hard-light' ||
+      l.blendMode === 'difference';
+    if (needsCustomBackdrop && !r.backdrop)
       r.backdrop = createBlendBackdrop(this.scene, l.id, order, this.owner);
     if (r.backdrop)
       r.backdrop.renderListPredicate = (m) =>
         m.metadata?.lwNativeOwner !== this.owner || m.metadata.lwNativeOrder < order;
     return r;
+  }
+
+  private resolveAlphaMode(blendMode: string): number {
+    switch (blendMode) {
+      case 'add':
+        return Constants.ALPHA_ADD;
+      case 'screen':
+        return Constants.ALPHA_SCREENMODE;
+      case 'multiply':
+        return Constants.ALPHA_MULTIPLY;
+      case 'lighten':
+        return Constants.ALPHA_MAXIMIZED;
+      default:
+        return Constants.ALPHA_COMBINE;
+    }
   }
 
   private material(
@@ -147,8 +173,9 @@ export class BabylonEffectRuntime {
     }
     const l = f.layer,
       fire = l.fireMaterial ?? l.fireHit;
+    m.alphaMode = this.resolveAlphaMode(l.blendMode);
     m.setFloat('uLayerAlpha', f.alpha);
-    m.setFloat('uBlend', nativeBlendModes.indexOf(l.blendMode));
+    m.setFloat('uBlend', r.backdrop ? nativeBlendModes.indexOf(l.blendMode) : 0);
     m.setVector2(
       'uViewport',
       new Vector2(this.scene.getEngine().getRenderWidth(), this.scene.getEngine().getRenderHeight())
@@ -459,11 +486,13 @@ export class BabylonEffectRuntime {
         colors: number[] = [],
         indices: number[] = [];
       for (const q of f.particles) {
-        if (q.alpha < 0.0001) continue;
         const center = worldPoint(q);
+        const visible = q.alpha >= 0.0001;
+        const sizeScale = visible ? q.size / unit : 0;
         let xAxis: Vector3;
         let yAxis: Vector3;
         if (
+          visible &&
           q.dirX !== undefined &&
           q.dirY !== undefined &&
           q.dirZ !== undefined &&
@@ -493,17 +522,18 @@ export class BabylonEffectRuntime {
           yAxis = up.scale(c).subtract(right.scale(s));
         }
         const base = positions.length / 3,
-          tint = color(q.color);
+          tint = color(q.color),
+          aVal = visible ? q.alpha : 0;
         for (const [x, y] of [
           [-1, -1],
           [1, -1],
           [1, 1],
           [-1, 1],
         ]) {
-          const v = center.add(xAxis.scale((x * q.size) / unit)).add(yAxis.scale((y * q.size * q.stretch) / unit));
+          const v = center.add(xAxis.scale(x * sizeScale)).add(yAxis.scale(y * sizeScale * q.stretch));
           positions.push(v.x, v.y, v.z);
           uvs.push(q.tile * 2 + (x + 1) * 0.9999, (y + 1) / 2);
-          colors.push(tint.r, tint.g, tint.b, q.alpha);
+          colors.push(tint.r, tint.g, tint.b, aVal);
         }
         indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
       }
@@ -664,10 +694,77 @@ export class BabylonEffectRuntime {
       light.diffuse = c;
       light.specular = c;
       light.intensity = s.intensity * (this.options.lightGain ?? 3.6);
-      light.range = Math.max(2.8, (s.radius / unit) * 1.65);
+      const worldRadius = Math.max(2.2, (s.radius / unit) * 1.45);
+      light.range = Math.max(3.2, worldRadius * 1.45);
       light.setEnabled(true);
+
+      // Dynamic Ground Illumination Pool honoring EffectBuilder spell lighting (radius, intensity, color, softness, flicker)
+      const pool = this.ensureLightPool(i);
+      const poolDiameter = worldRadius * 2.0;
+      const surfY = (this.options.elevationAt?.(groundPos.x, groundPos.z) ?? groundPos.y) - 0.26;
+      pool.mesh.position.set(groundPos.x, surfY, groundPos.z);
+      pool.mesh.scaling.set(poolDiameter, 1, poolDiameter);
+      const poolAlpha = Math.max(0.08, Math.min(0.68, s.intensity * 0.34));
+      pool.mat.emissiveColor = c.scale(Math.min(1.5, 0.55 + s.intensity * 0.35));
+      pool.mat.alpha = poolAlpha;
+      pool.mesh.setEnabled(true);
     });
-    for (let i = sources.length; i < this.lights.length; i++) this.lights[i].setEnabled(false);
+    for (let i = sources.length; i < this.lights.length; i++) {
+      this.lights[i].setEnabled(false);
+    }
+    for (let i = sources.length; i < this.lightPools.length; i++) {
+      this.lightPools[i].mesh.setEnabled(false);
+    }
+  }
+
+  private ensureLightPool(index: number): { mesh: Mesh; mat: StandardMaterial } {
+    const existing = this.lightPools[index];
+    if (existing) return existing;
+
+    if (!this.lightPoolTex) {
+      const size = 128;
+      const dt = new DynamicTexture(this.owner + '-light-pool-tex', { width: size, height: size }, this.scene, false);
+      dt.hasAlpha = true;
+      const ctx = dt.getContext() as unknown as CanvasRenderingContext2D;
+      ctx.clearRect(0, 0, size, size);
+      const g = ctx.createRadialGradient(size / 2, size / 2, 2, size / 2, size / 2, size / 2);
+      g.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+      g.addColorStop(0.28, 'rgba(255, 255, 255, 0.62)');
+      g.addColorStop(0.65, 'rgba(255, 255, 255, 0.22)');
+      g.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, size, size);
+      dt.update(false);
+      dt.wrapU = Texture.CLAMP_ADDRESSMODE;
+      dt.wrapV = Texture.CLAMP_ADDRESSMODE;
+      this.lightPoolTex = dt;
+    }
+
+    const mesh = MeshBuilder.CreateGround(
+      this.owner + '-light-pool-' + index,
+      { width: 1, height: 1, subdivisions: 2 },
+      this.scene
+    );
+    mesh.isPickable = false;
+    mesh.renderingGroupId = 0;
+    mesh.alphaIndex = 2;
+
+    const mat = new StandardMaterial(this.owner + '-light-pool-mat-' + index, this.scene);
+    mat.disableLighting = true;
+    mat.backFaceCulling = false;
+    mat.disableDepthWrite = true;
+    mat.zOffset = -1.5;
+    mat.alphaMode = Constants.ALPHA_ADD;
+    mat.diffuseTexture = this.lightPoolTex;
+    mat.opacityTexture = this.lightPoolTex;
+    mat.useAlphaFromDiffuseTexture = true;
+    mat.emissiveColor = Color3.White();
+    mat.specularColor = Color3.Black();
+    mesh.material = mat;
+
+    const entry = { mesh, mat };
+    this.lightPools[index] = entry;
+    return entry;
   }
 
   private release(r: LayerResources) {
@@ -687,6 +784,13 @@ export class BabylonEffectRuntime {
     this.layers.clear();
     for (const light of this.lights) light.dispose();
     this.lights = [];
+    for (const pool of this.lightPools) {
+      pool.mesh.dispose(false, false);
+      pool.mat.dispose(false, false);
+    }
+    this.lightPools = [];
+    this.lightPoolTex?.dispose();
+    this.lightPoolTex = undefined;
   }
 }
 
@@ -740,6 +844,7 @@ export function playNativeEffect(
 ): { dispose: () => void } {
   const runtime = new BabylonEffectRuntime(scene, options),
     unit = options.pixelsPerUnit ?? 66,
+    timeScale = Math.max(0.1, Math.min(3.0, options.timeScale ?? 1.0)),
     start = performance.now(),
     duration = effectDuration(definition);
   let disposed = false;
@@ -751,7 +856,7 @@ export function playNativeEffect(
     runtime.dispose();
   };
   const observer = scene.onBeforeRenderObservable.add(() => {
-    const time = performance.now() - start;
+    const time = (performance.now() - start) * timeScale;
     if (time > duration + 40) {
       dispose();
       return;

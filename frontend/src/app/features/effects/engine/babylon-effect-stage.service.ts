@@ -324,7 +324,7 @@ export class BabylonEffectStageService {
       const ground = MeshBuilder.CreateGround('lw-vtt-ground', { width: 24, height: 16, subdivisions: 16 }, this.scene);
       ground.receiveShadows = true;
       const gMat = new StandardMaterial('lw-vtt-gmat', this.scene);
-      gMat.maxSimultaneousLights = 8;
+      gMat.maxSimultaneousLights = 12;
       gMat.diffuseColor = Color3.FromHexString('#0d1914');
       gMat.specularColor = Color3.Black();
       ground.material = gMat;

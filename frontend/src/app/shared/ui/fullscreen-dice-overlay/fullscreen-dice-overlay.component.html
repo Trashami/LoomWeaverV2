@@ -14,6 +14,7 @@
   [class.lw-fs-dice-overlay--active]="overlay.overlayPhase() !== 'hidden'"
   [class.lw-fs-dice-overlay--interactive]="overlay.overlayPhase() !== 'hidden'"
   [attr.aria-hidden]="overlay.overlayPhase() === 'hidden'"
+  [attr.inert]="overlay.overlayPhase() === 'hidden' ? '' : null"
   (click)="onBackdropClick()"
 >
   <div
@@ -32,6 +33,7 @@
 
   <canvas
     #fullscreenDiceCanvas
+    tabindex="-1"
     class="lw-fs-dice-overlay__canvas"
     [class.is-visible]="
       overlay.overlayPhase() === 'rolling' ||

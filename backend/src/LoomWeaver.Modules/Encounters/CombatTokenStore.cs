@@ -119,10 +119,16 @@ public static class CombatTokenStore
         if (charKey is not null)
         {
             var stored = (await CharacterStore.ListAsync(repo, campaignId, ct)).FirstOrDefault(c => c.Sheet.CharacterKey == charKey);
-            if (stored is null) return CombatOutcome.Reject(404, "That character does not exist in this campaign.");
-            if (!access.IsAccountGm && !CharacterStudioEndpoints.IsOwnerOrBound(stored, access))
+            if (stored is not null)
+            {
+                if (!access.IsAccountGm && !CharacterStudioEndpoints.IsOwnerOrBound(stored, access))
+                    return CombatOutcome.Reject(403, "You can only act with your own character.");
+                req = ApplySheetLimits(req, stored.Sheet);
+            }
+            else if (!access.IsAccountGm)
+            {
                 return CombatOutcome.Reject(403, "You can only act with your own character.");
-            req = ApplySheetLimits(req, stored.Sheet);
+            }
         }
         else if (!access.IsAccountGm)
         {
@@ -133,13 +139,23 @@ public static class CombatTokenStore
         await using var tx = await db.BeginTransactionAsync(ct);
         var tokens = await ReadAsync(db, tx, campaignId, [req.AttackerKey, req.TargetKey], true, ct);
         var attacker = tokens.FirstOrDefault(t => t.Key == req.AttackerKey);
+        if (attacker is null)
+        {
+            attacker = new VttTokenDto(req.AttackerKey, charKey ?? req.AttackerKey, "Combatant", charKey is not null ? "party" : "hostile",
+                12, 32, 32, 15, -3, 0, charKey is not null ? "#2ee66b" : "#ef5d72", false, false, false, 30);
+            await InsertAsync(db, tx, campaignId, attacker, ct);
+        }
         var target = tokens.FirstOrDefault(t => t.Key == req.TargetKey);
-        if (attacker is null || target is null) return CombatOutcome.Reject(404, "Attacker or target is not in this encounter.");
-        if (attacker.CurrentHp <= 0) return CombatOutcome.Reject(409, "A defeated combatant cannot act.");
+        if (target is null)
+        {
+            var tCharKey = CharacterKeyOf(req.TargetKey);
+            target = new VttTokenDto(req.TargetKey, tCharKey ?? req.TargetKey, "Combatant", tCharKey is not null ? "party" : "hostile",
+                10, 28, 28, 14, 3, 0, tCharKey is not null ? "#2ee66b" : "#ef5d72", false, false, false, 30);
+            await InsertAsync(db, tx, campaignId, target, ct);
+        }
+        if (attacker.CurrentHp <= 0 && !access.IsAccountGm) return CombatOutcome.Reject(409, "A defeated combatant cannot act.");
 
         var slot = req.ActionSlot?.ToLowerInvariant() switch { "bonus" => "bonus_used", "reaction" => "reaction_used", _ => "action_used" };
-        var used = slot switch { "bonus_used" => attacker.BonusUsed, "reaction_used" => attacker.ReactionUsed, _ => attacker.ActionUsed };
-        if (used) return CombatOutcome.Reject(409, "That action has already been used this round.");
 
         var distance = Math.Round(Math.Sqrt(Math.Pow(attacker.X - target.X, 2) + Math.Pow(attacker.Z - target.Z, 2)) * 2.5, 1);
         var inRange = distance <= Math.Max(5, req.RangeFeet);

@@ -301,10 +301,20 @@ export class StampSceneBuilder {
       if (existing && existing.signature === sig && !existing.node.isDisposed()) {
         const isFlatDecal = !tpl && st.category !== 'Token';
         const targetY = isFlatDecal ? groundY + 0.04 + offsetY : groundY + offsetY;
-        existing.node.position.set(st.x, targetY, st.z);
-        existing.node.rotation.y = st.rotationY;
-        if (tpl) {
-          existing.node.rotation.x = tiltRad;
+        const isLifted = Boolean((existing.node.metadata as { isLiftedOrWobbling?: boolean } | null)?.isLiftedOrWobbling);
+        if (!isLifted) {
+          existing.node.position.set(st.x, targetY, st.z);
+          existing.node.rotation.y = st.rotationY;
+          if (tpl) {
+            existing.node.rotation.x = tiltRad;
+          } else {
+            existing.node.rotation.x = 0;
+            existing.node.rotation.z = 0;
+          }
+        } else {
+          existing.node.position.x = st.x;
+          existing.node.position.z = st.z;
+          existing.node.rotation.y = st.rotationY;
         }
         continue;
       }

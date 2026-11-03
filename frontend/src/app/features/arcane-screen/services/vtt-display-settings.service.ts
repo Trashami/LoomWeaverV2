@@ -35,7 +35,14 @@ export interface UserVttPreferencesDto {
 }
 
 export function mapVariantUrl(baseUrl: string, suffix: string): string {
-  if (!suffix || baseUrl.startsWith('data:') || baseUrl.startsWith('blob:')) return baseUrl;
+  if (
+    !suffix ||
+    baseUrl.startsWith('data:') ||
+    baseUrl.startsWith('blob:') ||
+    baseUrl.includes('/assets/battlemaps/')
+  ) {
+    return baseUrl;
+  }
   return baseUrl.replace(/(\.[a-z0-9]+)(\?.*)?$/i, `${suffix}$1$2`);
 }
 

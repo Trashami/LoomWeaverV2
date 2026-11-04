@@ -214,7 +214,7 @@ export class VttCombatService {
       return {
         key: n.compositeKey, name: n.name, roleLabel: `Session NPC · ${n.disposition}`, faction,
         initiative: 15 - idx * 2, currentHp: 42, maxHp: 42, armorClass: 15, x: snapped.x, z: snapped.z,
-        colorHex: n.disposition === 'Hostile' ? '#ef5d72' : '#d4a853',
+        colorHex: n.disposition === 'Hostile' ? '#ef4444' : '#38bdf8',
         actionUsed: false, bonusUsed: false, reactionUsed: false, movementFeet: 30,
         avatarUrl: resolved.avatarUrl, glbUrl: resolved.glbUrl,
       };
@@ -230,7 +230,7 @@ export class VttCombatService {
         monsterTokens.push({
           key: `1:Encounter:${slot.slotId}-${i}`, name: `${slot.name}${suffix}`, roleLabel: `${slot.disposition} · CR ${slot.challengeRating}`,
           faction: 'hostile', initiative: Math.max(4, 19 - sIdx * 3 - i), currentHp: slot.maxHp, maxHp: slot.maxHp, armorClass: slot.armorClass,
-          x: snapped.x, z: snapped.z, colorHex: '#ef5d72',
+          x: snapped.x, z: snapped.z, colorHex: '#ef4444',
           actionUsed: false, bonusUsed: false, reactionUsed: false, movementFeet: slot.speedFeet,
           avatarUrl: resolved.avatarUrl, glbUrl: resolved.glbUrl,
         });
@@ -342,7 +342,7 @@ export class VttCombatService {
       {
         key: id, name: npc.name, roleLabel: `${npc.title} · ${npc.disposition}`, faction,
         initiative: 14, currentHp: 38, maxHp: 38, armorClass: 15, x: snapped.x, z: snapped.z,
-        colorHex: faction === 'hostile' ? '#ef5d72' : '#d4a853',
+        colorHex: faction === 'hostile' ? '#ef4444' : '#38bdf8',
         actionUsed: false, bonusUsed: false, reactionUsed: false, movementFeet: 30,
         sightFeet: 60, darkvisionFeet: 0, avatarUrl: resolved.avatarUrl, glbUrl: resolved.glbUrl,
       },
@@ -366,7 +366,7 @@ export class VttCombatService {
         faction: 'hostile', initiative: Math.floor(Math.random() * 14) + 8,
         currentHp: Math.max(1, monster.hitPoints || 28), maxHp: Math.max(1, monster.hitPoints || 28),
         armorClass: monster.armorClass || 13, x: snapped.x,
-        z: snapped.z, colorHex: '#ef5d72',
+        z: snapped.z, colorHex: '#ef4444',
         actionUsed: false, bonusUsed: false, reactionUsed: false, movementFeet: 30,
         sightFeet: 60, darkvisionFeet: 60, avatarUrl: resolved.avatarUrl || monster.tokenUrl, glbUrl: resolved.glbUrl, sizeCategory,
       });

@@ -132,14 +132,49 @@ export interface VttTokenVm {
   readonly ambientGlowRadiusFeet?: number;
 }
 
-const LEGACY_NEON_DEFAULTS = new Set(['#2ee66b', '#49e892', '#ef4444', '#737982']);
+const LEGACY_NEON_DEFAULTS = new Set([
+  '#2ee66b',
+  '#49e892',
+  '#ef4444',
+  '#ef5d72',
+  '#737982',
+  '#1b5e3a',
+  '#7f1d1d',
+  '#3d464d',
+  '#d4a853',
+  '#94a3b8',
+]);
 
 /**
- * Resolves matte LoomWeaver theme token base colors:
- * - Players (PC / party): Darker forest green (#1b5e3a)
- * - NPCs / Allies: Deep slate grey (#3d464d)
- * - Enemies / Hostiles / Monsters: Deep crimson red (#7f1d1d)
+ * Resolves the outer faction rim color for a token base:
+ * - Friendly / Party (PC): Emerald green (#22c55e)
+ * - Enemy / Hostile / Monster: Crimson red (#ef4444)
+ * - NPC / Ally / Neutral: Arcane sapphire blue (#38bdf8)
  * - DM Override: Takes precedence if explicitly set to a custom color
+ */
+export function getTokenRimColorHex(
+  token: Pick<VttTokenVm, 'faction' | 'roleLabel' | 'colorOverride' | 'colorHex'>,
+): string {
+  const override = token.colorOverride?.trim().toLowerCase();
+  if (override && override.length > 0 && !LEGACY_NEON_DEFAULTS.has(override)) {
+    return token.colorOverride!.trim();
+  }
+  const faction = token.faction;
+  const role = (token.roleLabel || '').toLowerCase();
+  if (faction === 'hostile' || role.includes('monster') || role.includes('enemy') || role.includes('hostile')) {
+    return '#ef4444';
+  }
+  if (faction === 'party' || role === 'pc' || role.includes('player') || role.includes('lv.')) {
+    return '#22c55e';
+  }
+  return '#38bdf8';
+}
+
+/**
+ * Resolves the deeper outer-wall collar shade for a token base:
+ * - Friendly (PC / party): Deep emerald (#15803d)
+ * - Enemy (Hostile / monster): Deep crimson (#b91c1c)
+ * - NPC / Ally: Deep sapphire blue (#1d4ed8)
  */
 export function getTokenBaseColorHex(token: VttTokenVm): string {
   const override = token.colorOverride?.trim().toLowerCase();
@@ -149,12 +184,12 @@ export function getTokenBaseColorHex(token: VttTokenVm): string {
   const faction = token.faction;
   const role = (token.roleLabel || '').toLowerCase();
   if (faction === 'hostile' || role.includes('monster') || role.includes('enemy') || role.includes('hostile')) {
-    return '#7f1d1d';
+    return '#b91c1c';
   }
-  if (faction === 'party' || role === 'pc' || role.includes('player')) {
-    return '#1b5e3a';
+  if (faction === 'party' || role === 'pc' || role.includes('player') || role.includes('lv.')) {
+    return '#15803d';
   }
-  return '#3d464d';
+  return '#1d4ed8';
 }
 
 export interface CombatResolutionLogVm {

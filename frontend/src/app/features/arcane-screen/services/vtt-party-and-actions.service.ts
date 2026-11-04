@@ -98,6 +98,7 @@ export class VttPartyAndActionsService {
           name: sheet.name,
           roleLabel: `Lv.${sheet.level} ${sheet.classOrArchetype}`,
           faction: 'party',
+          colorHex: '#22c55e',
           maxHp: sheet.maxHp,
           currentHp:
             existing.currentHp > 0 ? Math.min(existing.currentHp, sheet.maxHp) : sheet.currentHp,
@@ -121,7 +122,7 @@ export class VttPartyAndActionsService {
           armorClass: sheet.armorClass,
           x: slot.x,
           z: slot.z,
-          colorHex: '#1b5e3a',
+          colorHex: '#22c55e',
           actionUsed: false,
           bonusUsed: false,
           reactionUsed: false,

@@ -2,7 +2,6 @@ import {
   AbstractMesh,
   AssetContainer,
   Color3,
-  DynamicTexture,
   Mesh,
   MeshBuilder,
   PBRMaterial,
@@ -15,15 +14,18 @@ import {
 import {
   VttTokenVm,
   getDndSizeScale,
-  getTokenBaseColorHex,
 } from './effect-timeline.contract';
 import { sampleTokenFootprintElevation } from './token-drag-controller';
-import { resolve2dTokenUrlFromLibrary } from '../../arcane-screen/services/vtt-token-library-resolver';
 import {
   attachTokenLightAndGlowMeshes,
   createSpinningBaseTargetReticleMesh,
 } from './babylon-token-light-aura.helper';
 import { attachVolumetricFogToMaterial } from './babylon-volumetric-fog.plugin';
+import {
+  attachGrassBaseAndFactionRim,
+  attachGrassPuckFace,
+  updateTokenRimMaterialHighlight,
+} from './babylon-token-grass-base.helper';
 
 export class BabylonTokenMeshBuilder {
   private readonly glbContainerCache = new Map<string, AssetContainer>();
@@ -38,12 +40,21 @@ export class BabylonTokenMeshBuilder {
 
   private disposeTokenArtifacts(scene: Scene, tokenKey: string): void {
     scene.lights.filter((l) => l.name === `lw-token-light-${tokenKey}`).forEach((l) => l.dispose());
-    scene.meshes.filter((m) => m.metadata?.tokenKey === tokenKey || m.name.startsWith(`lw-token-glow-${tokenKey}`) || m.name.startsWith(`lw-target-reticle-`) && m.name.endsWith(tokenKey)).forEach((m) => m.dispose());
+    scene.meshes
+      .filter(
+        (m) =>
+          m.metadata?.tokenKey === tokenKey ||
+          m.name.startsWith(`lw-token-glow-${tokenKey}`) ||
+          (m.name.startsWith(`lw-target-reticle-`) && m.name.endsWith(tokenKey)),
+      )
+      .forEach((m) => m.dispose());
     scene.transformNodes.filter((n) => n.name === `lw-token-root-${tokenKey}`).forEach((n) => n.dispose());
   }
 
   private disposeReticle(scene: Scene, tokenKey: string): void {
-    scene.meshes.filter((m) => m.name.startsWith('lw-target-reticle-') && m.name.endsWith(tokenKey)).forEach((m) => m.dispose());
+    scene.meshes
+      .filter((m) => m.name.startsWith('lw-target-reticle-') && m.name.endsWith(tokenKey))
+      .forEach((m) => m.dispose());
   }
 
   syncTokens(
@@ -92,12 +103,12 @@ export class BabylonTokenMeshBuilder {
       const sizeScale = getDndSizeScale(t.sizeCategory);
       const effectiveScale = sizeScale;
       const baseDiameter = 0.82 * effectiveScale;
-      const baseHeight = isDead ? 0.028 : 0.06;
+      const baseHeight = isDead ? 0.032 : 0.068;
       const footprintRadius = baseDiameter * 0.42;
       const groundY = sampleTokenFootprintElevation(scene, t.x, t.z, footprintRadius);
 
       const glbReady = Boolean(!isTopDown2D && t.glbUrl && this.glbContainerCache.has(t.glbUrl));
-      const renderSig = `${isTopDown2D ? '2d' : '3d'}|${t.glbUrl ?? ''}|${glbReady ? 1 : 0}|${t.avatarUrl ?? ''}|${t.sizeCategory ?? 'medium'}|${isDead ? 1 : 0}|${t.faction}|${t.colorHex ?? ''}|${t.emitsLight ? 1 : 0}|${t.lightColorHex ?? ''}|${t.lightDimFeet ?? 0}|${t.ambientGlowEnabled ? 1 : 0}|${t.ambientGlowColorHex ?? ''}|${t.ambientGlowRadiusFeet ?? 0}|${t.ambientGlowIntensity ?? 0}|${gridScale.toFixed(2)}`;
+      const renderSig = `${isTopDown2D ? '2d' : '3d-grass-v1'}|${t.glbUrl ?? ''}|${glbReady ? 1 : 0}|${t.avatarUrl ?? ''}|${t.sizeCategory ?? 'medium'}|${isDead ? 1 : 0}|${t.faction}|${t.roleLabel ?? ''}|${t.colorOverride ?? ''}|${t.emitsLight ? 1 : 0}|${t.lightColorHex ?? ''}|${t.lightDimFeet ?? 0}|${t.ambientGlowEnabled ? 1 : 0}|${t.ambientGlowColorHex ?? ''}|${t.ambientGlowRadiusFeet ?? 0}|${t.ambientGlowIntensity ?? 0}|${gridScale.toFixed(2)}`;
 
       const existingBase = scene.getMeshByName(`lw-token-${t.key}`) as Mesh | null;
       if (existingBase && existingBase.metadata?.renderSig === renderSig) {
@@ -108,12 +119,8 @@ export class BabylonTokenMeshBuilder {
           existingBase.position.x = t.x;
           existingBase.position.z = t.z;
         }
-        const rimMat = scene.getMaterialByName(`lw-mat-rim-${t.key}`) as StandardMaterial | null;
-        if (rimMat) {
-          const rimHex = isTargeted ? '#ef4444' : isAttacker ? '#f59e0b' : t.colorHex || (t.faction === 'party' ? '#2ee66b' : t.faction === 'hostile' ? '#ef5d72' : '#94a3b8');
-          rimMat.diffuseColor = Color3.FromHexString(rimHex);
-          rimMat.emissiveColor = Color3.FromHexString(rimHex).scale(isTargeted || isAttacker ? 0.55 : 0.38);
-        }
+        updateTokenRimMaterialHighlight(scene, t, isAttacker, isTargeted);
+
         const pickable = tokenOpacity > 0.05;
         existingBase.visibility = tokenOpacity;
         existingBase.isPickable = pickable;
@@ -140,7 +147,12 @@ export class BabylonTokenMeshBuilder {
 
       const baseMesh = MeshBuilder.CreateCylinder(
         `lw-token-${t.key}`,
-        { height: baseHeight, diameter: baseDiameter, tessellation: 36 },
+        {
+          height: baseHeight,
+          diameterTop: baseDiameter * 0.96,
+          diameterBottom: baseDiameter * 1.02,
+          tessellation: 36,
+        },
         scene,
       );
       baseMesh.position.set(t.x, groundY + baseHeight / 2 + 0.01, t.z);
@@ -165,15 +177,6 @@ export class BabylonTokenMeshBuilder {
       hitbox.isPickable = true;
       hitbox.metadata = { tokenKey: t.key };
 
-      const baseColorHex = getTokenBaseColorHex(t);
-      const baseMat = new StandardMaterial(`lw-tmat-${t.key}`, scene);
-      baseMat.maxSimultaneousLights = 8;
-      baseMat.diffuseColor = Color3.FromHexString(baseColorHex);
-      baseMat.specularColor = new Color3(0.02, 0.02, 0.02);
-      baseMat.specularPower = 2;
-      baseMat.emissiveColor = Color3.FromHexString(baseColorHex).scale(0.16);
-      baseMesh.material = baseMat;
-
       if (!isTopDown2D && t.glbUrl) {
         this.attachGlbMiniature(
           scene,
@@ -187,7 +190,7 @@ export class BabylonTokenMeshBuilder {
           onGlbLoaded,
         );
       } else {
-        this.attachMattePuckFace(
+        attachGrassPuckFace(
           scene,
           t,
           baseMesh,
@@ -195,6 +198,7 @@ export class BabylonTokenMeshBuilder {
           baseHeight,
           isAttacker,
           isTargeted,
+          this.imageElementCache,
         );
       }
 
@@ -247,7 +251,16 @@ export class BabylonTokenMeshBuilder {
       );
       return;
     }
-    this.attachMattePuckFace(scene, token, baseMesh, effectiveScale, baseHeight, isAttacker, isTargeted);
+    attachGrassPuckFace(
+      scene,
+      token,
+      baseMesh,
+      effectiveScale,
+      baseHeight,
+      isAttacker,
+      isTargeted,
+      this.imageElementCache,
+    );
     if (this.loadingGlbUrls.has(glbUrl)) return;
     this.loadingGlbUrls.add(glbUrl);
     const lastSlash = glbUrl.lastIndexOf('/');
@@ -311,11 +324,11 @@ export class BabylonTokenMeshBuilder {
       if (foundBounds) {
         rootNode.position.set(
           -((min.x + max.x) / 2) * scale,
-          baseHeight / 2 - min.y * scale,
+          baseHeight / 2 - min.y * scale + 0.004,
           -((min.z + max.z) / 2) * scale,
         );
       } else {
-        rootNode.position.set(0, baseHeight / 2, 0);
+        rootNode.position.set(0, baseHeight / 2 + 0.004, 0);
       }
 
       const tagMesh = (m: AbstractMesh) => {
@@ -327,13 +340,31 @@ export class BabylonTokenMeshBuilder {
         if (node instanceof AbstractMesh) tagMesh(node);
       });
 
-      this.attachRimOnly(scene, token.key, baseMesh, effectiveScale, baseHeight, isAttacker, isTargeted, token.faction, token.colorHex);
+      attachGrassBaseAndFactionRim(
+        scene,
+        token,
+        baseMesh,
+        effectiveScale,
+        baseHeight,
+        isAttacker,
+        isTargeted,
+        true,
+      );
       if (isDead) {
         rootNode.rotation.z = Math.PI / 2.2;
         rootNode.position.y = baseHeight / 2 + 0.03 * effectiveScale;
       }
     } catch {
-      this.attachMattePuckFace(scene, token, baseMesh, effectiveScale, baseHeight, isAttacker, isTargeted);
+      attachGrassPuckFace(
+        scene,
+        token,
+        baseMesh,
+        effectiveScale,
+        baseHeight,
+        isAttacker,
+        isTargeted,
+        this.imageElementCache,
+      );
     }
   }
 
@@ -345,156 +376,27 @@ export class BabylonTokenMeshBuilder {
       mat.maxSimultaneousLights = 8;
       mat.roughness = Math.max(0.88, mat.roughness ?? 0.92);
       mat.metallic = Math.min(0.06, mat.metallic ?? 0.02);
-      if (!mat.albedoTexture && mat.albedoColor && mat.albedoColor.r > 0.82 && mat.albedoColor.g > 0.82 && mat.albedoColor.b > 0.82) {
+      if (
+        !mat.albedoTexture &&
+        mat.albedoColor &&
+        mat.albedoColor.r > 0.82 &&
+        mat.albedoColor.g > 0.82 &&
+        mat.albedoColor.b > 0.82
+      ) {
         mat.albedoColor = Color3.FromHexString('#7d8581');
       }
     } else if (mat instanceof StandardMaterial) {
       mat.maxSimultaneousLights = 8;
       mat.specularColor = new Color3(0.03, 0.03, 0.03);
-      if (!mat.diffuseTexture && mat.diffuseColor && mat.diffuseColor.r > 0.82 && mat.diffuseColor.g > 0.82 && mat.diffuseColor.b > 0.82) {
+      if (
+        !mat.diffuseTexture &&
+        mat.diffuseColor &&
+        mat.diffuseColor.r > 0.82 &&
+        mat.diffuseColor.g > 0.82 &&
+        mat.diffuseColor.b > 0.82
+      ) {
         mat.diffuseColor = Color3.FromHexString('#7d8581');
       }
     }
-  }
-
-  private attachMattePuckFace(
-    scene: Scene,
-    token: VttTokenVm,
-    baseMesh: Mesh,
-    effectiveScale: number,
-    baseHeight: number,
-    isAttacker: boolean,
-    isTargeted: boolean,
-  ): void {
-    const disc = MeshBuilder.CreateDisc(
-      `lw-token-puck-disc-${token.key}`,
-      { radius: 0.37 * effectiveScale, tessellation: 48, sideOrientation: Mesh.DOUBLESIDE },
-      scene,
-    );
-    disc.parent = baseMesh;
-    disc.position.set(0, baseHeight / 2 + 0.006, 0);
-    disc.rotation.x = Math.PI / 2;
-    disc.isPickable = true;
-    disc.metadata = { tokenKey: token.key };
-
-    const discMat = new StandardMaterial(`lw-mat-puck-${token.key}`, scene);
-    discMat.backFaceCulling = false;
-    discMat.disableLighting = true;
-    discMat.emissiveColor = Color3.White();
-    discMat.specularColor = Color3.Black();
-
-    const size = 256;
-    const dt = new DynamicTexture(`lw-dt-puck-${token.key}`, { width: size, height: size }, scene, true);
-    const factionRingHex = isTargeted
-      ? '#ef4444'
-      : isAttacker
-        ? '#f59e0b'
-        : token.colorHex || (token.faction === 'party' ? '#2ee66b' : token.faction === 'hostile' ? '#ef5d72' : '#94a3b8');
-    const bgCenterHex = token.faction === 'party' ? '#1e5638' : token.faction === 'hostile' ? '#6b1d28' : '#334155';
-    const bgEdgeHex = token.faction === 'party' ? '#0d2b1c' : token.faction === 'hostile' ? '#380d14' : '#1e293b';
-    const initials = (token.name || 'TK')
-      .split(/\s+/)
-      .map((w) => w[0] || '')
-      .join('')
-      .slice(0, 2)
-      .toUpperCase();
-
-    const drawBackdropAndFrame = (ctx: CanvasRenderingContext2D, img?: HTMLImageElement) => {
-      ctx.save();
-      ctx.clearRect(0, 0, size, size);
-      const grad = ctx.createRadialGradient(size / 2, size / 2, size * 0.08, size / 2, size / 2, size * 0.5);
-      grad.addColorStop(0, bgCenterHex);
-      grad.addColorStop(1, bgEdgeHex);
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, size, size);
-
-      if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(size / 2, size / 2, size * 0.44, 0, Math.PI * 2);
-        ctx.clip();
-        const cropDim = Math.min(img.naturalWidth, img.naturalHeight) * 0.86;
-        const sx = (img.naturalWidth - cropDim) / 2;
-        const sy = Math.max(0, (img.naturalHeight - cropDim) * 0.14);
-        ctx.drawImage(img, sx, sy, cropDim, cropDim, 0, 0, size, size);
-        ctx.restore();
-      } else {
-        ctx.fillStyle = '#f4efe2';
-        ctx.font = 'bold 88px Inter, system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(initials, size / 2, size / 2 + 4);
-      }
-
-      ctx.beginPath();
-      ctx.arc(size / 2, size / 2, size * 0.44, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(242, 234, 215, 0.72)';
-      ctx.lineWidth = 4;
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.arc(size / 2, size / 2, size * 0.475, 0, Math.PI * 2);
-      ctx.strokeStyle = factionRingHex;
-      ctx.lineWidth = 12;
-      ctx.stroke();
-      ctx.restore();
-      dt.update(false);
-    };
-
-    const ctx = dt.getContext() as unknown as CanvasRenderingContext2D;
-    const portraitUrl = resolve2dTokenUrlFromLibrary(token);
-    const cachedImg = portraitUrl ? this.imageElementCache.get(portraitUrl) : undefined;
-    if (cachedImg && cachedImg.complete && cachedImg.naturalWidth > 0) {
-      drawBackdropAndFrame(ctx, cachedImg);
-    } else {
-      drawBackdropAndFrame(ctx);
-      if (portraitUrl && typeof Image !== 'undefined') {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          this.imageElementCache.set(portraitUrl, img);
-          if (!disc.isDisposed()) drawBackdropAndFrame(ctx, img);
-        };
-        img.src = portraitUrl;
-      }
-    }
-
-    discMat.diffuseTexture = dt;
-    discMat.emissiveTexture = dt;
-    disc.material = discMat;
-    this.attachRimOnly(scene, token.key, baseMesh, effectiveScale, baseHeight, isAttacker, isTargeted, token.faction, token.colorHex);
-  }
-
-  private attachRimOnly(
-    scene: Scene,
-    tokenKey: string,
-    baseMesh: Mesh,
-    effectiveScale: number,
-    baseHeight: number,
-    isAttacker: boolean,
-    isTargeted: boolean,
-    faction?: VttTokenVm['faction'],
-    customColorHex?: string,
-  ): void {
-    const rim = MeshBuilder.CreateTorus(
-      `lw-token-puck-rim-${tokenKey}`,
-      { diameter: 0.80 * effectiveScale, thickness: 0.044 * effectiveScale, tessellation: 40 },
-      scene,
-    );
-    rim.parent = baseMesh;
-    rim.position.set(0, baseHeight / 2 + 0.008, 0);
-    rim.metadata = { tokenKey };
-
-    const rimMat = new StandardMaterial(`lw-mat-rim-${tokenKey}`, scene);
-    rimMat.maxSimultaneousLights = 8;
-    const rimHex = isTargeted
-      ? '#ef4444'
-      : isAttacker
-        ? '#f59e0b'
-        : customColorHex || (faction === 'party' ? '#2ee66b' : faction === 'hostile' ? '#ef5d72' : '#94a3b8');
-    rimMat.diffuseColor = Color3.FromHexString(rimHex);
-    rimMat.specularColor = new Color3(0.05, 0.05, 0.05);
-    rimMat.emissiveColor = Color3.FromHexString(rimHex).scale(isTargeted || isAttacker ? 0.55 : 0.38);
-    rim.material = rimMat;
   }
 }

@@ -10,7 +10,7 @@ import { LwContextSwitcherOption } from '../../shared/ui/public-api';
 import { WebAudioAmbienceService } from '../assets/engine/web-audio-ambience.service';
 import { FullscreenDiceOverlayService } from '../dice/engine/fullscreen-dice-overlay.service';
 import { BabylonEffectStageService } from '../effects/engine/babylon-effect-stage.service';
-import { getDndSizeScale, getTokenBaseColorHex, VttTokenVm } from '../effects/engine/effect-timeline.contract';
+import { getDndSizeScale, getTokenBaseColorHex, getTokenRimColorHex, VttTokenVm } from '../effects/engine/effect-timeline.contract';
 import { feetToSvgPx, worldToSvgX, worldToSvgY } from './engine/vtt-los-and-grid.engine';
 import { VttRightTabId, VttTacticalAbilityVm } from './models/vtt-battle.models';
 import { toDockAction, toDockToken } from './components/vtt-action-dock/vtt-action-dock.adapter';
@@ -193,8 +193,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   resetZoom(): void { if (!this.isHighPerformance2d()) this.stage.resetCamera(); else this.view2d.reset(); }
   getTokenBaseFill(token: VttTokenVm): string { return getTokenBaseColorHex(token); }
   getTokenBaseStroke(token: VttTokenVm): string {
-    if (this.battle.isTokenTargetedWithReticle(token.key)) return '#991b1b';
-    return this.battle.activeInitiativeToken().key === token.key ? '#c9a66b' : token.colorHex || '#26302c';
+    return getTokenRimColorHex(token);
   }
   getTokenRadius2D(token: VttTokenVm): number { return Math.max(8, Math.round(20 * this.vttDisplay.gridScale() * getDndSizeScale(token.sizeCategory))); }
   getTokenAvatarRadius2D(token: VttTokenVm): number { return Math.max(6, Math.round(18 * this.vttDisplay.gridScale() * getDndSizeScale(token.sizeCategory))); }

@@ -26,6 +26,10 @@ import {
   attach2dTopDownPanningObserver, clear3dMapSceneGraph, createFlatGridLineSystem,
   isMapSceneGraphStatePayload, pickTokenOrNearbyAtScreenPoint, restoreCameraAfterTokenDrag, resync3dMapAsyncAssets, sync3dMapSceneGraph,
 } from './babylon-vtt-3d-scene-graph.helper';
+import {
+  scheduleClearTokenMovementIndicator,
+  updateTokenMovementIndicator,
+} from './babylon-token-movement-indicator.helper';
 
 if (typeof window !== 'undefined') {
   MeshoptCompression.Configuration = { decoder: { url: '/assets/object-library/meshopt_decoder.js' } };
@@ -453,6 +457,18 @@ export class BabylonEffectStageService {
       ...options,
       onPlayStateChange: (playing) => this.isPlayingEffect.set(playing),
     });
+  }
+
+  showStepMovementIndicator(
+    tokenKey: string,
+    startX: number,
+    startZ: number,
+    endX: number,
+    endZ: number,
+  ): void {
+    if (!this.scene) return;
+    updateTokenMovementIndicator(this.scene, tokenKey, startX, startZ, endX, endZ, 0);
+    scheduleClearTokenMovementIndicator(this.scene, 2400);
   }
 
   dispose(): void {

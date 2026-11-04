@@ -7,6 +7,11 @@ import {
 } from '@babylonjs/core';
 import { snapToFiveFootGrid } from '../../arcane-screen/engine/vtt-los-and-grid.engine';
 import { TerrainMeshBuilder } from '../../maps/engine/terrain/terrain-mesh.builder';
+import {
+  clearTokenMovementIndicator,
+  scheduleClearTokenMovementIndicator,
+  updateTokenMovementIndicator,
+} from './babylon-token-movement-indicator.helper';
 
 export interface TokenPlacement {
   readonly key: string;
@@ -129,6 +134,7 @@ export class TokenDragController {
     }
     this.settlingTokens.clear();
     this.active = null;
+    clearTokenMovementIndicator(this.scene);
   }
 
   private pickTokenKey(evt?: PointerEvent): string | null {
@@ -231,6 +237,7 @@ export class TokenDragController {
     if (tokenMesh) {
       tokenMesh.metadata = { ...(tokenMesh.metadata ?? {}), isLiftedOrWobbling: true };
     }
+    updateTokenMovementIndicator(this.scene, drag.key, drag.startX, drag.startZ, drag.x, drag.z, LIFT_HEIGHT_WORLD * 0.5);
   }
 
   private handlePointerMove(info: PointerInfo): void {
@@ -255,6 +262,8 @@ export class TokenDragController {
     drag.x = snapped.x;
     drag.z = snapped.z;
     this.placeMeshes(drag.key, snapped.x, snapped.z);
+    const liftOffset = LIFT_HEIGHT_WORLD * (1 - Math.pow(1 - drag.liftProgress, 3));
+    updateTokenMovementIndicator(this.scene, drag.key, drag.startX, drag.startZ, snapped.x, snapped.z, liftOffset);
     this.handlers.onDragged({ key: drag.key, x: snapped.x, z: snapped.z });
   }
 
@@ -294,7 +303,12 @@ export class TokenDragController {
       });
     }
 
-    if (Math.abs(drag.x - drag.startX) < 0.001 && Math.abs(drag.z - drag.startZ) < 0.001) return;
+    if (Math.abs(drag.x - drag.startX) < 0.001 && Math.abs(drag.z - drag.startZ) < 0.001) {
+      clearTokenMovementIndicator(this.scene);
+      return;
+    }
+    updateTokenMovementIndicator(this.scene, drag.key, drag.startX, drag.startZ, drag.x, drag.z, 0);
+    scheduleClearTokenMovementIndicator(this.scene, 1750);
     this.handlers.onDropped({ key: drag.key, x: drag.x, z: drag.z });
   }
 

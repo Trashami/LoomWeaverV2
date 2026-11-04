@@ -173,6 +173,8 @@ export function paintFogBrushAtScreenPoint(
   }
 }
 
+let activeArrowMoveOrigin: { key: string; startX: number; startZ: number; lastStepMs: number } | null = null;
+
 export function handleVttWindowKeydown(
   event: KeyboardEvent,
   battle: VttBattleStateService,
@@ -222,6 +224,12 @@ export function handleVttWindowKeydown(
     };
     const clamped = clampLineToRangeAndWalls({ x: token.x, z: token.z }, desired, 5, battle.walls(), true);
     if (clamped.blockedByWall) return;
+    const nowMs = performance.now();
+    if (!activeArrowMoveOrigin || activeArrowMoveOrigin.key !== token.key || nowMs - activeArrowMoveOrigin.lastStepMs > 3000) {
+      activeArrowMoveOrigin = { key: token.key, startX: token.x, startZ: token.z, lastStepMs: nowMs };
+    } else {
+      activeArrowMoveOrigin.lastStepMs = nowMs;
+    }
     vtt.applyRemoteTokenMove(token.key, desired.x, desired.z);
     if (!battle.canControlToken(token) || token.faction === 'party') {
       battle.usedMovementFeetByToken.update((prev) => ({ ...prev, [token.key]: (prev[token.key] ?? 0) + 5 }));
@@ -231,6 +239,7 @@ export function handleVttWindowKeydown(
       ]);
     }
     onCastOrSync(false);
+    stage.showStepMovementIndicator(token.key, activeArrowMoveOrigin.startX, activeArrowMoveOrigin.startZ, desired.x, desired.z);
     void serverSync.publishMove(token.key, desired.x, desired.z);
     return;
   }
@@ -421,24 +430,18 @@ export function registerArcaneScreenStageEffects(
     const reticleKeys = battle.allReticleTargetKeys();
     const opacities = fog.opacityByKey();
     const scale = vttDisplay.gridScale();
-    untracked(() => {
-      stage.syncTokens(tokens, attackerKey, targetKey, reticleKeys, opacities, scale);
-    });
+    untracked(() => stage.syncTokens(tokens, attackerKey, targetKey, reticleKeys, opacities, scale));
   });
   effect(() => {
     if (!host.hasConfiguredMap()) return;
     const layer = fog.layer();
-    untracked(() => {
-      stage.syncFog(layer);
-    });
+    untracked(() => stage.syncFog(layer));
   });
   effect(() => {
     if (!host.hasConfiguredMap()) return;
     const is3d = battle.mapMode3D();
     const isPerf = host.isHighPerformance2d();
-    untracked(() => {
-      if (!isPerf) stage.setForcedTopDown(!is3d);
-    });
+    untracked(() => { if (!isPerf) stage.setForcedTopDown(!is3d); });
   });
   effect(() => {
     if (!host.hasConfiguredMap()) return;
@@ -458,10 +461,7 @@ export function registerArcaneScreenStageEffects(
     const scale = vttDisplay.gridScale();
     const offX = vttDisplay.gridOffsetX();
     const offY = vttDisplay.gridOffsetY();
-    untracked(() => {
-      stage.setGridVisible(visible, scale, offX, offY);
-      vtt.snapAllTokensToActiveGrid();
-    });
+    untracked(() => { stage.setGridVisible(visible, scale, offX, offY); vtt.snapAllTokensToActiveGrid(); });
   });
   effect(() => {
     if (!host.hasConfiguredMap()) return;

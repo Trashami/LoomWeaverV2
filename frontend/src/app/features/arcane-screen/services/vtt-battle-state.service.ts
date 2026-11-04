@@ -489,7 +489,7 @@ export class VttBattleStateService {
     const id = `npc-${Date.now().toString().slice(-4)}`;
     this.scopedNpcs.update((prev) => [{ id, name: cleanName, title: title.trim() || 'Session NPC', scope, disposition, locationName: this.vtt.activeLiveEncounter()?.sceneName ?? '', summary: `${disposition} ${scope.toLowerCase()} NPC added live during session.`, gmSecret: 'Added via Arcane Screen Quick-Add tool.', revealedToPlayers: true, onBattleMap: placeOnMap }, ...prev]);
     if (placeOnMap) {
-      this.vtt.tokens.update((tokens) => [...tokens, { key: `1:NPC:${id}`, name: cleanName, roleLabel: `${scope} NPC · ${disposition}`, faction: disposition === 'Hostile' ? 'hostile' : 'party', initiative: 14, currentHp: 36, maxHp: 36, armorClass: 15, x: 0, z: 2, colorHex: disposition === 'Hostile' ? '#ef5d72' : '#49e892', actionUsed: false, bonusUsed: false, reactionUsed: false, movementFeet: 30, sightFeet: 60, darkvisionFeet: 0 }]);
+      this.vtt.tokens.update((tokens) => [...tokens, { key: `1:NPC:${id}`, name: cleanName, roleLabel: `${scope} NPC · ${disposition}`, faction: disposition === 'Hostile' ? 'hostile' : 'ally', initiative: 14, currentHp: 36, maxHp: 36, armorClass: 15, x: 0, z: 2, colorHex: disposition === 'Hostile' ? '#ef4444' : '#38bdf8', actionUsed: false, bonusUsed: false, reactionUsed: false, movementFeet: 30, sightFeet: 60, darkvisionFeet: 0 }]);
     }
   }
 }

@@ -29,6 +29,45 @@ function seededRand(seed: number): () => number {
   };
 }
 
+function pushFacetedTriangle(
+  positions: number[],
+  normals: number[],
+  colors: number[],
+  indices: number[],
+  ax: number, ay: number, az: number, ac: readonly [number, number, number],
+  bx: number, by: number, bz: number, bc: readonly [number, number, number],
+  cx: number, cy: number, cz: number, cc: readonly [number, number, number],
+): void {
+  const ux = bx - ax;
+  const uy = by - ay;
+  const uz = bz - az;
+  const vx = cx - ax;
+  const vy = cy - ay;
+  const vz = cz - az;
+  let nx = uy * vz - uz * vy;
+  let ny = uz * vx - ux * vz;
+  let nz = ux * vy - uy * vx;
+  const len = Math.hypot(nx, ny, nz) || 1;
+  nx /= len;
+  ny /= len;
+  nz /= len;
+  if (ny < 0) {
+    nx = -nx;
+    ny = -ny;
+    nz = -nz;
+  }
+
+  const baseIdx = positions.length / 3;
+  positions.push(ax, ay, az, bx, by, bz, cx, cy, cz);
+  normals.push(nx, ny, nz, nx, ny, nz, nx, ny, nz);
+  colors.push(
+    ac[0], ac[1], ac[2], 1,
+    bc[0], bc[1], bc[2], 1,
+    cc[0], cc[1], cc[2], 1,
+  );
+  indices.push(baseIdx, baseIdx + 1, baseIdx + 2);
+}
+
 function getOrCreateGrassTurfMaterial(scene: Scene): StandardMaterial {
   const existing = turfMaterialByScene.get(scene);
   if (existing) return existing;
@@ -63,20 +102,7 @@ function getOrCreateGrassTurfMaterial(scene: Scene): StandardMaterial {
     ctx.fill();
   }
 
-  // 3. Small fieldstone pebbles nestled in the turf
-  for (let i = 0; i < 12; i++) {
-    const angle = rand() * Math.PI * 2;
-    const dist = (0.22 + rand() * 0.22) * size;
-    const px = size / 2 + Math.cos(angle) * dist;
-    const py = size / 2 + Math.sin(angle) * dist;
-    const pr = 2.2 + rand() * 3.2;
-    ctx.fillStyle = i % 2 === 0 ? '#4a554e' : '#37423b';
-    ctx.beginPath();
-    ctx.ellipse(px, py, pr * 1.2, pr * 0.85, rand() * Math.PI, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // 4. Hundreds of layered micro-grass blades across the top disc
+  // 3.Hundreds of layered micro-grass blades across the top disc
   const bladeColors = ['#29612e', '#347839', '#439145', '#55ab52', '#6ec460', '#84d96e'];
   ctx.lineCap = 'round';
   for (let i = 0; i < 360; i++) {
@@ -94,6 +120,34 @@ function getOrCreateGrassTurfMaterial(scene: Scene): StandardMaterial {
     ctx.moveTo(x0, y0);
     ctx.lineTo(x1, y1);
     ctx.stroke();
+  }
+
+  // 4. Shaded fieldstone rocks & pebbles embedded in the turf
+  for (let i = 0; i < 18; i++) {
+    const angle = (i / 18) * Math.PI * 2 + (rand() - 0.5) * 0.25;
+    const dist = (0.18 + rand() * 0.24) * size;
+    const px = size / 2 + Math.cos(angle) * dist;
+    const py = size / 2 + Math.sin(angle) * dist;
+    const pr = 3.5 + rand() * 5.5;
+    const rot = rand() * Math.PI;
+
+    // Drop shadow
+    ctx.fillStyle = 'rgba(4, 10, 6, 0.65)';
+    ctx.beginPath();
+    ctx.ellipse(px + 1.5, py + 1.5, pr * 1.25, pr * 0.9, rot, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Base granite body
+    ctx.fillStyle = i % 2 === 0 ? '#5c6660' : '#4b544f';
+    ctx.beginPath();
+    ctx.ellipse(px, py, pr * 1.18, pr * 0.84, rot, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Sunlit stone highlight facet
+    ctx.fillStyle = '#8b9690';
+    ctx.beginPath();
+    ctx.ellipse(px - pr * 0.25, py - pr * 0.2, pr * 0.65, pr * 0.42, rot, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   // 5. Subtle ambient occlusion vignette at the outer rim boundary
@@ -123,8 +177,8 @@ function getOrCreateGrassBladeMaterial(scene: Scene): StandardMaterial {
   const mat = new StandardMaterial('lw-shared-token-grass-blade-mat', scene);
   mat.maxSimultaneousLights = 8;
   mat.diffuseColor = Color3.White();
-  mat.emissiveColor = new Color3(0.18, 0.36, 0.18);
-  mat.specularColor = new Color3(0.05, 0.09, 0.05);
+  mat.emissiveColor = new Color3(0.22, 0.26, 0.22);
+  mat.specularColor = new Color3(0.08, 0.10, 0.08);
   mat.backFaceCulling = false;
   attachVolumetricFogToMaterial(mat);
   grassBladeMaterialByScene.set(scene, mat);
@@ -132,8 +186,8 @@ function getOrCreateGrassBladeMaterial(scene: Scene): StandardMaterial {
 }
 
 /**
- * Builds a single merged 3D grass-blade crown template mesh per Scene (unit scale = 1.0)
- * containing curved, tapered 3D grass blades with root-to-tip vertex color gradients.
+ * Builds a single merged 3D grass-and-rock diorama template mesh per Scene (unit scale = 1.0)
+ * containing curved, tapered 3D grass blades AND faceted 3D fieldstone boulders/pebbles.
  */
 function getOrCreateGrassTuftsTemplate(scene: Scene): Mesh {
   const existing = grassTuftsTemplateByScene.get(scene);
@@ -145,11 +199,11 @@ function getOrCreateGrassTuftsTemplate(scene: Scene): Mesh {
   const colors: number[] = [];
   const indices: number[] = [];
 
-  const bladeCount = 48;
+  // 1. 52 Curved 3D Grass Blades
+  const bladeCount = 52;
   for (let b = 0; b < bladeCount; b++) {
-    // Place most tufts in a lush ring inside the faction rim, plus a few shorter inner tufts
-    const isInner = b < 10;
-    const radialFrac = isInner ? 0.08 + rand() * 0.14 : 0.21 + rand() * 0.145;
+    const isInner = b < 12;
+    const radialFrac = isInner ? 0.08 + rand() * 0.14 : 0.20 + rand() * 0.15;
     const theta = (b / bladeCount) * Math.PI * 2 + (rand() - 0.5) * 0.35;
     const bx = Math.cos(theta) * radialFrac;
     const bz = Math.sin(theta) * radialFrac;
@@ -160,19 +214,17 @@ function getOrCreateGrassTuftsTemplate(scene: Scene): Mesh {
     const perpX = -dirZ;
     const perpZ = dirX;
 
-    const height = isInner ? 0.045 + rand() * 0.035 : 0.065 + rand() * 0.055;
+    const height = isInner ? 0.045 + rand() * 0.035 : 0.068 + rand() * 0.058;
     const halfWidthRoot = 0.014 + rand() * 0.007;
     const halfWidthMid = halfWidthRoot * 0.62;
-    const lean = (0.018 + rand() * 0.032) * (isInner ? 0.7 : 1.0);
+    const lean = (0.018 + rand() * 0.034) * (isInner ? 0.7 : 1.0);
 
     const baseVertexIdx = positions.length / 3;
 
-    // v0, v1: Root left & right (dark forest moss)
     positions.push(
       bx - perpX * halfWidthRoot, 0, bz - perpZ * halfWidthRoot,
       bx + perpX * halfWidthRoot, 0, bz + perpZ * halfWidthRoot,
     );
-    // v2, v3: Mid-blade left & right (curved outward, vibrant meadow green)
     const midY = height * 0.54;
     const midShiftX = dirX * lean * 0.45;
     const midShiftZ = dirZ * lean * 0.45;
@@ -180,7 +232,6 @@ function getOrCreateGrassTuftsTemplate(scene: Scene): Mesh {
       bx + midShiftX - perpX * halfWidthMid, midY, bz + midShiftZ - perpZ * halfWidthMid,
       bx + midShiftX + perpX * halfWidthMid, midY, bz + midShiftZ + perpZ * halfWidthMid,
     );
-    // v4: Sharp curved blade tip (sunlit spring green)
     const tipX = bx + dirX * lean;
     const tipZ = bz + dirZ * lean;
     positions.push(tipX, height, tipZ);
@@ -190,25 +241,102 @@ function getOrCreateGrassTuftsTemplate(scene: Scene): Mesh {
     }
 
     const tint = (rand() - 0.5) * 0.06;
-    // Root colors (v0, v1)
     colors.push(
       0.08 + tint, 0.24 + tint, 0.10, 1,
       0.08 + tint, 0.24 + tint, 0.10, 1,
-    );
-    // Mid colors (v2, v3)
-    colors.push(
       0.20 + tint, 0.52 + tint, 0.23, 1,
       0.20 + tint, 0.52 + tint, 0.23, 1,
+      0.45 + tint, 0.82 + tint, 0.34, 1,
     );
-    // Tip color (v4)
-    colors.push(0.45 + tint, 0.82 + tint, 0.34, 1);
 
-    // Lower quad (2 triangles) + upper tapered tip triangle
     indices.push(
       baseVertexIdx + 0, baseVertexIdx + 1, baseVertexIdx + 2,
       baseVertexIdx + 1, baseVertexIdx + 3, baseVertexIdx + 2,
       baseVertexIdx + 2, baseVertexIdx + 3, baseVertexIdx + 4,
     );
+  }
+
+  // 2. 10 Sculpted 3D Faceted Fieldstone Rocks & Companion Pebbles
+  const rockClusters = [
+    { angle: 0.35, dist: 0.27, radius: 0.056, height: 0.048, warm: false },
+    { angle: 0.52, dist: 0.31, radius: 0.032, height: 0.028, warm: true },
+    { angle: 1.65, dist: 0.28, radius: 0.052, height: 0.044, warm: true },
+    { angle: 1.85, dist: 0.24, radius: 0.029, height: 0.025, warm: false },
+    { angle: 2.75, dist: 0.29, radius: 0.062, height: 0.054, warm: false },
+    { angle: 2.98, dist: 0.32, radius: 0.036, height: 0.031, warm: true },
+    { angle: 3.95, dist: 0.26, radius: 0.048, height: 0.040, warm: false },
+    { angle: 4.88, dist: 0.29, radius: 0.058, height: 0.050, warm: true },
+    { angle: 5.10, dist: 0.24, radius: 0.033, height: 0.027, warm: false },
+    { angle: 5.75, dist: 0.30, radius: 0.042, height: 0.035, warm: false },
+  ];
+
+  for (const rc of rockClusters) {
+    const cx = Math.cos(rc.angle) * rc.dist;
+    const cz = Math.sin(rc.angle) * rc.dist;
+    const sides = 7;
+    const botRing: { x: number; y: number; z: number }[] = [];
+    const midRing: { x: number; y: number; z: number }[] = [];
+
+    for (let s = 0; s < sides; s++) {
+      const a = (s / sides) * Math.PI * 2 + (rand() - 0.5) * 0.22;
+      const rBot = rc.radius * (0.82 + rand() * 0.36);
+      const rMid = rBot * (0.62 + rand() * 0.18);
+      const stretchX = 1.0 + (rand() - 0.5) * 0.28;
+      const stretchZ = 1.0 + (rand() - 0.5) * 0.28;
+      botRing.push({
+        x: cx + Math.cos(a) * rBot * stretchX,
+        y: -0.002,
+        z: cz + Math.sin(a) * rBot * stretchZ,
+      });
+      midRing.push({
+        x: cx + Math.cos(a + 0.14) * rMid * stretchX,
+        y: rc.height * (0.54 + rand() * 0.18),
+        z: cz + Math.sin(a + 0.14) * rMid * stretchZ,
+      });
+    }
+
+    const peakX = cx + (rand() - 0.5) * rc.radius * 0.28;
+    const peakY = rc.height;
+    const peakZ = cz + (rand() - 0.5) * rc.radius * 0.28;
+
+    const cBot: readonly [number, number, number] = rc.warm
+      ? [0.27, 0.26, 0.24]
+      : [0.23, 0.27, 0.25];
+    const cMid: readonly [number, number, number] = rc.warm
+      ? [0.54, 0.52, 0.48]
+      : [0.48, 0.53, 0.51];
+    const cTop: readonly [number, number, number] = rc.warm
+      ? [0.76, 0.74, 0.70]
+      : [0.70, 0.75, 0.73];
+
+    for (let s = 0; s < sides; s++) {
+      const next = (s + 1) % sides;
+      const b0 = botRing[s];
+      const b1 = botRing[next];
+      const m0 = midRing[s];
+      const m1 = midRing[next];
+
+      // Lower rock wall facets
+      pushFacetedTriangle(
+        positions, normals, colors, indices,
+        b0.x, b0.y, b0.z, cBot,
+        b1.x, b1.y, b1.z, cBot,
+        m0.x, m0.y, m0.z, cMid,
+      );
+      pushFacetedTriangle(
+        positions, normals, colors, indices,
+        b1.x, b1.y, b1.z, cBot,
+        m1.x, m1.y, m1.z, cMid,
+        m0.x, m0.y, m0.z, cMid,
+      );
+      // Upper craggy cap facet
+      pushFacetedTriangle(
+        positions, normals, colors, indices,
+        m0.x, m0.y, m0.z, cMid,
+        m1.x, m1.y, m1.z, cMid,
+        peakX, peakY, peakZ, cTop,
+      );
+    }
   }
 
   const template = new Mesh('lw-shared-token-grass-tufts-tpl', scene);
@@ -227,8 +355,8 @@ function getOrCreateGrassTuftsTemplate(scene: Scene): Mesh {
 }
 
 /**
- * Applies the faction collar material, 3D turf bed, 3D grass blades, and outer faction rim
- * (Green for Friendly/Party, Red for Enemies, Blue for NPCs) to a token base mesh.
+ * Applies the faction collar material, 3D turf bed, 3D grass blades + faceted 3D rocks,
+ * and outer faction rim (Green for Friendly/Party, Red for Enemies, Blue for NPCs) to a token base mesh.
  */
 export function attachGrassBaseAndFactionRim(
   scene: Scene,
@@ -243,7 +371,6 @@ export function attachGrassBaseAndFactionRim(
   const rimHex = getTokenRimColorHex(token);
   const collarHex = getTokenBaseColorHex(token);
 
-  // 1. Outer cylinder wall uses the deep faction collar color (Green / Red / Blue)
   const baseMat = new StandardMaterial(`lw-tmat-${token.key}`, scene);
   baseMat.maxSimultaneousLights = 8;
   baseMat.diffuseColor = Color3.FromHexString(collarHex);
@@ -253,7 +380,6 @@ export function attachGrassBaseAndFactionRim(
   attachVolumetricFogToMaterial(baseMat);
   baseMesh.material = baseMat;
 
-  // 2. Sculpted upper & lower faction rim rings around the outside of the base
   const rimMat = new StandardMaterial(`lw-mat-rim-${token.key}`, scene);
   rimMat.maxSimultaneousLights = 8;
   rimMat.diffuseColor = Color3.FromHexString(rimHex);
@@ -281,7 +407,6 @@ export function attachGrassBaseAndFactionRim(
   lowerRim.metadata = { tokenKey: token.key };
   lowerRim.material = rimMat;
 
-  // 3. Top grassy soil bed disc inside the faction rim + 3D grass blades
   if (include3dGrassBlades) {
     const turfDisc = MeshBuilder.CreateDisc(
       `lw-token-turf-disc-${token.key}`,
@@ -376,7 +501,6 @@ export function attachGrassPuckFace(
     ctx.save();
     ctx.clearRect(0, 0, size, size);
 
-    // Grassy turf ring backdrop around the portrait
     const turfGrad = ctx.createRadialGradient(size / 2, size / 2, size * 0.1, size / 2, size / 2, size * 0.5);
     turfGrad.addColorStop(0, '#1f4724');
     turfGrad.addColorStop(0.75, '#16351a');
@@ -384,7 +508,6 @@ export function attachGrassPuckFace(
     ctx.fillStyle = turfGrad;
     ctx.fillRect(0, 0, size, size);
 
-    // Paint radial grass blades along the turf border ring
     const rand = seededRand(1337);
     const bladePalette = ['#2d6b32', '#3d8741', '#54a852', '#70c964'];
     ctx.lineCap = 'round';
@@ -418,14 +541,12 @@ export function attachGrassPuckFace(
       ctx.fillText(initials, size / 2, size / 2 + 4);
     }
 
-    // Inner stone/gold bezel around portrait
     ctx.beginPath();
     ctx.arc(size / 2, size / 2, size * 0.39, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(217, 183, 122, 0.78)';
     ctx.lineWidth = 3.5;
     ctx.stroke();
 
-    // Outer faction rim (Green = Friendly, Red = Enemy, Blue = NPC)
     ctx.beginPath();
     ctx.arc(size / 2, size / 2, size * 0.475, 0, Math.PI * 2);
     ctx.strokeStyle = factionRingHex;

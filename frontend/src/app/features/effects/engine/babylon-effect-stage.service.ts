@@ -30,6 +30,7 @@ import {
   scheduleClearTokenMovementIndicator,
   updateTokenMovementIndicator,
 } from './babylon-token-movement-indicator.helper';
+import { animateTokenAmbientGlows } from './babylon-token-light-aura.helper';
 
 if (typeof window !== 'undefined') {
   MeshoptCompression.Configuration = { decoder: { url: '/assets/object-library/meshopt_decoder.js' } };
@@ -399,6 +400,7 @@ export class BabylonEffectStageService {
         this.mapSceneBuilder.updateLightFlicker(nowMs, this.reducedMotion());
         if (this.reducedMotion()) return;
         animateBabylonSpellAndTetherPulse(this.scene, nowMs);
+        animateTokenAmbientGlows(this.scene, nowMs);
         if (this.latestTargetedKeys.length > 0 || this.latestTargetKey) {
           for (const m of this.scene.meshes) {
             if (m.name.startsWith('lw-target-reticle-root-')) m.rotation.y += 0.022;
@@ -459,13 +461,7 @@ export class BabylonEffectStageService {
     });
   }
 
-  showStepMovementIndicator(
-    tokenKey: string,
-    startX: number,
-    startZ: number,
-    endX: number,
-    endZ: number,
-  ): void {
+  showStepMovementIndicator(tokenKey: string, startX: number, startZ: number, endX: number, endZ: number): void {
     if (!this.scene) return;
     updateTokenMovementIndicator(this.scene, tokenKey, startX, startZ, endX, endZ, 0);
     scheduleClearTokenMovementIndicator(this.scene, 2400);

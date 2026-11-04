@@ -257,16 +257,16 @@
           <div class="lw-token-ctx__toggle-line">
             <div>
               <strong class="lw-token-ctx__toggle-title">Character Ambient Glow</strong>
-              <small class="lw-token-ctx__toggle-sub">Aura ring around miniature & token base</small>
+              <small class="lw-token-ctx__toggle-sub">3D ambient aura &amp; illumination emitting from character</small>
             </div>
             <button
               type="button"
               class="lw-token-ctx__pill-toggle"
-              [class.is-on]="t.ambientGlowEnabled"
+              [class.is-on]="t.ambientGlowEnabled !== false"
               [disabled]="!canEditToken()"
               (click)="toggleAmbientGlow(t)"
             >
-              {{ t.ambientGlowEnabled ? 'Enabled' : 'Off' }}
+              {{ t.ambientGlowEnabled !== false ? 'Enabled' : 'Off' }}
             </button>
           </div>
         </div>

@@ -19,6 +19,8 @@ import { sampleTokenFootprintElevation } from './token-drag-controller';
 import {
   attachTokenLightAndGlowMeshes,
   createSpinningBaseTargetReticleMesh,
+  isTokenAmbientGlowActive,
+  resolveTokenAmbientGlowColorHex,
 } from './babylon-token-light-aura.helper';
 import { attachVolumetricFogToMaterial } from './babylon-volumetric-fog.plugin';
 import {
@@ -44,7 +46,7 @@ export class BabylonTokenMeshBuilder {
       .filter(
         (m) =>
           m.metadata?.tokenKey === tokenKey ||
-          m.name.startsWith(`lw-token-glow-${tokenKey}`) ||
+          m.name.startsWith(`lw-token-glow-`) && m.name.endsWith(tokenKey) ||
           (m.name.startsWith(`lw-target-reticle-`) && m.name.endsWith(tokenKey)),
       )
       .forEach((m) => m.dispose());
@@ -108,7 +110,8 @@ export class BabylonTokenMeshBuilder {
       const groundY = sampleTokenFootprintElevation(scene, t.x, t.z, footprintRadius);
 
       const glbReady = Boolean(!isTopDown2D && t.glbUrl && this.glbContainerCache.has(t.glbUrl));
-      const renderSig = `${isTopDown2D ? '2d' : '3d-grass-rocks-v2'}|${t.glbUrl ?? ''}|${glbReady ? 1 : 0}|${t.avatarUrl ?? ''}|${t.sizeCategory ?? 'medium'}|${isDead ? 1 : 0}|${t.faction}|${t.roleLabel ?? ''}|${t.colorOverride ?? ''}|${t.emitsLight ? 1 : 0}|${t.lightColorHex ?? ''}|${t.lightDimFeet ?? 0}|${t.ambientGlowEnabled ? 1 : 0}|${t.ambientGlowColorHex ?? ''}|${t.ambientGlowRadiusFeet ?? 0}|${t.ambientGlowIntensity ?? 0}|${gridScale.toFixed(2)}`;
+      const glowActive = isTokenAmbientGlowActive(t);
+      const renderSig = `${isTopDown2D ? '2d' : '3d-grass-rocks-glow-v3'}|${t.glbUrl ?? ''}|${glbReady ? 1 : 0}|${t.avatarUrl ?? ''}|${t.sizeCategory ?? 'medium'}|${isDead ? 1 : 0}|${t.faction}|${t.roleLabel ?? ''}|${t.colorOverride ?? ''}|${t.emitsLight ? 1 : 0}|${t.lightColorHex ?? ''}|${t.lightDimFeet ?? 0}|${glowActive ? 1 : 0}|${t.ambientGlowColorHex ?? ''}|${t.ambientGlowRadiusFeet ?? 0}|${t.ambientGlowIntensity ?? 0}|${gridScale.toFixed(2)}`;
 
       const existingBase = scene.getMeshByName(`lw-token-${t.key}`) as Mesh | null;
       if (existingBase && existingBase.metadata?.renderSig === renderSig) {
@@ -125,10 +128,11 @@ export class BabylonTokenMeshBuilder {
         existingBase.visibility = tokenOpacity;
         existingBase.isPickable = pickable;
         for (const child of existingBase.getChildMeshes()) {
+          const isGlowMesh = child.name.startsWith('lw-token-glow-');
           if (!child.name.startsWith('lw-token-hitbox-')) {
             child.visibility = tokenOpacity;
           }
-          child.isPickable = pickable;
+          child.isPickable = isGlowMesh ? false : pickable;
         }
         const existingReticle = scene.getMeshByName(`lw-target-reticle-root-${t.key}`) as Mesh | null;
         if (isTargeted && pickable) {
@@ -202,20 +206,23 @@ export class BabylonTokenMeshBuilder {
         );
       }
 
-      if (tokenOpacity > 0.1 && (t.emitsLight || t.ambientGlowEnabled)) {
-        attachTokenLightAndGlowMeshes(scene, t, baseMesh, effectiveScale, baseHeight);
+      if (tokenOpacity > 0.1 && (t.emitsLight || glowActive)) {
+        attachTokenLightAndGlowMeshes(scene, t, baseMesh, effectiveScale, baseHeight, tokenOpacity);
       }
 
       const pickable = tokenOpacity > 0.05;
       baseMesh.visibility = tokenOpacity;
       baseMesh.isPickable = pickable;
       for (const child of baseMesh.getChildMeshes()) {
+        const isGlowMesh = child.name.startsWith('lw-token-glow-');
         child.renderingGroupId = 0;
-        child.alphaIndex = 10;
+        if (!isGlowMesh) {
+          child.alphaIndex = 10;
+        }
         if (!child.name.startsWith('lw-token-hitbox-')) {
           child.visibility = tokenOpacity;
         }
-        child.isPickable = pickable;
+        child.isPickable = isGlowMesh ? false : pickable;
       }
 
       if (isTargeted && pickable) {
@@ -313,7 +320,7 @@ export class BabylonTokenMeshBuilder {
         min = Vector3.Minimize(min, b.minimumWorld);
         max = Vector3.Maximize(max, b.maximumWorld);
         foundBounds = true;
-        this.applyMatteFinishToMiniatureMesh(m);
+        this.applyMatteFinishToMiniatureMesh(m, token);
       }
 
       const targetHeight = 1.05 * effectiveScale;
@@ -368,10 +375,20 @@ export class BabylonTokenMeshBuilder {
     }
   }
 
-  private applyMatteFinishToMiniatureMesh(mesh: AbstractMesh): void {
-    const mat = mesh.material;
+  private applyMatteFinishToMiniatureMesh(mesh: AbstractMesh, token: VttTokenVm): void {
+    const mat = mesh.material?.clone(`lw-token-minimat-${token.key}-${mesh.name}`) ?? mesh.material;
     if (!mat) return;
+    mesh.material = mat;
     attachVolumetricFogToMaterial(mat);
+    const glowActive = isTokenAmbientGlowActive(token);
+    const glowColor = glowActive
+      ? Color3.FromHexString(resolveTokenAmbientGlowColorHex(token))
+      : Color3.Black();
+    const rawIntensity = token.ambientGlowEnabled
+      ? (token.ambientGlowIntensity ?? 0.72)
+      : (token.ambientGlowIntensity ?? 0.52);
+    const emissiveBoost = glowActive ? Math.max(0.12, Math.min(0.48, rawIntensity * 0.36)) : 0;
+
     if (mat instanceof PBRMaterial) {
       mat.maxSimultaneousLights = 8;
       mat.roughness = Math.max(0.88, mat.roughness ?? 0.92);
@@ -385,6 +402,7 @@ export class BabylonTokenMeshBuilder {
       ) {
         mat.albedoColor = Color3.FromHexString('#7d8581');
       }
+      mat.emissiveColor = glowActive ? glowColor.scale(emissiveBoost) : Color3.Black();
     } else if (mat instanceof StandardMaterial) {
       mat.maxSimultaneousLights = 8;
       mat.specularColor = new Color3(0.03, 0.03, 0.03);
@@ -397,6 +415,7 @@ export class BabylonTokenMeshBuilder {
       ) {
         mat.diffuseColor = Color3.FromHexString('#7d8581');
       }
+      mat.emissiveColor = glowActive ? glowColor.scale(emissiveBoost) : Color3.Black();
     }
   }
 }

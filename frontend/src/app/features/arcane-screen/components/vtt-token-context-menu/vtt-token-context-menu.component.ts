@@ -8,6 +8,7 @@ import {
   VttConditionKey,
   VttTokenLightPreset,
   VttTokenVm,
+  getTokenRimColorHex,
 } from '../../../effects/engine/effect-timeline.contract';
 import { VttBattleStateService } from '../../services/vtt-battle-state.service';
 import { VttCombatService } from '../../services/vtt-combat.service';
@@ -160,10 +161,10 @@ export class VttTokenContextMenuComponent {
 
   toggleAmbientGlow(token: VttTokenVm): void {
     if (!this.canEditToken()) return;
-    const next = !token.ambientGlowEnabled;
+    const next = token.ambientGlowEnabled === false;
     this.vtt.updateTokenAppearance(token.key, {
       ambientGlowEnabled: next,
-      ambientGlowColorHex: token.ambientGlowColorHex || token.colorHex || '#2ee66b',
+      ambientGlowColorHex: token.ambientGlowColorHex || getTokenRimColorHex(token),
       ambientGlowIntensity: token.ambientGlowIntensity ?? 0.65,
       ambientGlowRadiusFeet: token.ambientGlowRadiusFeet ?? 10,
     });
@@ -197,7 +198,7 @@ export class VttTokenContextMenuComponent {
 
   setTokenRingColor(token: VttTokenVm, colorHex: string): void {
     if (!this.canEditToken()) return;
-    this.vtt.updateTokenAppearance(token.key, { colorHex });
+    this.vtt.updateTokenAppearance(token.key, { colorHex, colorOverride: colorHex });
   }
 
   removeToken(token: VttTokenVm): void {

@@ -12,6 +12,7 @@ import { MapStampNode } from '../map-scene-contract';
 import { TerrainMeshBuilder } from '../terrain/terrain-mesh.builder';
 import { resolveTextureLodUrl } from './glb-lod';
 import { GlbCloneMetadata, GlbModelCache } from './glb-model-cache';
+import { MiniaturePlinthBuilder } from './miniature-plinth.builder';
 
 interface BuiltStampEntry {
   readonly signature: string;
@@ -86,42 +87,30 @@ function createTokenReferenceNode(
   cellMeters: number,
   stampMeta: GlbCloneMetadata,
 ): TransformNode {
-  const root = new TransformNode(`lw-stamp-node-${st.id}`, scene);
-  root.metadata = stampMeta;
-
   const footprintSq = Math.max(0.5, (st.scaleX ?? 1) * st.scale);
   const diameter = cellMeters * footprintSq * 0.9;
   const ringColorHex = st.colorHex && st.colorHex !== '#ffffff' ? st.colorHex : '#49e892';
 
-  // 1. Beveled 3D miniature base cylinder
-  const base = MeshBuilder.CreateCylinder(
-    `lw-stamp-token-base-${st.id}`,
-    {
-      diameterTop: diameter * 0.94,
-      diameterBottom: diameter,
-      height: 0.14,
-      tessellation: 32,
-    },
+  // 1. Authentic tabletop miniature beveled plinth with tactical status collar ring
+  const plinth = MiniaturePlinthBuilder.buildPlinth(
     scene,
+    {
+      id: st.id,
+      diameter,
+      ringColorHex,
+      showStoneInlay: true,
+    },
+    stampMeta,
   );
-  base.position.y = 0.07;
-  base.parent = root;
-  base.metadata = stampMeta;
-  base.isPickable = true;
-
-  const baseMat = new StandardMaterial(`lw-stamp-token-base-mat-${st.id}`, scene);
-  baseMat.diffuseColor = Color3.FromHexString('#10281e');
-  baseMat.emissiveColor = Color3.FromHexString(ringColorHex).scale(0.32);
-  baseMat.specularColor = Color3.FromHexString('#49e892').scale(0.4);
-  base.material = baseMat;
+  const root = plinth.rootNode;
 
   // 2. Top circular portrait disc with character art + crisp border
   const topDisc = MeshBuilder.CreateGround(
     `lw-stamp-token-top-${st.id}`,
-    { width: diameter * 0.92, height: diameter * 0.92 },
+    { width: diameter * 0.9, height: diameter * 0.9 },
     scene,
   );
-  topDisc.position.y = 0.145;
+  topDisc.position.y = plinth.topSurfaceY + 0.002;
   topDisc.parent = root;
   topDisc.metadata = stampMeta;
   topDisc.isPickable = true;
@@ -133,7 +122,7 @@ function createTokenReferenceNode(
     { width: diameter * 0.78, height: standeeHeight },
     scene,
   );
-  standee.position.y = 0.14 + standeeHeight * 0.5;
+  standee.position.y = plinth.topSurfaceY + standeeHeight * 0.5;
   standee.billboardMode = AbstractMesh.BILLBOARDMODE_Y;
   standee.parent = root;
   standee.metadata = stampMeta;
@@ -342,6 +331,55 @@ export class StampSceneBuilder {
       // 1. Real 3D Asset Model (shared template & GPU geometry across all stamps of this asset)
       if (tpl) {
         const isUniform = Math.abs(sx - sy) < 0.01 && Math.abs(sy - sz) < 0.01;
+        const catStr = st.category as string;
+        const isCreatureOrToken =
+          catStr === 'Creature' ||
+          catStr === 'Token' ||
+          catStr === 'Character' ||
+          catStr === 'Monster' ||
+          (st.placementMode as string | undefined) === 'character' ||
+          Boolean(st.label && /troll|ogre|goblin|orc|hero|fighter|wizard|rogue|cleric|knight|dragon|skeleton|zombie|creature|monster/i.test(st.label));
+
+        if (isCreatureOrToken) {
+          const diameter = cellMeters * Math.max(sx, sz) * 0.95;
+          const plinthColor = st.colorHex && st.colorHex !== '#ffffff' ? st.colorHex : '#dc2626';
+          const plinth = MiniaturePlinthBuilder.buildPlinth(
+            scene,
+            {
+              id: st.id,
+              diameter,
+              ringColorHex: plinthColor,
+              showStoneInlay: true,
+            },
+            stampMeta,
+          );
+
+          const inst = GlbModelCache.instantiateClone(
+            scene,
+            tpl,
+            `lw-stamp-node-${st.id}`,
+            cellMeters * sx,
+            cellMeters * sy,
+            cellMeters * sz,
+            isUniform,
+            false,
+            stampMeta,
+            {
+              colorHex: st.colorHex,
+              surfaceFinish: st.surfaceFinish,
+              opacity: st.opacity,
+            },
+          );
+          inst.parent = plinth.rootNode;
+          inst.position.set(0, plinth.topSurfaceY, 0);
+          inst.rotation.x = tiltRad;
+
+          plinth.rootNode.position.set(st.x, groundY + offsetY, st.z);
+          plinth.rootNode.rotation.y = st.rotationY;
+          builtMap.set(st.id, { signature: sig, node: plinth.rootNode });
+          continue;
+        }
+
         const inst = GlbModelCache.instantiateClone(
           scene,
           tpl,

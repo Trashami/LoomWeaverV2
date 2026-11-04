@@ -356,13 +356,13 @@
 
     @if (activeLeftTool() === 'view') {
       <div class="tool-flyout-popover view-flyout" (click)="$event.stopPropagation()">
-        <div class="flyout-popover-header"><h3>View & Grid Calibration</h3></div>
+        <div class="flyout-popover-header"><h3>View, Camera & Grid</h3></div>
         <div class="flyout-actions-list">
           <button ngpButton type="button" class="flyout-item-btn" [class.active]="gridEnabled()" (click)="gridEnabled.set(!gridEnabled())">
             <lw-icon name="grid" [size]="14" />
             <span class="flyout-item-text">{{ gridEnabled() ? 'Hide Grid (G)' : 'Show Grid (G)' }}</span>
           </button>
-          <button ngpButton type="button" class="flyout-item-btn" [class.active]="battle.mapMode3D()" (click)="battle.mapMode3D.set(!battle.mapMode3D())">
+          <button ngpButton type="button" class="flyout-item-btn" [class.active]="battle.mapMode3D()" (click)="toggle3dMapView()">
             <lw-icon [name]="battle.mapMode3D() ? 'layers' : 'view_in_ar'" [size]="14" />
             <span class="flyout-item-text">{{ battle.mapMode3D() ? 'Switch to 2D Top-Down' : 'Switch to 3D View' }}</span>
           </button>
@@ -377,6 +377,20 @@
               </select>
             </div>
           }
+          <div class="flyout-divider"></div>
+          <div class="grid-scale-control-panel">
+            <div class="scale-panel-header">
+              <span class="section-label">Camera Field of View</span>
+              <span class="scale-value-badge">{{ stage.cameraFovDeg() }}°</span>
+            </div>
+            <input type="range" min="35" max="78" step="1" [value]="stage.cameraFovDeg()" (input)="onCameraFovInput($event)" class="flyout-range" />
+            <div class="flyout-chip-grid-2">
+              <button ngpButton type="button" class="flyout-mode-chip" (click)="applyCameraPreset('close')">Close-Up</button>
+              <button ngpButton type="button" class="flyout-mode-chip" (click)="applyCameraPreset('standard')">Standard</button>
+              <button ngpButton type="button" class="flyout-mode-chip" (click)="applyCameraPreset('wide')">Wide Battle</button>
+              <button ngpButton type="button" class="flyout-mode-chip" (click)="applyCameraPreset('epic')">Epic Vista</button>
+            </div>
+          </div>
           @if (isGm()) {
             <div class="flyout-divider"></div>
             <div class="grid-scale-control-panel">
@@ -385,7 +399,7 @@
                 <span class="flyout-item-text">{{ vttDisplay.calibratingGrid() ? 'Cancel Draw Square' : 'Draw 1 Square to Match Map' }}</span>
               </button>
               <div class="scale-panel-header">
-                <span class="section-label">Grid Size</span>
+                <span class="section-label">Grid & Token Scale</span>
                 <span class="scale-value-badge">{{ gridScalePercent() }}%</span>
               </div>
               <div class="scale-slider-row">

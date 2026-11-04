@@ -9,6 +9,7 @@ import { resolveTextureLodUrl } from '../rendering/glb-lod';
 import {
   Color3,
   DynamicTexture,
+  Material,
   Mesh,
   MeshBuilder,
   Scene,
@@ -962,6 +963,7 @@ export class TerrainMeshBuilder {
             const tileCanvas = this.buildProcessedTileCanvas(albedoImg, heightImg);
             if (tileCanvas) {
               this.rebuildCompositeCanvasFromTile(scene, currentMat, tileCanvas, uScale, vScale);
+              currentMat.markAsDirty(Material.TextureDirtyFlag | Material.MiscDirtyFlag);
             }
           })
           .catch(() => {

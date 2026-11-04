@@ -131,21 +131,21 @@ export class SceneLightingController {
     if (terrainGround) {
       terrainGround.receiveShadows = true;
       if (terrainGround.material instanceof StandardMaterial) {
-        terrainGround.material.maxSimultaneousLights = 8;
+        terrainGround.material.maxSimultaneousLights = 12;
       }
     }
     const vttGround = scene.getMeshByName('lw-vtt-ground');
     if (vttGround) {
       vttGround.receiveShadows = true;
       if (vttGround.material instanceof StandardMaterial) {
-        vttGround.material.maxSimultaneousLights = 8;
+        vttGround.material.maxSimultaneousLights = 12;
       }
     }
 
     shadowMap.renderList = [];
     for (const mesh of scene.meshes) {
       if (isScatterMesh(mesh)) continue;
-      if (mesh.name.startsWith('lw-token-hitbox-') || mesh.name.startsWith('lw-target-reticle-')) {
+      if (isNonShadowCastingVttMesh(mesh)) {
         continue;
       }
       if (
@@ -159,6 +159,28 @@ export class SceneLightingController {
       }
     }
   }
+}
+
+function isNonShadowCastingVttMesh(mesh: AbstractMesh): boolean {
+  const n = mesh.name;
+  if (
+    n.startsWith('lw-token-hitbox-') ||
+    n.startsWith('lw-target-reticle-') ||
+    n.startsWith('lw-token-glow-') ||
+    n.startsWith('lw-token-aura-') ||
+    n.startsWith('lw-token-sel-ring-') ||
+    n.startsWith('lw-token-rim-') ||
+    n.startsWith('lw-token-grass-') ||
+    n.startsWith('lw-token-rock-') ||
+    n.startsWith('lw-token-move-')
+  ) {
+    return true;
+  }
+  const matName = mesh.material?.name ?? '';
+  if (matName.startsWith('lw-stamp-decal-mat-') || matName.startsWith('lw-token-glowmat-')) {
+    return true;
+  }
+  return false;
 }
 
 /** Scatter props are numerous and tiny; re-rendering them into the shadow map each frame is the costly part. */

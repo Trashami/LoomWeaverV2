@@ -196,7 +196,7 @@ export class BabylonFogPlane {
 
     for (const light of this.scene.lights) {
       if (!(light instanceof PointLight)) continue;
-      if (light.name === 'lw-vtt-pt' || light.name.startsWith('lw-token-light-')) continue;
+      if (light.name === 'lw-vtt-pt') continue;
       const pos = light.getAbsolutePosition();
       const hidden = this.sampleNodeBestVisibilityFogAlpha(pos.x, pos.z, 0.75) >= 0.72;
       const anyLight = light as PointLight & { _lwFogDisabled?: boolean };

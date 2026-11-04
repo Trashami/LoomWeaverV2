@@ -1,4 +1,4 @@
-import { RawTexture, Scene, StandardMaterial, Texture } from '@babylonjs/core';
+import { Material, RawTexture, Scene, StandardMaterial, Texture } from '@babylonjs/core';
 
 const images = new Map<string, Promise<HTMLImageElement>>();
 const requests = new WeakMap<StandardMaterial, object>();
@@ -170,6 +170,7 @@ export function configureFloorRelief(
 
       const old = mat.bumpTexture;
       mat.bumpTexture = texture;
+      mat.markAsDirty(Material.TextureDirtyFlag | Material.MiscDirtyFlag);
       if (old && old !== texture && old.name.startsWith('RawTexture')) {
         old.dispose();
       }

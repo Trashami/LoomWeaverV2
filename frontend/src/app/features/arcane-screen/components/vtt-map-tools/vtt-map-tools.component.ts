@@ -16,6 +16,7 @@ import { VttBattleStateService } from '../../services/vtt-battle-state.service';
 import { VttCombatService } from '../../services/vtt-combat.service';
 import { VttServerSyncService } from '../../services/vtt-server-sync.service';
 import { DndSizeCategory } from '../../../effects/engine/effect-timeline.contract';
+import { BabylonEffectStageService } from '../../../effects/engine/babylon-effect-stage.service';
 import { VttDisplaySettingsService } from '../../services/vtt-display-settings.service';
 import { SEED_VTT_WALL_SEGMENTS } from '../../services/vtt-battle.seed';
 import { CharacterStudioService } from '../../../characters/services/character-studio.service';
@@ -39,6 +40,7 @@ export class VttMapToolsComponent {
   readonly vtt = inject(VttCombatService);
   readonly serverSync = inject(VttServerSyncService);
   readonly vttDisplay = inject(VttDisplaySettingsService);
+  readonly stage = inject(BabylonEffectStageService);
   readonly characterStudio = inject(CharacterStudioService);
   readonly bestiary = inject(BestiaryCatalogService);
 
@@ -311,6 +313,25 @@ export class VttMapToolsComponent {
       this.gridEnabled.set(true);
       this.vttDisplay.setGridScale(val);
     }
+  }
+
+  onCameraFovInput(event: Event): void {
+    const val = parseFloat((event.target as HTMLInputElement).value);
+    if (!isNaN(val)) {
+      this.stage.setCameraFovDeg(val);
+    }
+  }
+
+  applyCameraPreset(preset: 'close' | 'standard' | 'wide' | 'epic'): void {
+    this.battle.mapMode3D.set(true);
+    this.stage.setForcedTopDown(false);
+    this.stage.setCameraPreset(preset);
+  }
+
+  toggle3dMapView(): void {
+    const next = !this.battle.mapMode3D();
+    this.battle.mapMode3D.set(next);
+    this.stage.setForcedTopDown(!next);
   }
 
   startDrawSquareCalibration(): void {

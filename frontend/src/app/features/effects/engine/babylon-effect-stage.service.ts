@@ -79,6 +79,7 @@ export class BabylonEffectStageService {
   readonly has3dSceneLoaded = signal<boolean>(false);
   readonly isPlayingEffect = signal<boolean>(false);
   readonly zoomPercent = signal<number>(100);
+  readonly cameraFovDeg = signal<number>(56);
   readonly activeKeyframeLabel = signal<string>('Ready');
   readonly reducedMotion = signal<boolean>(false);
   readonly tokenDragged: Observable<TokenPlacement> = this.draggedSubject.asObservable();
@@ -93,14 +94,29 @@ export class BabylonEffectStageService {
 
   zoomCamera(delta: number): void {
     if (this.camera) {
-      this.camera.radius = Math.max(this.camera.lowerRadiusLimit ?? 6, Math.min(this.camera.upperRadiusLimit ?? 58, this.camera.radius + delta));
+      this.camera.radius = Math.max(this.camera.lowerRadiusLimit ?? 2.4, Math.min(this.camera.upperRadiusLimit ?? 72, this.camera.radius + delta));
       this.updateZoomPercent();
     }
   }
 
+  setCameraFovDeg(deg: number): void {
+    const clamped = Math.max(35, Math.min(78, Math.round(deg)));
+    this.cameraFovDeg.set(clamped);
+    if (this.camera && !this.isForcedTopDown) this.camera.fov = (clamped * Math.PI) / 180;
+  }
+
+  setCameraPreset(preset: 'close' | 'standard' | 'wide' | 'epic'): void {
+    if (!this.camera) return;
+    const cfg = preset === 'close' ? { fov: 62, r: 10.5, b: 1.05 } : preset === 'wide' ? { fov: 64, r: 34, b: 0.76 } : preset === 'epic' ? { fov: 72, r: 48, b: 0.65 } : { fov: 56, r: 22, b: 0.84 };
+    this.setCameraFovDeg(cfg.fov);
+    this.camera.radius = cfg.r;
+    if (!this.isForcedTopDown) this.camera.beta = cfg.b;
+    this.updateZoomPercent();
+  }
+
   resetCamera(): void {
     if (!this.camera) return;
-    this.camera.radius = this.has3dSceneLoaded() ? 26 : 20;
+    this.camera.radius = this.has3dSceneLoaded() ? 24 : 20;
     this.camera.target.set(0, 0, 0);
     this.setForcedTopDown(this.isForcedTopDown);
     this.updateZoomPercent();
@@ -108,9 +124,9 @@ export class BabylonEffectStageService {
 
   private updateZoomPercent(): void {
     if (!this.camera) return;
-    const minR = this.camera.lowerRadiusLimit ?? 6;
-    const maxR = this.camera.upperRadiusLimit ?? 58;
-    const next = Math.max(100, Math.min(350, Math.round(100 + ((maxR - this.camera.radius) / (maxR - minR)) * 250)));
+    const minR = this.camera.lowerRadiusLimit ?? 2.4;
+    const maxR = this.camera.upperRadiusLimit ?? 72;
+    const next = Math.max(50, Math.min(350, Math.round(50 + ((maxR - this.camera.radius) / (maxR - minR)) * 300)));
     if (next !== this.zoomPercent()) this.zoomPercent.set(next);
   }
 
@@ -197,6 +213,7 @@ export class BabylonEffectStageService {
     this.camera.inertialPanningX = 0;
     this.camera.inertialPanningY = 0;
     if (forced) {
+      this.camera.fov = 0.8;
       this.camera.lowerAlphaLimit = -Math.PI / 2;
       this.camera.upperAlphaLimit = -Math.PI / 2;
       this.camera.lowerBetaLimit = 0.0001;
@@ -206,13 +223,14 @@ export class BabylonEffectStageService {
       this.camera.panningAxis = new Vector3(1, 1, 0);
       (this.camera as unknown as { _panningMouseButton: number })._panningMouseButton = 0;
     } else {
+      this.camera.fov = (this.cameraFovDeg() * Math.PI) / 180;
       this.camera.lowerAlphaLimit = null;
       this.camera.upperAlphaLimit = null;
-      this.camera.lowerBetaLimit = 0.1;
-      this.camera.upperBetaLimit = Math.PI / 2.05;
+      this.camera.lowerBetaLimit = 0.08;
+      this.camera.upperBetaLimit = Math.PI / 2.04;
       if (modeChanged) {
         this.camera.alpha = -Math.PI / 2.2;
-        this.camera.beta = 0.82;
+        this.camera.beta = 0.84;
       }
       this.camera.panningAxis = new Vector3(1, 1, 0);
       (this.camera as unknown as { _panningMouseButton: number })._panningMouseButton = 2;
@@ -303,9 +321,11 @@ export class BabylonEffectStageService {
       this.cleanupHandlers.push(() => canvas.removeEventListener('contextmenu', onContextMenu));
 
       const camera = new ArcRotateCamera('lw-vtt-cam', -Math.PI / 2, 0.0001, 24, new Vector3(0, 0, 0), this.scene);
-      camera.lowerRadiusLimit = 5;
-      camera.upperRadiusLimit = 58;
-      camera.panningSensibility = 65;
+      camera.lowerRadiusLimit = 2.4;
+      camera.upperRadiusLimit = 72;
+      camera.minZ = 0.15;
+      camera.maxZ = 250;
+      camera.panningSensibility = 62;
       camera.panningInertia = 0.15;
       camera.panningAxis = new Vector3(1, 1, 0);
       this.camera = camera;
@@ -389,8 +409,8 @@ export class BabylonEffectStageService {
       this.scene.registerBeforeRender(() => {
         if (!this.scene) return;
         if (this.camera) {
-          const maxX = this.has3dSceneLoaded() ? 18 : 12;
-          const maxZ = this.has3dSceneLoaded() ? 13.5 : 8;
+          const maxX = this.has3dSceneLoaded() ? 24 : 16;
+          const maxZ = this.has3dSceneLoaded() ? 18 : 11;
           this.camera.target.x = Math.max(-maxX, Math.min(maxX, this.camera.target.x));
           this.camera.target.z = Math.max(-maxZ, Math.min(maxZ, this.camera.target.z));
           this.camera.target.y = 0;
@@ -416,10 +436,7 @@ export class BabylonEffectStageService {
 
   syncFog(layer: HTMLCanvasElement | null): void { this.fogPlane?.setLayer(layer); }
 
-  syncTokens(
-    tokens: readonly VttTokenVm[], attackerKey?: string, targetKey?: string,
-    targetedKeys: readonly string[] = [], opacityByKey: ReadonlyMap<string, number> = new Map(), gridScale = 1.0,
-  ): void {
+  syncTokens(tokens: readonly VttTokenVm[], attackerKey?: string, targetKey?: string, targetedKeys: readonly string[] = [], opacityByKey: ReadonlyMap<string, number> = new Map(), gridScale = 1.0): void {
     this.latestTokens = tokens;
     this.latestAttackerKey = attackerKey;
     this.latestTargetKey = targetKey;
@@ -429,11 +446,7 @@ export class BabylonEffectStageService {
     this.refreshTokens();
   }
 
-  syncSpellTemplateAndTethers(
-    attackerPos: { x: number; z: number } | null,
-    tetherTargets: readonly BabylonTargetTetherEndpoint[],
-    templateState: BabylonSpellTemplateState | null,
-  ): void {
+  syncSpellTemplateAndTethers(attackerPos: { x: number; z: number } | null, tetherTargets: readonly BabylonTargetTetherEndpoint[], templateState: BabylonSpellTemplateState | null): void {
     this.latestAttackerPos = attackerPos;
     this.latestTetherTargets = tetherTargets;
     this.latestSpellTemplate = templateState;
@@ -446,19 +459,12 @@ export class BabylonEffectStageService {
     const src = this.latestTokens.find((t) => t.key === this.latestAttackerKey);
     const startPos = src ? { x: src.x, z: src.z } : this.latestAttackerPos;
     syncBabylonSpellAndTetherMeshes(this.scene, startPos, this.latestTetherTargets, this.latestSpellTemplate);
+    this.fogPlane?.refreshVolumetricMasking();
   }
 
-  playTrajectoryEffect(
-    preset: EffectTimelinePresetVm,
-    startPos: { x: number; z: number } = { x: -5, z: 0 },
-    endPos: { x: number; z: number } = { x: 5, z: 0 },
-    options?: PlayVttSpellEffectOptions,
-  ): void {
+  playTrajectoryEffect(preset: EffectTimelinePresetVm, startPos: { x: number; z: number } = { x: -5, z: 0 }, endPos: { x: number; z: number } = { x: 5, z: 0 }, options?: PlayVttSpellEffectOptions): void {
     if (!this.scene) return;
-    this.fxPlayer.play(this.scene, preset, startPos, endPos, {
-      ...options,
-      onPlayStateChange: (playing) => this.isPlayingEffect.set(playing),
-    });
+    this.fxPlayer.play(this.scene, preset, startPos, endPos, { ...options, onPlayStateChange: (playing) => this.isPlayingEffect.set(playing) });
   }
 
   showStepMovementIndicator(tokenKey: string, startX: number, startZ: number, endX: number, endZ: number): void {
@@ -468,10 +474,7 @@ export class BabylonEffectStageService {
   }
 
   dispose(): void {
-    if (this.resyncTimer !== null) {
-      clearTimeout(this.resyncTimer);
-      this.resyncTimer = null;
-    }
+    if (this.resyncTimer !== null) { clearTimeout(this.resyncTimer); this.resyncTimer = null; }
     for (const h of this.cleanupHandlers) h();
     this.cleanupHandlers = [];
     this.fxPlayer.disposeAll();
@@ -480,11 +483,7 @@ export class BabylonEffectStageService {
     this.fogPlane?.dispose();
     this.fogPlane = null;
     this.tokenBuilder.clearCache();
-    if (this.scene) {
-      this.mapSceneBuilder.clear(this.scene);
-      StampSceneBuilder.evictScene(this.scene);
-      WallMeshBuilder.evictScene(this.scene);
-    }
+    if (this.scene) { this.mapSceneBuilder.clear(this.scene); StampSceneBuilder.evictScene(this.scene); WallMeshBuilder.evictScene(this.scene); }
     this.last3dSceneState = null;
     this.has3dSceneLoaded.set(false);
     this.scene?.dispose();

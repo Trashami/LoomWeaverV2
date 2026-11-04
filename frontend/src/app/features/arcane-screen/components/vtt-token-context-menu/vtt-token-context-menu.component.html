@@ -262,11 +262,11 @@
             <button
               type="button"
               class="lw-token-ctx__pill-toggle"
-              [class.is-on]="t.ambientGlowEnabled !== false"
+              [class.is-on]="t.ambientGlowEnabled === true"
               [disabled]="!canEditToken()"
               (click)="toggleAmbientGlow(t)"
             >
-              {{ t.ambientGlowEnabled !== false ? 'Enabled' : 'Off' }}
+              {{ t.ambientGlowEnabled === true ? 'Enabled' : 'Off' }}
             </button>
           </div>
         </div>

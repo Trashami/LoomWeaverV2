@@ -111,7 +111,7 @@ export class BabylonTokenMeshBuilder {
 
       const glbReady = Boolean(!isTopDown2D && t.glbUrl && this.glbContainerCache.has(t.glbUrl));
       const glowActive = isTokenAmbientGlowActive(t);
-      const renderSig = `${isTopDown2D ? '2d' : '3d-grass-rocks-glow-v3'}|${t.glbUrl ?? ''}|${glbReady ? 1 : 0}|${t.avatarUrl ?? ''}|${t.sizeCategory ?? 'medium'}|${isDead ? 1 : 0}|${t.faction}|${t.roleLabel ?? ''}|${t.colorOverride ?? ''}|${t.emitsLight ? 1 : 0}|${t.lightColorHex ?? ''}|${t.lightDimFeet ?? 0}|${glowActive ? 1 : 0}|${t.ambientGlowColorHex ?? ''}|${t.ambientGlowRadiusFeet ?? 0}|${t.ambientGlowIntensity ?? 0}|${gridScale.toFixed(2)}`;
+      const renderSig = `${isTopDown2D ? '2d' : '3d-grass-rocks-glow-v4'}|${t.glbUrl ?? ''}|${glbReady ? 1 : 0}|${t.avatarUrl ?? ''}|${t.sizeCategory ?? 'medium'}|${isDead ? 1 : 0}|${t.faction}|${t.roleLabel ?? ''}|${t.colorOverride ?? ''}|${t.emitsLight ? 1 : 0}|${t.lightColorHex ?? ''}|${t.lightDimFeet ?? 0}|${glowActive ? 1 : 0}|${t.ambientGlowColorHex ?? ''}|${t.ambientGlowRadiusFeet ?? 0}|${t.ambientGlowIntensity ?? 0}|${gridScale.toFixed(2)}`;
 
       const existingBase = scene.getMeshByName(`lw-token-${t.key}`) as Mesh | null;
       if (existingBase && existingBase.metadata?.renderSig === renderSig) {

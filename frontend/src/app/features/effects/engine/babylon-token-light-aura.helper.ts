@@ -73,7 +73,7 @@ function getOrCreateVerticalPlumeTexture(scene: Scene): DynamicTexture {
 }
 
 export function isTokenAmbientGlowActive(token: VttTokenVm): boolean {
-  return token.ambientGlowEnabled !== false;
+  return token.ambientGlowEnabled === true;
 }
 
 export function resolveTokenAmbientGlowColorHex(token: VttTokenVm): string {
@@ -103,14 +103,12 @@ export function attachTokenLightAndGlowMeshes(
   if (isTokenAmbientGlowActive(token)) {
     const glowHex = resolveTokenAmbientGlowColorHex(token);
     const glowColor = Color3.FromHexString(glowHex);
-    const rawIntensity = token.ambientGlowEnabled
-      ? (token.ambientGlowIntensity ?? 0.72)
-      : (token.ambientGlowIntensity ?? 0.52);
+    const rawIntensity = token.ambientGlowIntensity ?? 0.65;
     const glowIntensity = Math.max(0.15, Math.min(1.0, rawIntensity)) * tokenOpacity;
     const glowRadiusFeet = token.ambientGlowRadiusFeet ?? 10;
     const glowRadiusWorld = Math.max(0.72 * effectiveScale, (glowRadiusFeet / 5) * 0.58);
 
-    // 1. Real 3D PointLight emitting from the character's chest to illuminate miniature, grass/rocks, and terrain
+    // 1. Real 3D PointLight emitting from the character's chest when Ambient Glow is explicitly enabled
     if (!token.emitsLight) {
       const auraLight = new PointLight(
         `lw-token-light-${token.key}`,
@@ -121,7 +119,7 @@ export function attachTokenLightAndGlowMeshes(
       auraLight.diffuse = glowColor;
       auraLight.specular = glowColor.scale(0.32);
       auraLight.range = Math.max(2.4 * effectiveScale, glowRadiusWorld * 2.3);
-      auraLight.intensity = glowIntensity * 1.35;
+      auraLight.intensity = glowIntensity * 1.15;
     }
 
     const radialTex = getOrCreateRadialGlowTexture(scene);
@@ -230,10 +228,11 @@ export function createSpinningBaseTargetReticleMesh(
   root.isPickable = false;
 
   const reticleMat = new StandardMaterial(`lw-target-reticle-mat-${tokenKey}`, scene);
-  reticleMat.diffuseColor = Color3.FromHexString('#881313');
-  reticleMat.emissiveColor = Color3.FromHexString('#7f1d1d').scale(0.4);
+  reticleMat.diffuseColor = Color3.FromHexString('#dc2626');
+  reticleMat.emissiveColor = Color3.FromHexString('#ef4444').scale(0.75);
   reticleMat.specularColor = Color3.Black();
-  reticleMat.alpha = 0.88;
+  reticleMat.alpha = 0.92;
+  attachVolumetricFogToMaterial(reticleMat);
 
   const outerRing = MeshBuilder.CreateTorus(
     `lw-target-reticle-outer-${tokenKey}`,

@@ -46,6 +46,7 @@ export class WallMeshBuilder {
   private static texCache = new Map<string, Texture>();
   private static activeScene: Scene | null = null;
   private static ghostMat: StandardMaterial | null = null;
+  private static timberCapMat: StandardMaterial | null = null;
   private static builtWallSigByScene = new WeakMap<Scene, { sig: string; count: number }>();
 
   static evictScene(scene: Scene): void {
@@ -56,8 +57,22 @@ export class WallMeshBuilder {
     if (this.activeScene !== scene) {
       this.texCache.clear();
       this.ghostMat = null;
+      this.timberCapMat = null;
       this.activeScene = scene;
     }
+  }
+
+  private static getTimberSillCapMaterial(scene: Scene): StandardMaterial {
+    this.ensureSceneCache(scene);
+    if (!this.timberCapMat || this.timberCapMat.getScene() !== scene) {
+      const mat = new StandardMaterial('lw-wall-timber-sillcap-mat', scene);
+      mat.diffuseColor = Color3.FromHexString('#2a1a11');
+      mat.emissiveColor = Color3.FromHexString('#0e0805');
+      mat.specularColor = Color3.FromHexString('#4a3324').scale(0.3);
+      mat.roughness = 0.65;
+      this.timberCapMat = mat;
+    }
+    return this.timberCapMat;
   }
 
   private static getCachedTexture(scene: Scene, url: string): Texture {
@@ -836,6 +851,31 @@ export class WallMeshBuilder {
             segMesh.receiveShadows = true;
             segMesh.metadata = wallMeta;
             meshCount++;
+
+            if (CutawayWallEngine.isCutawayWall(wall.perspective, height)) {
+              const capThickness = 0.08;
+              const capOverhang = 0.06;
+              const capDepth = wall.thicknessMeters * stampScale + capOverhang;
+              const capMesh = MeshBuilder.CreateBox(
+                "lw-wall-" + wall.id + "-cap-" + i + "-" + sIdx,
+                {
+                  width: extendedSpanLen + 0.01,
+                  height: capThickness,
+                  depth: capDepth,
+                },
+                scene,
+              );
+              capMesh.position.set(
+                bx,
+                minGroundY + effectiveHeight + offsetY + capThickness * 0.5,
+                bz,
+              );
+              capMesh.rotation.y = angleY + rotOffsetRad;
+              capMesh.material = this.getTimberSillCapMaterial(scene);
+              capMesh.receiveShadows = true;
+              capMesh.metadata = wallMeta;
+              meshCount++;
+            }
           }
         }
 

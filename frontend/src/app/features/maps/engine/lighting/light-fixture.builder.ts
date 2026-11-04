@@ -58,7 +58,7 @@ export class LightFixtureBuilder {
     this.dispose(scene);
     const ground = scene.getMeshByName('lw-terrain-ground');
     if (ground?.material instanceof StandardMaterial) {
-      ground.material.maxSimultaneousLights = 8;
+      ground.material.maxSimultaneousLights = 12;
     }
 
     const flicker: FlickerTarget[] = [];
@@ -177,13 +177,18 @@ export class LightFixtureBuilder {
   }
 
   private static collectCasters(scene: Scene): AbstractMesh[] {
-    return scene.meshes.filter(
-      (m) =>
+    return scene.meshes.filter((m) => {
+      const matName = m.material?.name ?? '';
+      if (matName.startsWith('lw-stamp-decal-mat-') || matName.startsWith('lw-token-glowmat-')) {
+        return false;
+      }
+      return (
         m.name.startsWith('lw-wall-') ||
         m.name.startsWith('lw-door-') ||
         m.name.startsWith('lw-stamp-') ||
-        (Boolean(m.metadata?.lwNodeName) && !m.name.startsWith('lw-light-')),
-    );
+        (Boolean(m.metadata?.lwNodeName) && !m.name.startsWith('lw-light-'))
+      );
+    });
   }
 
   /** Small selectable marker at the emitter; only drawn in the editing tools, never as a radius outline. */

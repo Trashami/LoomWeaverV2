@@ -17,7 +17,7 @@ export type WallDrawMode =
   | 'freehand'
   | 'triangle';
 
-export type CutawayPerspectiveMode = 'topdown' | 'auto' | 'heavy';
+export type CutawayPerspectiveMode = 'topdown' | 'auto' | 'heavy' | 'cutaway';
 export type CutawayProjectionMode = 'inward' | 'fixed-south';
 
 export type WallOpeningType =

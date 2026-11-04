@@ -161,7 +161,7 @@ export class VttTokenContextMenuComponent {
 
   toggleAmbientGlow(token: VttTokenVm): void {
     if (!this.canEditToken()) return;
-    const next = token.ambientGlowEnabled === false;
+    const next = token.ambientGlowEnabled !== true;
     this.vtt.updateTokenAppearance(token.key, {
       ambientGlowEnabled: next,
       ambientGlowColorHex: token.ambientGlowColorHex || getTokenRimColorHex(token),

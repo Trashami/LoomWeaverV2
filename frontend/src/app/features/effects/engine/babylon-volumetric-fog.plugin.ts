@@ -33,7 +33,15 @@ export function getOrCreateFallbackFogTexture(scene: Scene): Texture {
 }
 
 function resolveDiscardModeForMaterial(matName: string): number {
-  if (matName === 'lw-terrain-grid-mat' || matName.startsWith('lw-aoe-') || matName.startsWith('lw-target-reticle-')) {
+  if (
+    matName === 'lw-terrain-grid-mat' ||
+    matName.startsWith('lw-aoe-') ||
+    matName.startsWith('lw-target-reticle-') ||
+    matName.startsWith('lw-token-glowmat-') ||
+    matName.startsWith('lw-token-auramat-') ||
+    matName.startsWith('lw-stamp-decal-mat-') ||
+    matName.startsWith('lw-token-move-')
+  ) {
     return 2.0;
   }
   if (matName === 'lw-terrain-mat' || matName === 'lw-terrain-ground-mat' || matName === 'lw-vtt-gmat' || matName === 'lw-map-mat') {
@@ -138,6 +146,9 @@ uniform sampler2D lwFogTex;
 #endif`,
         CUSTOM_FRAGMENT_MAIN_END: `#ifdef LW_VOLUMETRIC_FOG
 if (lwFogActive > 0.5) {
+  if (gl_FragColor.a < 0.01) {
+    discard;
+  }
   vec2 lwFogUv = vec2((vLwFogXZ.x + 18.0) / 36.0, 1.0 - (vLwFogXZ.y + 13.5) / 27.0);
   float lwFogOut = step(lwFogUv.x, 0.0) + step(1.0, lwFogUv.x) + step(lwFogUv.y, 0.0) + step(1.0, lwFogUv.y);
   float lwFogAlpha = lwFogOut > 0.0 ? 1.0 : texture2D(lwFogTex, clamp(lwFogUv, vec2(0.001, 0.001), vec2(0.999, 0.999))).a;
@@ -147,7 +158,7 @@ if (lwFogActive > 0.5) {
   if (lwFogDiscardMode < 0.5 && lwFogAlpha > 0.992) {
     discard;
   }
-  vec3 lwFogVoidColor = vec3(0.012, 0.031, 0.024);
+  vec3 lwFogVoidColor = lwFogDiscardMode > 1.5 ? vec3(0.0, 0.0, 0.0) : vec3(0.012, 0.031, 0.024);
   gl_FragColor.rgb = mix(gl_FragColor.rgb, lwFogVoidColor, clamp(lwFogAlpha, 0.0, 1.0));
   if (lwFogDiscardMode > 1.5) {
     gl_FragColor.a *= (1.0 - clamp(lwFogAlpha, 0.0, 1.0));

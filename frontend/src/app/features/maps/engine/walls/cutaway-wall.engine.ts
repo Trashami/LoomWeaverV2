@@ -17,8 +17,16 @@ export class CutawayWallEngine {
     if (is2DBlueprint || perspective === 'topdown') {
       return 0.45;
     }
+    if (perspective === 'cutaway') {
+      // Cutaway waist/chest diorama height (optimal for isometric tavern viewing without camera obstruction)
+      return 1.35;
+    }
     const factor = perspective === 'heavy' ? 1.25 : 0.85;
     return Math.max(0.6, Math.round(baseHeightMeters * factor * 100) / 100);
+  }
+
+  static isCutawayWall(perspective: CutawayPerspectiveMode, effectiveHeight: number): boolean {
+    return perspective === 'cutaway' || (effectiveHeight > 0.45 && effectiveHeight <= 1.8);
   }
 
   static fitPolylineOpening(

@@ -370,21 +370,22 @@ export function attachGrassBaseAndFactionRim(
 ): void {
   const rimHex = getTokenRimColorHex(token);
   const collarHex = getTokenBaseColorHex(token);
+  const highlightHex = isTargeted ? '#ef4444' : isAttacker ? '#f59e0b' : rimHex;
 
   const baseMat = new StandardMaterial(`lw-tmat-${token.key}`, scene);
   baseMat.maxSimultaneousLights = 8;
   baseMat.diffuseColor = Color3.FromHexString(collarHex);
   baseMat.specularColor = new Color3(0.08, 0.08, 0.08);
   baseMat.specularPower = 24;
-  baseMat.emissiveColor = Color3.FromHexString(rimHex).scale(isTargeted || isAttacker ? 0.34 : 0.22);
+  baseMat.emissiveColor = Color3.FromHexString(highlightHex).scale(isTargeted || isAttacker ? 0.38 : 0.18);
   attachVolumetricFogToMaterial(baseMat);
   baseMesh.material = baseMat;
 
   const rimMat = new StandardMaterial(`lw-mat-rim-${token.key}`, scene);
   rimMat.maxSimultaneousLights = 8;
-  rimMat.diffuseColor = Color3.FromHexString(rimHex);
+  rimMat.diffuseColor = Color3.FromHexString(isTargeted ? '#ef4444' : isAttacker ? '#fbbf24' : rimHex);
   rimMat.specularColor = new Color3(0.18, 0.18, 0.18);
-  rimMat.emissiveColor = Color3.FromHexString(rimHex).scale(isTargeted || isAttacker ? 0.62 : 0.42);
+  rimMat.emissiveColor = Color3.FromHexString(highlightHex).scale(isTargeted || isAttacker ? 0.78 : 0.36);
   attachVolumetricFogToMaterial(rimMat);
 
   const upperRim = MeshBuilder.CreateTorus(
@@ -406,6 +407,25 @@ export function attachGrassBaseAndFactionRim(
   lowerRim.position.set(0, -baseHeight / 2 + 0.012, 0);
   lowerRim.metadata = { tokenKey: token.key };
   lowerRim.material = rimMat;
+
+  // Dedicated outer selection / target halo ring around the base so active attacker (Gold) and target (Crimson) pop cleanly
+  const selRingMat = new StandardMaterial(`lw-mat-selring-${token.key}`, scene);
+  selRingMat.disableLighting = true;
+  selRingMat.diffuseColor = Color3.FromHexString(isTargeted ? '#ef4444' : '#fbbf24');
+  selRingMat.emissiveColor = Color3.FromHexString(isTargeted ? '#ef4444' : '#fbbf24').scale(0.92);
+  selRingMat.specularColor = Color3.Black();
+  attachVolumetricFogToMaterial(selRingMat);
+
+  const selRing = MeshBuilder.CreateTorus(
+    `lw-token-sel-ring-${token.key}`,
+    { diameter: 0.92 * effectiveScale, thickness: 0.038 * effectiveScale, tessellation: 40 },
+    scene,
+  );
+  selRing.parent = baseMesh;
+  selRing.position.set(0, -baseHeight / 2 + 0.016, 0);
+  selRing.metadata = { tokenKey: token.key };
+  selRing.material = selRingMat;
+  selRing.setEnabled(isAttacker || isTargeted);
 
   if (include3dGrassBlades) {
     const turfDisc = MeshBuilder.CreateDisc(
@@ -437,14 +457,25 @@ export function updateTokenRimMaterialHighlight(
   isTargeted: boolean,
 ): void {
   const rimHex = getTokenRimColorHex(token);
+  const highlightHex = isTargeted ? '#ef4444' : isAttacker ? '#f59e0b' : rimHex;
   const rimMat = scene.getMaterialByName(`lw-mat-rim-${token.key}`) as StandardMaterial | null;
   if (rimMat) {
-    rimMat.diffuseColor = Color3.FromHexString(rimHex);
-    rimMat.emissiveColor = Color3.FromHexString(rimHex).scale(isTargeted || isAttacker ? 0.62 : 0.42);
+    rimMat.diffuseColor = Color3.FromHexString(isTargeted ? '#ef4444' : isAttacker ? '#fbbf24' : rimHex);
+    rimMat.emissiveColor = Color3.FromHexString(highlightHex).scale(isTargeted || isAttacker ? 0.78 : 0.36);
   }
   const baseMat = scene.getMaterialByName(`lw-tmat-${token.key}`) as StandardMaterial | null;
   if (baseMat) {
-    baseMat.emissiveColor = Color3.FromHexString(rimHex).scale(isTargeted || isAttacker ? 0.34 : 0.22);
+    baseMat.emissiveColor = Color3.FromHexString(highlightHex).scale(isTargeted || isAttacker ? 0.38 : 0.18);
+  }
+  const selRing = scene.getMeshByName(`lw-token-sel-ring-${token.key}`);
+  if (selRing) {
+    selRing.setEnabled(isAttacker || isTargeted);
+    const selMat = selRing.material as StandardMaterial | null;
+    if (selMat) {
+      const ringCol = Color3.FromHexString(isTargeted ? '#ef4444' : '#fbbf24');
+      selMat.diffuseColor = ringCol;
+      selMat.emissiveColor = ringCol.scale(0.92);
+    }
   }
 }
 

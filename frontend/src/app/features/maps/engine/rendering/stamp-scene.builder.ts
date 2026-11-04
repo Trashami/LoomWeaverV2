@@ -366,7 +366,8 @@ export class StampSceneBuilder {
       }
 
       // 2. 2D Cutout Floor Stamp / Decal (shared texture & material across all stamps of this asset)
-      const texUrl = st.albedoUrl || st.thumbnailUrl;
+      // Do not render 3D model catalog preview thumbnails (/previews-png/) as opaque 2D floor decals while the .glb is loading.
+      const texUrl = st.albedoUrl || (!st.modelUrl ? st.thumbnailUrl : undefined);
       if (texUrl) {
         const decal = MeshBuilder.CreateGround(
           `lw-stamp-${st.id}`,

@@ -123,6 +123,24 @@ export function sync3dMapSceneGraph(
   SceneLightingController.refreshShadowCasters(scene);
 }
 
+export function resync3dMapAsyncAssets(
+  scene: Scene,
+  state: MapSceneGraphState,
+  onScheduleResync: () => void,
+): void {
+  GlbModelCache.ensureScene(scene);
+  SeededScatterEngine.rebuildScatterInstances(
+    scene,
+    state.scatterSeed ?? 104729,
+    state.scatterDensity ?? 0,
+    state.scatterClusters,
+    onScheduleResync,
+  );
+  WallMeshBuilder.rebuildWallMeshes(scene, state.walls, false, onScheduleResync);
+  StampSceneBuilder.rebuild(scene, state.stamps ?? [], false, onScheduleResync);
+  SceneLightingController.refreshShadowCasters(scene);
+}
+
 export function clear3dMapSceneGraph(scene: Scene | null, ground: Mesh | null): void {
   TerrainMeshBuilder.resetElevations();
   if (!scene) return;

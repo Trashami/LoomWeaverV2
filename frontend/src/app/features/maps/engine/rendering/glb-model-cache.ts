@@ -282,10 +282,8 @@ export class GlbModelCache {
           m.material.maxSimultaneousLights = 8;
           m.material.directIntensity = 1.5;
           m.material.environmentIntensity = 0.72;
-          m.material.freeze();
         } else if (m.material instanceof StandardMaterial) {
           m.material.maxSimultaneousLights = 8;
-          m.material.freeze();
         }
       }
 

@@ -24,7 +24,7 @@ import {
 } from './babylon-spell-template.helper';
 import {
   attach2dTopDownPanningObserver, clear3dMapSceneGraph, createFlatGridLineSystem,
-  isMapSceneGraphStatePayload, pickTokenOrNearbyAtScreenPoint, restoreCameraAfterTokenDrag, sync3dMapSceneGraph,
+  isMapSceneGraphStatePayload, pickTokenOrNearbyAtScreenPoint, restoreCameraAfterTokenDrag, resync3dMapAsyncAssets, sync3dMapSceneGraph,
 } from './babylon-vtt-3d-scene-graph.helper';
 
 if (typeof window !== 'undefined') {
@@ -130,11 +130,12 @@ export class BabylonEffectStageService {
     this.resyncTimer = setTimeout(() => {
       this.resyncTimer = null;
       if (!this.scene) return;
-      this.fogPlane?.refreshVolumetricMasking();
-      SceneLightingController.refreshShadowCasters(this.scene);
-      for (const m of this.scene.meshes) {
-        if (m.name.startsWith('lw-stamp-') || m.name.startsWith('lw-wall-') || m.name === 'lw-terrain-ground') m.freezeWorldMatrix();
+      if (this.last3dSceneState) {
+        resync3dMapAsyncAssets(this.scene, this.last3dSceneState, () => this.schedule3dSceneResync());
+      } else {
+        SceneLightingController.refreshShadowCasters(this.scene);
       }
+      this.fogPlane?.refreshVolumetricMasking();
       if (this.latestTokens.length > 0) this.refreshTokens();
     }, 150);
   }
@@ -333,6 +334,7 @@ export class BabylonEffectStageService {
 
       this.backdropUrl = '';
       this.fogPlane = new BabylonFogPlane(this.scene);
+      this.fxPlayer.prewarmStage(this.scene);
 
       let savedAlpha = camera.alpha;
       let savedBeta = camera.beta;

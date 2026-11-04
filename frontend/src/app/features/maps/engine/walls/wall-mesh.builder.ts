@@ -579,9 +579,13 @@ export class WallMeshBuilder {
     }
     const mat = new StandardMaterial(matName, scene);
     const baseColorHex = wall.colorHex || CutawayWallEngine.materialHex(wall.material);
+    const safeThumbUrl =
+      !wall.modelUrl && wall.thumbnailUrl && !wall.thumbnailUrl.includes('/previews-png/')
+        ? wall.thumbnailUrl
+        : undefined;
     const texUrl =
       wall.albedoUrl ||
-      wall.thumbnailUrl ||
+      safeThumbUrl ||
       '/assets/sewer-dungeon-wall-library-v1/512/worn-castle-flagstone.png';
 
     if (texUrl) {

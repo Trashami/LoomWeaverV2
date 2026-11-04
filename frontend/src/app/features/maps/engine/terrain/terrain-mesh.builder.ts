@@ -940,10 +940,11 @@ export class TerrainMeshBuilder {
 
     try {
       if (resolvedAlbedoUrl) {
+        const expectedAlbedo = this.activeAlbedoUrl;
         const diffTex = this.getOrCreateFloorTex(scene, resolvedAlbedoUrl);
         diffTex.uScale = uScale;
         diffTex.vScale = vScale;
-        if (!mat.diffuseTexture) {
+        if (!mat.diffuseTexture || this.paintDabs.length === 0) {
           mat.diffuseTexture = diffTex;
         }
 
@@ -953,7 +954,7 @@ export class TerrainMeshBuilder {
           : Promise.resolve(null);
         void Promise.all([loadFloorImage(resolvedAlbedoUrl), heightPromise])
           .then(([albedoImg, heightImg]) => {
-            if (scene.isDisposed) return;
+            if (scene.isDisposed || this.activeAlbedoUrl !== expectedAlbedo) return;
             const currentMat = scene.getMaterialByName(
               'lw-terrain-mat',
             ) as StandardMaterial | null;
@@ -968,13 +969,11 @@ export class TerrainMeshBuilder {
           });
       }
       if (resolvedNormalUrl) {
-        if (!mat.bumpTexture) {
-          const bumpTex = this.getOrCreateFloorTex(scene, resolvedNormalUrl);
-          bumpTex.uScale = uScale;
-          bumpTex.vScale = vScale;
-          bumpTex.level = (this.floorBumpIntensity / 100) * 1.65;
-          mat.bumpTexture = bumpTex;
-        }
+        const bumpTex = this.getOrCreateFloorTex(scene, resolvedNormalUrl);
+        bumpTex.uScale = uScale;
+        bumpTex.vScale = vScale;
+        bumpTex.level = (this.floorBumpIntensity / 100) * 1.65;
+        mat.bumpTexture = bumpTex;
       }
     } catch {
       if (biome.toLowerCase().includes('forest')) {

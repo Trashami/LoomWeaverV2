@@ -102,7 +102,7 @@ public static partial class CampaignAccessMiddleware
             var membership = await CampaignMembershipStore.FindAsync(repo, cid, user, ctx.RequestAborted);
             ctx.Items[CampaignAccessResolver.ItemKey] = new CampaignAccessContext(cid, user, membership);
 
-            if (membership is null && pathCampaignId is not null)
+            if (membership is null && pathCampaignId is not null && !apiPath.EndsWith("/members/add", StringComparison.OrdinalIgnoreCase) && !apiPath.EndsWith("/members/accept-invite", StringComparison.OrdinalIgnoreCase))
             {
                 await Deny(ctx, StatusCodes.Status403Forbidden, "You are not a member of this campaign.");
                 return;

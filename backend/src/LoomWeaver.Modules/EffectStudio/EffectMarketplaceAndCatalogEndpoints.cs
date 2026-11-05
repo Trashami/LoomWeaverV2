@@ -183,7 +183,7 @@ public static class EffectMarketplaceAndCatalogEndpoints
             return Results.File((byte[])r["bytes"], r.GetString(0));
         });
 
-        api.MapGet("/campaigns/{cid:long}/members", async (long cid, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
+        api.MapGet("/effects/campaigns/{cid:long}/members", async (long cid, LoomWeaverMySqlRepository mysql, CancellationToken ct) =>
         {
             var rows = await CampaignMembershipStore.ListMembersAsync(mysql, (int)cid, ct);
             var members = rows.Select(m => (object)new

@@ -456,7 +456,7 @@ public static partial class CampaignInviteEndpoints
         var user = AuthAndCheckoutEndpoints.ResolveAuthenticatedUser(ctx);
         if (user is null) return (null, Results.Unauthorized());
         var membership = await CampaignMembershipStore.FindAsync(repo, campaignId, user, ct);
-        return membership is { IsGm: true } ? (user, null) : (null, Results.Forbid());
+        return membership is { IsGm: true } ? (user, null) : (null, Results.StatusCode(StatusCodes.Status403Forbidden));
     }
 
     private static string HashToken(string token) =>

@@ -5,7 +5,7 @@ import {
   VttPoint2D,
   VttWallSegmentVm,
 } from '../models/vtt-battle.models';
-import { FEET_PER_WORLD_UNIT } from './vtt-los-and-grid.engine';
+import { FEET_PER_WORLD_UNIT, getActiveCellStepWorld } from './vtt-los-and-grid.engine';
 
 export const FOG_WORLD_MIN_X = -18;
 export const FOG_WORLD_MAX_X = 18;
@@ -119,10 +119,11 @@ export class VttFogOfWarEngine {
 
     // 1. Build live visibility mask from observer tokens (unless manual-only mode)
     liveCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    const cellStepWorld = getActiveCellStepWorld();
     if (input.mode !== 'manual-only' && input.losVisionEnabled !== false) {
       for (const observer of input.observers) {
         const sightFeet = getEffectiveTokenVisionFeet(observer, input.defaultSightFeet, input.applyTokenVision);
-        const radiusWorld = sightFeet / FEET_PER_WORLD_UNIT;
+        const radiusWorld = Math.max(cellStepWorld * 2, (sightFeet / 5) * cellStepWorld);
 
         if (input.mode === 'explored-los' && exploredCtx) {
           const posKey = `${scopeKey}:${observer.key}`;
@@ -137,6 +138,7 @@ export class VttFogOfWarEngine {
                 const iz = prev.z + (observer.z - prev.z) * ratio;
                 const stepPoly = this.computeVisibilityPolygon(ix, iz, radiusWorld, blockingWalls);
                 this.stampVisibilityPolygon(exploredCtx, ix, iz, radiusWorld, stepPoly, input.visionFalloffPct, curvePct, 0, blockingWalls.length > 0);
+                this.revealVisibleObstacleFootprints(exploredCtx, ix, iz, radiusWorld, blockingWalls);
               }
               this.lastObserverPosByKey.set(posKey, { x: observer.x, z: observer.z });
             }
@@ -147,6 +149,11 @@ export class VttFogOfWarEngine {
 
         const poly = this.computeVisibilityPolygon(observer.x, observer.z, radiusWorld, blockingWalls);
         this.stampVisibilityPolygon(liveCtx, observer.x, observer.z, radiusWorld, poly, input.visionFalloffPct, curvePct, input.shadowSoftnessPx, blockingWalls.length > 0);
+        this.revealVisibleObstacleFootprints(liveCtx, observer.x, observer.z, radiusWorld, blockingWalls);
+        if (input.mode === 'explored-los' && exploredCtx) {
+          this.stampVisibilityPolygon(exploredCtx, observer.x, observer.z, radiusWorld, poly, input.visionFalloffPct, curvePct, 0, blockingWalls.length > 0);
+          this.revealVisibleObstacleFootprints(exploredCtx, observer.x, observer.z, radiusWorld, blockingWalls);
+        }
       }
     }
 
@@ -167,8 +174,13 @@ export class VttFogOfWarEngine {
     outCtx.fillStyle = `rgba(0, 0, 0, ${unexploredAlpha})`;
     outCtx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-    // If keeping traveled areas cleared, reduce alpha in explored regions down to traveledAlpha
-    if (input.mode === 'explored-los' && exploredCanvas && unexploredAlpha > traveledAlpha) {
+    // If keeping traveled areas cleared (and token sight is active), reduce alpha in explored regions down to traveledAlpha
+    if (
+      input.mode === 'explored-los' &&
+      input.losVisionEnabled !== false &&
+      exploredCanvas &&
+      unexploredAlpha > traveledAlpha
+    ) {
       const eraseFraction = Math.max(
         0,
         Math.min(1, (unexploredAlpha - traveledAlpha) / unexploredAlpha),
@@ -378,9 +390,138 @@ export class VttFogOfWarEngine {
     ctx.restore();
   }
 
+  /**
+   * Ensures that any obstacle (3D stamp, column, ruin, tree, or wall segment) whose front face
+   * is reached by an observer's Line of Sight has its entire footprint revealed on the ground
+   * so objects in LoS are revealed completely and cast shadows strictly behind themselves.
+   */
+  private revealVisibleObstacleFootprints(
+    ctx: CanvasRenderingContext2D,
+    ox: number,
+    oz: number,
+    radiusWorld: number,
+    walls: readonly VttWallSegmentVm[],
+  ): void {
+    if (walls.length === 0) return;
+
+    const groups = new Map<string, VttWallSegmentVm[]>();
+    for (const w of walls) {
+      if (this.distToSegment(ox, oz, w.x1, w.z1, w.x2, w.z2) > radiusWorld + 0.5) continue;
+      const gid = w.obstacleGroupId ?? w.id;
+      let list = groups.get(gid);
+      if (!list) {
+        list = [];
+        groups.set(gid, list);
+      }
+      list.push(w);
+    }
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = 'rgba(255, 255, 255, 1.0)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 1.0)';
+
+    for (const [gid, segs] of groups.entries()) {
+      let groupVisible = false;
+      for (const seg of segs) {
+        const samplePts: Array<[number, number]> = [
+          [(seg.x1 + seg.x2) * 0.5, (seg.z1 + seg.z2) * 0.5],
+          [seg.x1 * 0.75 + seg.x2 * 0.25, seg.z1 * 0.75 + seg.z2 * 0.25],
+          [seg.x1 * 0.25 + seg.x2 * 0.75, seg.z1 * 0.25 + seg.z2 * 0.75],
+        ];
+        for (const [tx, tz] of samplePts) {
+          const dist = Math.hypot(tx - ox, tz - oz);
+          if (dist > radiusWorld || dist < 0.05) continue;
+          if (!this.isRayBlockedBeforeTarget(ox, oz, tx, tz, walls, gid)) {
+            groupVisible = true;
+            break;
+          }
+        }
+        if (groupVisible) break;
+      }
+
+      if (!groupVisible) continue;
+
+      const first = segs[0];
+      if (
+        first.obstacleCenterX !== undefined &&
+        first.obstacleCenterZ !== undefined &&
+        first.obstacleRadiusX !== undefined &&
+        first.obstacleRadiusZ !== undefined
+      ) {
+        const cx = first.obstacleCenterX;
+        const cz = first.obstacleCenterZ;
+        const rx = first.obstacleRadiusX;
+        const rz = first.obstacleRadiusZ;
+        const rot = first.obstacleRotationY ?? 0;
+        const cos = Math.cos(rot);
+        const sin = Math.sin(rot);
+        const corners = [
+          { x: cx + (-rx * cos - -rz * sin), z: cz + (-rx * sin + -rz * cos) },
+          { x: cx + (rx * cos - -rz * sin), z: cz + (rx * sin + -rz * cos) },
+          { x: cx + (rx * cos - rz * sin), z: cz + (rx * sin + rz * cos) },
+          { x: cx + (-rx * cos - rz * sin), z: cz + (-rx * sin + rz * cos) },
+        ];
+        ctx.beginPath();
+        corners.forEach((pt, idx) => {
+          const p = this.worldToPixel(pt.x, pt.z);
+          if (idx === 0) ctx.moveTo(p.x, p.y);
+          else ctx.lineTo(p.x, p.y);
+        });
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.lineWidth = Math.max(4, ((first.obstacleRadiusZ ?? 0.24) * 2 / FOG_WORLD_WIDTH) * CANVAS_W);
+        ctx.lineCap = 'round';
+        for (const seg of segs) {
+          const p1 = this.worldToPixel(seg.x1, seg.z1);
+          const p2 = this.worldToPixel(seg.x2, seg.z2);
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    ctx.restore();
+  }
+
+  private isRayBlockedBeforeTarget(
+    ox: number,
+    oz: number,
+    tx: number,
+    tz: number,
+    walls: readonly VttWallSegmentVm[],
+    targetGroupId: string,
+  ): boolean {
+    const dx = tx - ox;
+    const dz = tz - oz;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 1e-4) return false;
+    const rdx = dx / dist;
+    const rdz = dz / dist;
+
+    for (const w of walls) {
+      if ((w.obstacleGroupId ?? w.id) === targetGroupId) continue;
+      const sx = w.x2 - w.x1;
+      const sz = w.z2 - w.z1;
+      const cross = rdx * sz - rdz * sx;
+      if (Math.abs(cross) <= 1e-6) continue;
+      const qx = w.x1 - ox;
+      const qz = w.z1 - oz;
+      const t1 = (qx * sz - qz * sx) / cross;
+      const t2 = (qx * rdz - qz * rdx) / cross;
+      if (t1 >= 0.14 && t1 < dist - 0.08 && t2 >= -0.001 && t2 <= 1.001) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private applyBrushStroke(ctx: CanvasRenderingContext2D, stroke: VttFogBrushStrokeVm): void {
     const center = this.worldToPixel(stroke.x, stroke.z);
-    const radiusWorld = Math.max(1, stroke.radiusFeet / FEET_PER_WORLD_UNIT);
+    const radiusWorld = Math.max(0.5, (stroke.radiusFeet / 5) * getActiveCellStepWorld());
     const radiusPx = Math.max(6, (radiusWorld / FOG_WORLD_WIDTH) * CANVAS_W);
 
     ctx.save();
@@ -414,7 +555,7 @@ export class VttFogOfWarEngine {
     alpha: number,
   ): void {
     const center = this.worldToPixel(stroke.x, stroke.z);
-    const radiusWorld = Math.max(1, stroke.radiusFeet / FEET_PER_WORLD_UNIT);
+    const radiusWorld = Math.max(0.5, (stroke.radiusFeet / 5) * getActiveCellStepWorld());
     const radiusPx = Math.max(6, (radiusWorld / FOG_WORLD_WIDTH) * CANVAS_W);
 
     outCtx.save();

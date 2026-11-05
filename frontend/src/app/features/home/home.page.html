@@ -15,6 +15,29 @@
 </lw-page-header>
 
 <!-- SECTION 1: CAMPAIGN MANAGEMENT, INVITE URL, RULES & PARTY ROSTER -->
+@if (hasPendingInviteForActiveCampaign()) {
+  <div class="lw-home__mgmt-card" style="margin-bottom: 1rem; border-color: rgba(217, 183, 122, 0.55); background: linear-gradient(135deg, rgba(16, 38, 28, 0.94), rgba(9, 20, 15, 0.96));">
+    <div class="lw-home__mgmt-head">
+      <div>
+        <span class="lw-home__kicker">CAMPAIGN INVITATION PENDING</span>
+        <h3 class="lw-home__card-title">You Have Been Invited to Join {{ store.activeCampaign().name }}</h3>
+      </div>
+      <lw-badge tone="gold">Pending Character Selection</lw-badge>
+    </div>
+    <p class="lw-home__card-copy">
+      Select one of your existing characters to join {{ store.activeCampaign().name }} or create a new character for this campaign.
+    </p>
+    <div class="lw-home__invite-row">
+      <lw-button variant="primary" size="sm" (pressed)="openJoinAndSelectCharacterModal()">
+        Join Campaign & Select Character
+      </lw-button>
+      <lw-button variant="secondary" size="sm" (pressed)="createCharacterAndAssign(myMembership() || undefined)">
+        Create New Character for Campaign
+      </lw-button>
+    </div>
+  </div>
+}
+
 <lw-panel
   title="Campaign Management & Options"
   [subtitle]="campaignPlayers().length + ' Players in Campaign · ' + campaignCharacters().length + ' Active Characters · Role-Scoped Table Management'"
@@ -135,21 +158,24 @@
   <div class="lw-home__players-strip">
     @for (player of campaignPlayers(); track player.accountId) {
       @let assignedChar = assignedCharacterForPlayer(player);
+      @let isPending = player.role !== 'gm' && (player.inviteStatus === 'pending' || (!assignedChar && !player.assignedCharacterName));
       <div class="lw-home__player-pill">
         <div class="lw-home__player-info">
           <div class="lw-home__player-name-row">
             <strong>{{ player.displayName }}</strong>
             <span class="lw-home__player-handle">@{{ player.username }}</span>
-            <lw-badge [tone]="player.role === 'gm' ? 'gold' : 'emerald'">
-              {{ player.role === 'gm' ? 'DM / GM' : 'Player' }}
+            <lw-badge [tone]="player.role === 'gm' ? 'gold' : isPending ? 'gold' : 'emerald'">
+              {{ player.role === 'gm' ? 'DM / GM' : isPending ? 'Pending' : 'Player' }}
             </lw-badge>
           </div>
           <span class="lw-home__player-meta">
-            {{ player.joinedAtLabel }} ·
+            {{ isPending ? 'Invite Pending' : player.joinedAtLabel }} ·
             @if (assignedChar) {
               Assigned: <strong>{{ assignedChar.name }}</strong>
+            } @else if (player.assignedCharacterName) {
+              Assigned: <strong>{{ player.assignedCharacterName }}</strong>
             } @else {
-              No character assigned yet
+              Character Pending
             }
           </span>
         </div>

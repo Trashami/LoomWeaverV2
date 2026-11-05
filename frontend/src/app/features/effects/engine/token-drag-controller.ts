@@ -17,6 +17,7 @@ export interface TokenPlacement {
   readonly key: string;
   readonly x: number;
   readonly z: number;
+  readonly facingY?: number;
 }
 
 export interface TokenRightClickEvent {
@@ -43,6 +44,7 @@ interface ActiveDrag {
   readonly downTimeMs: number;
   x: number;
   z: number;
+  facingY?: number;
   velX: number;
   velZ: number;
   lifted: boolean;
@@ -55,6 +57,7 @@ interface SettlingToken {
   readonly fromLiftY: number;
   readonly fromRotX: number;
   readonly fromRotZ: number;
+  readonly facingY?: number;
   readonly wobbleAxisAngle: number;
 }
 
@@ -215,6 +218,10 @@ export class TokenDragController {
       downTimeMs: performance.now(),
       x: mesh.position.x,
       z: mesh.position.z,
+      facingY:
+        typeof mesh.metadata?.facingY === 'number'
+          ? (mesh.metadata.facingY as number)
+          : mesh.rotation.y,
       velX: 0,
       velZ: 0,
       lifted: false,
@@ -257,14 +264,17 @@ export class TokenDragController {
     this.activateTokenLift(drag);
     const dx = snapped.x - drag.x;
     const dz = snapped.z - drag.z;
+    if (Math.hypot(dx, dz) > 0.05) {
+      drag.facingY = Math.atan2(-dx, -dz);
+    }
     drag.velX = drag.velX * 0.45 + Math.max(-1, Math.min(1, dx)) * 0.55;
     drag.velZ = drag.velZ * 0.45 + Math.max(-1, Math.min(1, dz)) * 0.55;
     drag.x = snapped.x;
     drag.z = snapped.z;
-    this.placeMeshes(drag.key, snapped.x, snapped.z);
+    this.placeMeshes(drag.key, snapped.x, snapped.z, drag.facingY);
     const liftOffset = LIFT_HEIGHT_WORLD * (1 - Math.pow(1 - drag.liftProgress, 3));
     updateTokenMovementIndicator(this.scene, drag.key, drag.startX, drag.startZ, snapped.x, snapped.z, liftOffset);
-    this.handlers.onDragged({ key: drag.key, x: snapped.x, z: snapped.z });
+    this.handlers.onDragged({ key: drag.key, x: snapped.x, z: snapped.z, facingY: drag.facingY });
   }
 
   private handlePointerUp(info: PointerInfo): void {
@@ -287,6 +297,15 @@ export class TokenDragController {
     this.active = null;
     this.handlers.onDragEnd();
 
+    const totalDx = drag.x - drag.startX;
+    const totalDz = drag.z - drag.startZ;
+    if (Math.hypot(totalDx, totalDz) > 0.08 && drag.facingY === undefined) {
+      drag.facingY = Math.atan2(-totalDx, -totalDz);
+    }
+    if (drag.facingY !== undefined) {
+      this.placeMeshes(drag.key, drag.x, drag.z, drag.facingY);
+    }
+
     if (drag.lifted || drag.liftProgress > 0.05) {
       const tokenMesh = this.scene.getMeshByName(`lw-token-${drag.key}`);
       const axisAngle =
@@ -299,6 +318,7 @@ export class TokenDragController {
         fromLiftY: Math.max(0.14, drag.liftProgress * LIFT_HEIGHT_WORLD),
         fromRotX: tokenMesh?.rotation.x ?? TILT_20_DEG_RAD * 0.85,
         fromRotZ: tokenMesh?.rotation.z ?? -TILT_20_DEG_RAD * 0.5,
+        facingY: drag.facingY,
         wobbleAxisAngle: axisAngle,
       });
     }
@@ -309,7 +329,7 @@ export class TokenDragController {
     }
     updateTokenMovementIndicator(this.scene, drag.key, drag.startX, drag.startZ, drag.x, drag.z, 0);
     scheduleClearTokenMovementIndicator(this.scene, 1750);
-    this.handlers.onDropped({ key: drag.key, x: drag.x, z: drag.z });
+    this.handlers.onDropped({ key: drag.key, x: drag.x, z: drag.z, facingY: drag.facingY });
   }
 
   private stepLiftAndWobbleAnimations(): void {
@@ -393,7 +413,14 @@ export class TokenDragController {
         tokenMesh.position.y = baseRestY;
         tokenMesh.rotation.x = 0;
         tokenMesh.rotation.z = 0;
-        tokenMesh.metadata = { ...(tokenMesh.metadata ?? {}), isLiftedOrWobbling: false };
+        if (st.facingY !== undefined) {
+          tokenMesh.rotation.y = st.facingY;
+        }
+        tokenMesh.metadata = {
+          ...(tokenMesh.metadata ?? {}),
+          isLiftedOrWobbling: false,
+          facingY: st.facingY ?? tokenMesh.rotation.y,
+        };
         this.settlingTokens.delete(key);
       }
     }
@@ -410,7 +437,7 @@ export class TokenDragController {
       : null;
   }
 
-  private placeMeshes(key: string, x: number, z: number): void {
+  private placeMeshes(key: string, x: number, z: number, facingY?: number): void {
     const tokenMesh = this.scene.getMeshByName(`lw-token-${key}`);
     const radius =
       typeof tokenMesh?.metadata?.footprintRadius === 'number'
@@ -425,6 +452,14 @@ export class TokenDragController {
           ? LIFT_HEIGHT_WORLD * (1 - Math.pow(1 - this.active.liftProgress, 3))
           : 0;
       tokenMesh.position.set(x, groundY + baseHeight / 2 + 0.01 + liftOffset, z);
+      if (facingY !== undefined) {
+        tokenMesh.rotation.y = facingY;
+        tokenMesh.metadata = { ...(tokenMesh.metadata ?? {}), facingY };
+        const disc = this.scene.getMeshByName(`lw-token-puck-disc-${key}`);
+        if (disc) {
+          disc.rotation.z = facingY;
+        }
+      }
     }
     const reticle = this.scene.getMeshByName(`lw-target-reticle-root-${key}`);
     if (reticle) {

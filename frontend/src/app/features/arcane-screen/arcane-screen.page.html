@@ -21,6 +21,19 @@
 
         <button ngpButton type="button" class="btn-top-action" (click)="store.openAdventureGuideModal('session')" title="Open Adventure Guide (Current Session or Whole Guide)"><lw-icon name="book-open" [size]="12" /> <span>Adventure Guide</span></button>
         <button ngpButton type="button" class="btn-top-action" (click)="toggleMapMode()" title="Toggle 2D / 3D View"><lw-icon [name]="battle.mapMode3D() ? 'layers' : 'view_in_ar'" [size]="12" /> <span>{{ battle.mapMode3D() ? '3D View' : '2D Map' }}</span></button>
+        @if (store.viewerRole() === 'gm') {
+          <button
+            ngpButton
+            type="button"
+            class="btn-top-action"
+            [class.active]="battle.gmHideFogForSelfOnly()"
+            (click)="battle.gmHideFogForSelfOnly.set(!battle.gmHideFogForSelfOnly())"
+            title="Toggle Fog of War off for DM only without affecting players' view"
+          >
+            <lw-icon [name]="battle.gmHideFogForSelfOnly() ? 'eye' : 'eye-off'" [size]="12" />
+            <span>{{ battle.gmHideFogForSelfOnly() ? 'DM Fog: Off' : 'DM Fog: On' }}</span>
+          </button>
+        }
         <button ngpButton type="button" class="btn-top-action" (click)="store.toggleLoomDrawer()" title="The Loom Campaign Memory"><lw-icon name="history_edu" [size]="12" /> <span>The Loom</span></button>
       </div>
     </div>

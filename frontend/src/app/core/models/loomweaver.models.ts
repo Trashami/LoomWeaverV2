@@ -5,6 +5,34 @@ export type AssetEntitlement = 'free' | 'included' | 'purchased' | 'locked';
 export type QualityProfile = 'Auto' | 'Cinematic' | 'Balanced' | 'Performance 3D' | 'Classic 2D';
 export type CampaignAbilityScoreRule = 'point_buy' | 'roll_stats';
 
+export type CampaignInviteStatus = 'pending' | 'active';
+
+export type LwNotificationCategory =
+  | 'campaign_invite'
+  | 'player_joined'
+  | 'session_upcoming'
+  | 'level_up'
+  | 'loot_awarded'
+  | 'item_received'
+  | 'note_published'
+  | 'general';
+
+export interface LwNotificationItemVm {
+  readonly id: string;
+  readonly recipientUsername: string;
+  readonly recipientEmail: string;
+  readonly campaignId: number;
+  readonly campaignName: string;
+  readonly category: LwNotificationCategory;
+  readonly title: string;
+  readonly message: string;
+  readonly routeLink?: string;
+  readonly actionLabel?: string;
+  readonly actorName?: string;
+  readonly isRead: boolean;
+  readonly createdAt: string;
+}
+
 export interface CampaignPlayerMemberVm {
   readonly accountId: string;
   readonly username: string;
@@ -13,7 +41,9 @@ export interface CampaignPlayerMemberVm {
   readonly role: 'gm' | 'players';
   readonly joinedViaInvite: boolean;
   readonly joinedAtLabel: string;
+  readonly inviteStatus?: CampaignInviteStatus;
   readonly assignedCharacterKey?: string;
+  readonly assignedCharacterName?: string;
 }
 
 export interface CampaignVm {
@@ -32,6 +62,8 @@ export interface CampaignVm {
   readonly dmUsernames?: readonly string[];
   readonly dmDisplayName?: string;
   readonly myRole?: 'dm' | 'player';
+  readonly myCharacterKey?: string | null;
+  readonly myInviteStatus?: CampaignInviteStatus;
 }
 
 export interface EntityCardVm {

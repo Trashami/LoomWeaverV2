@@ -1,5 +1,6 @@
 import {
   AbstractMesh,
+  ArcRotateCamera,
   Color3,
   DynamicTexture,
   LinesMesh,
@@ -126,7 +127,7 @@ function drawOverheadDistanceBadge(
   ctx.fillText(sqLabel, w / 2, py + 104);
 
   ctx.restore();
-  tex.update(false);
+  tex.update(true);
 }
 
 export function clearTokenMovementIndicator(scene: Scene | null): void {
@@ -311,12 +312,15 @@ export function updateTokenMovementIndicator(
     drawOverheadDistanceBadge(st.badgeTex, feet, squares, rimHex);
   }
 
-  // Position overhead badge directly above the moving token's head
+  // Position overhead badge directly above the moving token's head (or just north of the token rim in 2D top-down view)
+  const activeCam = scene.activeCamera as ArcRotateCamera | null;
+  const isTopDown2D = Boolean(activeCam && activeCam.beta < 0.08);
   const tokenTopOffset = 1.32 * effectiveScale;
+  const topDownZOffset = isTopDown2D ? 0.62 * effectiveScale : 0;
   st.badgePlane.position.set(
     currentX,
     currentGroundY + baseHeight + tokenTopOffset + liftOffsetY,
-    currentZ,
+    currentZ + topDownZOffset,
   );
 
   // Update terrain-hugging path line from the ghost origin base to the current token base

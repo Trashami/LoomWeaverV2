@@ -44,10 +44,17 @@ function resolveDiscardModeForMaterial(matName: string): number {
   ) {
     return 2.0;
   }
-  if (matName === 'lw-terrain-mat' || matName === 'lw-terrain-ground-mat' || matName === 'lw-vtt-gmat' || matName === 'lw-map-mat') {
+  if (
+    matName === 'lw-terrain-mat' ||
+    matName === 'lw-terrain-ground-mat' ||
+    matName === 'lw-vtt-gmat' ||
+    matName === 'lw-map-mat'
+  ) {
     return 0.0;
   }
-  return 1.0;
+  // 3D objects, stamps, walls, doors, scatter, and tokens use whole-object LoS visibility
+  // so no object in Line of Sight is ever partially sliced or darkened by its own shadow.
+  return -1.0;
 }
 
 /**
@@ -145,7 +152,7 @@ varying vec2 vLwFogXZ;
 uniform sampler2D lwFogTex;
 #endif`,
         CUSTOM_FRAGMENT_MAIN_END: `#ifdef LW_VOLUMETRIC_FOG
-if (lwFogActive > 0.5) {
+if (lwFogActive > 0.5 && lwFogDiscardMode >= -0.5) {
   if (gl_FragColor.a < 0.01) {
     discard;
   }

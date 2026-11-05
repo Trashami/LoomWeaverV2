@@ -838,6 +838,14 @@ export class TerrainMeshBuilder {
       }
       this.tileDynTex.wrapU = Texture.WRAP_ADDRESSMODE;
       this.tileDynTex.wrapV = Texture.WRAP_ADDRESSMODE;
+      this.tileDynTex.wrapR = Texture.WRAP_ADDRESSMODE;
+      const internalTileTex = this.tileDynTex.getInternalTexture();
+      if (internalTileTex) {
+        internalTileTex.wrapU = Texture.WRAP_ADDRESSMODE;
+        internalTileTex.wrapV = Texture.WRAP_ADDRESSMODE;
+        internalTileTex._cachedWrapU = null;
+        internalTileTex._cachedWrapV = null;
+      }
       this.tileDynTex.uScale = uScale;
       this.tileDynTex.vScale = vScale;
       const tCtx = this.tileDynTex.getContext() as unknown as CanvasRenderingContext2D;

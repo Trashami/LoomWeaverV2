@@ -107,6 +107,7 @@ export interface VttTokenVm {
   readonly armorClass: number;
   readonly x: number;
   readonly z: number;
+  readonly facingY?: number;
   readonly colorHex: string;
   readonly actionUsed: boolean;
   readonly bonusUsed: boolean;

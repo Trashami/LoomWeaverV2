@@ -11,7 +11,7 @@ import { GlbModelCache } from '../rendering/glb-model-cache';
 import { resolveTextureLodUrl } from '../rendering/glb-lod';
 import { TerrainMeshBuilder } from '../terrain/terrain-mesh.builder';
 import { wallEndExtension } from './wall-join-profile';
-import { fitWallStamp, wallGroundAt } from './wall-terrain-fit';
+import { fitWallStamp, WallDoorEndAttachment, wallGroundAt } from './wall-terrain-fit';
 import { WallSurfacePaint } from './wall-surface-paint';
 import { CutawayWallEngine } from './cutaway-wall.engine';
 
@@ -712,34 +712,85 @@ export class WallMeshBuilder {
         const segGlobalEndT = totalPerimeter > 0 ? (accumBefore + totalLen) / totalPerimeter : 1;
         accumBefore += totalLen;
 
-        // Collect door openings on this segment
-        const localCutouts: { startLocal: number; endLocal: number; opening: WallOpeningNode }[] = [];
+        // Collect door openings on this segment and pre-resolve 3D door geometry so wall ends
+        // attach flush all the way into the selected door's side pillars/arch frame.
+        interface ResolvedDoorCutout {
+          readonly startLocal: number;
+          readonly endLocal: number;
+          readonly localCenter: number;
+          readonly doorX: number;
+          readonly doorZ: number;
+          readonly groundY: number;
+          readonly doorH: number;
+          readonly doorRenderWidth: number;
+          readonly doorTpl: ReturnType<typeof GlbModelCache.getOrLoadTemplate>;
+          readonly opening: WallOpeningNode;
+        }
+        const localCutouts: ResolvedDoorCutout[] = [];
         for (const op of wall.openings) {
           if (op.t >= segGlobalStartT - 0.001 && op.t <= segGlobalEndT + 0.001) {
             const localCenter =
               segGlobalEndT > segGlobalStartT
                 ? (op.t - segGlobalStartT) / (segGlobalEndT - segGlobalStartT)
                 : 0.5;
-            const halfSpan = Math.min(0.45, (op.widthMeters * 0.5) / totalLen);
+            const doorModelUrl =
+              op.modelUrl || '/assets/object-library/models/obj-89c62a2b01238531.glb';
+            const doorTpl = GlbModelCache.getOrLoadTemplate(scene, doorModelUrl, onGlbLoaded);
+            const waistScale = doorTpl
+              ? 1 / Math.max(0.74, Math.min(0.96, doorTpl.waistWidthRatio))
+              : 1.08;
+            const doorRenderWidth = op.widthMeters * waistScale + 0.08;
+            const doorH = (op.heightMeters ?? Math.min(height, 2.6)) + 0.03;
+            const doorX = a[0] + dx * localCenter;
+            const doorZ = a[1] + dz * localCenter;
+            const groundY = TerrainMeshBuilder.sampleElevationAt(scene, doorX, doorZ);
+            // Cut the span inside the door's side jamb pillars (~34% of door width from center)
+            // instead of the outer plinth bounding box so the wall embeds into the door frame.
+            const halfSpan = Math.min(0.45, (op.widthMeters * 0.34) / totalLen);
             localCutouts.push({
               startLocal: Math.max(0, localCenter - halfSpan),
               endLocal: Math.min(1, localCenter + halfSpan),
+              localCenter,
+              doorX,
+              doorZ,
+              groundY,
+              doorH,
+              doorRenderWidth,
+              doorTpl,
               opening: op,
             });
           }
         }
         localCutouts.sort((x, y) => x.startLocal - y.startLocal);
 
-        const solidSpans: [number, number][] = [];
+        interface SolidWallSpan {
+          readonly s0: number;
+          readonly s1: number;
+          readonly startCut?: ResolvedDoorCutout;
+          readonly endCut?: ResolvedDoorCutout;
+        }
+        const solidSpans: SolidWallSpan[] = [];
         let cursor = 0;
+        let prevCut: ResolvedDoorCutout | undefined;
         for (const cut of localCutouts) {
-          if (cut.startLocal - cursor > 0.03) {
-            solidSpans.push([cursor, cut.startLocal]);
+          if (cut.startLocal - cursor > 0.02) {
+            solidSpans.push({
+              s0: cursor,
+              s1: cut.startLocal,
+              startCut: prevCut,
+              endCut: cut,
+            });
           }
           cursor = Math.max(cursor, cut.endLocal);
+          prevCut = cut;
         }
-        if (1 - cursor > 0.03) {
-          solidSpans.push([cursor, 1]);
+        if (1 - cursor > 0.02) {
+          solidSpans.push({
+            s0: cursor,
+            s1: 1,
+            startCut: prevCut,
+            endCut: undefined,
+          });
         }
 
         const angleY = -Math.atan2(dz, dx);
@@ -747,7 +798,8 @@ export class WallMeshBuilder {
         const uz = dz / totalLen;
 
         for (let sIdx = 0; sIdx < solidSpans.length; sIdx++) {
-          const [s0, s1] = solidSpans[sIdx];
+          const span = solidSpans[sIdx];
+          const { s0, s1, startCut, endCut } = span;
           const rawSpanLen = (s1 - s0) * totalLen;
           // Extend ends at wall corners so 90-degree connections interlock flush with zero outside notch
           const startCornerExt =
@@ -775,7 +827,7 @@ export class WallMeshBuilder {
               Math.max(1, Math.round(extendedSpanLen / stepLen)),
             );
             const subStep = extendedSpanLen / stampCount;
-            const pieceWidth = subStep * (1 + Math.max(0, overlapFrac * 0.75));
+            const pieceWidth = subStep * (1 + Math.max(0.12, overlapFrac * 0.85));
             const pieceDepth = wall.thicknessMeters * stampScale * (1 + Math.max(0, overlapFrac * 0.35));
 
             for (let k = 0; k < stampCount; k++) {
@@ -814,6 +866,31 @@ export class WallMeshBuilder {
               );
               inst.position.set(px, ground + offsetY - (smoothing > 0 ? 0.18 : 0), pz);
               inst.rotation.y = angleY + rotOffsetRad;
+
+              const doorAttachStart: WallDoorEndAttachment | undefined =
+                k === 0 && startCut
+                  ? {
+                      doorCenterAlong:
+                        (startCut.doorX - spanStartX) * ux + (startCut.doorZ - spanStartZ) * uz,
+                      doorRenderWidth: startCut.doorRenderWidth,
+                      doorHeight: startCut.doorH,
+                      doorBaseY: startCut.groundY + offsetY - 0.015,
+                      halfSpanProfile: startCut.doorTpl?.halfSpanProfile,
+                    }
+                  : undefined;
+
+              const doorAttachEnd: WallDoorEndAttachment | undefined =
+                k === stampCount - 1 && endCut
+                  ? {
+                      doorCenterAlong:
+                        (endCut.doorX - spanStartX) * ux + (endCut.doorZ - spanStartZ) * uz,
+                      doorRenderWidth: endCut.doorRenderWidth,
+                      doorHeight: endCut.doorH,
+                      doorBaseY: endCut.groundY + offsetY - 0.015,
+                      halfSpanProfile: endCut.doorTpl?.halfSpanProfile,
+                    }
+                  : undefined;
+
               fitWallStamp(
                 scene,
                 inst,
@@ -823,6 +900,8 @@ export class WallMeshBuilder {
                 ground,
                 smoothing,
                 terrainDrop > 0.005 || Math.abs(minGroundY) > 0.005,
+                doorAttachStart,
+                doorAttachEnd,
               );
               meshCount++;
             }
@@ -884,35 +963,50 @@ export class WallMeshBuilder {
           const op = cut.opening;
           if (hideSecrets && op.isSecret && !op.isRevealedToPlayers) continue;
 
-          const tCenter = (cut.startLocal + cut.endLocal) * 0.5;
-          const doorX = a[0] + dx * tCenter;
-          const doorZ = a[1] + dz * tCenter;
-          const groundY = TerrainMeshBuilder.sampleElevationAt(scene, doorX, doorZ);
-          const doorH = op.heightMeters ?? Math.min(height * 0.85, 2.6);
+          const { doorX, doorZ, groundY, doorH, doorRenderWidth, doorTpl } = cut;
+          const wallTopH = height * stampScale;
 
-          if (height - doorH > 0.25) {
-            const lintelH = height - doorH;
-            const lintel = MeshBuilder.CreateBox(
-              `lw-wall-${wall.id}-lintel-${op.id}`,
-              {
-                width: op.widthMeters + 0.12,
-                height: lintelH,
-                depth: wall.thicknessMeters,
-              },
-              scene,
-            );
-            lintel.position.set(doorX, groundY + doorH + lintelH / 2 + offsetY, doorZ);
-            lintel.rotation.y = angleY;
-            lintel.material = mat;
-            lintel.metadata = {
+          if (wallTopH - doorH > 0.22) {
+            const lintelH = wallTopH - doorH + 0.08;
+            const lintelMeta = {
               lwNodeName: `lw-wall-${wall.id}`,
-              lwKind: 'wall',
+              lwKind: 'wall' as const,
               lwEntityId: wall.id,
             };
+            if (wallTpl) {
+              const lintelInst = GlbModelCache.instantiateClone(
+                scene,
+                wallTpl,
+                `lw-wall-node-${wall.id}-lintel-${op.id}`,
+                doorRenderWidth * 0.92,
+                lintelH,
+                wall.thicknessMeters * stampScale,
+                false,
+                false,
+                lintelMeta,
+                wall.colorHex ? { colorHex: wall.colorHex } : undefined,
+              );
+              lintelInst.position.set(doorX, groundY + doorH - 0.06 + offsetY, doorZ);
+              lintelInst.rotation.y = angleY + rotOffsetRad;
+              meshCount++;
+            } else {
+              const lintel = MeshBuilder.CreateBox(
+                `lw-wall-${wall.id}-lintel-${op.id}`,
+                {
+                  width: doorRenderWidth * 0.92,
+                  height: lintelH,
+                  depth: wall.thicknessMeters * stampScale,
+                },
+                scene,
+              );
+              lintel.position.set(doorX, groundY + doorH + lintelH / 2 - 0.06 + offsetY, doorZ);
+              lintel.rotation.y = angleY + rotOffsetRad;
+              lintel.material = mat;
+              lintel.metadata = lintelMeta;
+              meshCount++;
+            }
           }
 
-          const doorModelUrl = op.modelUrl || '/assets/object-library/models/obj-89c62a2b01238531.glb';
-          const doorTpl = GlbModelCache.getOrLoadTemplate(scene, doorModelUrl, onGlbLoaded);
           const doorMeta = {
             lwNodeName: `lw-door-${op.id}`,
             lwKind: 'door' as const,
@@ -925,9 +1019,9 @@ export class WallMeshBuilder {
               scene,
               doorTpl,
               `lw-door-node-${op.id}`,
-              op.widthMeters + 0.06,
-              doorH + 0.03,
-              wall.thicknessMeters * stampScale * 1.08,
+              doorRenderWidth,
+              doorH,
+              wall.thicknessMeters * stampScale * 1.14,
               false,
               false,
               doorMeta,
@@ -941,7 +1035,7 @@ export class WallMeshBuilder {
               {
                 width: op.widthMeters,
                 height: doorH,
-                depth: wall.thicknessMeters * stampScale * 1.08,
+                depth: wall.thicknessMeters * stampScale * 1.14,
               },
               scene,
             );

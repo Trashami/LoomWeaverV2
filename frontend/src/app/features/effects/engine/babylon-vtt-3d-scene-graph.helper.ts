@@ -190,17 +190,18 @@ export function attach2dTopDownPanningObserver(
     camera: ArcRotateCamera | null;
     engine: Engine | null;
     dragController: TokenDragController | null;
+    isFogBrushActive?: boolean;
   },
 ): () => void {
   let pan2dActive = false;
   let panLastClientX = 0;
   let panLastClientY = 0;
   const panObserver = scene.onPointerObservable.add((info) => {
-    const { isForcedTopDown, camera, engine, dragController } = getState();
+    const { isForcedTopDown, camera, engine, dragController, isFogBrushActive } = getState();
     if (!isForcedTopDown || !camera || !engine) return;
     const evt = info.event as PointerEvent;
     if (info.type === PointerEventTypes.POINTERDOWN) {
-      if (evt.button !== 0 || dragController?.isDragging()) {
+      if (evt.button !== 0 || dragController?.isDragging() || isFogBrushActive) {
         pan2dActive = false;
         return;
       }
@@ -208,7 +209,7 @@ export function attach2dTopDownPanningObserver(
       panLastClientX = evt.clientX;
       panLastClientY = evt.clientY;
     } else if (info.type === PointerEventTypes.POINTERMOVE) {
-      if (!pan2dActive || dragController?.isDragging() || (evt.buttons & 1) === 0) {
+      if (!pan2dActive || dragController?.isDragging() || isFogBrushActive || (evt.buttons & 1) === 0) {
         pan2dActive = false;
         return;
       }

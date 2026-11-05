@@ -40,7 +40,11 @@ export class VttFogService {
   readonly layer = computed<HTMLCanvasElement | null>(
     () => {
       const mode = this.battle.fogMode();
-      if (mode === 'no-fog') return null;
+      const gmHideSelf =
+        this.store.viewerRole() === 'gm' &&
+        this.battle.gmHideFogForSelfOnly() &&
+        !this.battle.gmPreviewPlayerVision();
+      if (mode === 'no-fog' || gmHideSelf) return null;
 
       // Read reactive dependencies so the canvas updates when tokens move, a token is selected, or settings change
       const encounterId = this.combat.activeEncounterId() || 'default';

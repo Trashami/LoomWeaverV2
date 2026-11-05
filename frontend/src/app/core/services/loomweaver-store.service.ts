@@ -3,24 +3,24 @@ import { HttpClient } from '@angular/common/http';
 import { CampaignDashboardVm } from '../models/dashboard.models';
 import { FullscreenDiceOverlayService } from '../../features/dice/engine/fullscreen-dice-overlay.service';
 import {
-  AssetCardVm, CampaignAbilityScoreRule, CampaignPlayerMemberVm, CampaignSessionVm, CampaignVm,
+  AssetCardVm, CampaignAbilityScoreRule, CampaignInviteStatus, CampaignPlayerMemberVm, CampaignSessionVm, CampaignVm,
   CombatTelemetryVm, EntityCardVm, GraphEdgeVm, LoomCitationVm, NavDestination, QualityProfile,
   SceneVm, SessionAttachmentVm, SubscriptionTierVm, ViewerRole,
 } from '../models/loomweaver.models';
 import { buildEmptyDashboard } from './dashboard-empty.data';
 import { LW_ASSETS, LW_GRAPH_EDGES, LW_SCENES, LW_SUBSCRIPTION_TIERS, LW_TELEMETRY } from './loomweaver-catalog.data';
 import {
-  DEFAULT_PARTY_PLAYERS, LW_ENTITIES, LW_NAVIGATION, NO_CAMPAIGN, SYSTEM_LABELS,
-  buildFallbackSessionsHelper, formatSessionLocationLabelHelper,
+  DEFAULT_PARTY_PLAYERS, LW_ENTITIES, LW_NAVIGATION, NO_CAMPAIGN, ServerMemberDto, SYSTEM_LABELS,
+  buildFallbackSessionsHelper, formatSessionLocationLabelHelper, mergeServerCampaignMembersHelper,
 } from './loomweaver-seed.data';
+import { LwNotificationService } from './lw-notification.service';
 
 interface ServerCampaign {
   readonly id: number; readonly slug: string; readonly name: string; readonly subtitle: string;
   readonly systemCode: CampaignVm['systemCode']; readonly worldName: string; readonly currentAct: string;
   readonly currentSessionNumber: number; readonly currentLocationName: string; readonly weaveEnabled: boolean;
-  readonly my_role: 'dm' | 'player';
+  readonly my_role: 'dm' | 'player'; readonly my_character_key?: string | null; readonly my_invite_status?: CampaignInviteStatus;
 }
-
 interface ServerSessionRow {
   readonly id?: string; readonly sessionId?: string; readonly sessionNumber: number; readonly title: string;
   readonly locationName?: string; readonly dateLabel?: string; readonly xpAwarded?: number;
@@ -50,6 +50,7 @@ export type AdventureGuideModalScope = 'session' | 'adventure';
 export class LoomWeaverStoreService {
   private readonly http = inject(HttpClient);
   private readonly fullscreenDice = inject(FullscreenDiceOverlayService);
+  private readonly notifications = inject(LwNotificationService);
 
   readonly navigationItems = signal<readonly NavDestination[]>(LW_NAVIGATION);
   readonly campaigns = signal<readonly CampaignVm[]>([NO_CAMPAIGN]);
@@ -73,7 +74,6 @@ export class LoomWeaverStoreService {
   readonly backendOnline = signal<boolean>(true);
   readonly quickRollBanner = signal<string>('1d20 Ready');
   readonly campaignDashboard = signal<CampaignDashboardVm>(buildEmptyDashboard(0));
-
   readonly campaignAbilityRules = signal<Readonly<Record<number, CampaignAbilityScoreRule>>>({});
   readonly campaignPlayersByCampaign = signal<Readonly<Record<number, readonly CampaignPlayerMemberVm[]>>>({});
   readonly campaignInviteCodes = signal<Readonly<Record<number, string>>>({});
@@ -89,9 +89,7 @@ export class LoomWeaverStoreService {
     const weaveOn = this.weaveEnabled();
     return this.rawSubscriptionTiers().map((tier) => weaveOn ? tier : {
       ...tier, includesWeave: false,
-      summary: tier.summary
-        .replace(', The Weave AI draft companion, and Neo4j World Graph', ', and Connected World & Lore Atlas')
-        .replace('The Weave AI draft companion', 'Connected World & Lore Studio'),
+      summary: tier.summary.replace(', The Weave AI draft companion, and Neo4j World Graph', ', and Connected World & Lore Atlas').replace('The Weave AI draft companion', 'Connected World & Lore Studio'),
     });
   });
 
@@ -150,14 +148,12 @@ export class LoomWeaverStoreService {
     if (!entity) return [];
     const entities = this.authorizedEntities();
     const defaultRoute = this.weaveEnabled() ? '/weave' : '/world-lore';
-    return this.authorizedGraphEdges()
-      .filter((edge) => edge.sourceKey === entity.compositeKey || edge.targetKey === entity.compositeKey)
-      .map((edge) => {
-        const isOutgoing = edge.sourceKey === entity.compositeKey;
-        const peerKey = isOutgoing ? edge.targetKey : edge.sourceKey;
-        const peer = entities.find((e) => e.compositeKey === peerKey);
-        return { relationshipType: edge.relationshipType, direction: isOutgoing ? ('outgoing' as const) : ('incoming' as const), peerKey, peerName: peer?.name ?? peerKey, peerType: peer?.entityType ?? 'Entity', peerRoute: peer?.routeLink ?? defaultRoute };
-      });
+    return this.authorizedGraphEdges().filter((edge) => edge.sourceKey === entity.compositeKey || edge.targetKey === entity.compositeKey).map((edge) => {
+      const isOutgoing = edge.sourceKey === entity.compositeKey;
+      const peerKey = isOutgoing ? edge.targetKey : edge.sourceKey;
+      const peer = entities.find((e) => e.compositeKey === peerKey);
+      return { relationshipType: edge.relationshipType, direction: isOutgoing ? ('outgoing' as const) : ('incoming' as const), peerKey, peerName: peer?.name ?? peerKey, peerType: peer?.entityType ?? 'Entity', peerRoute: peer?.routeLink ?? defaultRoute };
+    });
   });
   readonly loomCitations = computed<readonly LoomCitationVm[]>(() => {
     const q = this.loomQuery().trim().toLowerCase();
@@ -169,27 +165,32 @@ export class LoomWeaverStoreService {
   loadMyCampaigns(preferredId?: number): void {
     this.http.get<readonly ServerCampaign[]>('/api/v2/campaigns').subscribe({
       next: (list) => {
-        const mapped = (list ?? []).map<CampaignVm>((c) => ({ ...c, systemLabel: SYSTEM_LABELS[c.systemCode] ?? c.systemCode, myRole: c.my_role }));
+        const mapped = (list ?? []).map<CampaignVm>((c) => ({ ...c, systemLabel: SYSTEM_LABELS[c.systemCode] ?? c.systemCode, myRole: c.my_role, myCharacterKey: c.my_character_key ?? null, myInviteStatus: c.my_invite_status ?? 'active' }));
         this.campaigns.set(mapped.length ? mapped : [NO_CAMPAIGN]);
         const saved = preferredId ?? Number(this.readSavedCampaignId());
         this.setCampaign((mapped.find((c) => c.id === saved) ?? mapped[0] ?? NO_CAMPAIGN).id);
+        this.notifications.syncIdentityAndRefresh(this.activeUsername(), `${this.activeUsername().toLowerCase()}@loom-weaver.com`, mapped.map((c) => c.id));
       },
-      error: () => { this.campaigns.set([NO_CAMPAIGN]); this.activeCampaignId.set(0); this.viewerRole.set('players'); },
+      error: () => { this.campaigns.set([NO_CAMPAIGN]); this.activeCampaignId.set(0); this.viewerRole.set('players'); this.notifications.syncIdentityAndRefresh(this.activeUsername(), `${this.activeUsername().toLowerCase()}@loom-weaver.com`, []); },
     });
   }
   private readSavedCampaignId(): string | null { try { return typeof localStorage === 'undefined' ? null : localStorage.getItem(ACTIVE_CAMPAIGN_STORAGE_KEY); } catch { return null; } }
-
   setCampaign(id: number): void {
     const validated = this.campaigns().find((c) => c.id === Number(id)) ?? this.campaigns()[0];
     if (!validated) return;
-    this.activeCampaignId.set(validated.id);
-    this.inspectedEntityKey.set(null);
-    this.viewerRole.set(this.isUserGmForCampaign(validated) ? 'gm' : 'players');
+    this.activeCampaignId.set(validated.id); this.inspectedEntityKey.set(null); this.viewerRole.set(this.isUserGmForCampaign(validated) ? 'gm' : 'players');
     try { if (typeof localStorage !== 'undefined') localStorage.setItem(ACTIVE_CAMPAIGN_STORAGE_KEY, String(validated.id)); } catch {}
-    this.refreshCampaignDashboard();
-    this.loadCampaignSessions(validated.id);
-    this.loadSessionAttachments(validated.id);
-    this.loadCampaignRulesFromServer(validated.id);
+    this.refreshCampaignDashboard(); this.loadCampaignSessions(validated.id); this.loadSessionAttachments(validated.id); this.loadCampaignRulesFromServer(validated.id); this.loadCampaignMembersFromServer(validated.id);
+  }
+  loadCampaignMembersFromServer(campaignId = this.activeCampaignId()): void {
+    if (campaignId <= 0) return;
+    this.http.get<readonly ServerMemberDto[]>(`/api/v2/campaigns/${campaignId}/members`).subscribe({
+      next: (rows) => {
+        if (!rows || rows.length === 0) return;
+        this.campaignPlayersByCampaign.update((cur) => { const next = { ...cur, [campaignId]: mergeServerCampaignMembersHelper(cur[campaignId] ?? DEFAULT_PARTY_PLAYERS, rows) }; writeJsonStorage(CAMPAIGN_PLAYERS_STORAGE_KEY, next); return next; });
+      },
+      error: () => {},
+    });
   }
 
   setCampaignAbilityScoreRule(rule: CampaignAbilityScoreRule): void {
@@ -201,11 +202,7 @@ export class LoomWeaverStoreService {
   private loadCampaignRulesFromServer(campaignId: number): void {
     if (campaignId <= 0) return;
     this.http.get<{ abilityScoreRule?: CampaignAbilityScoreRule }>(`/api/v2/campaigns/${campaignId}/rules`).subscribe({
-      next: (res) => {
-        if ((res?.abilityScoreRule === 'roll_stats' || res?.abilityScoreRule === 'point_buy') && !this.campaignAbilityRules()[campaignId]) {
-          this.campaignAbilityRules.update((cur) => ({ ...cur, [campaignId]: res.abilityScoreRule! }));
-        }
-      },
+      next: (res) => { if ((res?.abilityScoreRule === 'roll_stats' || res?.abilityScoreRule === 'point_buy') && !this.campaignAbilityRules()[campaignId]) this.campaignAbilityRules.update((cur) => ({ ...cur, [campaignId]: res.abilityScoreRule! })); },
       error: () => {},
     });
   }
@@ -216,29 +213,24 @@ export class LoomWeaverStoreService {
     this.campaignInviteCodes.update((cur) => { const next = { ...cur, [cid]: token }; writeJsonStorage(CAMPAIGN_INVITE_CODES_STORAGE_KEY, next); return next; });
     if (cid > 0) {
       this.http.post<{ inviteCode?: string }>(`/api/v2/campaigns/${cid}/invites`, { role: 'player', maxUses: 25, expiresInDays: 30 }).subscribe({
-        next: (res) => {
-          if (res?.inviteCode) this.campaignInviteCodes.update((cur) => { const next = { ...cur, [cid]: res.inviteCode! }; writeJsonStorage(CAMPAIGN_INVITE_CODES_STORAGE_KEY, next); return next; });
-        },
+        next: (res) => { if (res?.inviteCode) this.campaignInviteCodes.update((cur) => { const next = { ...cur, [cid]: res.inviteCode! }; writeJsonStorage(CAMPAIGN_INVITE_CODES_STORAGE_KEY, next); return next; }); },
         error: () => {},
       });
     }
     return this.activeCampaignInviteUrl();
   }
 
-  addPlayerToActiveCampaign(req: {
-    accountId?: string; username: string; displayName?: string; email?: string;
-    assignedCharacterKey?: string; joinedViaInvite?: boolean;
-  }): CampaignPlayerMemberVm {
+  addPlayerToActiveCampaign(req: { accountId?: string; username: string; displayName?: string; email?: string; assignedCharacterKey?: string; joinedViaInvite?: boolean; inviteStatus?: CampaignInviteStatus }): CampaignPlayerMemberVm {
     const cid = this.activeCampaignId() || 1;
-    const cleanUser = req.username.trim().replace(/\s+/g, '') || 'Adventurer';
+    const cleanUser = req.username.trim().replace(/^@+/, '').replace(/\s+/g, '') || 'Adventurer';
     const cleanDisplay = (req.displayName ?? req.username).trim() || cleanUser;
     const accountId = req.accountId || `acc-player-${cleanUser.toLowerCase()}`;
     const email = (req.email ?? `${cleanUser.toLowerCase()}@loom-weaver.com`).trim();
+    const inviteStatus: CampaignInviteStatus = req.inviteStatus ?? (req.assignedCharacterKey ? 'active' : 'pending');
     const member: CampaignPlayerMemberVm = {
-      accountId, username: cleanUser, displayName: cleanDisplay, email, role: 'players',
-      joinedViaInvite: req.joinedViaInvite ?? true,
-      joinedAtLabel: req.joinedViaInvite ? 'Joined via URL Invite' : 'Added by GM',
-      assignedCharacterKey: req.assignedCharacterKey,
+      accountId, username: cleanUser, displayName: cleanDisplay, email, role: 'players', joinedViaInvite: req.joinedViaInvite ?? true,
+      joinedAtLabel: inviteStatus === 'pending' ? 'Pending Invite' : (req.joinedViaInvite ? 'Joined via URL Invite' : 'Added by GM'),
+      inviteStatus, assignedCharacterKey: req.assignedCharacterKey,
     };
     this.campaignPlayersByCampaign.update((cur) => {
       const existing = cur[cid] ?? DEFAULT_PARTY_PLAYERS;
@@ -246,8 +238,32 @@ export class LoomWeaverStoreService {
       writeJsonStorage(CAMPAIGN_PLAYERS_STORAGE_KEY, next);
       return next;
     });
-    if (cid > 0) this.http.post(`/api/v2/campaigns/${cid}/members/add`, { username: cleanUser, displayName: cleanDisplay, email, assignedCharacterKey: req.assignedCharacterKey }).subscribe({ error: () => {} });
+    if (cid > 0) {
+      this.http.post<ServerMemberDto>(`/api/v2/campaigns/${cid}/members/add`, { username: cleanUser, displayName: cleanDisplay, email: req.email ?? '', assignedCharacterKey: req.assignedCharacterKey, inviteStatus })
+        .subscribe({ next: () => this.loadCampaignMembersFromServer(cid), error: () => {} });
+      if (inviteStatus === 'pending') this.notifications.notifyCampaignInviteSent(cid, this.activeCampaign().name, cleanUser, cleanDisplay, this.activeUsername());
+    }
     return member;
+  }
+
+  acceptCampaignInviteWithCharacter(req: { campaignId: number; characterKey: string; characterName: string; playerUsername?: string; playerDisplayName?: string }): void {
+    const cid = req.campaignId || this.activeCampaignId() || 1;
+    const uname = (req.playerUsername || this.activeUsername() || 'Adventurer').trim();
+    const disp = (req.playerDisplayName || uname).trim();
+    this.campaignPlayersByCampaign.update((cur) => {
+      const existing = cur[cid] ?? DEFAULT_PARTY_PLAYERS;
+      const updated = existing.some((p) => p.username.toLowerCase() === uname.toLowerCase())
+        ? existing.map((p) => p.username.toLowerCase() === uname.toLowerCase() ? { ...p, inviteStatus: 'active' as const, joinedAtLabel: 'Joined Campaign', assignedCharacterKey: req.characterKey, assignedCharacterName: req.characterName } : p)
+        : [...existing, { accountId: `acc-player-${uname.toLowerCase()}`, username: uname, displayName: disp, email: `${uname.toLowerCase()}@loom-weaver.com`, role: 'players' as const, joinedViaInvite: true, joinedAtLabel: 'Joined Campaign', inviteStatus: 'active' as const, assignedCharacterKey: req.characterKey, assignedCharacterName: req.characterName }];
+      const next = { ...cur, [cid]: updated };
+      writeJsonStorage(CAMPAIGN_PLAYERS_STORAGE_KEY, next);
+      return next;
+    });
+    this.campaigns.update((list) => list.map((c) => c.id === cid ? { ...c, myInviteStatus: 'active', myCharacterKey: req.characterKey } : c));
+    this.http.post(`/api/v2/campaigns/${cid}/members/accept-invite`, { characterKey: req.characterKey, characterName: req.characterName, playerUsername: uname })
+      .subscribe({ next: () => this.loadCampaignMembersFromServer(cid), error: () => {} });
+    this.notifications.notifyPlayerJoinedCampaign(cid, this.activeCampaign().name, uname, disp, req.characterName);
+    this.notifications.dismissInviteJoinModal();
   }
 
   removePlayerFromActiveCampaign(accountIdOrUsername: string): void {
@@ -264,7 +280,7 @@ export class LoomWeaverStoreService {
     const cid = this.activeCampaignId() || 1;
     this.campaignPlayersByCampaign.update((cur) => {
       const updated = (cur[cid] ?? DEFAULT_PARTY_PLAYERS).map((p) => {
-        if (playerAccountId && (p.accountId === playerAccountId || p.username.toLowerCase() === playerUsername.toLowerCase())) return { ...p, assignedCharacterKey: characterKey };
+        if (playerAccountId && (p.accountId === playerAccountId || p.username.toLowerCase() === playerUsername.toLowerCase())) return { ...p, assignedCharacterKey: characterKey, inviteStatus: 'active' as const, joinedAtLabel: p.role === 'gm' ? 'Campaign Founder' : 'Joined Campaign' };
         if (p.assignedCharacterKey === characterKey) return { ...p, assignedCharacterKey: undefined };
         return p;
       });
@@ -276,8 +292,10 @@ export class LoomWeaverStoreService {
 
   joinCampaignViaInviteLink(campaignId: number, inviteCode: string, user: { accountId: string; username: string; displayName: string; email: string }): CampaignPlayerMemberVm {
     if (campaignId > 0 && this.campaigns().some((c) => c.id === campaignId)) this.setCampaign(campaignId);
-    if (inviteCode) this.http.post('/api/v2/invites/redeem', { token: inviteCode }).subscribe({ error: () => {} });
-    return this.addPlayerToActiveCampaign({ accountId: user.accountId, username: user.username, displayName: user.displayName, email: user.email, joinedViaInvite: true });
+    if (inviteCode) this.http.post('/api/v2/invites/redeem', { token: inviteCode }).subscribe({ next: () => this.loadMyCampaigns(campaignId), error: () => {} });
+    const member = this.addPlayerToActiveCampaign({ accountId: user.accountId, username: user.username, displayName: user.displayName, email: user.email, joinedViaInvite: true, inviteStatus: 'pending' });
+    this.notifications.openInviteJoinModal({ campaignId: campaignId || this.activeCampaignId() || 1, campaignName: this.activeCampaign().name || `Campaign #${campaignId}`, systemLabel: this.activeCampaign().systemLabel || 'D&D 5e', dmName: 'Dungeon Master' });
+    return member;
   }
 
   loadCampaignSessions(campaignId = this.activeCampaignId()): void {
@@ -334,13 +352,13 @@ export class LoomWeaverStoreService {
     };
     this.sessions.update((cur) => [created, ...cur]);
     this.setActiveSession(sessionId);
+    this.notifications.notifyUpcomingSessionLive(this.activeCampaignId() || 1, this.activeCampaign().name, created.label, created.locationLabel);
   }
 
   openAdventureGuideModal(scope: 'session' | 'adventure' | 'current-session' | 'whole-guide' = 'session'): void {
     this.adventureGuideModalScope.set(scope === 'adventure' || scope === 'whole-guide' ? 'adventure' : 'session');
     this.adventureGuideModalOpen.set(true);
   }
-
   closeAdventureGuideModal(): void { this.adventureGuideModalOpen.set(false); }
 
   loadSessionAttachments(campaignId = this.activeCampaignId()): void {
@@ -351,11 +369,7 @@ export class LoomWeaverStoreService {
     });
   }
 
-  attachElementToSession(req: {
-    sessionId?: string; elementKind: SessionAttachmentVm['elementKind']; targetKey?: string; elementId?: string;
-    title: string; subtitle?: string; summary?: string; routeLink?: string; visibility?: 'players' | 'gm';
-    questKind?: 'main' | 'side' | null; artworkUrl?: string | null;
-  }): void {
+  attachElementToSession(req: { sessionId?: string; elementKind: SessionAttachmentVm['elementKind']; targetKey?: string; elementId?: string; title: string; subtitle?: string; summary?: string; routeLink?: string; visibility?: 'players' | 'gm'; questKind?: 'main' | 'side' | null; artworkUrl?: string | null }): void {
     const cid = this.activeCampaignId();
     const sid = req.sessionId || this.activeSessionId() || this.sessions()[0]?.sessionId || 'session-15';
     const key = req.targetKey || req.elementId || `${req.elementKind.toLowerCase()}-${Date.now().toString().slice(-5)}`;
@@ -366,6 +380,7 @@ export class LoomWeaverStoreService {
       visibility: req.visibility ?? 'players', questKind: req.questKind ?? null, artworkUrl: req.artworkUrl ?? null,
     };
     this.sessionAttachments.update((cur) => [optimistic, ...cur.filter((a) => a.id !== optimistic.id)]);
+    if (optimistic.visibility !== 'gm') this.notifications.notifyNoteOrLorePublished(cid || 1, this.activeCampaign().name, req.title, req.elementKind, optimistic.routeLink);
     if (cid > 0) {
       this.http.post<SessionAttachmentVm>(`/api/v2/campaigns/${cid}/session-attachments?role=${this.viewerRole()}`, { ...req, targetKey: key, sessionId: sid }).subscribe({
         next: (saved) => this.sessionAttachments.update((cur) => [{ ...saved, elementId: saved.elementId || saved.targetKey, targetKey: saved.targetKey || saved.elementId }, ...cur.filter((a) => a.id !== saved.id && a.id !== optimistic.id)]),
@@ -387,18 +402,13 @@ export class LoomWeaverStoreService {
 
   setViewerRole(role: ViewerRole): void {
     if (!this.isGmForActiveCampaign()) { this.viewerRole.set('players'); this.refreshCampaignDashboard(); return; }
-    this.viewerRole.set(role);
-    this.refreshCampaignDashboard();
-    this.loadSessionAttachments();
+    this.viewerRole.set(role); this.refreshCampaignDashboard(); this.loadSessionAttachments();
   }
 
   setGenerativeAiOptIn(enabled: boolean): void {
     this.weaveEnabled.set(enabled);
     this.campaigns.update((list) => list.map((c) => ({ ...c, weaveEnabled: enabled })));
-    if (!enabled) {
-      this.hideAiContent.set(true);
-      if (this.inspectedEntity()?.canonStatus === 'draft') this.inspectedEntityKey.set(null);
-    }
+    if (!enabled) { this.hideAiContent.set(true); if (this.inspectedEntity()?.canonStatus === 'draft') this.inspectedEntityKey.set(null); }
     try { if (typeof localStorage !== 'undefined') localStorage.setItem(GENERATIVE_AI_OPT_IN_STORAGE_KEY, String(enabled)); } catch {}
   }
 
@@ -426,19 +436,13 @@ export class LoomWeaverStoreService {
       const totalCount = updatedList.length;
       return { ...cur, upcomingSession: { ...cur.upcomingSession, completedPrepCount: completedCount, totalPrepCount: totalCount, prepStatusLabel: completedCount === 0 ? 'Not Started' : completedCount >= totalCount ? 'Ready' : 'Prep In Progress', checklist: updatedList } };
     });
-    this.http.post<CampaignDashboardVm>(`/api/v2/campaigns/${campaignId}/dashboard/prep/${itemId}/toggle?role=${this.viewerRole()}`, {}).subscribe({
-      next: (res) => { if (res && res.campaignId === this.activeCampaignId()) this.campaignDashboard.set(res); },
-      error: () => {},
-    });
+    this.http.post<CampaignDashboardVm>(`/api/v2/campaigns/${campaignId}/dashboard/prep/${itemId}/toggle?role=${this.viewerRole()}`, {}).subscribe({ next: (res) => { if (res && res.campaignId === this.activeCampaignId()) this.campaignDashboard.set(res); }, error: () => {} });
   }
 
   toggleSessionBeat(beatId: string): void {
     const campaignId = this.activeCampaignId();
     this.campaignDashboard.update((cur) => ({ ...cur, sessionGuide: { ...cur.sessionGuide, beats: cur.sessionGuide.beats.map((b) => (b.id === beatId ? { ...b, done: !b.done } : b)) } }));
-    this.http.post<CampaignDashboardVm>(`/api/v2/campaigns/${campaignId}/dashboard/beats/${beatId}/toggle?role=${this.viewerRole()}`, {}).subscribe({
-      next: (res) => { if (res && res.campaignId === this.activeCampaignId()) this.campaignDashboard.set(res); },
-      error: () => {},
-    });
+    this.http.post<CampaignDashboardVm>(`/api/v2/campaigns/${campaignId}/dashboard/beats/${beatId}/toggle?role=${this.viewerRole()}`, {}).subscribe({ next: (res) => { if (res && res.campaignId === this.activeCampaignId()) this.campaignDashboard.set(res); }, error: () => {} });
   }
 
   acknowledgeDashboardAlert(alertId: string): void {
@@ -449,9 +453,17 @@ export class LoomWeaverStoreService {
   toggleLoomDrawer(open?: boolean): void { this.loomDrawerOpen.update((cur) => (open !== undefined ? open : !cur)); }
   setLoomSearchQuery(query: string): void { this.loomQuery.set(query); }
   inspectEntity(keyOrComposite: string | null): void { this.inspectedEntityKey.set(keyOrComposite); }
-  registerEntity(entity: EntityCardVm): void { this.rawEntities.update((list) => [entity, ...list.filter((e) => e.compositeKey !== entity.compositeKey)]); }
+  registerEntity(entity: EntityCardVm): void {
+    this.rawEntities.update((list) => [entity, ...list.filter((e) => e.compositeKey !== entity.compositeKey)]);
+    if (entity.visibility !== 'gm') this.notifications.notifyNoteOrLorePublished(this.activeCampaignId() || 1, this.activeCampaign().name, entity.name, entity.entityType, entity.routeLink || '/world-lore');
+  }
   registerGraphEdge(edge: GraphEdgeVm): void { this.rawEdges.update((list) => [edge, ...list]); }
-  approveDraftEntity(compositeKey: string): void { if (this.viewerRole() === 'gm') this.rawEntities.update((list) => list.map((e) => (e.compositeKey === compositeKey ? { ...e, canonStatus: 'approved', visibility: 'players' } : e))); }
+  approveDraftEntity(compositeKey: string): void {
+    if (this.viewerRole() !== 'gm') return;
+    const found = this.rawEntities().find((e) => e.compositeKey === compositeKey);
+    this.rawEntities.update((list) => list.map((e) => (e.compositeKey === compositeKey ? { ...e, canonStatus: 'approved', visibility: 'players' } : e)));
+    if (found) this.notifications.notifyNoteOrLorePublished(this.activeCampaignId() || 1, this.activeCampaign().name, found.name, found.entityType, found.routeLink || '/world-lore');
+  }
   unlockAsset(assetId: string): void { this.rawAssets.update((list) => list.map((a) => (a.id === assetId ? { ...a, entitlement: 'purchased', priceLabel: 'Owned (Unlocked)' } : a))); }
 
   rollGlobalQuickD20(): void {

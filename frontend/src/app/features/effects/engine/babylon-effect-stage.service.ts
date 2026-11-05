@@ -74,6 +74,7 @@ export class BabylonEffectStageService {
   private readonly tokenBuilder = new BabylonTokenMeshBuilder();
   private readonly fxPlayer = new BabylonFxTrajectoryPlayer();
   private isForcedTopDown = true;
+  private isFogBrushActive = false;
 
   camera: ArcRotateCamera | null = null;
   readonly has3dSceneLoaded = signal<boolean>(false);
@@ -261,17 +262,48 @@ export class BabylonEffectStageService {
 
   setRotateHeld(_held: boolean): void {}
 
+  /**
+   * When the GM is actively drawing with the Fog of War Reveal / Cover brush,
+   * disable left-mouse camera panning / 3D orbit so dragging across the map paints
+   * fog cleanly instead of moving the camera.
+   */
+  setFogBrushActive(active: boolean): void {
+    this.isFogBrushActive = active;
+    if (!this.camera) return;
+    const pointers = this.camera.inputs.attached['pointers'] as ArcRotateCameraPointersInput | undefined;
+    if (pointers) {
+      pointers.buttons = active ? [1, 2] : [0, 1, 2];
+    }
+  }
+
   pickGroundPoint(clientX: number, clientY: number): { x: number; z: number } | null {
     if (!this.scene || !this.engine) return null;
     const canvas = this.engine.getRenderingCanvas();
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
+    const localX = clientX - rect.left;
+    const localY = clientY - rect.top;
     const pick = this.scene.pick(
-      clientX - rect.left,
-      clientY - rect.top,
+      localX,
+      localY,
       (m) => m === this.ground || m.name === 'lw-terrain-ground',
     );
-    return pick?.hit && pick.pickedPoint ? { x: pick.pickedPoint.x, z: pick.pickedPoint.z } : null;
+    if (pick?.hit && pick.pickedPoint) {
+      return { x: pick.pickedPoint.x, z: pick.pickedPoint.z };
+    }
+    // Fallback ray intersection with horizontal plane y = 0 so fog brush & calibration
+    // work across the entire 36x27 map extent even over water, 3D objects, or map edges.
+    const ray = this.scene.createPickingRay(localX, localY, null, this.camera);
+    if (Math.abs(ray.direction.y) > 1e-5) {
+      const t = -ray.origin.y / ray.direction.y;
+      if (t > 0) {
+        return {
+          x: Math.max(-18, Math.min(18, ray.origin.x + ray.direction.x * t)),
+          z: Math.max(-13.5, Math.min(13.5, ray.origin.z + ray.direction.z * t)),
+        };
+      }
+    }
+    return null;
   }
 
   pickTokenAtScreenPoint(clientX: number, clientY: number): string | null {
@@ -332,7 +364,7 @@ export class BabylonEffectStageService {
       camera.attachControl(canvas, true);
 
       const pointers = camera.inputs.attached['pointers'] as ArcRotateCameraPointersInput | undefined;
-      if (pointers) pointers.buttons = [0, 1, 2];
+      if (pointers) pointers.buttons = this.isFogBrushActive ? [1, 2] : [0, 1, 2];
       camera.inputs.removeByType('ArcRotateCameraMouseWheelInput');
       camera.inputs.removeByType('ArcRotateCameraKeyboardMoveInput');
       this.setForcedTopDown(this.isForcedTopDown);
@@ -398,6 +430,7 @@ export class BabylonEffectStageService {
           camera: this.camera,
           engine: this.engine,
           dragController: this.dragController,
+          isFogBrushActive: this.isFogBrushActive,
         })),
       );
 

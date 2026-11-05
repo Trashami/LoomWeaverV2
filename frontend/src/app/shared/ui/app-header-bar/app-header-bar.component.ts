@@ -22,6 +22,7 @@ import {
   LwContextSwitcherOption,
 } from '../context-switcher/context-switcher.component';
 import { LwIconComponent } from '../icon/icon.component';
+import { LwNotificationBellComponent } from '../notification-bell/notification-bell.component';
 import { LwUserMenuComponent } from '../user-menu/user-menu.component';
 
 @Component({
@@ -34,6 +35,7 @@ import { LwUserMenuComponent } from '../user-menu/user-menu.component';
     NgpToolbar,
     LwContextSwitcherComponent,
     LwIconComponent,
+    LwNotificationBellComponent,
     LwUserMenuComponent,
   ],
   templateUrl: './app-header-bar.component.html',

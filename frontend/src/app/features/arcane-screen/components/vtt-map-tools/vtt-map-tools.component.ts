@@ -147,7 +147,7 @@ export class VttMapToolsComponent {
 
   isPaletteToolActive(id: LeftMapTool): boolean {
     if (this.activeLeftTool() === id) return true;
-    if (id === 'light' && this.battle.fogBrushMode() !== 'none') return true;
+    if (id === 'draw' && this.battle.fogBrushMode() !== 'none') return true;
     if (id === 'view' && this.vttDisplay.calibratingGrid()) return true;
     if (id === 'measure' && this.battle.measureEnabled()) return true;
     return false;
@@ -156,8 +156,16 @@ export class VttMapToolsComponent {
   toggleLeftTool(tool: LeftMapTool): void {
     if (this.activeLeftTool() === tool) {
       this.activeLeftTool.set(null);
+      if (tool === 'draw') {
+        this.battle.fogBrushMode.set('none');
+      }
     } else {
       this.activeLeftTool.set(tool);
+      if (tool === 'draw' && this.battle.fogBrushMode() === 'none') {
+        this.battle.fogBrushMode.set('reveal');
+      } else if (tool === 'select') {
+        this.battle.fogBrushMode.set('none');
+      }
       if (tool === 'tokens') this.bestiary.ensureLoaded();
     }
   }

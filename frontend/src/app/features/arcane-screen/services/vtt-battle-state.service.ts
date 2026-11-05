@@ -3,7 +3,7 @@ import { LoomWeaverStoreService } from '../../../core/services/loomweaver-store.
 import { VttTokenVm } from '../../effects/engine/effect-timeline.contract';
 import {
   clampLineToRangeAndWalls, computeClampedGridMovePath, computeVisibilityPolygonSvgPoints,
-  distanceInFeet, findClosestSnapToken, findTokensInAoe, hasLineOfSight, snapToFiveFootGrid,
+  distanceInFeet, findClosestSnapToken, findTokensInAoe, getActiveCellStepWorld, hasLineOfSight, snapToFiveFootGrid,
 } from '../engine/vtt-los-and-grid.engine';
 import { getEffectiveTokenVisionFeet } from '../engine/vtt-fog-of-war.engine';
 import {
@@ -58,6 +58,8 @@ export class VttBattleStateService {
   readonly showCharactersBeyondVision = signal<boolean>(false);
   readonly playerSightDistanceFeet = signal<number>(60);
   readonly gmPreviewPlayerVision = signal<boolean>(false);
+  /** Local DM-only toggle that hides Fog of War on the DM's screen without affecting any player's view. */
+  readonly gmHideFogForSelfOnly = signal<boolean>(false);
   readonly previewTokenVisionKey = signal<string | null>(null);
 
   readonly fogBrushMode = signal<VttFogBrushMode>('none');
@@ -166,13 +168,22 @@ export class VttBattleStateService {
 
   isPointRevealedByManualStroke(pt: VttPoint2D): 'revealed' | 'covered' | 'none' {
     let state: 'revealed' | 'covered' | 'none' = 'none';
+    const cellStep = getActiveCellStepWorld();
     for (const stroke of this.manualFogStrokes()) {
-      if (distanceInFeet(pt, { x: stroke.x, z: stroke.z }) <= stroke.radiusFeet) state = stroke.mode === 'reveal' ? 'revealed' : 'covered';
+      const rWorld = Math.max(0.5, (stroke.radiusFeet / 5) * cellStep);
+      const inside =
+        stroke.shape === 'square'
+          ? Math.abs(pt.x - stroke.x) <= rWorld && Math.abs(pt.z - stroke.z) <= rWorld
+          : Math.hypot(pt.x - stroke.x, pt.z - stroke.z) <= rWorld;
+      if (inside) state = stroke.mode === 'reveal' ? 'revealed' : 'covered';
     }
     return state;
   }
 
   tokenOpacity(token: VttTokenVm): number {
+    if (this.store.viewerRole() === 'gm' && this.gmHideFogForSelfOnly() && !this.gmPreviewPlayerVision()) {
+      return 1;
+    }
     if (this.fogMode() === 'no-fog' && !this.losVisionEnabled()) return 1;
     if (token.faction === 'party' && this.showCharactersBeyondVision()) return 1;
     if (token.faction === 'hostile' && !this.hideOutOfSightMonsters()) return 1;
@@ -302,8 +313,30 @@ export class VttBattleStateService {
   addFogBrushStroke(worldPt: VttPoint2D): void {
     const mode = this.fogBrushMode();
     if (mode === 'none') return;
-    const stroke: VttFogBrushStrokeVm = { id: `fog-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, mode, shape: this.fogBrushShape(), x: Number(worldPt.x.toFixed(2)), z: Number(worldPt.z.toFixed(2)), radiusFeet: this.fogBrushRadiusFeet() };
-    this.manualFogStrokes.update((prev) => [...prev.slice(-140), stroke]);
+    const x = Number(worldPt.x.toFixed(2));
+    const z = Number(worldPt.z.toFixed(2));
+    const shape = this.fogBrushShape();
+    const radiusFeet = this.fogBrushRadiusFeet();
+    const current = this.manualFogStrokes();
+    const last = current[current.length - 1];
+    if (
+      last &&
+      last.mode === mode &&
+      last.shape === shape &&
+      last.radiusFeet === radiusFeet &&
+      Math.hypot(x - last.x, z - last.z) < 0.18
+    ) {
+      return;
+    }
+    const stroke: VttFogBrushStrokeVm = {
+      id: `fog-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      mode,
+      shape,
+      x,
+      z,
+      radiusFeet,
+    };
+    this.manualFogStrokes.update((prev) => [...prev.slice(-2500), stroke]);
   }
 
   clearAllFog(): void {

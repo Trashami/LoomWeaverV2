@@ -140,19 +140,19 @@ export class VttCombatService {
     });
   }
 
-  private getSavedPositionsMap(): Record<string, { x: number; z: number }> {
+  private getSavedPositionsMap(): Record<string, { x: number; z: number; facingY?: number }> {
     if (typeof localStorage === 'undefined') return {};
     try {
       const raw = localStorage.getItem(`lw.vtt.tokenPositions.${this.store.activeCampaignId() || 1}.${this.activeEncounterId() || 'default'}`);
-      return raw ? (JSON.parse(raw) as Record<string, { x: number; z: number }>) : {};
+      return raw ? (JSON.parse(raw) as Record<string, { x: number; z: number; facingY?: number }>) : {};
     } catch { return {}; }
   }
 
   saveTokenPositionsToStorage(list: readonly VttTokenVm[] = this.tokens()): void {
     if (typeof localStorage === 'undefined') return;
     try {
-      const map: Record<string, { x: number; z: number }> = {};
-      for (const t of list) map[t.key] = { x: t.x, z: t.z };
+      const map: Record<string, { x: number; z: number; facingY?: number }> = {};
+      for (const t of list) map[t.key] = { x: t.x, z: t.z, facingY: t.facingY };
       localStorage.setItem(`lw.vtt.tokenPositions.${this.store.activeCampaignId() || 1}.${this.activeEncounterId() || 'default'}`, JSON.stringify(map));
     } catch {}
   }
@@ -162,8 +162,13 @@ export class VttCombatService {
     this.tokens.update((list) => {
       let changed = false;
       const next = list.map((t) => {
-        const snapped = snapToFiveFootGrid(saved[t.key] ?? { x: t.x, z: t.z });
-        if (Math.abs(snapped.x - t.x) > 0.001 || Math.abs(snapped.z - t.z) > 0.001) { changed = true; return { ...t, x: snapped.x, z: snapped.z }; }
+        const entry = saved[t.key];
+        const snapped = snapToFiveFootGrid(entry ?? { x: t.x, z: t.z });
+        const nextFacing = entry?.facingY ?? t.facingY;
+        if (Math.abs(snapped.x - t.x) > 0.001 || Math.abs(snapped.z - t.z) > 0.001 || nextFacing !== t.facingY) {
+          changed = true;
+          return { ...t, x: snapped.x, z: snapped.z, facingY: nextFacing };
+        }
         return t;
       });
       if (changed) this.saveTokenPositionsToStorage(next);
@@ -441,10 +446,21 @@ export class VttCombatService {
     return { preset, startPos: { x: attacker.x, z: attacker.z }, endPos: { x: target.x, z: target.z } };
   }
 
-  applyRemoteTokenMove(key: string, x: number, z: number): void {
+  applyRemoteTokenMove(key: string, x: number, z: number, facingY?: number): void {
     const snapped = snapToFiveFootGrid({ x, z });
     this.tokens.update((list) => {
-      const next = list.map((t) => (t.key === key ? { ...t, x: snapped.x, z: snapped.z } : t));
+      const next = list.map((t) => {
+        if (t.key !== key) return t;
+        const dx = snapped.x - t.x;
+        const dz = snapped.z - t.z;
+        const nextFacing =
+          facingY !== undefined
+            ? facingY
+            : Math.hypot(dx, dz) > 0.08
+              ? Math.atan2(-dx, -dz)
+              : t.facingY;
+        return { ...t, x: snapped.x, z: snapped.z, facingY: nextFacing };
+      });
       this.saveTokenPositionsToStorage(next);
       return next;
     });

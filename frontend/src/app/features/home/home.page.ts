@@ -5,6 +5,7 @@ import { CampaignAbilityScoreRule, CampaignPlayerMemberVm } from '../../core/mod
 import { LwAlertifyService } from '../../core/services/lw-alertify.service';
 import { AuthSessionService } from '../../core/services/auth-session.service';
 import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
+import { LwNotificationService } from '../../core/services/lw-notification.service';
 import { CharacterSheetVm } from '../characters/models/character-studio.models';
 import { CharacterStudioService } from '../characters/services/character-studio.service';
 import { LwBadgeComponent, LwButtonComponent, LwPageHeaderComponent, LwPanelComponent } from '../../shared/ui/public-api';
@@ -111,12 +112,35 @@ export class HomePageComponent {
   readonly auth = inject(AuthSessionService);
   readonly store = inject(LoomWeaverStoreService);
   readonly studio = inject(CharacterStudioService);
+  readonly notifications = inject(LwNotificationService);
 
   readonly dashboard = computed(() => this.store.campaignDashboard());
   readonly isGm = computed(() => this.store.isGmForActiveCampaign() && this.store.viewerRole() === 'gm');
   readonly campaignCharacters = computed(() => this.studio.authorizedSheetsForActiveCampaign());
   readonly campaignPlayers = computed(() => this.store.activeCampaignPlayers());
   readonly abilityRule = computed(() => this.store.activeCampaignAbilityRule());
+  readonly myMembership = computed(() => {
+    const uname = (this.auth.activeProfile().username || '').toLowerCase();
+    return this.campaignPlayers().find((p) => p.username.toLowerCase() === uname) ?? null;
+  });
+  readonly hasPendingInviteForActiveCampaign = computed(() => {
+    if (this.isGm()) return false;
+    const camp = this.store.activeCampaign();
+    const myMember = this.myMembership();
+    if (camp.myInviteStatus === 'pending' || myMember?.inviteStatus === 'pending') return true;
+    if (myMember && !this.assignedCharacterForPlayer(myMember)) return true;
+    return false;
+  });
+
+  openJoinAndSelectCharacterModal(): void {
+    const camp = this.store.activeCampaign();
+    this.notifications.openInviteJoinModal({
+      campaignId: camp.id || 1,
+      campaignName: camp.name || 'Shadow of the Mountain',
+      systemLabel: camp.systemLabel || 'D&D 5e',
+      dmName: 'Dungeon Master',
+    });
+  }
 
   readonly newPlayerUsername = signal<string>('');
   readonly newPlayerDisplayName = signal<string>('');
@@ -280,11 +304,13 @@ export class HomePageComponent {
   }
 
   assignedCharacterForPlayer(player: CampaignPlayerMemberVm): CharacterSheetVm | undefined {
-    return this.campaignCharacters().find(
+    const ak = player.assignedCharacterKey || '';
+    const altKey = ak.startsWith('char-') ? ak.replace(/^char-/, 'pc-') : ak.replace(/^pc-/, 'char-');
+    return this.studio.campaignSheets().find(
       (c) =>
         c.ownerAccountId === player.accountId ||
         (c.ownerUsername && c.ownerUsername.toLowerCase() === player.username.toLowerCase()) ||
-        c.characterKey === player.assignedCharacterKey,
+        (ak.length > 0 && (c.characterKey === ak || c.characterKey === altKey)),
     );
   }
 }

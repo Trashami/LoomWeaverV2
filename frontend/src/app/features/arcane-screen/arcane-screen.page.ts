@@ -212,7 +212,16 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       },
       (ev) => this.battle.openTokenContextMenu(ev.key, ev.clientX, ev.clientY),
       (k, evt) => {
-        if (this.battle.pendingAbility() || this.battle.targetSelectionMode() || evt.shiftKey || evt.ctrlKey || evt.metaKey) return false;
+        if (
+          this.battle.fogBrushMode() !== 'none' ||
+          this.battle.pendingAbility() ||
+          this.battle.targetSelectionMode() ||
+          evt.shiftKey ||
+          evt.ctrlKey ||
+          evt.metaKey
+        ) {
+          return false;
+        }
         const tok = this.vtt.tokens().find((t) => t.key === k);
         return tok ? this.battle.canMoveToken(tok).allowed : false;
       },

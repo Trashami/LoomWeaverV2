@@ -408,6 +408,23 @@ export function attachGrassBaseAndFactionRim(
   lowerRim.metadata = { tokenKey: token.key };
   lowerRim.material = rimMat;
 
+  // Directional facing chevron pointer on the front (-Z) rim edge so orientation is clear in 2D & 3D
+  const facingArrow = MeshBuilder.CreateCylinder(
+    `lw-token-facing-arrow-${token.key}`,
+    {
+      height: 0.034 * effectiveScale,
+      diameterTop: 0.14 * effectiveScale,
+      diameterBottom: 0.16 * effectiveScale,
+      tessellation: 3,
+    },
+    scene,
+  );
+  facingArrow.parent = baseMesh;
+  facingArrow.position.set(0, baseHeight / 2 + 0.014, -0.445 * effectiveScale);
+  facingArrow.rotation.y = -Math.PI / 2;
+  facingArrow.metadata = { tokenKey: token.key };
+  facingArrow.material = rimMat;
+
   // Dedicated outer selection / target halo ring around the base so active attacker (Gold) and target (Crimson) pop cleanly
   const selRingMat = new StandardMaterial(`lw-mat-selring-${token.key}`, scene);
   selRingMat.disableLighting = true;
@@ -508,6 +525,7 @@ export function attachGrassPuckFace(
   disc.parent = baseMesh;
   disc.position.set(0, baseHeight / 2 + 0.006, 0);
   disc.rotation.x = Math.PI / 2;
+  disc.rotation.z = token.facingY ?? baseMesh.rotation.y ?? 0;
   disc.isPickable = true;
   disc.metadata = { tokenKey: token.key };
 

@@ -32,6 +32,7 @@ import { LwAppHeaderBarComponent } from "./shared/ui/app-header-bar/app-header-b
 import { LwAdventureGuideModalComponent } from "./shared/ui/adventure-guide-modal/adventure-guide-modal.component";
 import { LwAlertifyToastStackComponent } from "./shared/ui/alertify-toast-stack/alertify-toast-stack.component";
 import { LwAuthModalComponent } from "./shared/ui/auth-modal/auth-modal.component";
+import { LwCampaignInviteModalComponent } from "./shared/ui/campaign-invite-modal/campaign-invite-modal.component";
 import { LwFullscreenDiceOverlayComponent } from "./shared/ui/fullscreen-dice-overlay/fullscreen-dice-overlay.component";
 import { LwIconComponent } from "./shared/ui/icon/icon.component";
 import { LwInspectorDrawerComponent } from "./shared/ui/inspector-drawer/inspector-drawer.component";
@@ -213,6 +214,7 @@ const NAV_GROUPS: readonly StudioNavGroup[] = [
     LwAdventureGuideModalComponent,
     LwAlertifyToastStackComponent,
     LwAuthModalComponent,
+    LwCampaignInviteModalComponent,
     LwFullscreenDiceOverlayComponent,
     LwIconComponent,
     LwInspectorDrawerComponent,

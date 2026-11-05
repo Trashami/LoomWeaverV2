@@ -164,6 +164,14 @@ export function configureFloorRelief(
       );
       texture.wrapU = Texture.WRAP_ADDRESSMODE;
       texture.wrapV = Texture.WRAP_ADDRESSMODE;
+      texture.wrapR = Texture.WRAP_ADDRESSMODE;
+      const internalTex = texture.getInternalTexture();
+      if (internalTex) {
+        internalTex.wrapU = Texture.WRAP_ADDRESSMODE;
+        internalTex.wrapV = Texture.WRAP_ADDRESSMODE;
+        internalTex._cachedWrapU = null;
+        internalTex._cachedWrapV = null;
+      }
       texture.uScale = uScale;
       texture.vScale = vScale;
       texture.level = Math.max(0, (bumpIntensityPct / 100) * 1.65);

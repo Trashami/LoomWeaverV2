@@ -53,8 +53,44 @@
     }
 
     @if (activeLeftTool() === 'draw' && isGm()) {
-      <div class="tool-flyout-popover draw-flyout" (click)="$event.stopPropagation()">
-        <div class="flyout-popover-header"><h3>Drawing & Walls</h3></div>
+      <div class="tool-flyout-popover draw-flyout is-wide" (click)="$event.stopPropagation()">
+        <div class="flyout-popover-header"><h3>Draw Fog of War & Walls</h3></div>
+
+        <div class="flyout-sub-section">
+          <div class="flyout-row-between">
+            <span class="flyout-sub-label">Fog of War Brush</span>
+            <span class="flyout-badge">{{ battle.fogBrushMode() === 'none' ? 'OFF' : battle.fogBrushMode().toUpperCase() }}</span>
+          </div>
+          <div class="flyout-chip-grid-3">
+            <button ngpButton type="button" class="flyout-mode-chip" [class.active]="battle.fogBrushMode() === 'reveal'" (click)="setFogBrushMode('reveal')">Reveal Fog</button>
+            <button ngpButton type="button" class="flyout-mode-chip" [class.active]="battle.fogBrushMode() === 'cover'" (click)="setFogBrushMode('cover')">Cover Fog</button>
+            <button ngpButton type="button" class="flyout-mode-chip" [class.active]="battle.fogBrushMode() === 'none'" (click)="battle.fogBrushMode.set('none')">Brush Off</button>
+          </div>
+          <div class="flyout-row-between">
+            <span class="flyout-mini-label">Brush Size: {{ battle.fogBrushRadiusFeet() }} ft</span>
+            <div class="flyout-shape-pills">
+              <button type="button" class="flyout-shape-pill" [class.active]="battle.fogBrushShape() === 'circle'" (click)="setFogBrushShape('circle')">Circle</button>
+              <button type="button" class="flyout-shape-pill" [class.active]="battle.fogBrushShape() === 'square'" (click)="setFogBrushShape('square')">Square</button>
+            </div>
+          </div>
+          <input type="range" min="5" max="60" step="5" class="flyout-range" [value]="battle.fogBrushRadiusFeet()" (input)="onFogBrushRadiusInput($any($event.target).value)" />
+
+          <label class="flyout-check-line">
+            <input type="checkbox" [ngModel]="battle.losVisionEnabled()" (ngModelChange)="battle.losVisionEnabled.set($event)" />
+            <span>Enable Automatic Token Sight</span>
+          </label>
+          <label class="flyout-check-line">
+            <input type="checkbox" [ngModel]="battle.gmHideFogForSelfOnly()" (ngModelChange)="battle.gmHideFogForSelfOnly.set($event)" />
+            <span>Toggle Fog Off for DM Only (Players Keep Fog)</span>
+          </label>
+
+          <div class="flyout-chip-grid-2">
+            <button ngpButton type="button" class="flyout-mode-chip" (click)="battle.clearAllFog()">Clear All Fog</button>
+            <button ngpButton type="button" class="flyout-mode-chip" (click)="battle.reapplyAllFog()">Reset Fog</button>
+          </div>
+        </div>
+
+        <div class="flyout-divider"></div>
         <div class="flyout-actions-list">
           <button ngpButton type="button" class="flyout-item-btn" (click)="resetDefaultWalls()">
             <lw-icon name="shield" [size]="14" />
@@ -147,6 +183,10 @@
           <label class="flyout-check-line">
             <input type="checkbox" [ngModel]="battle.gmPreviewPlayerVision()" (ngModelChange)="battle.gmPreviewPlayerVision.set($event)" />
             <span>Preview Player Vision on GM Map</span>
+          </label>
+          <label class="flyout-check-line">
+            <input type="checkbox" [ngModel]="battle.gmHideFogForSelfOnly()" (ngModelChange)="battle.gmHideFogForSelfOnly.set($event)" />
+            <span>Toggle Fog Off for DM Only (Players Keep Fog)</span>
           </label>
         </div>
 

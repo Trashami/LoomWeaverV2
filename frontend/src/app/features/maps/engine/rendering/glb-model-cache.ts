@@ -2,15 +2,25 @@ import '@babylonjs/loaders/glTF';
 import {
   AbstractMesh,
   Color3,
+  Mesh,
   MeshoptCompression,
   PBRMaterial,
   Scene,
   SceneLoader,
   StandardMaterial,
   TransformNode,
+  Vector3,
+  VertexBuffer,
 } from '@babylonjs/core';
 
-import { GlbLodTier, glbLodCandidates, resolveGlbLodUrl, toBaseGlbUrl } from './glb-lod';
+import {
+  GlbLodTier,
+  ModelManifestResponse,
+  buildGlbLodManifest,
+  glbLodCandidates,
+  resolveGlbLodUrl,
+  toBaseGlbUrl,
+} from './glb-lod';
 
 export interface CachedGlbTemplate {
   readonly url: string;
@@ -20,6 +30,10 @@ export interface CachedGlbTemplate {
   readonly rawHeight: number;
   readonly rawDepth: number;
   readonly baseOffsetY: number;
+  /** Ratio (0.55..1.0) of mid-height horizontal width to full bounding-box width (detects flared bases). */
+  readonly waistWidthRatio: number;
+  /** 8-band vertical profile (bottom y=0 to top y=1) of normalized half-span (0.15..0.50) along the length axis. */
+  readonly halfSpanProfile: readonly number[];
 }
 
 export interface GlbCloneMetadata {
@@ -46,8 +60,46 @@ export class GlbModelCache {
   private static decoderConfigured = false;
   private static lodTier: GlbLodTier = 'mid';
   private static lodManifest = new Map<string, Partial<Record<GlbLodTier, string>>>();
+  private static catalogManifestPromise: Promise<void> | null = null;
   /** Bumped on every eviction so loads started under an old tier are discarded on completion. */
   private static generation = 0;
+
+  /**
+   * Ensures `/assets/object-library/index.json` (`obj-<hash>` -> `sourceFile`) and
+   * `/api/v2/maps/assets/model-manifest` are loaded even when `/arcane-screen` is opened
+   * directly without visiting `/maps` first.
+   */
+  private static ensureCatalogManifestsLoaded(): Promise<void> {
+    if (this.catalogManifestPromise) return this.catalogManifestPromise;
+    if (typeof window === 'undefined' || typeof fetch === 'undefined') {
+      this.catalogManifestPromise = Promise.resolve();
+      return this.catalogManifestPromise;
+    }
+    const p1 = fetch('/assets/object-library/index.json')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((doc: { assets?: Array<{ id?: string; sourceFile?: string }> } | null) => {
+        for (const a of doc?.assets ?? []) {
+          if (a.id && a.sourceFile) {
+            this.registerSourceFileLodMapping(a.id, a.sourceFile);
+          }
+        }
+      })
+      .catch(() => undefined);
+
+    const p2 = fetch('/api/v2/maps/assets/model-manifest')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((m: ModelManifestResponse | null) => {
+        if (m) {
+          this.setLodManifest(buildGlbLodManifest(m));
+        }
+      })
+      .catch(() => undefined);
+
+    this.catalogManifestPromise = Promise.all([p1, p2]).then(() => {
+      this.failedUrls.clear();
+    });
+    return this.catalogManifestPromise;
+  }
 
   /** Supplies the server's list of existing LOD files so missing variants are never requested. */
   static setLodManifest(manifest: ReadonlyMap<string, Partial<Record<GlbLodTier, string>>>): void {
@@ -66,13 +118,14 @@ export class GlbModelCache {
     const objBase = `/assets/object-library/models/${id}.glb`;
     const srcBase = `/assets/models-3d/${toBaseGlbUrl(sourceFile)}`;
     this.lodManifest.set(objBase, {
-      low: resolveGlbLodUrl( srcBase, 'low'),
+      low: resolveGlbLodUrl(srcBase, 'low'),
       mid: resolveGlbLodUrl(srcBase, 'mid'),
       high: resolveGlbLodUrl(srcBase, 'high'),
     });
   }
 
   static ensureScene(scene: Scene): void {
+    void this.ensureCatalogManifestsLoaded();
     if (!this.decoderConfigured) {
       try {
         MeshoptCompression.Configuration.decoder = {
@@ -163,7 +216,7 @@ export class GlbModelCache {
     const candidates = glbLodCandidates(baseUrl, this.lodTier, this.lodManifest).filter(
       (c) => !this.failedUrls.has(c),
     );
-    if (candidates.length === 0) {
+    if (candidates.length === 0 && this.catalogManifestPromise !== null) {
       return null;
     }
 
@@ -236,9 +289,12 @@ export class GlbModelCache {
   private static async loadCandidateChainAsync(
     scene: Scene,
     baseUrl: string,
-    candidates: readonly string[],
+    _initialCandidates: readonly string[],
     gen: number,
   ): Promise<CachedGlbTemplate | null> {
+    await this.ensureCatalogManifestsLoaded();
+    if (scene.isDisposed || gen !== this.generation) return null;
+    const candidates = glbLodCandidates(baseUrl, this.lodTier, this.lodManifest);
     for (const candidateUrl of candidates) {
       if (scene.isDisposed || gen !== this.generation) return null;
       if (this.failedUrls.has(candidateUrl)) continue;
@@ -302,6 +358,57 @@ export class GlbModelCache {
       const postBounds = templatePivot.getHierarchyBoundingVectors(true);
       const baseOffsetY = Number.isFinite(postBounds.min.y) ? -postBounds.min.y : 0;
 
+      // Measure vertical silhouette profile across 8 height bands so walls attach flush into doors
+      // with flared rocky plinths, recessed jambs, or arched upper frames.
+      const bandCount = 8;
+      const bandMaxHalfSpan = new Float32Array(bandCount);
+      const useZAsLength = rawDepth > rawWidth * 1.35;
+      const primaryRawSpan = Math.max(0.1, useZAsLength ? rawDepth : rawWidth);
+      const minY = Number.isFinite(postBounds.min.y) ? postBounds.min.y : 0;
+      const tmpVec = new Vector3();
+
+      for (const m of result.meshes) {
+        if (!(m instanceof Mesh) || m.getTotalVertices() === 0) continue;
+        const pos = m.getVerticesData(VertexBuffer.PositionKind);
+        if (!pos) continue;
+        const wm = m.computeWorldMatrix(true);
+        for (let vi = 0; vi < pos.length; vi += 3) {
+          Vector3.TransformCoordinatesFromFloatsToRef(pos[vi], pos[vi + 1], pos[vi + 2], wm, tmpVec);
+          const ny = Math.max(0, Math.min(0.999, (tmpVec.y - minY) / rawHeight));
+          const bIdx = Math.floor(ny * bandCount);
+          const halfCoord = Math.abs(useZAsLength ? tmpVec.z : tmpVec.x) / primaryRawSpan;
+          if (halfCoord > bandMaxHalfSpan[bIdx]) {
+            bandMaxHalfSpan[bIdx] = halfCoord;
+          }
+        }
+      }
+
+      const halfSpanProfile: number[] = [];
+      for (let b = 0; b < bandCount; b++) {
+        let val = bandMaxHalfSpan[b];
+        if (val < 0.05) {
+          for (let d = 1; d < bandCount; d++) {
+            if (b - d >= 0 && bandMaxHalfSpan[b - d] >= 0.05) {
+              val = bandMaxHalfSpan[b - d];
+              break;
+            }
+            if (b + d < bandCount && bandMaxHalfSpan[b + d] >= 0.05) {
+              val = bandMaxHalfSpan[b + d];
+              break;
+            }
+          }
+        }
+        halfSpanProfile.push(Math.max(0.18, Math.min(0.5, val || 0.5)));
+      }
+
+      const midHalfSpan = Math.min(
+        halfSpanProfile[2],
+        halfSpanProfile[3],
+        halfSpanProfile[4],
+        halfSpanProfile[5],
+      );
+      const waistWidthRatio = Math.max(0.58, Math.min(1.0, midHalfSpan * 2.0));
+
       templatePivot.setEnabled(false);
 
       return {
@@ -312,6 +419,8 @@ export class GlbModelCache {
         rawHeight,
         rawDepth,
         baseOffsetY,
+        waistWidthRatio,
+        halfSpanProfile,
       };
     } catch {
       return null;

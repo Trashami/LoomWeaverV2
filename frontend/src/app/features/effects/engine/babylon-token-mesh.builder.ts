@@ -33,6 +33,8 @@ export class BabylonTokenMeshBuilder {
   private readonly glbContainerCache = new Map<string, AssetContainer>();
   private readonly loadingGlbUrls = new Set<string>();
   private readonly imageElementCache = new Map<string, HTMLImageElement>();
+  private readonly facingByTokenKey = new Map<string, number>();
+  private readonly lastPosByTokenKey = new Map<string, { x: number; z: number }>();
 
   clearCache(): void {
     this.glbContainerCache.forEach((c) => c.dispose());
@@ -94,6 +96,15 @@ export class BabylonTokenMeshBuilder {
     }
 
     for (const t of tokens) {
+      const prevPos = this.lastPosByTokenKey.get(t.key);
+      if (typeof t.facingY === 'number') {
+        this.facingByTokenKey.set(t.key, t.facingY);
+      } else if (prevPos && Math.hypot(t.x - prevPos.x, t.z - prevPos.z) > 0.08) {
+        this.facingByTokenKey.set(t.key, Math.atan2(-(t.x - prevPos.x), -(t.z - prevPos.z)));
+      }
+      this.lastPosByTokenKey.set(t.key, { x: t.x, z: t.z });
+      const facingY = this.facingByTokenKey.get(t.key) ?? 0;
+
       const tokenOpacity = opacityByKey.get(t.key) ?? 1;
       if (tokenOpacity <= 0.05) {
         continue;
@@ -115,12 +126,18 @@ export class BabylonTokenMeshBuilder {
 
       const existingBase = scene.getMeshByName(`lw-token-${t.key}`) as Mesh | null;
       if (existingBase && existingBase.metadata?.renderSig === renderSig) {
+        existingBase.metadata.facingY = facingY;
         if (!existingBase.metadata?.isLiftedOrWobbling) {
           existingBase.position.set(t.x, groundY + baseHeight / 2 + 0.01, t.z);
-          existingBase.rotation.set(0, existingBase.rotation.y, 0);
+          existingBase.rotation.set(0, facingY, 0);
         } else {
           existingBase.position.x = t.x;
           existingBase.position.z = t.z;
+          existingBase.rotation.y = facingY;
+        }
+        const existingDisc = scene.getMeshByName(`lw-token-puck-disc-${t.key}`) as Mesh | null;
+        if (existingDisc) {
+          existingDisc.rotation.z = facingY;
         }
         updateTokenRimMaterialHighlight(scene, t, isAttacker, isTargeted);
 
@@ -160,7 +177,8 @@ export class BabylonTokenMeshBuilder {
         scene,
       );
       baseMesh.position.set(t.x, groundY + baseHeight / 2 + 0.01, t.z);
-      baseMesh.metadata = { tokenKey: t.key, baseHeight, footprintRadius, renderSig };
+      baseMesh.rotation.set(0, facingY, 0);
+      baseMesh.metadata = { tokenKey: t.key, baseHeight, footprintRadius, renderSig, facingY };
       baseMesh.renderingGroupId = 0;
       baseMesh.alphaIndex = 10;
       baseMesh.isPickable = true;

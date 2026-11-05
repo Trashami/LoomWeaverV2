@@ -65,6 +65,12 @@ export interface VttWallSegmentVm {
   readonly z2: number;
   readonly blocksVision: boolean;
   readonly blocksMovement: boolean;
+  readonly obstacleGroupId?: string;
+  readonly obstacleCenterX?: number;
+  readonly obstacleCenterZ?: number;
+  readonly obstacleRadiusX?: number;
+  readonly obstacleRadiusZ?: number;
+  readonly obstacleRotationY?: number;
 }
 
 export interface VttEncounterVisionConfigVm {

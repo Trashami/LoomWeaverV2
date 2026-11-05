@@ -53,6 +53,7 @@ public static class LoomWeaverEndpoints
             api.MapTableRealtimeEndpoints();
             api.MapAuthAndCheckoutEndpoints();
             api.MapCampaignInviteEndpoints();
+            api.MapUserNotificationEndpoints();
             api.MapCompendiumAndStudioEndpoints();
             api.MapDeckEndpoints();
             api.MapSourceBookEndpoints();
@@ -108,7 +109,8 @@ public static class LoomWeaverEndpoints
                     currentLocationName = match?.CurrentLocationName ?? "Starting Location",
                     weaveEnabled = match?.WeaveEnabled ?? true,
                     my_role = m.IsGm ? "dm" : "player",
-                    my_character_key = m.CharacterKey
+                    my_character_key = m.CharacterKey,
+                    my_invite_status = m.IsGm ? "active" : (m.InviteStatus ?? "active")
                 });
             }
 
@@ -136,7 +138,8 @@ public static class LoomWeaverEndpoints
                 currentLocationName = c?.CurrentLocationName ?? "Starting Location",
                 weaveEnabled = c?.WeaveEnabled ?? true,
                 my_role = isGm ? "dm" : "player",
-                my_character_key = membership?.CharacterKey
+                my_character_key = membership?.CharacterKey,
+                my_invite_status = isGm ? "active" : (membership?.InviteStatus ?? "active")
             });
         });
 

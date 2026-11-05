@@ -150,7 +150,7 @@ public static class CharacterStudioEndpoints
         if (c.OwnerUserId is long owner && owner == access.UserId) return true;
         var bound = access.BoundCharacterKey.Replace("pc-", "char-", StringComparison.OrdinalIgnoreCase);
         return !string.Equals(access.BoundCharacterKey, CampaignAccessResolver.NoCharacter, StringComparison.OrdinalIgnoreCase)
-            && c.Sheet.CharacterKey.Equals(bound, StringComparison.OrdinalIgnoreCase);
+            && (c.Sheet.CharacterKey.Equals(bound, StringComparison.OrdinalIgnoreCase) || c.Sheet.CharacterKey.Equals(access.BoundCharacterKey, StringComparison.OrdinalIgnoreCase));
     }
 
     private static string? BuildKey(string name)

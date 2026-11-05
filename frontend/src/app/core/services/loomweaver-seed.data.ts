@@ -16,13 +16,55 @@ export const SYSTEM_LABELS: Record<CampaignVm['systemCode'], string> = {
 };
 
 export const DEFAULT_PARTY_PLAYERS: readonly CampaignPlayerMemberVm[] = [
-  { accountId: 'acc-gm-geojason', username: 'GeoJason', displayName: 'Jason (GeoJason)', email: 'jason@loom-weaver.com', role: 'gm', joinedViaInvite: false, joinedAtLabel: 'Campaign Founder', assignedCharacterKey: 'char-ciaran' },
-  { accountId: 'acc-player-dal', username: 'ScottBrogan', displayName: 'Scott Brogan', email: 'scott@loom-weaver.com', role: 'players', joinedViaInvite: true, joinedAtLabel: 'Joined via Invite Link', assignedCharacterKey: 'char-dal' },
-  { accountId: 'acc-player-fivi', username: 'DallasCrow', displayName: 'Dallas Crow', email: 'dallas@loom-weaver.com', role: 'players', joinedViaInvite: true, joinedAtLabel: 'Joined via Invite Link', assignedCharacterKey: 'char-fivi' },
-  { accountId: 'acc-player-kildrid', username: 'RyanIssak', displayName: 'Ryan Issak', email: 'ryan@loom-weaver.com', role: 'players', joinedViaInvite: true, joinedAtLabel: 'Joined via Invite Link', assignedCharacterKey: 'char-kildrid' },
-  { accountId: 'acc-player-kycius', username: 'StickHazen', displayName: 'Stick Hazen', email: 'stick@loom-weaver.com', role: 'players', joinedViaInvite: true, joinedAtLabel: 'Joined via Invite Link', assignedCharacterKey: 'char-kycius' },
-  { accountId: 'acc-player-munk', username: 'PeteHigano', displayName: 'Pete Higano', email: 'pete@loom-weaver.com', role: 'players', joinedViaInvite: true, joinedAtLabel: 'Joined via Invite Link', assignedCharacterKey: 'char-munk' },
+  { accountId: 'acc-gm-geojason', username: 'GeoJason', displayName: 'Jason (GeoJason)', email: 'jason@loom-weaver.com', role: 'gm', joinedViaInvite: false, joinedAtLabel: 'Campaign Founder', inviteStatus: 'active', assignedCharacterKey: 'char-ciaran', assignedCharacterName: 'Ciaran Fiachra' },
+  { accountId: 'acc-player-dal', username: 'SBrogan', displayName: 'Scott', email: 'sbrogan@loomweaver.com', role: 'players', joinedViaInvite: true, joinedAtLabel: 'Joined via Invite Link', inviteStatus: 'active', assignedCharacterKey: 'char-dal', assignedCharacterName: 'Dal Riata' },
+  { accountId: 'acc-player-fivi', username: 'DallasCrow', displayName: 'Dallas Crow', email: 'dallas@loom-weaver.com', role: 'players', joinedViaInvite: true, joinedAtLabel: 'Joined via Invite Link', inviteStatus: 'active', assignedCharacterKey: 'char-fivi', assignedCharacterName: 'Fivi' },
+  { accountId: 'acc-player-kildrid', username: 'RyanIssak', displayName: 'Ryan Issak', email: 'ryan@loom-weaver.com', role: 'players', joinedViaInvite: true, joinedAtLabel: 'Joined via Invite Link', inviteStatus: 'active', assignedCharacterKey: 'char-kildrid', assignedCharacterName: 'Kildrid' },
+  { accountId: 'acc-player-kycius', username: 'StickHazen', displayName: 'Stick Hazen', email: 'stick@loom-weaver.com', role: 'players', joinedViaInvite: true, joinedAtLabel: 'Joined via Invite Link', inviteStatus: 'active', assignedCharacterKey: 'char-kycius', assignedCharacterName: 'Kycius' },
+  { accountId: 'acc-player-munk', username: 'PeteHigano', displayName: 'Pete Higano', email: 'pete@loom-weaver.com', role: 'players', joinedViaInvite: true, joinedAtLabel: 'Joined via Invite Link', inviteStatus: 'active', assignedCharacterKey: 'char-munk', assignedCharacterName: 'Munk' },
 ];
+
+export interface ServerMemberDto {
+  readonly accountId?: string;
+  readonly username: string;
+  readonly displayName: string;
+  readonly email: string;
+  readonly role: 'gm' | 'players';
+  readonly inviteStatus?: 'pending' | 'active';
+  readonly assignedCharacterKey?: string | null;
+  readonly assignedCharacterName?: string | null;
+}
+
+export function mergeServerCampaignMembersHelper(
+  existing: readonly CampaignPlayerMemberVm[],
+  serverRows: readonly ServerMemberDto[]
+): readonly CampaignPlayerMemberVm[] {
+  const byUsername = new Map<string, CampaignPlayerMemberVm>();
+  for (const p of existing) {
+    byUsername.set(p.username.toLowerCase(), p);
+  }
+  for (const row of serverRows) {
+    const uname = (row.username || row.email?.split('@')[0] || 'player').trim();
+    const key = uname.toLowerCase();
+    const prev = byUsername.get(key);
+    const status = row.role === 'gm'
+      ? 'active'
+      : (row.inviteStatus === 'pending' && !row.assignedCharacterKey ? 'pending' : (row.assignedCharacterKey ? 'active' : (row.inviteStatus ?? prev?.inviteStatus ?? 'pending')));
+    byUsername.set(key, {
+      accountId: row.accountId || prev?.accountId || `acc-player-${key}`,
+      username: uname,
+      displayName: row.displayName || prev?.displayName || uname,
+      email: row.email || prev?.email || `${key}@loom-weaver.com`,
+      role: row.role === 'gm' ? 'gm' : 'players',
+      joinedViaInvite: row.role !== 'gm',
+      joinedAtLabel: row.role === 'gm' ? 'Campaign Founder' : (status === 'pending' ? 'Pending Invite' : 'Joined Campaign'),
+      inviteStatus: status,
+      assignedCharacterKey: row.assignedCharacterKey ?? prev?.assignedCharacterKey ?? undefined,
+      assignedCharacterName: row.assignedCharacterName ?? prev?.assignedCharacterName ?? undefined,
+    });
+  }
+  return Array.from(byUsername.values());
+}
 
 export function formatSessionLocationLabelHelper(raw: string | undefined, sessionTitle = ''): string {
   const trimmed = (raw ?? '').trim();

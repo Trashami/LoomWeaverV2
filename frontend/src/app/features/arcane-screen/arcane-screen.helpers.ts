@@ -434,6 +434,11 @@ export function registerArcaneScreenStageEffects(
   });
   effect(() => {
     if (!host.hasConfiguredMap()) return;
+    const brushActive = battle.fogBrushMode() !== 'none';
+    untracked(() => stage.setFogBrushActive(brushActive));
+  });
+  effect(() => {
+    if (!host.hasConfiguredMap()) return;
     const layer = fog.layer();
     untracked(() => stage.syncFog(layer));
   });

@@ -5,6 +5,7 @@ import { AdventureGuideService } from '../../../core/services/adventure-guide.se
 import { LwAlertifyService } from '../../../core/services/lw-alertify.service';
 import { AuthSessionService } from '../../../core/services/auth-session.service';
 import { LoomWeaverStoreService } from '../../../core/services/loomweaver-store.service';
+import { LwNotificationService } from '../../../core/services/lw-notification.service';
 import {
   AbilityScoreVm, CharacterCreatorDraftVm, CharacterRichNoteVm, CharacterSheetTab,
   CharacterSheetVm, CharacterSpellVm, CharacterStudioViewMode, EquipmentLoadoutItemVm,
@@ -27,6 +28,7 @@ export class CharacterStudioService {
   private readonly adventureGuide = inject(AdventureGuideService);
   private readonly auth = inject(AuthSessionService);
   private readonly alertify = inject(LwAlertifyService);
+  private readonly notifications = inject(LwNotificationService);
   readonly catalog = inject(CharacterCompendiumCatalogService);
 
   readonly activeSystem = signal<'dnd5e' | 'pf2e' | 'vampire_v5'>('dnd5e');
@@ -66,14 +68,15 @@ export class CharacterStudioService {
     const campaignId = this.store.activeCampaignId() || 1;
     const removed = new Set(this.removedCharacterKeys());
     const assigns = this.playerAssignments();
+    const roster = this.store.activeCampaignPlayers();
     return this.sheets()
       .filter((s) => (s.campaignId === campaignId || s.campaignId === 1) && !removed.has(s.characterKey) && !removed.has(`${campaignId}:${s.characterKey}`))
       .map((s) => {
-        const override = assigns[s.characterKey];
+        const altKey = s.characterKey.startsWith('char-') ? s.characterKey.replace(/^char-/, 'pc-') : s.characterKey.replace(/^pc-/, 'char-');
+        const rosterMatch = roster.find((p) => p.assignedCharacterKey === s.characterKey || p.assignedCharacterKey === altKey);
+        const override = assigns[s.characterKey] ?? assigns[altKey] ?? (rosterMatch ? { ownerAccountId: rosterMatch.accountId, ownerUsername: rosterMatch.username, ownerDisplayName: rosterMatch.displayName } : undefined);
         return {
-          ...s,
-          campaignId,
-          compositeKey: `${campaignId}:Character:${s.characterKey}`,
+          ...s, campaignId, compositeKey: `${campaignId}:Character:${s.characterKey}`,
           ownerAccountId: override ? override.ownerAccountId : s.ownerAccountId,
           ownerUsername: override ? override.ownerUsername : s.ownerUsername,
           ownerDisplayName: override ? override.ownerDisplayName : (s.ownerDisplayName || s.ownerUsername || 'Unassigned'),
@@ -350,6 +353,13 @@ export class CharacterStudioService {
     this.viewMode.set('viewer');
     this.activeSheetTab.set('overview');
     this.registerInCampaignStore(calculated);
+    this.store.acceptCampaignInviteWithCharacter({
+      campaignId: targetCampaignId,
+      characterKey: charKey,
+      characterName: calculated.name,
+      playerUsername: calculated.ownerUsername || profile.username,
+      playerDisplayName: calculated.ownerDisplayName || profile.displayName,
+    });
     return calculated;
   }
 
@@ -373,6 +383,10 @@ export class CharacterStudioService {
       updatedSheet = this.recalculate({ ...sheet, equipment: [newItem, ...sheet.equipment] }, this.activeSystem());
       return updatedSheet;
     }));
+    if (updatedSheet) {
+      const s = updatedSheet as CharacterSheetVm;
+      this.notifications.notifyLootOrItemAwarded(this.store.activeCampaignId() || 1, this.store.activeCampaign().name, s.name, item.name, s.ownerUsername);
+    }
     return updatedSheet;
   }
 
@@ -417,15 +431,24 @@ export class CharacterStudioService {
 
   executeLevelUp(featureName: string, abilityBoost: AbilityScoreVm['code']): void {
     const key = this.selectedCharacterKey();
+    let leveledName = '';
+    let leveledOwner: string | undefined;
+    let newLvl = 1;
     this.sheets.update((list) => list.map((sheet) => {
       if (sheet.characterKey !== key) return sheet;
       const nextLevel = sheet.level + 1;
+      leveledName = sheet.name;
+      leveledOwner = sheet.ownerUsername;
+      newLvl = nextLevel;
       const abilities = sheet.abilities.map((a) => (a.code === abilityBoost ? { ...a, score: Math.min(22, a.score + 1) } : a));
       const features = [...sheet.features, `Lv.${nextLevel}: ${featureName}`];
       const featureCards = [...sheet.featureCards, { id: `feat-lv-${nextLevel}`, title: `Lv.${nextLevel} · ${featureName} (+1 ${abilityBoost})`, category: 'feat' as const, summary: `Unlocked at Level ${nextLevel} along with +1 ${abilityBoost}.`, icon: 'zap', tone: 'gold' as const }];
       const historyEvents = [`Advanced to Level ${nextLevel}: selected ${featureName} and +1 ${abilityBoost}.`, ...sheet.historyEvents];
       return this.recalculate({ ...sheet, level: nextLevel, nextLevelXp: sheet.nextLevelXp + 14000, abilities, features, featureCards, historyEvents }, this.activeSystem());
     }));
+    if (leveledName) {
+      this.notifications.notifyCharacterLevelUp(this.store.activeCampaignId() || 1, this.store.activeCampaign().name, leveledName, newLvl, leveledOwner);
+    }
   }
 
   addCharacterNote(text: string): void {

@@ -149,15 +149,27 @@ function extractWallPolylineSegments(
 
     for (let sIdx = 0; sIdx < solidSpans.length; sIdx++) {
       const [s0, s1] = solidSpans[sIdx];
+      const x1 = Number((a[0] + dx * s0).toFixed(3));
+      const z1 = Number((a[1] + dz * s0).toFixed(3));
+      const x2 = Number((a[0] + dx * s1).toFixed(3));
+      const z2 = Number((a[1] + dz * s1).toFixed(3));
+      const spanLen = Math.hypot(x2 - x1, z2 - z1);
+      const wallThick = Math.max(0.32, (wall.thicknessMeters ?? 0.5) * 0.72);
       out.push({
         id: `wall-${wall.id}-${i}-${sIdx}`,
         label: wall.name || 'Stone Wall',
-        x1: Number((a[0] + dx * s0).toFixed(3)),
-        z1: Number((a[1] + dz * s0).toFixed(3)),
-        x2: Number((a[0] + dx * s1).toFixed(3)),
-        z2: Number((a[1] + dz * s1).toFixed(3)),
+        x1,
+        z1,
+        x2,
+        z2,
         blocksVision: true,
         blocksMovement: true,
+        obstacleGroupId: `wall-grp-${wall.id}-${i}-${sIdx}`,
+        obstacleCenterX: Number(((x1 + x2) * 0.5).toFixed(3)),
+        obstacleCenterZ: Number(((z1 + z2) * 0.5).toFixed(3)),
+        obstacleRadiusX: Number((spanLen * 0.52).toFixed(3)),
+        obstacleRadiusZ: Number(wallThick.toFixed(3)),
+        obstacleRotationY: Number(Math.atan2(z2 - z1, x2 - x1).toFixed(4)),
       });
     }
   }
@@ -176,10 +188,13 @@ function extractStampOccluderSegments(
   const sx = Math.max(0.35, (st.scaleX ?? 1) * baseScale);
   const sz = Math.max(0.35, (st.scaleZ ?? 1) * baseScale);
 
-  // Inset silhouette (~46% of full visual footprint) so the front surface of the 3D object
-  // remains visible to the observer while casting a clean shadow wedge behind it.
-  const rx = Math.max(0.28, DEFAULT_CELL_METERS * sx * 0.26);
-  const rz = Math.max(0.28, DEFAULT_CELL_METERS * sz * 0.26);
+  // Full visual footprint radii for complete object reveal when in Line of Sight
+  const fullRx = Math.max(0.55, DEFAULT_CELL_METERS * sx * 0.62);
+  const fullRz = Math.max(0.55, DEFAULT_CELL_METERS * sz * 0.62);
+
+  // Core occluder silhouette (~24% of footprint) so the shadow starts behind the core
+  const rx = Math.max(0.24, DEFAULT_CELL_METERS * sx * 0.24);
+  const rz = Math.max(0.24, DEFAULT_CELL_METERS * sz * 0.24);
   const rot = st.rotationY || 0;
   const cos = Math.cos(rot);
   const sin = Math.sin(rot);
@@ -208,6 +223,12 @@ function extractStampOccluderSegments(
       z2: Number(p2.z.toFixed(3)),
       blocksVision: true,
       blocksMovement: st.blocksMovement ?? true,
+      obstacleGroupId: `stamp-grp-${st.id}`,
+      obstacleCenterX: Number(st.x.toFixed(3)),
+      obstacleCenterZ: Number(st.z.toFixed(3)),
+      obstacleRadiusX: Number(fullRx.toFixed(3)),
+      obstacleRadiusZ: Number(fullRz.toFixed(3)),
+      obstacleRotationY: Number(rot.toFixed(4)),
     });
   }
 }
@@ -241,6 +262,8 @@ function extractScatterClusterOccluders(
     nextRand(); // consume rotY to stay 100% synchronized with SeededScatterEngine
 
     const trunkR = Math.max(0.18, 0.24 * s);
+    const canopyR = Math.max(0.55, 0.72 * s);
+    const grpId = `scatter-grp-${cluster.id}-${j}`;
     out.push(
       {
         id: `scatter-occ-${cluster.id}-${j}-a`,
@@ -251,6 +274,12 @@ function extractScatterClusterOccluders(
         z2: Number(iz.toFixed(3)),
         blocksVision: true,
         blocksMovement: false,
+        obstacleGroupId: grpId,
+        obstacleCenterX: Number(ix.toFixed(3)),
+        obstacleCenterZ: Number(iz.toFixed(3)),
+        obstacleRadiusX: Number(canopyR.toFixed(3)),
+        obstacleRadiusZ: Number(canopyR.toFixed(3)),
+        obstacleRotationY: 0,
       },
       {
         id: `scatter-occ-${cluster.id}-${j}-b`,
@@ -261,6 +290,12 @@ function extractScatterClusterOccluders(
         z2: Number((iz + trunkR).toFixed(3)),
         blocksVision: true,
         blocksMovement: false,
+        obstacleGroupId: grpId,
+        obstacleCenterX: Number(ix.toFixed(3)),
+        obstacleCenterZ: Number(iz.toFixed(3)),
+        obstacleRadiusX: Number(canopyR.toFixed(3)),
+        obstacleRadiusZ: Number(canopyR.toFixed(3)),
+        obstacleRotationY: 0,
       },
     );
   }

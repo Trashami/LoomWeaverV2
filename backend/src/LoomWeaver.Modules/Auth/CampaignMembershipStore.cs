@@ -129,7 +129,7 @@ public static class CampaignMembershipStore
             await using var r = await uCmd.ExecuteReaderAsync(ct);
             if (await r.ReadAsync(ct))
             {
-                canonicalUserId = r.GetInt64(0);
+                canonicalUserId = Convert.ToInt64(r.GetValue(0));
                 if (string.IsNullOrWhiteSpace(cleanEmail) || cleanEmail.EndsWith("@loom-weaver.com", StringComparison.OrdinalIgnoreCase))
                     cleanEmail = r.GetString(1);
                 if (string.IsNullOrWhiteSpace(cleanDisplay) && !r.IsDBNull(2))
@@ -237,15 +237,11 @@ public static class CampaignMembershipStore
                 m.auth_email,
                 m.member_role,
                 m.assigned_character_key,
-                COALESCE(m.character_name, c.name) AS resolved_char_name,
+                m.character_name,
                 COALESCE(m.invite_status, 'active') AS resolved_status,
-                COALESCE(m.player_username, au.username, SUBSTRING_INDEX(m.auth_email, '@', 1)) AS resolved_username,
-                COALESCE(m.player_display_name, au.display_name, u.display_name, SUBSTRING_INDEX(m.auth_email, '@', 1)) AS resolved_display
+                COALESCE(m.player_username, SUBSTRING_INDEX(m.auth_email, '@', 1)) AS resolved_username,
+                COALESCE(m.player_display_name, m.player_username, SUBSTRING_INDEX(m.auth_email, '@', 1)) AS resolved_display
             FROM lw_campaign_members m
-            LEFT JOIN lw_auth_users au ON LOWER(au.email) = LOWER(m.auth_email)
-                OR LOWER(au.username) = LOWER(COALESCE(m.player_username, SUBSTRING_INDEX(m.auth_email, '@', 1)))
-            LEFT JOIN lw_users u ON u.id = m.user_id
-            LEFT JOIN lw_characters c ON c.campaign_id = m.campaign_id AND c.character_key = m.assigned_character_key
             WHERE m.campaign_id = @c
             ORDER BY FIELD(m.member_role, 'gm', 'player', 'spectator'), m.id
             """, db);
@@ -254,8 +250,8 @@ public static class CampaignMembershipStore
         while (await r.ReadAsync(ct))
         {
             list.Add(new CampaignMemberRow(
-                r.GetInt64(0),
-                r.GetInt64(1),
+                Convert.ToInt64(r.GetValue(0)),
+                Convert.ToInt64(r.GetValue(1)),
                 r.GetString(2),
                 r.GetString(3),
                 r.IsDBNull(4) ? null : r.GetString(4),

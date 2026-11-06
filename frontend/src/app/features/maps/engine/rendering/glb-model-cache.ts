@@ -523,15 +523,19 @@ export class GlbModelCache {
         let nx = norms[i];
         let ny = norms[i + 1];
         let nz = norms[i + 2];
-        if (useZAsLength) {
-          nz *= 0.04;
-          if (Math.abs(nx) < 0.15 && Math.abs(ny) < 0.5) {
-            nx = nx >= 0 ? 0.92 : -0.92;
-          }
-        } else {
-          nx *= 0.04;
-          if (Math.abs(nz) < 0.15 && Math.abs(ny) < 0.5) {
-            nz = nz >= 0 ? 0.92 : -0.92;
+        // Only flatten end-cap longitudinal curvature on vertical side faces (|ny| < 0.65).
+        // Preserve upward/downward normals on the top coping and base so wall tops never turn dark.
+        if (Math.abs(ny) < 0.65) {
+          if (useZAsLength) {
+            nz *= 0.04;
+            if (Math.abs(nx) < 0.15) {
+              nx = nx >= 0 ? 0.92 : -0.92;
+            }
+          } else {
+            nx *= 0.04;
+            if (Math.abs(nz) < 0.15) {
+              nz = nz >= 0 ? 0.92 : -0.92;
+            }
           }
         }
         const len = Math.hypot(nx, ny, nz) || 1;

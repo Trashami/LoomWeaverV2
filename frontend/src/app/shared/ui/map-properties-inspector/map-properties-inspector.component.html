@@ -794,6 +794,101 @@
 
             <div class="lw-map-inspector__slider-block">
               <div class="lw-map-inspector__slider-head">
+                <span>Wall Texture / Brick Density</span>
+                <strong>
+                  {{ wallTextureScale() }}%
+                  {{
+                    wallTextureScale() >= 145
+                      ? '(Small / Dense Bricks)'
+                      : wallTextureScale() <= 75
+                        ? '(Large Stones)'
+                        : '(Standard)'
+                  }}
+                </strong>
+              </div>
+              <input
+                type="range"
+                min="40"
+                max="260"
+                step="5"
+                class="lw-map-inspector__range"
+                [value]="wallTextureScale()"
+                (input)="onNumInput($event, wallTextureScaleChange)"
+              />
+              <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="wallTextureScale() === 65"
+                  (click)="wallTextureScaleChange.emit(65)"
+                >
+                  Large Stone (65%)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="wallTextureScale() === 100"
+                  (click)="wallTextureScaleChange.emit(100)"
+                >
+                  Standard (100%)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="wallTextureScale() === 150"
+                  (click)="wallTextureScaleChange.emit(150)"
+                >
+                  Dense Bricks (150%)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="wallTextureScale() === 210"
+                  (click)="wallTextureScaleChange.emit(210)"
+                >
+                  Fine Masonry (210%)
+                </button>
+              </div>
+            </div>
+
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
+                <span>Horizontal Brick Stretch (Width)</span>
+                <strong>{{ wallStretchX() }}%</strong>
+              </div>
+              <input
+                type="range"
+                min="45"
+                max="220"
+                step="5"
+                class="lw-map-inspector__range"
+                [value]="wallStretchX()"
+                (input)="onNumInput($event, wallStretchXChange)"
+              />
+            </div>
+
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
+                <span>Vertical Course Stretch (Height)</span>
+                <strong>{{ wallStretchY() }}%</strong>
+              </div>
+              <input
+                type="range"
+                min="45"
+                max="220"
+                step="5"
+                class="lw-map-inspector__range"
+                [value]="wallStretchY()"
+                (input)="onNumInput($event, wallStretchYChange)"
+              />
+            </div>
+
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
                 <span>Wall Stamp Scale</span>
                 <strong>{{ (node.scale || 1).toFixed(2) }}x</strong>
               </div>
@@ -879,7 +974,8 @@
           @if (hasPlacedSelection()) {
             <lw-wall-surface-controls [brush]="wallBrush()" [smoothing]="wallSmoothing()"
               (brushChange)="wallBrushChange.emit($event)"
-              (smoothingChange)="wallSmoothingChange.emit($event)" />
+              (smoothingChange)="wallSmoothingChange.emit($event)"
+              (clearPaint)="clearWallPaint.emit()" />
           }
 
           @if (hasPlacedSelection()) {

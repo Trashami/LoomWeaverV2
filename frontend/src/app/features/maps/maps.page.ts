@@ -402,6 +402,9 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.sceneGraph().stamps.some((s) => s.category === 'Token'),
   );
   readonly wallBrush = signal<WallBrushSettings>(DEFAULT_WALL_BRUSH);
+  readonly wallTextureScale = signal<number>(100);
+  readonly wallStretchX = signal<number>(100);
+  readonly wallStretchY = signal<number>(100);
   readonly selectedWallSmoothing = computed(() =>
     this.sceneGraph().walls?.find(w => w.id === this.selectedPlacedId())?.terrainSmoothing ?? 75);
   private readonly wallBrushSync = effect(() => {
@@ -422,11 +425,46 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       walls: cur.walls?.map(w => w.id === id ? { ...w, terrainSmoothing } : w) }));
   }
 
+  onWallTextureScaleChange(scalePct: number): void {
+    const clamped = Math.max(40, Math.min(260, Math.round(scalePct)));
+    this.wallTextureScale.set(clamped);
+    this.updateTargetWall((w) => ({ ...w, wallTextureScale: clamped }));
+  }
+
+  onWallStretchXChange(stretchPct: number): void {
+    const clamped = Math.max(45, Math.min(220, Math.round(stretchPct)));
+    this.wallStretchX.set(clamped);
+    this.updateTargetWall((w) => ({ ...w, wallStretchX: clamped }));
+  }
+
+  onWallStretchYChange(stretchPct: number): void {
+    const clamped = Math.max(45, Math.min(220, Math.round(stretchPct)));
+    this.wallStretchY.set(clamped);
+    this.updateTargetWall((w) => ({ ...w, wallStretchY: clamped }));
+  }
+
+  onClearSelectedWallPaint(): void {
+    const id = this.selectedPlacedId();
+    this.recordHistoryBeforeEdit('Clear Wall Grime Paint');
+    this.commitSceneUpdate((cur) => ({
+      ...cur,
+      revision: cur.revision + 1,
+      walls: (cur.walls ?? []).map((w) =>
+        !id || w.id === id ? { ...w, paintDabs: [] } : w,
+      ),
+    }));
+  }
+
   private commitWallPaintStroke(id: string | null, dabs: readonly WallPaintDab[]): void {
     if (!id || !dabs.length) return;
     this.recordHistoryBeforeEdit('Paint selected wall surface');
-    this.commitSceneUpdate(cur => ({ ...cur, revision: cur.revision + 1,
-      walls: cur.walls?.map(w => w.id === id ? { ...w, paintDabs: [...(w.paintDabs ?? []), ...dabs] } : w) }));
+    const floorDabs = this.stage.exportFloorPaintDabs();
+    this.commitSceneUpdate(cur => ({
+      ...cur,
+      revision: cur.revision + 1,
+      floorPaintDabs: floorDabs,
+      walls: cur.walls?.map(w => w.id === id ? { ...w, paintDabs: [...(w.paintDabs ?? []), ...dabs] } : w),
+    }));
   }
 
   readonly floorBrushActive = signal<boolean>(false);
@@ -1512,6 +1550,9 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
           thicknessMeters: 0.45 * node.thickness,
           offsetY: node.elevationY ?? -0.06,
           stampScale: node.scale || 1.0,
+          wallTextureScale: this.wallTextureScale(),
+          wallStretchX: this.wallStretchX(),
+          wallStretchY: this.wallStretchY(),
           connectionOverlap: node.connectionOverlap ?? 15,
           rotationOffsetDeg: node.rotationDeg || 0,
           perspective: 'auto',
@@ -1555,6 +1596,9 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         const p0 = wall.points[0] ?? [fallbackX, fallbackZ];
         this.wallCornerPosts.set(wall.hasCornerPosts !== false);
         this.wallCornerPostScale.set(wall.cornerPostScale ?? 1.0);
+        this.wallTextureScale.set(wall.wallTextureScale ?? 100);
+        this.wallStretchX.set(wall.wallStretchX ?? 100);
+        this.wallStretchY.set(wall.wallStretchY ?? 100);
         this.selectedNode.update((cur) => ({
           ...cur,
           id: wall.id,
@@ -1760,6 +1804,9 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         thicknessMeters: 0.45 * node.thickness,
         offsetY: node.elevationY ?? -0.06,
         stampScale: node.scale || 1.0,
+        wallTextureScale: this.wallTextureScale(),
+        wallStretchX: this.wallStretchX(),
+        wallStretchY: this.wallStretchY(),
         connectionOverlap: node.connectionOverlap ?? 15,
         rotationOffsetDeg: node.rotationDeg || 0,
         perspective: 'auto',

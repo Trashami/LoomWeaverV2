@@ -151,8 +151,15 @@ export class LwMapPropertiesInspectorComponent {
   readonly waterRemoved = output<void>();
   readonly wallBrush = input<WallBrushSettings>(DEFAULT_WALL_BRUSH);
   readonly wallSmoothing = input<number>(75);
+  readonly wallTextureScale = input<number>(100);
+  readonly wallStretchX = input<number>(100);
+  readonly wallStretchY = input<number>(100);
   readonly wallBrushChange = output<WallBrushSettings>();
   readonly wallSmoothingChange = output<number>();
+  readonly wallTextureScaleChange = output<number>();
+  readonly wallStretchXChange = output<number>();
+  readonly wallStretchYChange = output<number>();
+  readonly clearWallPaint = output<void>();
   readonly activeToolId = input<string>('select');
   readonly selectedPlacedKind = input<'wall' | 'door' | 'object' | 'light' | null>(null);
   readonly selectedNode = input<LwSelectedSceneNode | null>(null);

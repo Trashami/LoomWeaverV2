@@ -183,6 +183,9 @@ export interface MapWallSegmentNode {
   readonly heightMeters: number;
   readonly offsetY?: number;
   readonly stampScale?: number;
+  readonly wallTextureScale?: number;
+  readonly wallStretchX?: number;
+  readonly wallStretchY?: number;
   readonly connectionOverlap?: number;
   readonly rotationOffsetDeg?: number;
   readonly wallNormalStrength?: number;

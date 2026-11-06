@@ -109,9 +109,8 @@ export class WallMeshBuilder {
           return `${op.id}:${op.t}:${op.type}:${op.doorStyle ?? ''}:${op.widthMeters}:${op.heightMeters ?? 0}:${op.isOpen ? 1 : 0}:${op.hingeSide ?? 'left'}:${op.swingDirection ?? 'inward'}:${op.isSecret ? 1 : 0}:${op.isRevealedToPlayers ? 1 : 0}:${op.hasSidePosts !== false ? 1 : 0}:${op.sidePostStyle ?? 'quoin'}:${op.sidePostScale ?? 1}:${doorUrl}:${hasDoorTpl ? 1 : 0}`;
         })
         .join(',');
-      const paintSig = `${w.paintDabs?.length ?? 0}`;
       parts.push(
-        `${w.id}|${w.drawMode}|${w.heightMeters}|${w.thicknessMeters}|${w.perspective}|${w.material}|${wallUrl}|${hasWallTpl ? 1 : 0}|${w.albedoUrl ?? ''}|${w.normalUrl ?? ''}|${w.colorHex ?? ''}|${w.wallNormalStrength ?? 1.35}|${w.wallDisplacementScale ?? 1}|${w.hasCornerPosts ? 1 : 0}|${w.cornerPostScale ?? 1}|${w.connectionOverlap ?? 15}|${w.offsetY ?? -0.06}|${w.stampScale ?? 1}|${w.rotationOffsetDeg ?? 0}|${ptsSig}|${opsSig}|${paintSig}`,
+        `${w.id}|${w.drawMode}|${w.heightMeters}|${w.thicknessMeters}|${w.perspective}|${w.material}|${wallUrl}|${hasWallTpl ? 1 : 0}|${w.albedoUrl ?? ''}|${w.normalUrl ?? ''}|${w.colorHex ?? ''}|${w.wallNormalStrength ?? 1.35}|${w.wallDisplacementScale ?? 1}|${w.hasCornerPosts ? 1 : 0}|${w.cornerPostScale ?? 1}|${w.connectionOverlap ?? 15}|${w.offsetY ?? -0.06}|${w.stampScale ?? 1}|${w.wallTextureScale ?? 100}|${w.wallStretchX ?? 100}|${w.wallStretchY ?? 100}|${w.rotationOffsetDeg ?? 0}|${ptsSig}|${opsSig}`,
       );
     }
     return parts.join('||');
@@ -208,6 +207,7 @@ export class WallMeshBuilder {
     const sig = this.computeWallSceneSig(scene, walls, hideSecrets, onGlbLoaded);
     const prev = this.builtWallSigByScene.get(scene);
     if (prev && prev.sig === sig) {
+      WallSurfacePaint.replay(scene, walls);
       return prev.count;
     }
 
@@ -258,8 +258,11 @@ export class WallMeshBuilder {
       const overlapFrac = Math.max(-0.2, Math.min(0.5, (wall.connectionOverlap ?? 15) / 100));
       const offsetY = wall.offsetY ?? -0.06;
       const stampScale = Math.max(0.4, Math.min(3.0, wall.stampScale ?? 1.0));
+      const texDensity = Math.max(0.35, Math.min(3.5, (wall.wallTextureScale ?? 100) / 100));
+      const stretchX = Math.max(0.4, Math.min(2.5, (wall.wallStretchX ?? 100) / 100));
+      const stretchY = Math.max(0.4, Math.min(2.5, (wall.wallStretchY ?? 100) / 100));
       const rotOffsetRad = ((wall.rotationOffsetDeg ?? 0) * Math.PI) / 180;
-      const effectiveThickness = wall.thicknessMeters * stampScale;
+      const effectiveThickness = wall.thicknessMeters;
 
       const segCount = closed ? pts.length : pts.length - 1;
       const segLengths: number[] = [];
@@ -272,8 +275,8 @@ export class WallMeshBuilder {
         totalPerimeter += len;
       }
 
-      // Build 3D Corner Quoin Pillars at wall vertices when enabled
-      if (wall.hasCornerPosts !== false) {
+      // Build 3D Corner Quoin Pillars at wall vertices only on procedural walls when enabled
+      if (wall.hasCornerPosts !== false && !isGlbWall) {
         for (let vIdx = 0; vIdx < pts.length; vIdx++) {
           const [vx, vz] = pts[vIdx];
           const vGroundY = TerrainMeshBuilder.sampleElevationAt(scene, vx, vz) + offsetY;
@@ -286,7 +289,7 @@ export class WallMeshBuilder {
             vx,
             vz,
             vGroundY,
-            height * stampScale,
+            height,
             effectiveThickness,
             vAngleY,
             wallStyle,
@@ -333,7 +336,7 @@ export class WallMeshBuilder {
                 ? (op.t - segGlobalStartT) / (segGlobalEndT - segGlobalStartT)
                 : 0.5;
             const doorWidth = Math.max(0.75, op.widthMeters || 1.5);
-            const doorH = Math.min(height * stampScale, op.heightMeters ?? Math.min(height, 2.5));
+            const doorH = Math.min(height, op.heightMeters ?? Math.min(height, 2.5));
             const doorX = a[0] + dx * localCenter;
             const doorZ = a[1] + dz * localCenter;
             const groundY = TerrainMeshBuilder.sampleElevationAt(scene, doorX, doorZ);
@@ -408,39 +411,53 @@ export class WallMeshBuilder {
           const yEnd = TerrainMeshBuilder.sampleElevationAt(scene, a[0] + dx * s1, a[1] + dz * s1);
           const minGroundY = Math.min(yStart, yMid, yEnd);
           const maxGroundY = Math.max(yStart, yMid, yEnd);
-          const effectiveHeight = (maxGroundY + height - minGroundY) * stampScale;
+          const effectiveHeight = Math.max(0.45, maxGroundY + height - minGroundY);
 
           if (wallTpl) {
             const primaryRawSpan = Math.max(
               1.2,
               wallTpl.rawDepth > wallTpl.rawWidth * 1.35 ? wallTpl.rawDepth : wallTpl.rawWidth,
             );
-            const idealChunkLen = Math.max(1.2, Math.min(3.4, primaryRawSpan * stampScale));
+            const rawCourseH = Math.max(0.9, Math.min(2.2, wallTpl.rawHeight));
+            // Brick/stone pattern scale: higher texDensity -> smaller bricks & more courses/chunks
+            const hScale = (stampScale * stretchX) / texDensity;
+            const vScale = (stampScale * stretchY) / texDensity;
+            const idealChunkLen = Math.max(0.65, Math.min(4.2, primaryRawSpan * hScale));
+            const idealCourseH = Math.max(0.55, Math.min(3.6, rawCourseH * vScale));
+
             const chunkCount = Math.max(1, Math.round(extendedSpanLen / idealChunkLen));
             const chunkLen = extendedSpanLen / chunkCount;
-            const chunkRenderW = chunkLen * (1 + Math.max(0.04, overlapFrac * 0.25));
-            for (let cIdx = 0; cIdx < chunkCount; cIdx++) {
-              const uMid = (cIdx + 0.5) / chunkCount;
-              const cx = spanStartX + ux * (extendedSpanLen * uMid);
-              const cz = spanStartZ + uz * (extendedSpanLen * uMid);
-              const cy = TerrainMeshBuilder.sampleElevationAt(scene, cx, cz);
-              const cInst = GlbModelCache.instantiateClone(
-                scene,
-                wallTpl,
-                `lw-wall-node-${wall.id}-${i}-${sIdx}-${cIdx}`,
-                chunkRenderW,
-                effectiveHeight,
-                effectiveThickness,
-                false,
-                false,
-                wallMeta,
-                {
-                  colorHex: wall.colorHex || wall.tintColorHex,
-                },
-              );
-              cInst.position.set(cx, cy + offsetY, cz);
-              cInst.rotation.y = angleY;
-              meshCount++;
+            const chunkRenderW = chunkLen * (1 + Math.max(0.03, overlapFrac * 0.22));
+
+            const vCourseCount = Math.max(1, Math.round(effectiveHeight / idealCourseH));
+            const courseH = effectiveHeight / vCourseCount;
+            const courseRenderH = courseH * (vCourseCount > 1 ? 1.04 : 1.0);
+
+            for (let vIdx = 0; vIdx < vCourseCount; vIdx++) {
+              const courseBaseY = vIdx * courseH;
+              for (let cIdx = 0; cIdx < chunkCount; cIdx++) {
+                const uMid = (cIdx + 0.5) / chunkCount;
+                const cx = spanStartX + ux * (extendedSpanLen * uMid);
+                const cz = spanStartZ + uz * (extendedSpanLen * uMid);
+                const cy = TerrainMeshBuilder.sampleElevationAt(scene, cx, cz);
+                const cInst = GlbModelCache.instantiateClone(
+                  scene,
+                  wallTpl,
+                  `lw-wall-node-${wall.id}-${i}-${sIdx}-${vIdx}-${cIdx}`,
+                  chunkRenderW,
+                  courseRenderH,
+                  effectiveThickness,
+                  false,
+                  false,
+                  wallMeta,
+                  {
+                    colorHex: wall.colorHex || wall.tintColorHex,
+                  },
+                );
+                cInst.position.set(cx, cy + offsetY + courseBaseY, cz);
+                cInst.rotation.y = angleY;
+                meshCount++;
+              }
             }
           } else {
             const spanMeshes = buildProceduralWallSpan(scene, wall, {
@@ -471,7 +488,7 @@ export class WallMeshBuilder {
           if (hideSecrets && op.isSecret && !op.isRevealedToPlayers) continue;
 
           const { doorX, doorZ, groundY, doorH, doorWidth, localCenter } = cut;
-          const wallTopH = height * stampScale;
+          const wallTopH = height;
           const cutoutSpanLen = Math.max(doorWidth * 0.84, (cut.endLocal - cut.startLocal) * totalLen);
 
           if (wallTopH - doorH > 0.14) {

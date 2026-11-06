@@ -76,6 +76,12 @@ export function buildProceduralWallSpan(
     proceduralWallStyleId: style.id,
   };
 
+  const texDensity = Math.max(0.35, Math.min(3.5, (wall.wallTextureScale ?? 100) / 100));
+  const stretchX = Math.max(0.4, Math.min(2.5, (wall.wallStretchX ?? 100) / 100));
+  const stretchY = Math.max(0.4, Math.min(2.5, (wall.wallStretchY ?? 100) / 100));
+  const uDensityScale = texDensity / stretchX;
+  const vDensityScale = texDensity / stretchY;
+
   const bodyMesh = buildSubdividedReliefWallBox(
     `lw-wall-proc-body-${wall.id}-${spanId}`,
     scene,
@@ -86,6 +92,8 @@ export function buildProceduralWallSpan(
     baseElevationY,
     style,
     wall.wallDisplacementScale ?? 1.0,
+    uDensityScale,
+    vDensityScale,
   );
 
   bodyMesh.position.set(centerX, groundY + baseElevationY + spanHeight * 0.5, centerZ);
@@ -164,13 +172,17 @@ function buildSubdividedReliefWallBox(
   baseElevationY: number,
   style: ProceduralWallStyleSpec,
   userReliefMultiplier: number,
+  uDensityScale = 1.0,
+  vDensityScale = 1.0,
 ): BABYLON.Mesh {
-  const cols = Math.max(4, Math.min(64, Math.ceil(width / 0.18)));
-  const rows = Math.max(4, Math.min(24, Math.ceil(height / 0.20)));
+  const cols = Math.max(4, Math.min(64, Math.ceil((width * Math.max(0.7, uDensityScale)) / 0.18)));
+  const rows = Math.max(4, Math.min(32, Math.ceil((height * Math.max(0.7, vDensityScale)) / 0.20)));
   const halfW = width * 0.5;
   const halfH = height * 0.5;
   const halfD = depth * 0.5;
   const maxRelief = style.reliefMeters * Math.max(0.2, Math.min(2.5, userReliefMultiplier));
+  const effTileW = Math.max(0.25, style.tileWidthMeters / uDensityScale);
+  const effTileH = Math.max(0.25, style.tileHeightMeters / vDensityScale);
 
   const positions: number[] = [];
   const normals: number[] = [];
@@ -182,13 +194,13 @@ function buildSubdividedReliefWallBox(
     for (let r = 0; r <= rows; r++) {
       const v01 = r / rows;
       const localY = -halfH + v01 * height;
-      const worldV = baseElevationY + v01 * height;
+      const worldV = (baseElevationY + v01 * height) * vDensityScale;
       const edgeV = Math.min(v01 * 5.0, (1 - v01) * 5.0, 1.0);
 
       for (let c = 0; c <= cols; c++) {
         const u01 = c / cols;
         const localX = -halfW + u01 * width;
-        const worldU = worldStartDistMeters + u01 * width;
+        const worldU = (worldStartDistMeters + u01 * width) * uDensityScale;
         const uSample = worldU + (frontSign < 0 ? 1.37 : 0);
 
         const sample = sampleProceduralWallRelief(style.pattern, uSample, worldV);
@@ -210,7 +222,10 @@ function buildSubdividedReliefWallBox(
 
         positions.push(localX, localY, localZ);
         normals.push(-dU * invLen * frontSign, -dV * invLen, frontSign * invLen);
-        uvs.push(worldU / style.tileWidthMeters, worldV / style.tileHeightMeters);
+        uvs.push(
+          (worldStartDistMeters + u01 * width) / effTileW,
+          (baseElevationY + v01 * height) / effTileH,
+        );
       }
     }
 
@@ -258,8 +273,8 @@ function buildSubdividedReliefWallBox(
     [halfW, halfH, -halfD],
     [-halfW, halfH, -halfD],
     [0, 1, 0],
-    width / style.tileWidthMeters,
-    depth / style.tileHeightMeters,
+    width / effTileW,
+    depth / effTileH,
   );
   // Bottom cap (-Y)
   addQuadCap(
@@ -268,8 +283,8 @@ function buildSubdividedReliefWallBox(
     [halfW, -halfH, halfD],
     [-halfW, -halfH, halfD],
     [0, -1, 0],
-    width / style.tileWidthMeters,
-    depth / style.tileHeightMeters,
+    width / effTileW,
+    depth / effTileH,
   );
   // Left cap (-X)
   addQuadCap(
@@ -278,8 +293,8 @@ function buildSubdividedReliefWallBox(
     [-halfW, halfH, halfD],
     [-halfW, halfH, -halfD],
     [-1, 0, 0],
-    depth / style.tileWidthMeters,
-    height / style.tileHeightMeters,
+    depth / effTileW,
+    height / effTileH,
   );
   // Right cap (+X)
   addQuadCap(
@@ -288,8 +303,8 @@ function buildSubdividedReliefWallBox(
     [halfW, halfH, -halfD],
     [halfW, halfH, halfD],
     [1, 0, 0],
-    depth / style.tileWidthMeters,
-    height / style.tileHeightMeters,
+    depth / effTileW,
+    height / effTileH,
   );
 
   const vertexData = new BABYLON.VertexData();

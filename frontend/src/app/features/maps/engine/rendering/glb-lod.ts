@@ -53,14 +53,14 @@ export function buildGlbLodManifest(res: ModelManifestResponse | null | undefine
   return map;
 }
 
-/** Ordered URLs to try for a base model: preferred tier, nearest tiers, then the unsuffixed file. */
+/** Ordered URLs to try for a base model: preferred tier in models-3d, nearest tiers, then the unsuffixed file. */
 export function glbLodCandidates(url: string, tier: GlbLodTier, manifest?: ReadonlyMap<string, Partial<Record<GlbLodTier, string>>>): string[] {
   const base = toBaseGlbUrl(url);
   const directTierUrls = TIER_FALLBACK[tier].map((t) => resolveGlbLodUrl(base, t));
   const known = manifest?.get(base);
   if (known) {
     const listed = TIER_FALLBACK[tier].map((t) => known[t]).filter((u): u is string => !!u);
-    return Array.from(new Set([...directTierUrls, ...listed, base]));
+    return Array.from(new Set([...listed, ...directTierUrls, base]));
   }
   return Array.from(new Set([...directTierUrls, base]));
 }

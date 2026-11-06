@@ -23,14 +23,14 @@ export class MapCameraViews {
     if (!top) {
       this.main.alpha = -Math.PI / 2.3;
       this.main.beta = mode === 'first-person' ? 1.35 : 0.82;
-      this.main.radius = mode === 'first-person' ? 6.5 : 15.5;
+      this.main.radius = mode === 'first-person' ? 7.0 : 24.0;
     }
     if (split) {
       this.overview ??= new ArcRotateCamera(
         'lw-map-overhead',
         -Math.PI / 2,
         0.0001,
-        19.5,
+        36.0,
         Vector3.Zero(),
         this.scene,
       );
@@ -59,11 +59,11 @@ export class MapCameraViews {
     camera.attachControl(true, false, 2);
     if (camera !== this.attached) camera.detachControl();
     camera.lowerRadiusLimit = 1.6;
-    camera.upperRadiusLimit = 68;
+    camera.upperRadiusLimit = 140;
     if (top) {
       camera.alpha = -Math.PI / 2;
       camera.beta = 0.0001;
-      camera.radius = 19.5;
+      camera.radius = 36.0;
     }
   }
 

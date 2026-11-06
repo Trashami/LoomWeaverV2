@@ -252,6 +252,9 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     }
     this.mountStageIfReady();
     this.timer.start();
+    const activeSceneKey = this.serverSync.activeSceneResponse()?.sceneKey || '*';
+    const activeSceneTitle = this.activeBattlemapTitle() || 'Live VTT Battlemap';
+    this.audio.fireTrigger('battlemap', activeSceneKey, activeSceneTitle, true);
   }
 
   ngOnDestroy(): void {

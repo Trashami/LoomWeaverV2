@@ -168,6 +168,32 @@ def build_catalog() -> dict:
             "albedoUrl": "/assets/light-aware-assets-v1/new/256/new-fallen-buttress-01.png",
             "normalUrl": "/assets/light-aware-assets-v1/new/256/new-fallen-buttress-01_normal.png",
         },
+        {
+            "id": "bump-mossy-stone-wall",
+            "name": "Polyhaven Mossy Stone Wall (1K Relief)",
+            "category": "Walls & Cliffs (Bump/Height)",
+            "toolRole": "wall-texture",
+            "isFloor": False,
+            "isWall": True,
+            "isDoor": False,
+            "isObject": False,
+            "albedoUrl": "/assets/terrain-textures/downloads/polyhaven/mossy_stone_wall/1k/color.png",
+            "normalUrl": "/assets/terrain-textures/downloads/polyhaven/mossy_stone_wall/1k/normal.png",
+            "heightUrl": "/assets/terrain-textures/downloads/polyhaven/mossy_stone_wall/1k/displacement.png",
+        },
+        {
+            "id": "bump-mossy-stone-floor",
+            "name": "Polyhaven Mossy Stone Floor (1K Relief)",
+            "category": "Flooring (Bump/Height)",
+            "toolRole": "floor-texture",
+            "isFloor": True,
+            "isWall": False,
+            "isDoor": False,
+            "isObject": False,
+            "albedoUrl": "/assets/terrain-textures/downloads/polyhaven/mossy_stone_wall/1k/color.png",
+            "normalUrl": "/assets/terrain-textures/downloads/polyhaven/mossy_stone_wall/1k/normal.png",
+            "heightUrl": "/assets/terrain-textures/downloads/polyhaven/mossy_stone_wall/1k/displacement.png",
+        },
     ]
 
     for item in curated_2d:
@@ -226,9 +252,17 @@ def build_catalog() -> dict:
             seen_ids.add(aid)
             name = item.get("name", aid)
             category = item.get("category", "Props")
+            mv_cat = item.get("matVisCategory", "")
+            mv_tool = item.get("matVisTool", "")
             is_door = is_door_name(name)
             # 3D assets are never used as procedural wall/shape textures unless explicitly overridden by user
             role = "door-3d" if is_door else "object-3d"
+            src_file = item.get("sourceFile", "")
+            model_url = (
+                f"/assets/models-3d/{src_file}"
+                if src_file
+                else (item.get("glbUrl") or item.get("modelUrl") or f"/assets/object-library/models/{aid}.glb")
+            )
             entries.append(
                 {
                     "id": aid,
@@ -239,12 +273,13 @@ def build_catalog() -> dict:
                     "isWall": False,
                     "isDoor": is_door,
                     "isObject": not is_door,
-                    "modelUrl": f"/assets/object-library/models/{aid}.glb" if aid.startswith("obj-") else item.get("modelUrl", ""),
+                    "modelUrl": model_url,
                     "thumbnailUrl": item.get("pngPreviewUrl") or item.get("thumbnailUrl") or f"/assets/previews-png/{aid}.png",
                     "defaultScaleGrid": [1, 1, 1],
                     "defaultPlacement": "floor",
                     "snapToGrid": True,
                     "defaultColorTint": "#ffffff",
+                    **({"matVisCategory": mv_cat, "matVisTool": mv_tool} if mv_cat else {}),
                 }
             )
 

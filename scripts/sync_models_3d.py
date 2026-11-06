@@ -106,6 +106,8 @@ def upload() -> None:
     ssh = connect()
     sftp = ssh.open_sftp()
     run(ssh, f"mkdir -p {STAGE}", sudo=True)
+    run(ssh, f"cp -al {LIVE}/* {STAGE}/ 2>/dev/null || true", sudo=True)
+    run(ssh, f"rm -f {STAGE}/*.part {STAGE}/{REGISTRY_NAME}", sudo=True)
     run(ssh, f"chown -R {require('LW_SSH_USER')} {STAGE}", sudo=True)
     remote = {a.filename: a.st_size for a in sftp.listdir_attr(STAGE) if stat.S_ISREG(a.st_mode)}
     sftp.close()

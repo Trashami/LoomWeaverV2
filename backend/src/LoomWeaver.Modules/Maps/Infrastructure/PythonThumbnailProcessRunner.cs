@@ -26,6 +26,8 @@ public static class PythonThumbnailProcessRunner
     {
         if (Directory.Exists("/var/www/loomweaver/assets/models-3d"))
             return "/var/www/loomweaver/assets/models-3d";
+        if (Directory.Exists(@"C:\map assets\3d-models"))
+            return @"C:\map assets\3d-models";
         if (Directory.Exists(@"C:\map assets\models-3d"))
             return @"C:\map assets\models-3d";
         var fallback = Path.Combine(AppContext.BaseDirectory, "assets", "models-3d");

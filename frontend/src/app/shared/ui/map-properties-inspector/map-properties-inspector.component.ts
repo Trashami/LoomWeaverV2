@@ -12,6 +12,10 @@ import {
   DEFAULT_WALL_BRUSH,
   WallBrushSettings,
 } from '../../../features/maps/engine/walls/wall-surface.models';
+import {
+  PROCEDURAL_DOOR_STYLES,
+  PROCEDURAL_WALL_STYLES,
+} from '../../../features/maps/engine/walls/procedural-wall-catalog';
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { NgpButton } from 'ng-primitives/button';
 import {
@@ -177,6 +181,7 @@ export class LwMapPropertiesInspectorComponent {
   readonly terrainPlateauLimit = input<number>(5.5);
 
   readonly gridScalePct = input<number>(100);
+  readonly gridSquaresAcross = input<number>(50);
   readonly gridOffsetX = input<number>(0);
   readonly gridOffsetZ = input<number>(0);
   readonly gridOpacityPct = input<number>(78);
@@ -201,6 +206,8 @@ export class LwMapPropertiesInspectorComponent {
   readonly paintSwatches = DEFAULT_OBJECT_PAINT_SWATCHES;
   readonly floorBrushSwatches = DEFAULT_FLOOR_BRUSH_SWATCHES;
   readonly floorBlendModes = FLOOR_PHOTOSHOP_BLEND_MODES;
+  readonly proceduralWallStyles = PROCEDURAL_WALL_STYLES;
+  readonly proceduralDoorStyles = PROCEDURAL_DOOR_STYLES;
 
   readonly openAssetModal = output<void>();
   readonly cancelPlacement = output<void>();
@@ -223,6 +230,7 @@ export class LwMapPropertiesInspectorComponent {
   readonly floorBrushSharpnessChange = output<number>();
   readonly clearFloorPaint = output<void>();
   readonly gridScalePctChange = output<number>();
+  readonly gridSquaresAcrossChange = output<number>();
   readonly gridOffsetXChange = output<number>();
   readonly gridOffsetZChange = output<number>();
   readonly gridOpacityPctChange = output<number>();

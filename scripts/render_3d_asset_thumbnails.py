@@ -23,7 +23,11 @@ from typing import Any
 import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance
 
-DEFAULT_LOCAL_MODELS_DIR = Path(r"C:\map assets\models-3d")
+DEFAULT_LOCAL_MODELS_DIR = (
+    Path(r"C:\map assets\3d-models")
+    if Path(r"C:\map assets\3d-models").exists()
+    else Path(r"C:\map assets\models-3d")
+)
 DEFAULT_LOCAL_PREVIEWS_DIR = Path(r"C:\map assets\previews-png")
 DEFAULT_LEGACY_OBJ_LIB = Path(
     r"C:\repos\Jane\Jane\MythWeaver\LoomMaps.client\public\assets\object-library"

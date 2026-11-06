@@ -162,13 +162,13 @@ export class BabylonMapStageService {
         'lw-map-cam',
         -Math.PI / 2.3,
         0.82,
-        15.5,
+        24.0,
         Vector3.Zero(),
         this.scene,
       );
       this.camera.lowerRadiusLimit = 1.6;
-      this.camera.upperRadiusLimit = 68;
-      this.camera.wheelPrecision = 18;
+      this.camera.upperRadiusLimit = 140;
+      this.camera.wheelPrecision = 14;
       this.camera.attachControl(canvas, true);
       this.cameraViews = new MapCameraViews(this.scene, this.camera, canvas);
       this.applyCameraPointerButtons();
@@ -208,7 +208,7 @@ export class BabylonMapStageService {
           if (evt.ctrlKey && zoomCamera) {
             const zoomDelta = evt.deltaY * 0.045;
             const minR = zoomCamera.lowerRadiusLimit ?? 4;
-            const maxR = zoomCamera.upperRadiusLimit ?? 68;
+            const maxR = zoomCamera.upperRadiusLimit ?? 140;
             zoomCamera.radius = Math.max(minR, Math.min(maxR, zoomCamera.radius + zoomDelta));
           }
         },
@@ -660,24 +660,39 @@ export class BabylonMapStageService {
       const dz = hit ? hit.z : gz;
       const rotY = hit ? hit.angleY : this.ghostConfig.rotationRad;
       const dy = TerrainMeshBuilder.sampleElevationAt(this.scene, dx, dz);
-      const doorUrl =
-        this.ghostConfig.modelUrl || '/assets/object-library/models/obj-89c62a2b01238531.glb';
-      const tpl = GlbModelCache.getOrLoadTemplate(this.scene, doorUrl);
-      if (tpl) {
-        const inst = GlbModelCache.instantiateClone(
-          this.scene,
-          tpl,
-          'lw-ghost-cursor-door',
-          this.ghostConfig.scale,
-          this.ghostConfig.heightMeters,
-          this.ghostConfig.thicknessMeters * 1.35,
-          false,
-          true,
-        );
-        inst.position.set(dx, dy, dz);
-        inst.rotation.y = rotY;
-        return;
+      const doorUrl = this.ghostConfig.modelUrl || '';
+      if (doorUrl && !doorUrl.startsWith('proc-door://')) {
+        const tpl = GlbModelCache.getOrLoadTemplate(this.scene, doorUrl);
+        if (tpl) {
+          const inst = GlbModelCache.instantiateClone(
+            this.scene,
+            tpl,
+            'lw-ghost-cursor-door',
+            this.ghostConfig.scale,
+            this.ghostConfig.heightMeters,
+            this.ghostConfig.thicknessMeters * 1.35,
+            false,
+            true,
+          );
+          inst.position.set(dx, dy, dz);
+          inst.rotation.y = rotY;
+          return;
+        }
       }
+      const ghostDoorBox = MeshBuilder.CreateBox(
+        'lw-ghost-cursor-door-box',
+        {
+          width: Math.max(0.8, this.ghostConfig.scale),
+          height: this.ghostConfig.heightMeters,
+          depth: this.ghostConfig.thicknessMeters * 1.32,
+        },
+        this.scene,
+      );
+      ghostDoorBox.position.set(dx, dy + this.ghostConfig.heightMeters * 0.5, dz);
+      ghostDoorBox.rotation.y = rotY;
+      ghostDoorBox.material = GlbModelCache.getSharedGhostMaterial(this.scene);
+      ghostDoorBox.isPickable = false;
+      return;
     }
 
     const effectiveOffsetY =
@@ -812,16 +827,24 @@ export class BabylonMapStageService {
     if (!this.scene) return;
     TerrainMeshBuilder.setGridMode(this.scene, mode);
     if (this.lastState) {
+      WallMeshBuilder.rebuildWallMeshes(this.scene, this.lastState.walls, this.hideGmSecrets);
       this.rebuildStamps(this.scene, this.lastState.stamps);
+      SceneLightingController.refreshShadowCasters(this.scene);
     }
+    const h = this.hoverCoords();
+    this.updateGhostMeshAt(h.x, h.z);
   }
 
   configureGrid(config: FloorGridConfig): void {
     if (!this.scene) return;
     TerrainMeshBuilder.configureGrid(this.scene, config);
     if (this.lastState) {
+      WallMeshBuilder.rebuildWallMeshes(this.scene, this.lastState.walls, this.hideGmSecrets);
       this.rebuildStamps(this.scene, this.lastState.stamps);
+      SceneLightingController.refreshShadowCasters(this.scene);
     }
+    const h = this.hoverCoords();
+    this.updateGhostMeshAt(h.x, h.z);
   }
 
   setStampDragging(enabled: boolean): void {
@@ -908,7 +931,7 @@ export class BabylonMapStageService {
       state.waterSplines?.length ?? 0,
     );
     WaterSplineBuilder.rebuildWaterSplines(this.scene, state.waterSplines);
-    SceneLightingController.syncLights(this.scene, state.lights);
+    SceneLightingController.syncLights(this.scene, state.lights, undefined, state.walls);
     const scatterCount = SeededScatterEngine.rebuildScatterInstances(
       this.scene,
       state.scatterSeed,

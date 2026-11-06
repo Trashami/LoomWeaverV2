@@ -1,5 +1,9 @@
 import { LwMapPngAssetItem } from '../../../shared/ui/map-png-asset-browser/map-png-asset-browser.component';
 import { LwSelectedSceneNode } from '../../../shared/ui/map-properties-inspector/map-properties-inspector.component';
+import {
+  PROCEDURAL_DOOR_ASSET_ITEMS,
+  PROCEDURAL_WALL_ASSET_ITEMS,
+} from './walls/procedural-wall-catalog';
 
 export const FALLBACK_BUMP_HEIGHT_ITEMS: readonly LwMapPngAssetItem[] = [
   {
@@ -156,39 +160,43 @@ export const FALLBACK_BUMP_HEIGHT_ITEMS: readonly LwMapPngAssetItem[] = [
     heightUrl: '/assets/light-aware-assets-v1/new/256/new-root-moss-floor_height.png',
     tags: ['wall', 'bump', 'height', 'moss'],
   },
+  {
+    id: 'bump-mossy-stone-wall',
+    name: 'Polyhaven Mossy Stone Wall (1K Relief)',
+    category: 'Walls & Cliffs (Bump/Height)',
+    isFloor: false,
+    isWall: true,
+    toolRole: 'wall-texture',
+    modelUrl: '',
+    thumbnailUrl: '/assets/terrain-textures/downloads/polyhaven/mossy_stone_wall/1k/color.png',
+    albedoUrl: '/assets/terrain-textures/downloads/polyhaven/mossy_stone_wall/1k/color.png',
+    normalUrl: '/assets/terrain-textures/downloads/polyhaven/mossy_stone_wall/1k/normal.png',
+    heightUrl: '/assets/terrain-textures/downloads/polyhaven/mossy_stone_wall/1k/displacement.png',
+    tags: ['wall', 'bump', 'height', 'mossy', 'stone', 'polyhaven'],
+  },
+  {
+    id: 'bump-mossy-stone-floor',
+    name: 'Polyhaven Mossy Stone Floor (1K Relief)',
+    category: 'Flooring (Bump/Height)',
+    isFloor: true,
+    isWall: false,
+    toolRole: 'floor-texture',
+    modelUrl: '',
+    thumbnailUrl: '/assets/terrain-textures/downloads/polyhaven/mossy_stone_wall/1k/color.png',
+    albedoUrl: '/assets/terrain-textures/downloads/polyhaven/mossy_stone_wall/1k/color.png',
+    normalUrl: '/assets/terrain-textures/downloads/polyhaven/mossy_stone_wall/1k/normal.png',
+    heightUrl: '/assets/terrain-textures/downloads/polyhaven/mossy_stone_wall/1k/displacement.png',
+    tags: ['floor', 'bump', 'height', 'mossy', 'stone', 'polyhaven'],
+  },
 ];
 
 export const FALLBACK_PNG_ASSET_ITEMS: readonly LwMapPngAssetItem[] = [
+  ...PROCEDURAL_WALL_ASSET_ITEMS,
+  ...PROCEDURAL_DOOR_ASSET_ITEMS,
   ...FALLBACK_BUMP_HEIGHT_ITEMS.filter((x) => x.isFloor),
   {
-    id: 'obj-4f9776736fb571f1',
-    name: 'A Wall Made Of Stone',
-    category: 'Architecture',
-    isWall: true,
-    toolRole: 'wall-texture',
-    modelUrl: '/assets/object-library/models/obj-4f9776736fb571f1.glb',
-    thumbnailUrl: '/assets/previews-png/obj-4f9776736fb571f1.png',
-    tags: ['architecture', 'wall', 'stone'],
-  },
-  {
-    id: 'obj-49932e558a28911f',
-    name: '4x4 Brick Wall',
-    category: 'Architecture',
-    modelUrl: '/assets/object-library/models/obj-49932e558a28911f.glb',
-    thumbnailUrl: '/assets/previews-png/obj-49932e558a28911f.png',
-    tags: ['architecture', 'wall', 'brick'],
-  },
-  {
-    id: 'obj-60c0c4712dcf33cb',
-    name: 'Dark Stone Brick Wall',
-    category: 'Architecture',
-    modelUrl: '/assets/object-library/models/obj-60c0c4712dcf33cb.glb',
-    thumbnailUrl: '/assets/previews-png/obj-60c0c4712dcf33cb.png',
-    tags: ['architecture', 'wall', 'stone'],
-  },
-  {
     id: 'obj-89c62a2b01238531',
-    name: 'Gothic Arch Door',
+    name: 'Gothic Arch Door (3D GLB)',
     category: 'Architecture',
     modelUrl: '/assets/object-library/models/obj-89c62a2b01238531.glb',
     thumbnailUrl: '/assets/previews-png/obj-89c62a2b01238531.png',
@@ -196,7 +204,7 @@ export const FALLBACK_PNG_ASSET_ITEMS: readonly LwMapPngAssetItem[] = [
   },
   {
     id: 'obj-457997f179c51ae8',
-    name: 'Medieval Gatehouse Door',
+    name: 'Medieval Gatehouse Door (3D GLB)',
     category: 'Architecture',
     modelUrl: '/assets/object-library/models/obj-457997f179c51ae8.glb',
     thumbnailUrl: '/assets/previews-png/obj-457997f179c51ae8.png',
@@ -204,7 +212,7 @@ export const FALLBACK_PNG_ASSET_ITEMS: readonly LwMapPngAssetItem[] = [
   },
   {
     id: 'obj-8b5bdf65136d9ba5',
-    name: 'Archway Gate 3D',
+    name: 'Archway Gate (3D GLB)',
     category: 'Architecture',
     modelUrl: '/assets/object-library/models/obj-8b5bdf65136d9ba5.glb',
     thumbnailUrl: '/assets/previews-png/obj-8b5bdf65136d9ba5.png',
@@ -229,15 +237,15 @@ export const FALLBACK_PNG_ASSET_ITEMS: readonly LwMapPngAssetItem[] = [
 ];
 
 export const INITIAL_SELECTED_WALL_NODE: LwSelectedSceneNode = {
-  id: 'obj-4f9776736fb571f1',
-  name: 'A Wall Made Of Stone',
+  id: 'proc-wall-dungeon-stone',
+  name: 'Aged Dungeon Stone',
   kind: 'wall',
-  subtitle: '3D Architecture · 10 ft',
-  thumbnailUrl: '/assets/previews-png/obj-4f9776736fb571f1.png',
-  modelUrl: '/assets/object-library/models/obj-4f9776736fb571f1.glb',
-  albedoUrl: '/assets/sewer-dungeon-wall-library-v1/512/worn-castle-flagstone.png',
-  normalUrl: '/assets/sewer-dungeon-wall-library-v1/512/worn-castle-flagstone_normal.png',
-  materialId: 'aged-dungeon-stone',
+  subtitle: 'Procedural 3D Relief Wall · 10 ft',
+  thumbnailUrl: '/assets/sewer-dungeon-wall-library-v1/512/worn-castle-flagstone.png',
+  modelUrl: '',
+  albedoUrl: 'proc://proc-wall-dungeon-stone',
+  normalUrl: 'proc://proc-wall-dungeon-stone_normal',
+  materialId: 'proc-wall-dungeon-stone',
   heightSquares: 2,
   thickness: 1.0,
   connectionOverlap: 15,

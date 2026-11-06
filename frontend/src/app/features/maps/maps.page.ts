@@ -24,6 +24,7 @@ import { FormsModule } from '@angular/forms';
 import { AdventureGuideService } from '../../core/services/adventure-guide.service';
 import { LwAlertifyService } from '../../core/services/lw-alertify.service';
 import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
+import { WebAudioAmbienceService } from '../assets/engine/web-audio-ambience.service';
 import { LwIconComponent } from '../../shared/ui/icon/icon.component';
 import { LwMapAssetPickerModalComponent } from '../../shared/ui/map-asset-picker-modal/map-asset-picker-modal.component';
 import {
@@ -77,6 +78,12 @@ import {
 import { Real2dMapRenderer } from './engine/rendering/real-2d-map-renderer';
 import { LwFloorSurfaceFinish, TerrainMeshBuilder } from './engine/terrain/terrain-mesh.builder';
 import { WallMeshBuilder } from './engine/walls/wall-mesh.builder';
+import {
+  PROCEDURAL_DOOR_ASSET_ITEMS,
+  PROCEDURAL_WALL_ASSET_ITEMS,
+  resolveProceduralDoorStyle,
+} from './engine/walls/procedural-wall-catalog';
+import { snapToNearestWallFace } from './engine/walls/wall-sconce-attachment.helper';
 
 @Component({
   selector: 'lw-maps-page',
@@ -105,6 +112,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   private readonly alertify = inject(LwAlertifyService);
   readonly store = inject(LoomWeaverStoreService);
   readonly adventureGuide = inject(AdventureGuideService);
+  readonly audio = inject(WebAudioAmbienceService);
   readonly stage = inject(BabylonMapStageService);
   readonly studio = inject(MapStudioStoreService);
   readonly history = inject(MapHistoryEngineService);
@@ -174,7 +182,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   readonly materials = signal<readonly LwMapMaterialPreset[]>([]);
   readonly selectedNode = signal<LwSelectedSceneNode>(INITIAL_SELECTED_WALL_NODE);
 
-  readonly floorTilingScale = signal<number>(10);
+  readonly floorTilingScale = signal<number>(18);
   readonly floorBumpIntensity = signal<number>(135);
   readonly floorHeightScale = signal<number>(100);
   readonly floorSurfaceFinish = signal<LwFloorSurfaceFinish>('matte');
@@ -417,6 +425,13 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         );
         this.stage.setQualityPreset(this.activeQuality());
         this.stage.setCameraMode(this.cameraView());
+        this.stage.configureGrid({
+          mode: this.gridSizeLabel(),
+          scaleFactor: this.gridScalePct() / 100,
+          offsetX: this.gridOffsetX(),
+          offsetZ: this.gridOffsetZ(),
+          opacity: this.gridOpacityPct() / 100,
+        });
         this.wireLightDrag();
         this.wireStampDrag();
         this.syncSurfaceLock();
@@ -444,8 +459,14 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   onCreateMapFromLanding(intent: LwCreateMapLaunchIntent): void {
     this.mapTitle.set(intent.name);
     this.studio.mapTitle.set(intent.name);
-    this.gridCols.set(intent.gridCols);
-    this.gridRows.set(intent.gridRows);
+    const targetSquares = Math.max(15, Math.min(120, intent.gridCols || 50));
+    const derivedScalePct = Math.max(
+      40,
+      Math.min(250, Math.round((TerrainMeshBuilder.BASE_GRID_SQUARES / targetSquares) * 100)),
+    );
+    this.gridScalePct.set(derivedScalePct);
+    this.gridCols.set(targetSquares);
+    this.gridRows.set(targetSquares);
     if (intent.campaignId !== this.store.activeCampaignId()) {
       this.store.setCampaign(intent.campaignId);
     }
@@ -474,6 +495,10 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.selectedSceneKey.set(blank.sceneKey);
     this.sceneGraph.set({
       ...blank,
+      gridScalePct: this.gridScalePct(),
+      gridCols: this.gridCols(),
+      gridRows: this.gridRows(),
+      gridMode: this.gridSizeLabel(),
       floorAlbedoUrl: starterFloor?.albedoUrl,
       floorNormalUrl: starterFloor?.normalUrl,
       floorHeightUrl: starterFloor?.heightUrl,
@@ -579,6 +604,39 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       this.sceneGraph.set(document);
       this.mapTitle.set(document.name);
       this.studio.mapTitle.set(document.name);
+      if (document.gridScalePct !== undefined && document.gridScalePct > 0) {
+        this.gridScalePct.set(document.gridScalePct);
+      }
+      if (document.gridCols !== undefined && document.gridCols > 0) {
+        this.gridCols.set(document.gridCols);
+        this.gridRows.set(document.gridRows ?? document.gridCols);
+      } else if (document.gridScalePct !== undefined && document.gridScalePct > 0) {
+        const sq = Math.max(
+          15,
+          Math.round(TerrainMeshBuilder.BASE_GRID_SQUARES / (document.gridScalePct / 100)),
+        );
+        this.gridCols.set(sq);
+        this.gridRows.set(sq);
+      }
+      if (document.gridMode !== undefined) {
+        this.gridSizeLabel.set(document.gridMode);
+      }
+      if (document.gridOffsetX !== undefined) {
+        this.gridOffsetX.set(document.gridOffsetX);
+      }
+      if (document.gridOffsetZ !== undefined) {
+        this.gridOffsetZ.set(document.gridOffsetZ);
+      }
+      if (document.gridOpacityPct !== undefined) {
+        this.gridOpacityPct.set(document.gridOpacityPct);
+      }
+      this.stage.configureGrid({
+        mode: this.gridSizeLabel(),
+        scaleFactor: this.gridScalePct() / 100,
+        offsetX: this.gridOffsetX(),
+        offsetZ: this.gridOffsetZ(),
+        opacity: this.gridOpacityPct() / 100,
+      });
       this.stage.syncSceneGraph(document);
       this.render2dViewport();
     });
@@ -681,12 +739,13 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.selectedNode.update((cur) => ({
       ...cur,
       id: asset.id,
+      materialId: asset.id,
       name: asset.name,
       kind: isDoor ? 'door' : isWall ? 'wall' : 'prop',
       subtitle: isWall
         ? asset.modelUrl
           ? `3D Wall Stamp · ${asset.category}`
-          : `Wall Masonry Texture · ${asset.category}`
+          : `Procedural 3D Relief Wall · ${asset.category}`
         : asset.modelUrl
           ? `3D Asset · ${asset.category}`
           : asset.isFloor
@@ -713,6 +772,18 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       scaleZ: hasPlacedSelection ? cur.scaleZ : defaultGrid[2],
       colorHex: hasPlacedSelection ? cur.colorHex : (asset.defaultColorTint ?? '#ffffff'),
     }));
+  }
+
+  onInspectorMaterialChange(styleId: string): void {
+    const wallAsset = PROCEDURAL_WALL_ASSET_ITEMS.find((a) => a.id === styleId);
+    if (wallAsset) {
+      this.onSelectPngAsset(wallAsset);
+      return;
+    }
+    const doorAsset = PROCEDURAL_DOOR_ASSET_ITEMS.find((a) => a.id === styleId);
+    if (doorAsset) {
+      this.onSelectPngAsset(doorAsset);
+    }
   }
 
   onSelectPngAsset(asset: LwMapPngAssetItem): void {
@@ -747,6 +818,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
             ? {
                 ...w,
                 name: asset.name,
+                material: asset.id,
                 modelUrl: asset.modelUrl || undefined,
                 albedoUrl: asset.albedoUrl,
                 normalUrl: asset.normalUrl,
@@ -755,11 +827,15 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
             : w,
         ),
       }));
-      this.pngPipelineBanner.set(`Updated Wall Stamp -> ${asset.name}`);
+      this.pngPipelineBanner.set(`Updated Wall Style -> ${asset.name}`);
       this.syncGhostCursorToStage();
       return;
     }
     if (placedId && placedKind === 'door') {
+      const doorSpec = resolveProceduralDoorStyle({
+        name: asset.name,
+        modelUrl: asset.modelUrl,
+      });
       this.commitSceneUpdate((cur) => ({
         ...cur,
         revision: cur.revision + 1,
@@ -770,6 +846,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
               ? {
                   ...op,
                   name: asset.name,
+                  doorStyle: asset.modelUrl?.startsWith('proc-door://') ? doorSpec.style : undefined,
                   modelUrl: asset.modelUrl || undefined,
                   thumbnailUrl: asset.thumbnailUrl,
                 }
@@ -777,7 +854,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
           ),
         })),
       }));
-      this.pngPipelineBanner.set(`Updated Door 3D Model -> ${asset.name}`);
+      this.pngPipelineBanner.set(`Updated Door Style -> ${asset.name}`);
       this.syncGhostCursorToStage();
       return;
     }
@@ -1169,7 +1246,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
           id: wallId,
           name: node.name,
           drawMode: 'freehand',
-          material: 'Crypt Ashlar Stone',
+          material: node.materialId || node.id || 'proc-wall-dungeon-stone',
           modelUrl: node.modelUrl,
           albedoUrl: node.albedoUrl,
           normalUrl: node.normalUrl,
@@ -1183,7 +1260,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
           rotationOffsetDeg: node.rotationDeg || 0,
           perspective: 'auto',
           projection: 'inward',
-          hasCornerPosts: false,
+          hasCornerPosts: true,
           levelIndex: 0,
           points: pts,
           openings: [],
@@ -1409,7 +1486,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         id: `wall-${this.sceneGraph().revision + 1}`,
         name: node.name,
         drawMode: this.wallDrawMode(),
-        material: 'Crypt Ashlar Stone',
+        material: node.materialId || node.id || 'proc-wall-dungeon-stone',
         modelUrl: node.modelUrl,
         albedoUrl: node.albedoUrl,
         normalUrl: node.normalUrl,
@@ -1423,7 +1500,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         rotationOffsetDeg: node.rotationDeg || 0,
         perspective: 'auto',
         projection: 'inward',
-        hasCornerPosts: false,
+        hasCornerPosts: true,
         levelIndex: 0,
         points: pts,
         openings: [],
@@ -1469,12 +1546,21 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     }
     const node = this.selectedNode();
     const doorId = `door-${this.sceneGraph().revision + 1}`;
+    const resolvedDoor = resolveProceduralDoorStyle({
+      name: node.name,
+      modelUrl: node.modelUrl,
+    });
+    const isExplicitGlb = Boolean(
+      node.modelUrl && !node.modelUrl.startsWith('proc-door://') && !node.id.startsWith('door-style-'),
+    );
     const newOpening: WallOpeningNode = {
       id: doorId,
-      type: 'door',
+      type: resolvedDoor.style === 'archway' ? 'archway' : resolvedDoor.style === 'bars' ? 'bars' : 'door',
+      doorStyle: isExplicitGlb ? undefined : resolvedDoor.style,
       name: node.name,
-      modelUrl: node.modelUrl || '/assets/object-library/models/obj-89c62a2b01238531.glb',
+      modelUrl: isExplicitGlb ? node.modelUrl : `proc-door://${resolvedDoor.style}`,
       thumbnailUrl: node.thumbnailUrl || '/assets/previews-png/obj-89c62a2b01238531.png',
+      tintColorHex: node.colorHex !== '#ffffff' ? node.colorHex : undefined,
       t: hit.t,
       widthMeters: this.doorWidthMeters(),
       heightMeters: this.doorHeightMeters(),
@@ -1496,21 +1582,50 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.selectedPlacedWallId.set(hit.wallId);
     this.doorWallPositionPct.set(Math.round(hit.t * 100));
     this.stage.focusGizmoAt(hit.x, 0.1, hit.z);
-    this.pngPipelineBanner.set(`Cut ${node.name} into wall. Adjust size or position in right panel.`);
+    this.pngPipelineBanner.set(`Cut ${node.name} into wall. Adjust style, width, or swing state in right panel.`);
   }
 
   private placeStampAt(x: number, z: number): void {
-    const snapped = TerrainMeshBuilder.snapWorldCoordinates(
-      x,
-      z,
-      this.snapEnabled(),
-      'cell-center',
-    );
     const node = this.selectedNode();
+    const lowerName = node.name.toLowerCase();
+    const isWallMountableProp =
+      node.placementMode === 'custom' ||
+      lowerName.includes('sconce') ||
+      lowerName.includes('torch') ||
+      lowerName.includes('lantern') ||
+      lowerName.includes('banner') ||
+      lowerName.includes('shield') ||
+      lowerName.includes('tapestry') ||
+      lowerName.includes('painting') ||
+      lowerName.includes('sign') ||
+      lowerName.includes('mirror');
+
+    const wallSnap = isWallMountableProp
+      ? snapToNearestWallFace(this.sceneGraph().walls, x, z, 0.18, 0.90)
+      : null;
+
+    const snapped = wallSnap?.snapped
+      ? { x: wallSnap.x, z: wallSnap.z }
+      : TerrainMeshBuilder.snapWorldCoordinates(
+          x,
+          z,
+          this.snapEnabled(),
+          'cell-center',
+        );
     const isDecal = Boolean(node.albedoUrl && !node.modelUrl && !node.isFloor);
     const stampId = `st-${this.sceneGraph().revision + 1}`;
-    const placementMode: LwObjectPlacementMode = node.placementMode ?? 'floor';
-    const effectiveOffsetY = placementMode === 'custom' ? node.elevationY : 0;
+    const placementMode: LwObjectPlacementMode = wallSnap?.snapped
+      ? 'custom'
+      : (node.placementMode ?? 'floor');
+    const effectiveOffsetY = wallSnap?.snapped
+      ? (node.elevationY > 0.2 ? node.elevationY : wallSnap.suggestedElevationY)
+      : placementMode === 'custom'
+        ? node.elevationY
+        : 0;
+    const effectiveRotY = wallSnap?.snapped
+      ? wallSnap.rotationYRad
+      : (node.rotationDeg * Math.PI) / 180;
+
     this.recordHistoryBeforeEdit(`Place -> ${node.name}`);
     this.commitSceneUpdate((cur) => ({
       ...cur,
@@ -1533,7 +1648,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
           scaleX: node.scaleX ?? 1,
           scaleY: node.scaleY ?? 1,
           scaleZ: node.scaleZ ?? 1,
-          rotationY: (node.rotationDeg * Math.PI) / 180,
+          rotationY: effectiveRotY,
           tiltX: node.tiltDeg ?? 0,
           colorHex: node.colorHex || '#ffffff',
           surfaceFinish: node.surfaceFinish ?? 'standard',
@@ -1552,8 +1667,12 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       gridZ: snapped.z,
       elevationY: effectiveOffsetY,
       placementMode,
+      rotationDeg: Math.round((effectiveRotY * 180) / Math.PI),
     }));
     this.stage.focusGizmoAt(snapped.x, effectiveOffsetY + 0.1, snapped.z);
+    if (wallSnap?.snapped) {
+      this.pngPipelineBanner.set(`Mounted '${node.name}' flush onto wall face.`);
+    }
   }
 
   onDeleteSelectedPlacedNode(): void {
@@ -1584,23 +1703,42 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
 
   onSpawnCustomLightAt(x?: number, z?: number): void {
     const coords = this.stage.lastPickedCoords();
-    const lx = x ?? coords.x;
-    const lz = z ?? coords.z;
+    const rawX = x ?? coords.x;
+    const rawZ = z ?? coords.z;
+    const wallSnap = snapToNearestWallFace(this.sceneGraph().walls, rawX, rawZ, 0.16, 0.95);
+    const lx = wallSnap.snapped ? wallSnap.x : rawX;
+    const lz = wallSnap.snapped ? wallSnap.z : rawZ;
     const lightId = `light-${this.sceneGraph().revision + 1}`;
     const draft = this.lightDraft();
+    const effectiveY = wallSnap.snapped ? wallSnap.suggestedElevationY : draft.y;
     const labels = { point: 'Point', spot: 'Spot', aoe: 'Ambient' } as const;
-    this.recordHistoryBeforeEdit('Add Scene Light');
+    this.recordHistoryBeforeEdit(wallSnap.snapped ? 'Mount Wall Sconce Light' : 'Add Scene Light');
     this.commitSceneUpdate((cur) => ({
       ...cur,
       revision: cur.revision + 1,
       lights: [
         ...cur.lights,
-        { ...draft, id: lightId, label: `${labels[draft.kind]} Light`, x: lx, z: lz, showFixture: false },
+        {
+          ...draft,
+          id: lightId,
+          label: wallSnap.snapped ? 'Wall Sconce' : `${labels[draft.kind]} Light`,
+          x: lx,
+          z: lz,
+          y: effectiveY,
+          showFixture: wallSnap.snapped,
+          attachedWallId: wallSnap.wallId,
+          wallNormalX: wallSnap.outwardNormalX,
+          wallNormalZ: wallSnap.outwardNormalZ,
+          wallRotationYRad: wallSnap.rotationYRad,
+        },
       ],
     }));
     this.selectedPlacedId.set(lightId);
     this.selectedPlacedKind.set('light');
-    this.stage.focusGizmoAt(lx, draft.y, lz, 0.35);
+    this.stage.focusGizmoAt(lx, effectiveY, lz, 0.35);
+    if (wallSnap.snapped) {
+      this.pngPipelineBanner.set('Mounted 3D Wall Sconce onto wall face.');
+    }
   }
 
   /** Edits the selected light; with none selected they become the defaults for the next placement. */
@@ -1636,13 +1774,29 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     };
     this.stage.lightDrag.onEnd = (id, x, z, moved) => {
       if (!moved) return;
+      const wallSnap = snapToNearestWallFace(this.sceneGraph().walls, x, z, 0.16, 0.95);
+      const lx = wallSnap.snapped ? wallSnap.x : x;
+      const lz = wallSnap.snapped ? wallSnap.z : z;
       this.commitSceneUpdate((cur) => ({
         ...cur,
         revision: cur.revision + 1,
-        lights: cur.lights.map((lt) => (lt.id === id ? { ...lt, x, z } : lt)),
+        lights: cur.lights.map((lt) =>
+          lt.id === id
+            ? {
+                ...lt,
+                x: lx,
+                z: lz,
+                showFixture: wallSnap.snapped || lt.showFixture,
+                attachedWallId: wallSnap.snapped ? wallSnap.wallId : undefined,
+                wallNormalX: wallSnap.snapped ? wallSnap.outwardNormalX : undefined,
+                wallNormalZ: wallSnap.snapped ? wallSnap.outwardNormalZ : undefined,
+                wallRotationYRad: wallSnap.snapped ? wallSnap.rotationYRad : undefined,
+              }
+            : lt,
+        ),
       }));
       const lt = this.sceneGraph().lights.find((l) => l.id === id);
-      if (lt) this.stage.focusGizmoAt(x, lt.y, z, 0.35);
+      if (lt) this.stage.focusGizmoAt(lx, lt.y, lz, 0.35);
     };
   }
 
@@ -1852,26 +2006,64 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   onGridScalePctChange(pct: number): void {
+    const clampedPct = Math.max(40, Math.min(250, Math.round(pct)));
+    this.gridScalePct.set(clampedPct);
+    const squares = Math.max(
+      15,
+      Math.round(TerrainMeshBuilder.BASE_GRID_SQUARES / (clampedPct / 100)),
+    );
+    this.gridCols.set(squares);
+    this.gridRows.set(squares);
+    this.stage.configureGrid({ scaleFactor: clampedPct / 100 });
+    this.sceneGraph.update((cur) => ({
+      ...cur,
+      gridScalePct: clampedPct,
+      gridCols: squares,
+      gridRows: squares,
+    }));
+    this.render2dViewport();
+  }
+
+  onGridSquaresAcrossChange(squaresAcross: number): void {
+    const sq = Math.max(15, Math.min(120, Math.round(squaresAcross)));
+    const pct = Math.max(
+      40,
+      Math.min(250, Math.round((TerrainMeshBuilder.BASE_GRID_SQUARES / sq) * 100)),
+    );
+    this.gridCols.set(sq);
+    this.gridRows.set(sq);
     this.gridScalePct.set(pct);
     this.stage.configureGrid({ scaleFactor: pct / 100 });
+    this.sceneGraph.update((cur) => ({
+      ...cur,
+      gridScalePct: pct,
+      gridCols: sq,
+      gridRows: sq,
+    }));
     this.render2dViewport();
+    this.pngPipelineBanner.set(
+      `Grid perspective set to ${sq}×${sq} squares (${sq * 5}×${sq * 5} ft world view). Reference tokens rescaled to 5ft.`,
+    );
   }
 
   onGridOffsetXChange(val: number): void {
     this.gridOffsetX.set(val);
     this.stage.configureGrid({ offsetX: val });
+    this.sceneGraph.update((cur) => ({ ...cur, gridOffsetX: val }));
     this.render2dViewport();
   }
 
   onGridOffsetZChange(val: number): void {
     this.gridOffsetZ.set(val);
     this.stage.configureGrid({ offsetZ: val });
+    this.sceneGraph.update((cur) => ({ ...cur, gridOffsetZ: val }));
     this.render2dViewport();
   }
 
   onGridOpacityPctChange(pct: number): void {
     this.gridOpacityPct.set(pct);
     this.stage.configureGrid({ opacity: pct / 100 });
+    this.sceneGraph.update((cur) => ({ ...cur, gridOpacityPct: pct }));
     this.render2dViewport();
   }
 
@@ -2316,6 +2508,13 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       ...this.sceneGraph(),
       sceneKey: key,
       name: this.mapTitle() || this.sceneGraph().name || 'Untitled Map',
+      gridScalePct: this.gridScalePct(),
+      gridCols: this.gridCols(),
+      gridRows: this.gridRows(),
+      gridMode: this.gridSizeLabel(),
+      gridOffsetX: this.gridOffsetX(),
+      gridOffsetZ: this.gridOffsetZ(),
+      gridOpacityPct: this.gridOpacityPct(),
       customElevations,
       floorPaintDabs,
     };
@@ -2408,6 +2607,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.pngPipelineBanner.set(
       `Published '${this.mapTitle()}' (${this.dimensionMode().toUpperCase()}) -> ${campName} · ${sessLabel} · ${encLabel}`,
     );
+    this.audio.fireTrigger('battlemap', sceneKey, this.mapTitle(), true);
   }
 
   private legacyPublishMapToCoreCampaignUnused(): void {
@@ -2446,5 +2646,6 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.pngPipelineBanner.set(
       `Published '${this.mapTitle()}' (${this.dimensionMode().toUpperCase()}) -> ${campName} · ${sessLabel} · ${encLabel}`,
     );
+    this.audio.fireTrigger('battlemap', this.selectedSceneKey(), this.mapTitle(), true);
   }
 }

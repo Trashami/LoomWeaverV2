@@ -48,9 +48,10 @@ export interface FloorGridConfig {
 }
 
 export class TerrainMeshBuilder {
-  static readonly GROUND_W = 36;
-  static readonly GROUND_H = 27;
-  private static readonly SUBDIV = 64;
+  static readonly GROUND_W = 75;
+  static readonly GROUND_H = 75;
+  static readonly BASE_GRID_SQUARES = 50;
+  private static readonly SUBDIV = 96;
   private static readonly COMP_SIZE = 1024;
   private static readonly TILE_SIZE = 512;
 
@@ -65,7 +66,7 @@ export class TerrainMeshBuilder {
     '/assets/sewer-dungeon-wall-library-v1/512/worn-castle-flagstone_normal.png';
   private static activeHeightUrl =
     '/assets/sewer-dungeon-wall-library-v1/512/worn-castle-flagstone_height.png';
-  private static floorTilingScale = 10;
+  private static floorTilingScale = 18;
   private static floorBumpIntensity = 135; // 0% to 300%
   private static floorHeightScale = 100; // 0% to 220%
   private static floorSurfaceFinish: LwFloorSurfaceFinish = 'matte';
@@ -116,6 +117,14 @@ export class TerrainMeshBuilder {
   static getCellStepMeters(): number {
     const base = this.activeGridMode === '10 ft' ? 3.0 : 1.5;
     return Math.max(0.35, Math.min(4.5, base * this.gridScaleFactor));
+  }
+
+  static getGridSquaresAcross(): { cols: number; rows: number } {
+    const step = this.getCellStepMeters();
+    return {
+      cols: Math.max(10, Math.round(this.GROUND_W / step)),
+      rows: Math.max(10, Math.round(this.GROUND_H / step)),
+    };
   }
 
   static getGridScaleFactor(): number {
@@ -205,6 +214,32 @@ export class TerrainMeshBuilder {
       }
       this.customElevations = new Float32Array(elevations);
       this.elevationVersion++;
+    } else if (elevations && elevations.length > 4) {
+      // Backwards-compatible bilinear resampling for older saved maps (e.g. 65x65 SUBDIV=64)
+      const srcStride = Math.round(Math.sqrt(elevations.length));
+      if (srcStride >= 2 && srcStride * srcStride === elevations.length) {
+        const resampled = new Float32Array(expected);
+        const srcSubdiv = srcStride - 1;
+        for (let rz = 0; rz < stride; rz++) {
+          const v = (rz / this.SUBDIV) * srcSubdiv;
+          const z0 = Math.min(srcSubdiv - 1, Math.floor(v));
+          const tz = v - z0;
+          for (let rx = 0; rx < stride; rx++) {
+            const u = (rx / this.SUBDIV) * srcSubdiv;
+            const x0 = Math.min(srcSubdiv - 1, Math.floor(u));
+            const tx = u - x0;
+            const y00 = elevations[z0 * srcStride + x0] ?? 0;
+            const y10 = elevations[z0 * srcStride + (x0 + 1)] ?? 0;
+            const y01 = elevations[(z0 + 1) * srcStride + x0] ?? 0;
+            const y11 = elevations[(z0 + 1) * srcStride + (x0 + 1)] ?? 0;
+            const top = y00 * (1 - tx) + y10 * tx;
+            const bot = y01 * (1 - tx) + y11 * tx;
+            resampled[rz * stride + rx] = top * (1 - tz) + bot * tz;
+          }
+        }
+        this.customElevations = resampled;
+        this.elevationVersion++;
+      }
     } else if (elevations === null || (elevations && elevations.length === 0)) {
       if (!this.customElevations) return;
       let hasNonZero = false;
@@ -301,6 +336,26 @@ export class TerrainMeshBuilder {
       );
       ground.isPickable = true;
       ground.receiveShadows = true;
+
+      // Subtle expansive world horizon plane beneath the playable terrain so the world feels vast
+      const existingHorizon = scene.getMeshByName('lw-terrain-horizon');
+      existingHorizon?.dispose();
+      const horizon = MeshBuilder.CreateGround(
+        'lw-terrain-horizon',
+        { width: this.GROUND_W * 3.2, height: this.GROUND_H * 3.2, subdivisions: 2 },
+        scene,
+      );
+      horizon.position.y = -0.14;
+      horizon.isPickable = false;
+      horizon.receiveShadows = false;
+      let horizonMat = scene.getMaterialByName('lw-terrain-horizon-mat') as StandardMaterial | null;
+      if (!horizonMat) {
+        horizonMat = new StandardMaterial('lw-terrain-horizon-mat', scene);
+        horizonMat.diffuseColor = Color3.FromHexString('#05100c');
+        horizonMat.emissiveColor = Color3.FromHexString('#030907');
+        horizonMat.specularColor = Color3.Black();
+      }
+      horizon.material = horizonMat;
 
       const positions = ground.getVerticesData('position');
       if (positions) {
@@ -932,7 +987,7 @@ export class TerrainMeshBuilder {
     );
 
     const uScale = this.floorTilingScale;
-    const vScale = Math.max(2, Math.round(this.floorTilingScale * 0.8));
+    const vScale = Math.max(2, Math.round(this.floorTilingScale * (this.GROUND_H / this.GROUND_W)));
     const tier = GlbModelCache.getLodTier();
     const resolvedAlbedoUrl = this.activeAlbedoUrl
       ? resolveTextureLodUrl(this.activeAlbedoUrl, tier)

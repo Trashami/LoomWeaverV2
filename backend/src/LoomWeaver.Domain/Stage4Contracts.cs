@@ -146,16 +146,62 @@ public sealed record AudioScenePresetContract(
     IReadOnlyDictionary<string, double> StemGains
 );
 
+public sealed record MusicTrackContract(
+    string Id,
+    string Title,
+    string Artist,
+    string Category,
+    string Url,
+    int DurationSeconds,
+    string Mood
+);
+
+public sealed record GmPlaylistContract(
+    string Id,
+    string Name,
+    string Description,
+    IReadOnlyList<string> TrackIds,
+    bool Loop
+);
+
+public sealed record GmMusicTriggerContract(
+    string Id,
+    string Scope,
+    string TargetKey,
+    string TargetLabel,
+    string PlaylistId,
+    string TrackId,
+    bool AutoPlay,
+    double CrossfadeSeconds
+);
+
 public sealed record AudioStateResponseContract(
     int CampaignId,
     string ActivePresetId,
     double MasterVolume,
     IReadOnlyList<AudioStemContract> Stems,
-    IReadOnlyList<AudioScenePresetContract> Presets
+    IReadOnlyList<AudioScenePresetContract> Presets,
+    string? ActiveTrackId = null,
+    string? ActivePlaylistId = null,
+    IReadOnlyList<MusicTrackContract>? Tracks = null,
+    IReadOnlyList<GmPlaylistContract>? Playlists = null,
+    IReadOnlyList<GmMusicTriggerContract>? Triggers = null
 );
 
 public sealed record AudioTransitionRequestContract(
     string PresetId,
     double CrossfadeSeconds,
-    string? Role
+    string? Role,
+    string? TrackId = null,
+    string? PlaylistId = null,
+    string? TriggerScope = null,
+    string? TriggerTargetKey = null
+);
+
+public sealed record GmMusicSaveRequestContract(
+    string? ActiveTrackId,
+    string? ActivePlaylistId,
+    double? MasterVolume,
+    IReadOnlyList<GmPlaylistContract>? Playlists,
+    IReadOnlyList<GmMusicTriggerContract>? Triggers
 );

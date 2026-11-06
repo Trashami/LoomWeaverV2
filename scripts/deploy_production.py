@@ -359,13 +359,21 @@ server {
         try_files /index.html =404;
     }
 
+    location ^~ /assets/ {
+        alias /var/www/loomweaver/assets/;
+        expires 30d;
+        add_header Cache-Control "public, max-age=2592000";
+        add_header Access-Control-Allow-Origin "*";
+        try_files $uri =404;
+    }
+
     location = /index.html {
         add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
         add_header Pragma "no-cache";
         expires -1;
     }
 
-    location ~* \\.(?:js|css|woff2?|ttf|eot|png|jpe?g|webp|gif|svg|ico|map|glb|gltf|bin|env|wasm|ktx2|dds|hdr)$ {
+    location ~* \\.(?:js|css|woff2?|ttf|eot|png|jpe?g|webp|gif|svg|ico|map|glb|gltf|bin|env|wasm|ktx2|dds|hdr|mp3|ogg|wav|flac|m4a)$ {
         expires 30d;
         add_header Cache-Control "public, max-age=2592000, immutable";
         try_files $uri =404;

@@ -168,6 +168,12 @@ const NAV_GROUPS: readonly StudioNavGroup[] = [
         icon: "table-chart",
       },
       {
+        id: "music-studio",
+        label: "Music & Soundtracks",
+        route: "/assets",
+        icon: "music",
+      },
+      {
         id: "effect-builder",
         label: "Effect Builder",
         externalUrl: "https://effectbuilder.loom-weaver.com",

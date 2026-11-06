@@ -635,6 +635,23 @@
       <!-- 3. WALL LINE & ROOM TOOLS -->
       @if (effectiveMode() === 'wall' || effectiveMode() === 'room') {
         <div class="lw-map-inspector__section">
+          <div class="lw-map-inspector__group-box">
+            <span class="lw-map-inspector__subhead">Procedural 3D Wall Style &amp; Relief</span>
+            <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
+              @for (ws of proceduralWallStyles; track ws.id) {
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="node.id === ws.id || node.materialId === ws.id"
+                  (click)="materialChange.emit(ws.id)"
+                >
+                  {{ ws.name }}
+                </button>
+              }
+            </div>
+          </div>
+
           <div class="lw-map-inspector__row">
             <label class="lw-map-inspector__label" for="lw-wall-shape-select">
               Room / Wall Mode
@@ -863,6 +880,23 @@
       <!-- 4. DOOR & WALL CUTOUT TOOL -->
       @if (effectiveMode() === 'door') {
         <div class="lw-map-inspector__section">
+          <div class="lw-map-inspector__group-box">
+            <span class="lw-map-inspector__subhead">D&amp;D Door Architectural Style (Wall-Fitted)</span>
+            <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
+              @for (ds of proceduralDoorStyles; track ds.id) {
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="node.id === ds.id || node.materialId === ds.id"
+                  (click)="materialChange.emit(ds.id)"
+                >
+                  {{ ds.name }}
+                </button>
+              }
+            </div>
+          </div>
+
           <div class="lw-map-inspector__slider-block">
             <div class="lw-map-inspector__slider-head">
               <span>Position Along Wall</span>
@@ -1017,36 +1051,88 @@
           </div>
 
           <div class="lw-map-inspector__group-box">
-            <span class="lw-map-inspector__subhead">Adjustable Grid Size &amp; Alignment</span>
+            <span class="lw-map-inspector__subhead">Adjustable 5ft Grid Perspective (Without Resizing World)</span>
+            <p class="lw-map-inspector__hint">
+              Adjust how many 5ft tactical squares span this expansive world plane. Reference tokens and 30ft movement rings rescale automatically so you always see accurate 5ft character perspective.
+            </p>
 
             <div class="lw-map-inspector__slider-block">
               <div class="lw-map-inspector__slider-head">
-                <span>Grid Cell Scale</span>
-                <strong>{{ gridScalePct() }}% ({{ (1.5 * gridScalePct() / 100).toFixed(2) }}m / sq)</strong>
+                <span>Grid Squares Across Map</span>
+                <strong>{{ gridSquaresAcross() }}×{{ gridSquaresAcross() }} sq ({{ gridSquaresAcross() * 5 }}×{{ gridSquaresAcross() * 5 }} ft)</strong>
+              </div>
+              <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="gridSquaresAcross() === 25"
+                  (click)="gridSquaresAcrossChange.emit(25)"
+                >
+                  25×25 (Compact · 125 ft)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="gridSquaresAcross() === 35"
+                  (click)="gridSquaresAcrossChange.emit(35)"
+                >
+                  35×35 (Encounter · 175 ft)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="gridSquaresAcross() === 50"
+                  (click)="gridSquaresAcrossChange.emit(50)"
+                >
+                  50×50 (Standard · 250 ft)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="gridSquaresAcross() === 64"
+                  (click)="gridSquaresAcrossChange.emit(64)"
+                >
+                  64×64 (Grand Hall · 320 ft)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="gridSquaresAcross() === 80"
+                  (click)="gridSquaresAcrossChange.emit(80)"
+                >
+                  80×80 (Fortress · 400 ft)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="gridSquaresAcross() === 100"
+                  (click)="gridSquaresAcrossChange.emit(100)"
+                >
+                  100×100 (Region · 500 ft)
+                </button>
+              </div>
+            </div>
+
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
+                <span>Fine Grid Cell Scale (5ft Perspective)</span>
+                <strong>{{ gridScalePct() }}% ({{ (1.5 * gridScalePct() / 100).toFixed(2) }}m / 5ft sq)</strong>
               </div>
               <input
                 type="range"
                 min="50"
-                max="220"
+                max="200"
                 step="5"
                 class="lw-map-inspector__range"
                 [value]="gridScalePct()"
                 (input)="onNumInput($event, gridScalePctChange)"
               />
-              <div class="lw-map-inspector__pill-group">
-                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="gridScalePctChange.emit(75)">
-                  Dense (75%)
-                </button>
-                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="gridScalePctChange.emit(100)">
-                  Standard (100%)
-                </button>
-                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="gridScalePctChange.emit(135)">
-                  Large (135%)
-                </button>
-                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="gridScalePctChange.emit(175)">
-                  XL (175%)
-                </button>
-              </div>
             </div>
 
             <div class="lw-map-inspector__slider-block">

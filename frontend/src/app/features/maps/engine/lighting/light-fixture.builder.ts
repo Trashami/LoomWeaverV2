@@ -2,6 +2,7 @@ import {
   AbstractMesh,
   Color3,
   Light,
+  Mesh,
   MeshBuilder,
   Observer,
   PointLight,
@@ -11,8 +12,12 @@ import {
   StandardMaterial,
   Vector3,
 } from '@babylonjs/core';
-import { LightSourceNode } from '../map-scene-contract';
+import { LightSourceNode, MapWallSegmentNode } from '../map-scene-contract';
 import { TerrainMeshBuilder } from '../terrain/terrain-mesh.builder';
+import {
+  buildWallSconceFixtureMesh,
+  snapToNearestWallFace,
+} from '../walls/wall-sconce-attachment.helper';
 import { AoeLightEffects } from './aoe-light-effects';
 import { LightSettings, resolveLightSettings } from './light-settings';
 
@@ -26,7 +31,7 @@ interface FlickerTarget {
   readonly phase: number;
 }
 
-/** Builds the emitters for scene light nodes: core + primary + feather halo, shadows and AOE particles. */
+/** Builds the emitters for scene light nodes: core + primary + feather halo, shadows, wall sconces, and AOE particles. */
 export class LightFixtureBuilder {
   private static shadowGens: ShadowGenerator[] = [];
   private static flickerObserver: Observer<Scene> | null = null;
@@ -49,12 +54,20 @@ export class LightFixtureBuilder {
       .filter((l) => LIGHT_PREFIXES.some((p) => l.name.startsWith(p)))
       .forEach((l) => l.dispose());
     scene.meshes
-      .filter((m) => m.name.startsWith('lw-light-orb-'))
+      .filter(
+        (m) =>
+          m.name.startsWith('lw-light-orb-') ||
+          m.name.startsWith('mapLightSconce'),
+      )
       .forEach((m) => m.dispose());
     AoeLightEffects.disposeAll(scene);
   }
 
-  static rebuild(scene: Scene, nodes: readonly LightSourceNode[]): void {
+  static rebuild(
+    scene: Scene,
+    nodes: readonly LightSourceNode[],
+    walls?: readonly MapWallSegmentNode[],
+  ): void {
     this.dispose(scene);
     const ground = scene.getMeshByName('lw-terrain-ground');
     if (ground?.material instanceof StandardMaterial) {
@@ -65,8 +78,11 @@ export class LightFixtureBuilder {
     let shadowBudget = MAX_SHADOW_LIGHTS;
     nodes.forEach((node, index) => {
       const s = resolveLightSettings(node);
-      const groundY = TerrainMeshBuilder.sampleElevationAt(scene, node.x, node.z);
-      const pos = new Vector3(node.x, groundY + s.y, node.z);
+      const wallSnap = snapToNearestWallFace(walls, node.x, node.z, 0.16, 0.85);
+      const effectiveX = wallSnap.snapped ? wallSnap.x : node.x;
+      const effectiveZ = wallSnap.snapped ? wallSnap.z : node.z;
+      const groundY = TerrainMeshBuilder.sampleElevationAt(scene, effectiveX, effectiveZ);
+      const pos = new Vector3(effectiveX, groundY + s.y, effectiveZ);
       const feather = s.featherPct / 100;
 
       const main = this.createLight(scene, `lw-point-light-${node.id}`, pos, s, {
@@ -99,7 +115,7 @@ export class LightFixtureBuilder {
       if (s.kind === 'aoe') {
         AoeLightEffects.build(scene, node.id, pos, s);
       }
-      this.createHandle(scene, node, pos, s);
+      this.createHandle(scene, node, pos, s, wallSnap);
     });
     this.startFlicker(scene, flicker);
   }
@@ -149,7 +165,6 @@ export class LightFixtureBuilder {
     light.specular = col;
     light.range = Math.max(0.5, o.range);
     light.falloffType = natural ? Light.FALLOFF_GLTF : Light.FALLOFF_STANDARD;
-    // glTF falloff is inverse-square, so it needs compensation to match the linear curve's brightness.
     const compensation = natural ? Math.max(1, (light.range * 0.12) ** 2) : 1;
     light.intensity = o.intensity * compensation;
     return light;
@@ -186,17 +201,60 @@ export class LightFixtureBuilder {
         m.name.startsWith('lw-wall-') ||
         m.name.startsWith('lw-door-') ||
         m.name.startsWith('lw-stamp-') ||
-        (Boolean(m.metadata?.lwNodeName) && !m.name.startsWith('lw-light-'))
+        (Boolean(m.metadata?.lwNodeName) && !m.name.startsWith('lw-light-') && !m.name.startsWith('mapLightSconce'))
       );
     });
   }
 
-  /** Small selectable marker at the emitter; only drawn in the editing tools, never as a radius outline. */
-  private static createHandle(scene: Scene, node: LightSourceNode, pos: Vector3, s: LightSettings): void {
-    const showFixture = node.showFixture === true;
+  /** Renders a 3D wall sconce bracket when mounted on a wall (or showFixture is enabled), or an editor orb handle. */
+  private static createHandle(
+    scene: Scene,
+    node: LightSourceNode,
+    pos: Vector3,
+    s: LightSettings,
+    wallSnap: ReturnType<typeof snapToNearestWallFace>,
+  ): void {
+    const isWallSconce = wallSnap.snapped || Boolean(node.attachedWallId) || node.showFixture === true;
+    const lightMeta = {
+      lwNodeName: `lw-light-${node.id}`,
+      lwKind: 'light' as const,
+      lwEntityId: node.id,
+      lwHandle: !isWallSconce,
+    };
+
+    if (isWallSconce) {
+      const effectiveSnap = wallSnap.snapped
+        ? wallSnap
+        : {
+            snapped: true,
+            x: pos.x,
+            z: pos.z,
+            wallId: node.attachedWallId,
+            outwardNormalX: node.wallNormalX ?? 0,
+            outwardNormalZ: node.wallNormalZ ?? 1,
+            rotationYRad: node.wallRotationYRad ?? 0,
+            rotationYDeg: ((node.wallRotationYRad ?? 0) * 180) / Math.PI,
+            suggestedElevationY: pos.y,
+          };
+      const sconceRoot = buildWallSconceFixtureMesh(
+        scene,
+        node.id,
+        pos,
+        effectiveSnap,
+        Color3.FromHexString(s.colorHex),
+        s.intensity,
+        (subMesh: Mesh) => {
+          subMesh.isPickable = true;
+          subMesh.metadata = lightMeta;
+        },
+      );
+      sconceRoot.name = `lw-light-orb-${node.id}`;
+      return;
+    }
+
     const handle = MeshBuilder.CreateSphere(
       `lw-light-orb-${node.id}`,
-      { diameter: showFixture ? 0.3 : 0.4, segments: 8 },
+      { diameter: 0.36, segments: 8 },
       scene,
     );
     handle.position.copyFrom(pos);
@@ -204,13 +262,8 @@ export class LightFixtureBuilder {
     mat.emissiveColor = Color3.FromHexString(s.colorHex);
     mat.disableLighting = true;
     handle.material = mat;
-    handle.metadata = {
-      lwNodeName: `lw-light-${node.id}`,
-      lwKind: 'light' as const,
-      lwEntityId: node.id,
-      lwHandle: !showFixture,
-    };
-    handle.visibility = showFixture ? 1 : this.handlesVisible ? 0.55 : 0;
+    handle.metadata = lightMeta;
+    handle.visibility = this.handlesVisible ? 0.55 : 0;
   }
 
   private static track(targets: FlickerTarget[], light: Light, s: LightSettings, index: number): void {

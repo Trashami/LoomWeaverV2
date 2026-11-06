@@ -31,6 +31,7 @@ export class LwMapViewportBarComponent {
   ]);
   readonly gridSize = input<string>('5 ft');
   readonly gridScalePct = input<number>(100);
+  readonly gridSquaresAcross = input<number>(50);
   readonly snapEnabled = input<boolean>(true);
   readonly showPlayerSafeOnly = input<boolean>(false);
   readonly hasRefTokens = input<boolean>(false);
@@ -41,6 +42,7 @@ export class LwMapViewportBarComponent {
   readonly qualityChange = output<LwMapQualityPreset>();
   readonly gridSizeChange = output<string>();
   readonly gridScaleChange = output<number>();
+  readonly gridSquaresAcrossChange = output<number>();
   readonly snapToggle = output<void>();
   readonly spawnTokensToggle = output<void>();
   readonly playerSafeToggle = output<void>();
@@ -75,6 +77,14 @@ export class LwMapViewportBarComponent {
     const val = Number(inputEl?.value ?? 100);
     if (!Number.isNaN(val)) {
       this.gridScaleChange.emit(val);
+    }
+  }
+
+  onGridSquaresSelect(event: Event): void {
+    const select = event.target as HTMLSelectElement | null;
+    const val = Number(select?.value ?? 50);
+    if (!Number.isNaN(val) && val > 0) {
+      this.gridSquaresAcrossChange.emit(val);
     }
   }
 }

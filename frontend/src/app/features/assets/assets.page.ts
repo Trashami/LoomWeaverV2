@@ -8,9 +8,15 @@ import {
   LwAudioStemMixerComponent,
   LwBadgeComponent,
   LwButtonComponent,
+  LwCreatePlaylistEvent,
+  LwGmMusicTriggerItem,
+  LwGmPlaylistItem,
+  LwMusicTrackItem,
+  LwPageHeaderComponent,
   LwPanelComponent,
   LwStemGainChangeEvent,
-  LwPageHeaderComponent,
+  LwTogglePlaylistTrackEvent,
+  LwUpsertMusicTriggerEvent,
 } from '../../shared/ui/public-api';
 import { WebAudioAmbienceService } from './engine/web-audio-ambience.service';
 
@@ -18,6 +24,11 @@ interface ServerAudioStateResponse {
   readonly campaignId: number;
   readonly activePresetId: string;
   readonly masterVolume: number;
+  readonly activeTrackId?: string;
+  readonly activePlaylistId?: string;
+  readonly tracks?: readonly LwMusicTrackItem[];
+  readonly playlists?: readonly LwGmPlaylistItem[];
+  readonly triggers?: readonly LwGmMusicTriggerItem[];
   readonly stems: readonly {
     id: string;
     name: string;
@@ -52,7 +63,7 @@ export class AssetsPageComponent implements OnDestroy {
 
   readonly selectedCategory = signal<string>('All');
   readonly categories = ['All', 'Map Pack', 'Dice Skin', 'Spell FX', 'Audio Pack', 'Module'];
-  readonly lastSyncBanner = signal<string>('Synchronized with campaign audio bus');
+  readonly lastSyncBanner = signal<string>('Synchronized with campaign soundtrack bus');
 
   readonly filteredAssets = computed(() => {
     const cat = this.selectedCategory();
@@ -65,24 +76,95 @@ export class AssetsPageComponent implements OnDestroy {
       this.audio.presets()[0],
   );
 
+  readonly availableSessions = computed(() =>
+    this.store.sessions().map((s) => ({
+      id: s.sessionId,
+      label: s.label || s.title,
+    })),
+  );
+
+  readonly availableBattlemaps = computed(() =>
+    this.store.authorizedScenes().map((sc) => ({
+      id: sc.sceneKey,
+      label: `${sc.name} (${sc.biome})`,
+    })),
+  );
+
   constructor() {
-    this.http.get<ServerAudioStateResponse>(`/api/v2/campaigns/${this.store.activeCampaignId()}/audio-state`).subscribe({
-      next: (res) => {
-        if (res) {
-          this.audio.hydrateFromServer(
-            res.activePresetId,
-            res.masterVolume,
-            res.stems,
-            res.presets,
-          );
-        }
-      },
-      error: () => {},
-    });
+    this.http
+      .get<ServerAudioStateResponse>(`/api/v2/campaigns/${this.store.activeCampaignId() || 1}/audio-state`)
+      .subscribe({
+        next: (res) => {
+          if (res) {
+            this.audio.hydrateFromServer(
+              res.activePresetId,
+              res.masterVolume,
+              res.stems,
+              res.presets,
+              res.tracks,
+              res.playlists,
+              res.triggers,
+              res.activeTrackId,
+              res.activePlaylistId,
+            );
+          }
+        },
+        error: () => {},
+      });
   }
 
   ngOnDestroy(): void {
-    // Keep audio playing across navigation unless explicitly stopped, or clean up if desired.
+    // Keep audio playing across navigation unless explicitly stopped.
+  }
+
+  handleTrackSelected(trackId: string): void {
+    const track = this.audio.playTrack(trackId, this.audio.activePlaylistId(), 1.2);
+    if (!track) return;
+    this.lastSyncBanner.set(`Playing "${track.title}" — ${track.artist}`);
+    this.syncMusicStateToServer();
+  }
+
+  handlePlaylistSelected(playlistId: string): void {
+    const pl = this.audio.selectPlaylist(playlistId, true);
+    if (!pl) return;
+    this.lastSyncBanner.set(`Activated playlist "${pl.name}" (${pl.trackIds.length} songs)`);
+    this.syncMusicStateToServer();
+  }
+
+  handleCreatePlaylist(event: LwCreatePlaylistEvent): void {
+    const pl = this.audio.createPlaylist(event);
+    this.lastSyncBanner.set(`Created playlist "${pl.name}"`);
+    this.syncMusicStateToServer();
+  }
+
+  handleDeletePlaylist(playlistId: string): void {
+    this.audio.deletePlaylist(playlistId);
+    this.lastSyncBanner.set('Removed custom playlist');
+    this.syncMusicStateToServer();
+  }
+
+  handleTogglePlaylistTrack(event: LwTogglePlaylistTrackEvent): void {
+    this.audio.toggleTrackInPlaylist(event.playlistId, event.trackId);
+    this.syncMusicStateToServer();
+  }
+
+  handleUpsertTrigger(event: LwUpsertMusicTriggerEvent): void {
+    const trig = this.audio.upsertTrigger(event);
+    this.lastSyncBanner.set(
+      `Saved ${trig.scope.toUpperCase()} trigger for ${trig.targetLabel}`,
+    );
+    this.syncMusicStateToServer();
+  }
+
+  handleRemoveTrigger(triggerId: string): void {
+    this.audio.removeTrigger(triggerId);
+    this.lastSyncBanner.set('Removed trigger rule');
+    this.syncMusicStateToServer();
+  }
+
+  handleTestTrigger(trig: LwGmMusicTriggerItem): void {
+    this.audio.fireTrigger(trig.scope, trig.targetKey, trig.targetLabel, true);
+    this.lastSyncBanner.set(`Tested ${trig.scope.toUpperCase()} trigger -> ${trig.targetLabel}`);
   }
 
   handlePresetTransition(presetId: string): void {
@@ -90,8 +172,10 @@ export class AssetsPageComponent implements OnDestroy {
     if (!preset) return;
 
     this.http
-      .post(`/api/v2/campaigns/${this.store.activeCampaignId()}/audio-state/transition`, {
+      .post(`/api/v2/campaigns/${this.store.activeCampaignId() || 1}/audio-state/transition`, {
         presetId: preset.id,
+        trackId: this.audio.activeTrackId(),
+        playlistId: this.audio.activePlaylistId(),
         crossfadeSeconds: preset.crossfadeSeconds,
         role: this.store.viewerRole(),
       })
@@ -109,5 +193,18 @@ export class AssetsPageComponent implements OnDestroy {
 
   handleStemGainChange(event: LwStemGainChangeEvent): void {
     this.audio.setStemGain(event.stemId, event.gain);
+  }
+
+  private syncMusicStateToServer(): void {
+    const cid = this.store.activeCampaignId() || 1;
+    this.http
+      .post(`/api/v2/campaigns/${cid}/audio-state/playlists`, {
+        activeTrackId: this.audio.activeTrackId(),
+        activePlaylistId: this.audio.activePlaylistId(),
+        masterVolume: this.audio.masterVolume(),
+        playlists: this.audio.playlists(),
+        triggers: this.audio.triggers(),
+      })
+      .subscribe({ error: () => {} });
   }
 }

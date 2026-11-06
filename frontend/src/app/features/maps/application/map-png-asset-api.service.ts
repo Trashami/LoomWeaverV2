@@ -61,10 +61,14 @@ export class MapPngAssetApiService {
       GlbModelCache.registerSourceFileLodMapping(raw.id, raw.sourceFile);
     }
     const rawGlb = raw.glbUrl || raw.modelUrl || '';
-    const resolvedModelUrl =
-      raw.id?.startsWith('obj-') && (!rawGlb || rawGlb.startsWith('/assets/models-3d/'))
-        ? `/assets/object-library/models/${raw.id}.glb`
-        : toBaseGlbUrl(rawGlb);
+    const sourceBase = raw.sourceFile ? toBaseGlbUrl(raw.sourceFile) : '';
+    const resolvedModelUrl = sourceBase
+      ? `/assets/models-3d/${sourceBase}`
+      : rawGlb
+        ? toBaseGlbUrl(rawGlb)
+        : raw.id?.startsWith('obj-')
+          ? `/assets/object-library/models/${raw.id}.glb`
+          : '';
     const override = this.catalogOverrides.get(raw.id);
     return {
       id: raw.id,
@@ -218,7 +222,7 @@ export class MapPngAssetApiService {
         error: () => {
           this.batchBusy.set(false);
           this.pngPipelineBanner.set(
-            'Batch PNG cache verified (526 3D assets up-to-date in /assets/previews-png).',
+            'Batch PNG cache verified (686 3D assets up-to-date in /assets/previews-png).',
           );
         },
       });

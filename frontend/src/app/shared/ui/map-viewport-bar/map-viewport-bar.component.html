@@ -93,20 +93,33 @@
     @if (gridSize() !== 'Off') {
       <label
         class="lw-viewport-bar__select-pill"
-        title="Adjust Grid Cell Size & Scale on Map (50% to 220%)"
+        title="Adjust 5ft Grid Squares across this World Plane without changing map bounds (rescales 5ft Reference Tokens)"
       >
-        <span class="lw-viewport-bar__select-label">Scale:</span>
+        <span class="lw-viewport-bar__select-label">Squares:</span>
+        <select
+          class="lw-viewport-bar__select"
+          [value]="gridSquaresAcross()"
+          (change)="onGridSquaresSelect($event)"
+          aria-label="5ft Grid Squares Across Map"
+        >
+          <option [value]="25">25×25 (125 ft)</option>
+          <option [value]="35">35×35 (175 ft)</option>
+          <option [value]="50">50×50 (250 ft)</option>
+          <option [value]="64">64×64 (320 ft)</option>
+          <option [value]="80">80×80 (400 ft)</option>
+          <option [value]="100">100×100 (500 ft)</option>
+        </select>
         <input
           type="range"
           min="50"
-          max="220"
+          max="200"
           step="5"
           [value]="gridScalePct()"
           (input)="onGridScaleInput($event)"
           aria-label="Grid Scale Percentage"
-          style="width: 68px; accent-color: #49e892; cursor: pointer"
+          style="width: 58px; accent-color: #49e892; cursor: pointer"
         />
-        <span class="lw-viewport-bar__fps-badge">{{ gridScalePct() }}%</span>
+        <span class="lw-viewport-bar__fps-badge">{{ gridSquaresAcross() }}×{{ gridSquaresAcross() }} sq</span>
       </label>
     }
 

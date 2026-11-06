@@ -265,12 +265,14 @@ export class StampDragController {
     const moveRangeMeters = cellMeters * 6; // 30 ft = 6 grid squares
 
     // 1. 30ft Movement Range Ring around starting position
+    const halfW = TerrainMeshBuilder.GROUND_W / 2;
+    const halfH = TerrainMeshBuilder.GROUND_H / 2;
     const ringPts: Vector3[] = [];
     const steps = 48;
     for (let i = 0; i <= steps; i++) {
       const a = (i / steps) * Math.PI * 2;
-      const px = Math.max(-18, Math.min(18, startX + Math.cos(a) * moveRangeMeters));
-      const pz = Math.max(-13.5, Math.min(13.5, startZ + Math.sin(a) * moveRangeMeters));
+      const px = Math.max(-halfW, Math.min(halfW, startX + Math.cos(a) * moveRangeMeters));
+      const pz = Math.max(-halfH, Math.min(halfH, startZ + Math.sin(a) * moveRangeMeters));
       const py = TerrainMeshBuilder.sampleElevationAt(scene, px, pz) + 0.08;
       ringPts.push(new Vector3(px, py, pz));
     }

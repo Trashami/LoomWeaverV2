@@ -1,13 +1,69 @@
 <div class="lw-audio-mixer">
+  <!-- 1. Now Playing & Real MP3 Transport Bar -->
   <div class="lw-audio-mixer__top">
-    <div>
-      <span class="lw-audio-mixer__eyebrow">Web Audio Multi-Stem Synthesizer & Crossfader</span>
-      <h4 class="lw-audio-mixer__title">Adaptive Scene Soundscape Deck</h4>
+    <div class="lw-audio-mixer__now-playing">
+      <span class="lw-audio-mixer__eyebrow">
+        GM Soundtrack Player & Automated Scene Triggers (/assets/music-library)
+      </span>
+      <h4 class="lw-audio-mixer__title">
+        @if (activeTrack(); as track) {
+          {{ track.title }}
+          <span class="lw-audio-mixer__artist">— {{ track.artist }}</span>
+        } @else {
+          Select a Song or Playlist
+        }
+      </h4>
+      <div class="lw-audio-mixer__submeta">
+        @if (activePlaylist(); as pl) {
+          <lw-badge [label]="'Playlist: ' + pl.name" tone="emerald" />
+        }
+        @if (activeTrack(); as track) {
+          <lw-badge [label]="track.category + ' · ' + track.mood" tone="gold" />
+        }
+        @if (lastTriggerBanner()) {
+          <span class="lw-audio-mixer__trigger-status">{{ lastTriggerBanner() }}</span>
+        }
+      </div>
     </div>
+
     <div class="lw-audio-mixer__transport">
+      <div class="lw-audio-mixer__transport-btns">
+        <lw-button
+          variant="secondary"
+          size="sm"
+          (pressed)="previousTrackRequested.emit()"
+          title="Previous Track in Playlist"
+        >
+          Prev
+        </lw-button>
+        <lw-button
+          [variant]="isPlaying() ? 'gold' : 'primary'"
+          [icon]="isPlaying() ? 'Square' : 'Music'"
+          (pressed)="togglePlaybackRequested.emit()"
+        >
+          {{ isPlaying() ? 'Pause Music' : 'Play Soundtrack' }}
+        </lw-button>
+        <lw-button
+          variant="secondary"
+          size="sm"
+          (pressed)="nextTrackRequested.emit()"
+          title="Next Track in Playlist"
+        >
+          Next
+        </lw-button>
+        <lw-button
+          [variant]="loopMode() === 'track' ? 'gold' : 'secondary'"
+          size="sm"
+          (pressed)="loopModeToggled.emit()"
+          title="Toggle Loop Playlist vs Loop Single Song"
+        >
+          {{ loopMode() === 'track' ? 'Loop: Song' : 'Loop: Playlist' }}
+        </lw-button>
+      </div>
+
       <div class="lw-audio-mixer__master">
         <lw-icon name="Volume2" [size]="16" />
-        <span>Master {{ (masterVolume() * 100).toFixed(0) }}%</span>
+        <span>Vol {{ (masterVolume() * 100).toFixed(0) }}%</span>
         <input
           type="range"
           min="0"
@@ -18,64 +74,305 @@
           aria-label="Master volume"
         />
       </div>
-      <lw-button
-        [variant]="isPlaying() ? 'secondary' : 'primary'"
-        [icon]="isPlaying() ? 'Square' : 'Music'"
-        (pressed)="togglePlaybackRequested.emit()"
-      >
-        {{ isPlaying() ? 'Stop Web Audio Synth' : 'Start Live Soundscape' }}
-      </lw-button>
+
+      <label class="lw-audio-mixer__upload-btn">
+        <input
+          type="file"
+          accept=".mp3,.ogg,.wav,audio/*"
+          multiple
+          hidden
+          (change)="onFileUploadChange($event)"
+        />
+        <span>+ Add MP3 Files</span>
+      </label>
     </div>
   </div>
 
-  <div class="lw-audio-mixer__presets">
-    @for (preset of presets(); track preset.id) {
-      <button
-        type="button"
-        class="lw-audio-mixer__preset-card"
-        [class.lw-audio-mixer__preset-card--active]="activePresetId() === preset.id"
-        (click)="presetTransitionRequested.emit(preset.id)"
-      >
-        <div class="lw-audio-mixer__preset-head">
-          <strong>{{ preset.name }}</strong>
-          <lw-badge [label]="preset.bpm + ' BPM · ' + preset.keySignature" tone="gold" />
-        </div>
-        <span class="lw-audio-mixer__preset-mood">{{ preset.mood }}</span>
-        <p class="lw-audio-mixer__preset-desc">{{ preset.description }}</p>
-        <span class="lw-audio-mixer__preset-fade">
-          Crossfade: {{ preset.crossfadeSeconds }}s
-        </span>
-      </button>
-    }
+  <!-- Seek / Progress Bar -->
+  <div class="lw-audio-mixer__seek-row">
+    <span class="lw-audio-mixer__time">{{ formatTime(currentTimeSeconds()) }}</span>
+    <input
+      type="range"
+      class="lw-audio-mixer__seek-slider"
+      min="0"
+      [max]="durationSeconds() || 100"
+      step="1"
+      [value]="currentTimeSeconds()"
+      (input)="onSeekSliderInput($event)"
+      aria-label="Track playback position"
+    />
+    <span class="lw-audio-mixer__time">{{ formatTime(durationSeconds() || activeTrack()?.durationSeconds || 0) }}</span>
   </div>
 
-  <div class="lw-audio-mixer__stems">
-    @for (stem of stems(); track stem.id) {
-      <div class="lw-audio-mixer__stem-row">
-        <div class="lw-audio-mixer__stem-meta">
-          <strong>{{ stem.name }}</strong>
-          <span>{{ stem.role }} · {{ stem.waveform }} ({{ stem.baseFrequencyHz }} Hz)</span>
-        </div>
-        <div class="lw-audio-mixer__stem-fader">
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.02"
-            [value]="stem.gain"
-            (input)="onStemSliderInput(stem.id, $event)"
-            [attr.aria-label]="stem.name + ' gain'"
-          />
-          <div class="lw-audio-mixer__meter">
-            <div
-              class="lw-audio-mixer__meter-fill"
-              [class.lw-audio-mixer__meter-fill--live]="isPlaying()"
-              [style.width.%]="stem.gain * 100"
-            ></div>
-          </div>
-          <span class="lw-audio-mixer__pct">{{ (stem.gain * 100).toFixed(0) }}%</span>
-        </div>
+  <!-- 2. GM Playlists & Create Playlist Bar -->
+  <div class="lw-audio-mixer__section">
+    <div class="lw-audio-mixer__section-head">
+      <div>
+        <span class="lw-audio-mixer__eyebrow">GM Playlists</span>
+        <h5 class="lw-audio-mixer__section-title">Select Active Playlist or Create Custom Queue</h5>
       </div>
-    }
+      <div class="lw-audio-mixer__playlist-create">
+        <input
+          type="text"
+          class="lw-audio-mixer__input"
+          placeholder="New playlist name (e.g. Boss Phase 2)"
+          [ngModel]="newPlaylistName()"
+          (ngModelChange)="newPlaylistName.set($event)"
+        />
+        <input
+          type="text"
+          class="lw-audio-mixer__input"
+          placeholder="Description / scene note"
+          [ngModel]="newPlaylistDesc()"
+          (ngModelChange)="newPlaylistDesc.set($event)"
+        />
+        <lw-button variant="gold" size="sm" (pressed)="onCreatePlaylist()">
+          Create Playlist
+        </lw-button>
+      </div>
+    </div>
+
+    <div class="lw-audio-mixer__presets">
+      @for (pl of playlists(); track pl.id) {
+        <div
+          class="lw-audio-mixer__preset-card"
+          [class.lw-audio-mixer__preset-card--active]="activePlaylistId() === pl.id"
+          (click)="playlistSelected.emit(pl.id)"
+        >
+          <div class="lw-audio-mixer__preset-head">
+            <strong>{{ pl.name }}</strong>
+            <lw-badge [label]="pl.trackIds.length + ' Songs'" tone="gold" />
+          </div>
+          <p class="lw-audio-mixer__preset-desc">{{ pl.description }}</p>
+          <div class="lw-audio-mixer__preset-foot">
+            <span class="lw-audio-mixer__preset-fade">
+              {{ activePlaylistId() === pl.id ? 'Active Playlist Queue' : 'Click to Activate Playlist' }}
+            </span>
+            @if (
+              pl.id !== 'playlist-campaign-overworld' &&
+              pl.id !== 'playlist-session-start' &&
+              pl.id !== 'playlist-battlemap-combat'
+            ) {
+              <button
+                type="button"
+                class="lw-audio-mixer__mini-btn lw-audio-mixer__mini-btn--danger"
+                (click)="$event.stopPropagation(); deletePlaylistRequested.emit(pl.id)"
+              >
+                Delete
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- 3. Music Library Tracks & One-Click Trigger Assignment -->
+  <div class="lw-audio-mixer__section">
+    <div class="lw-audio-mixer__section-head">
+      <div>
+        <span class="lw-audio-mixer__eyebrow">Music Library ({{ tracks().length }} MP3 Tracks)</span>
+        <h5 class="lw-audio-mixer__section-title">
+          Assign Songs to Playlists & Bind Triggers (Campaign · Session · Battlemap)
+        </h5>
+      </div>
+    </div>
+
+    <div class="lw-audio-mixer__stems">
+      @for (track of tracks(); track track.id) {
+        <div
+          class="lw-audio-mixer__stem-row"
+          [class.lw-audio-mixer__stem-row--active]="activeTrackId() === track.id"
+        >
+          <div class="lw-audio-mixer__stem-meta">
+            <div class="lw-audio-mixer__track-title-row">
+              <strong>{{ track.title }}</strong>
+              <lw-badge [label]="track.category" tone="neutral" />
+              <span class="lw-audio-mixer__track-dur">{{ formatTime(track.durationSeconds) }}</span>
+            </div>
+            <span>{{ track.artist }} · {{ track.mood }}</span>
+            <div class="lw-audio-mixer__track-badges">
+              @for (trig of triggersForTrack(track.id); track trig.id) {
+                <lw-badge
+                  [label]="trig.scope.toUpperCase() + ' TRIGGER: ' + trig.targetLabel"
+                  tone="emerald"
+                />
+              }
+            </div>
+          </div>
+
+          <div class="lw-audio-mixer__track-actions">
+            <lw-button
+              [variant]="activeTrackId() === track.id && isPlaying() ? 'gold' : 'primary'"
+              size="sm"
+              (pressed)="trackSelected.emit(track.id)"
+            >
+              {{ activeTrackId() === track.id && isPlaying() ? 'Playing' : 'Play Song' }}
+            </lw-button>
+
+            <button
+              type="button"
+              class="lw-audio-mixer__mini-btn"
+              [class.lw-audio-mixer__mini-btn--active]="isTrackInActivePlaylist(track.id)"
+              (click)="
+                togglePlaylistTrackRequested.emit({
+                  playlistId: activePlaylistId(),
+                  trackId: track.id
+                })
+              "
+            >
+              {{ isTrackInActivePlaylist(track.id) ? 'In Playlist' : '+ To Playlist' }}
+            </button>
+
+            <div class="lw-audio-mixer__trigger-chips">
+              <button
+                type="button"
+                class="lw-audio-mixer__chip"
+                title="Play this song automatically when the Campaign opens"
+                (click)="onQuickAssignTrigger('campaign', track)"
+              >
+                Set Campaign Trigger
+              </button>
+              <button
+                type="button"
+                class="lw-audio-mixer__chip"
+                title="Play this song automatically when a Session starts"
+                (click)="onQuickAssignTrigger('session', track)"
+              >
+                Set Session Trigger
+              </button>
+              <button
+                type="button"
+                class="lw-audio-mixer__chip lw-audio-mixer__chip--combat"
+                title="Play this song automatically when a Battlemap goes live on the VTT"
+                (click)="onQuickAssignTrigger('battlemap', track)"
+              >
+                Set Battlemap Trigger
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- 4. Automated Trigger Rules (Campaign, Session Start, Live Battlemap) -->
+  <div class="lw-audio-mixer__section">
+    <div class="lw-audio-mixer__section-head">
+      <div>
+        <span class="lw-audio-mixer__eyebrow">Automated Scene & Table Triggers</span>
+        <h5 class="lw-audio-mixer__section-title">
+          Automatically Start & Crossfade Songs on Campaign Load, Session Start & Battlemap Going Live
+        </h5>
+      </div>
+    </div>
+
+    <div class="lw-audio-mixer__trigger-builder">
+      <label class="lw-audio-mixer__field">
+        <span>Trigger Type</span>
+        <select
+          class="lw-audio-mixer__select"
+          [ngModel]="triggerScopeDraft()"
+          (ngModelChange)="triggerScopeDraft.set($event); triggerTargetKeyDraft.set('*')"
+        >
+          <option value="campaign">Campaign Start / Switch</option>
+          <option value="session">Session Starts / Goes Active</option>
+          <option value="battlemap">Battlemap Goes Live on VTT</option>
+        </select>
+      </label>
+
+      <label class="lw-audio-mixer__field">
+        <span>Target Scope</span>
+        <select
+          class="lw-audio-mixer__select"
+          [ngModel]="triggerTargetKeyDraft()"
+          (ngModelChange)="triggerTargetKeyDraft.set($event)"
+        >
+          @if (triggerScopeDraft() === 'campaign') {
+            <option value="*">{{ activeCampaignName() }} (Active Campaign)</option>
+          } @else if (triggerScopeDraft() === 'session') {
+            <option value="*">Any Session Start (Default)</option>
+            @for (sess of availableSessions(); track sess.id) {
+              <option [value]="sess.id">{{ sess.label }}</option>
+            }
+          } @else {
+            <option value="*">Any Battlemap Going Live (Default)</option>
+            @for (bm of availableBattlemaps(); track bm.id) {
+              <option [value]="bm.id">{{ bm.label }}</option>
+            }
+          }
+        </select>
+      </label>
+
+      <label class="lw-audio-mixer__field">
+        <span>Playlist</span>
+        <select
+          class="lw-audio-mixer__select"
+          [ngModel]="triggerPlaylistIdDraft()"
+          (ngModelChange)="triggerPlaylistIdDraft.set($event)"
+        >
+          @for (pl of playlists(); track pl.id) {
+            <option [value]="pl.id">{{ pl.name }}</option>
+          }
+        </select>
+      </label>
+
+      <label class="lw-audio-mixer__field">
+        <span>Opening Song</span>
+        <select
+          class="lw-audio-mixer__select"
+          [ngModel]="triggerTrackIdDraft()"
+          (ngModelChange)="triggerTrackIdDraft.set($event)"
+        >
+          @for (tr of tracks(); track tr.id) {
+            <option [value]="tr.id">{{ tr.title }} ({{ tr.artist }})</option>
+          }
+        </select>
+      </label>
+
+      <lw-button variant="gold" size="sm" (pressed)="onSaveCustomTrigger()">
+        Save Trigger Rule
+      </lw-button>
+    </div>
+
+    <div class="lw-audio-mixer__triggers-list">
+      @for (trig of triggers(); track trig.id) {
+        <div class="lw-audio-mixer__trigger-row">
+          <div class="lw-audio-mixer__trigger-info">
+            <lw-badge
+              [label]="trig.scope.toUpperCase()"
+              [tone]="trig.scope === 'battlemap' ? 'gold' : 'emerald'"
+            />
+            <strong>{{ trig.targetLabel }}</strong>
+            <span class="lw-audio-mixer__trigger-arrow">-&gt;</span>
+            <span>
+              Song:
+              <strong>
+                {{ getTrackTitle(trig.trackId) }}
+              </strong>
+              · Playlist:
+              {{ getPlaylistName(trig.playlistId) }}
+              ({{ trig.crossfadeSeconds }}s crossfade)
+            </span>
+          </div>
+          <div class="lw-audio-mixer__trigger-btns">
+            <button
+              type="button"
+              class="lw-audio-mixer__mini-btn lw-audio-mixer__mini-btn--active"
+              (click)="testTriggerRequested.emit(trig)"
+            >
+              Test Trigger Now
+            </button>
+            <button
+              type="button"
+              class="lw-audio-mixer__mini-btn lw-audio-mixer__mini-btn--danger"
+              (click)="removeTriggerRequested.emit(trig.id)"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+      }
+    </div>
   </div>
 </div>

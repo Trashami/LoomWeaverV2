@@ -87,11 +87,16 @@ export function sync3dMapSceneGraph(
     state.terrainRelief ?? 0.35,
     state.waterSplines?.length ?? 0,
   );
+  const effectiveGridScale =
+    state.gridScalePct !== undefined && state.gridScalePct > 0
+      ? state.gridScalePct / 100
+      : gridScale;
   TerrainMeshBuilder.configureGrid(scene, {
-    mode: gridVisible ? '5 ft' : 'Off',
-    scaleFactor: gridScale,
-    offsetX: (gridOffsetX / 50) * 1.5,
-    offsetZ: (gridOffsetY / 50) * 1.5,
+    mode: state.gridMode ?? (gridVisible ? '5 ft' : 'Off'),
+    scaleFactor: effectiveGridScale,
+    offsetX: state.gridOffsetX ?? (gridOffsetX / 50) * 1.5,
+    offsetZ: state.gridOffsetZ ?? (gridOffsetY / 50) * 1.5,
+    opacity: state.gridOpacityPct !== undefined ? state.gridOpacityPct / 100 : undefined,
   });
 
   const terrainGrid = scene.getMeshByName('lw-terrain-grid');

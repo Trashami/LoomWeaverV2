@@ -11,7 +11,7 @@ import {
   StandardMaterial,
   Vector3,
 } from '@babylonjs/core';
-import { LightSourceNode } from '../map-scene-contract';
+import { LightSourceNode, MapWallSegmentNode } from '../map-scene-contract';
 import { LightFixtureBuilder } from './light-fixture.builder';
 
 export interface CelestialLightConfig {
@@ -36,13 +36,14 @@ export class SceneLightingController {
     scene: Scene,
     lightNodes: readonly LightSourceNode[],
     celestial?: CelestialLightConfig,
+    walls?: readonly MapWallSegmentNode[],
   ): void {
     if (celestial) {
       this.currentCelestial = celestial;
     }
 
     this.syncCelestialDirectionalLight(scene, this.currentCelestial);
-    LightFixtureBuilder.rebuild(scene, lightNodes);
+    LightFixtureBuilder.rebuild(scene, lightNodes, walls);
   }
 
   static syncCelestialDirectionalLight(scene: Scene, config: CelestialLightConfig): void {
@@ -59,7 +60,7 @@ export class SceneLightingController {
 
     const azRad = (config.azimuthDeg * Math.PI) / 180;
     const altRad = (Math.max(12, Math.min(82, config.altitudeDeg)) * Math.PI) / 180;
-    const orbitRadius = 28;
+    const orbitRadius = 56;
     const lx = Math.cos(altRad) * Math.cos(azRad) * orbitRadius;
     const ly = Math.sin(altRad) * orbitRadius;
     const lz = Math.cos(altRad) * Math.sin(azRad) * orbitRadius;
@@ -78,7 +79,7 @@ export class SceneLightingController {
       dirLight.autoUpdateExtends = true;
       dirLight.autoCalcShadowZBounds = true;
       dirLight.shadowMinZ = 1;
-      dirLight.shadowMaxZ = 65;
+      dirLight.shadowMaxZ = 135;
 
       shadowGen = new ShadowGenerator(2048, dirLight);
       shadowGen.usePercentageCloserFiltering = true;

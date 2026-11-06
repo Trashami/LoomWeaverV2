@@ -1,14 +1,157 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, computed, signal } from '@angular/core';
 import {
   LwAudioScenePresetItem,
   LwAudioStemItem,
+  LwCreatePlaylistEvent,
+  LwGmMusicTriggerItem,
+  LwGmPlaylistItem,
+  LwMusicTrackItem,
+  LwMusicTriggerScope,
+  LwUpsertMusicTriggerEvent,
 } from '../../../shared/ui/audio-stem-mixer/audio-stem-mixer.component';
 
-interface ActiveOscillatorVoice {
-  readonly osc: OscillatorNode;
-  readonly lfo: OscillatorNode;
-  readonly gainNode: GainNode;
-}
+const STORAGE_PLAYLISTS_KEY = 'lw_gm_music_playlists_v2';
+const STORAGE_TRIGGERS_KEY = 'lw_gm_music_triggers_v2';
+const STORAGE_CUSTOM_TRACKS_KEY = 'lw_gm_music_custom_tracks_v2';
+
+export const DEFAULT_MUSIC_TRACKS: readonly LwMusicTrackItem[] = [
+  {
+    id: 'track-dnd-acoustic-loop',
+    title: 'D&D Acoustic Tavern & Road Loop',
+    artist: 'ebunny',
+    category: 'Session & Tavern',
+    url: '/assets/music-library/ebunny-dnd-acoustic-loop-622875.mp3',
+    durationSeconds: 138,
+    mood: 'Warm Acoustic Lute & Campfire Rest',
+  },
+  {
+    id: 'track-the-longest-journey',
+    title: 'The Longest Journey',
+    artist: 'Alexander Nakarada',
+    category: 'Campaign Theme',
+    url: '/assets/music-library/nakaradaalexander-the-longest-journey-408735.mp3',
+    durationSeconds: 422,
+    mood: 'Epic Overland Chronicle & Horizon Travel',
+  },
+  {
+    id: 'track-woods-of-imagination',
+    title: 'Woods of Imagination',
+    artist: 'Alexander Nakarada',
+    category: 'Session & Exploration',
+    url: '/assets/music-library/nakaradaalexander-woods-of-imagination-139004.mp3',
+    durationSeconds: 171,
+    mood: 'Mystic Woodland, Feywild & Ancient Lore',
+  },
+  {
+    id: 'track-here-be-dragons',
+    title: 'Here Be Dragons',
+    artist: 'Tim Kulig',
+    category: 'Battlemap & Boss',
+    url: '/assets/music-library/tim_kulig_free_music-here-be-dragons-127810.mp3',
+    durationSeconds: 307,
+    mood: 'Mythic Dragon Lair & High-Stakes Boss Encounter',
+  },
+  {
+    id: 'track-in-pursuit-of-a-pirate',
+    title: 'In Pursuit of a Pirate',
+    artist: 'Tim Kulig',
+    category: 'Battlemap & Skirmish',
+    url: '/assets/music-library/tim_kulig_free_music-in-pursuit-of-a-pirate-127812.mp3',
+    durationSeconds: 98,
+    mood: 'Swashbuckling Skyship Chase & Ambush',
+  },
+  {
+    id: 'track-challenge-of-the-goliath',
+    title: 'The Challenge of the Goliath',
+    artist: 'Tim Kulig',
+    category: 'Battlemap & Combat',
+    url: '/assets/music-library/tim_kulig_free_music-the-challenge-of-the-golliath-154943.mp3',
+    durationSeconds: 254,
+    mood: 'Heavy Tactical Battlemap & Initiative Clash',
+  },
+];
+
+export const DEFAULT_GM_PLAYLISTS: readonly LwGmPlaylistItem[] = [
+  {
+    id: 'playlist-campaign-overworld',
+    name: 'Campaign Chronicle & World Map',
+    description:
+      'Default campaign soundtrack when entering the campaign dashboard, world lore, and overland travel.',
+    trackIds: [
+      'track-the-longest-journey',
+      'track-woods-of-imagination',
+      'track-dnd-acoustic-loop',
+    ],
+    loop: true,
+  },
+  {
+    id: 'playlist-session-start',
+    name: 'Session Opening & Tavern Gathering',
+    description:
+      'Triggered automatically when a session starts or switches to the active table session.',
+    trackIds: [
+      'track-dnd-acoustic-loop',
+      'track-woods-of-imagination',
+      'track-the-longest-journey',
+    ],
+    loop: true,
+  },
+  {
+    id: 'playlist-battlemap-combat',
+    name: 'Live Battlemap & Tactical Combat',
+    description:
+      'Triggered automatically when a battlemap goes live on the VTT or is published to the active encounter.',
+    trackIds: [
+      'track-challenge-of-the-goliath',
+      'track-here-be-dragons',
+      'track-in-pursuit-of-a-pirate',
+    ],
+    loop: true,
+  },
+];
+
+export const DEFAULT_GM_TRIGGERS: readonly LwGmMusicTriggerItem[] = [
+  {
+    id: 'trig-campaign-default',
+    scope: 'campaign',
+    targetKey: '*',
+    targetLabel: 'Any Campaign (Campaign Theme)',
+    playlistId: 'playlist-campaign-overworld',
+    trackId: 'track-the-longest-journey',
+    autoPlay: true,
+    crossfadeSeconds: 2.4,
+  },
+  {
+    id: 'trig-session-default',
+    scope: 'session',
+    targetKey: '*',
+    targetLabel: 'When Any Session Starts / Goes Active',
+    playlistId: 'playlist-session-start',
+    trackId: 'track-dnd-acoustic-loop',
+    autoPlay: true,
+    crossfadeSeconds: 2.0,
+  },
+  {
+    id: 'trig-battlemap-default',
+    scope: 'battlemap',
+    targetKey: '*',
+    targetLabel: 'When Any Battlemap Goes Live on VTT',
+    playlistId: 'playlist-battlemap-combat',
+    trackId: 'track-challenge-of-the-goliath',
+    autoPlay: true,
+    crossfadeSeconds: 1.5,
+  },
+  {
+    id: 'trig-battlemap-dragon',
+    scope: 'battlemap',
+    targetKey: 'scene-shadow-mountain',
+    targetLabel: 'Shadow of the Mountain — Dragon Cavern Battlemap',
+    playlistId: 'playlist-battlemap-combat',
+    trackId: 'track-here-be-dragons',
+    autoPlay: true,
+    crossfadeSeconds: 1.5,
+  },
+];
 
 const DEFAULT_STEMS: readonly LwAudioStemItem[] = [
   {
@@ -114,15 +257,35 @@ const DEFAULT_PRESETS: readonly LwAudioScenePresetItem[] = [
 
 @Injectable({ providedIn: 'root' })
 export class WebAudioAmbienceService {
-  private audioCtx: AudioContext | null = null;
-  private masterGainNode: GainNode | null = null;
-  private readonly voices = new Map<string, ActiveOscillatorVoice>();
+  private activeAudioEl: HTMLAudioElement | null = null;
+  private fadingAudioEl: HTMLAudioElement | null = null;
+  private fadeTimer: ReturnType<typeof setInterval> | null = null;
 
   readonly isPlaying = signal<boolean>(false);
   readonly activePresetId = signal<string>('preset-cinth-ballroom');
   readonly masterVolume = signal<number>(0.8);
   readonly stems = signal<readonly LwAudioStemItem[]>(DEFAULT_STEMS);
   readonly presets = signal<readonly LwAudioScenePresetItem[]>(DEFAULT_PRESETS);
+
+  readonly tracks = signal<readonly LwMusicTrackItem[]>(this.loadInitialTracks());
+  readonly playlists = signal<readonly LwGmPlaylistItem[]>(this.loadInitialPlaylists());
+  readonly triggers = signal<readonly LwGmMusicTriggerItem[]>(this.loadInitialTriggers());
+  readonly activeTrackId = signal<string>('track-the-longest-journey');
+  readonly activePlaylistId = signal<string>('playlist-campaign-overworld');
+  readonly currentTimeSeconds = signal<number>(0);
+  readonly durationSeconds = signal<number>(422);
+  readonly loopMode = signal<'playlist' | 'track'>('playlist');
+  readonly lastTriggerBanner = signal<string>('Ready · 6 real MP3 tracks loaded from /assets/music-library');
+
+  readonly activeTrack = computed<LwMusicTrackItem>(() => {
+    const list = this.tracks();
+    return list.find((t) => t.id === this.activeTrackId()) ?? list[0];
+  });
+
+  readonly activePlaylist = computed<LwGmPlaylistItem>(() => {
+    const list = this.playlists();
+    return list.find((p) => p.id === this.activePlaylistId()) ?? list[0];
+  });
 
   hydrateFromServer(
     activePresetId: string,
@@ -136,12 +299,43 @@ export class WebAudioAmbienceService {
       defaultGain: number;
     }[],
     serverPresets: readonly LwAudioScenePresetItem[],
+    serverTracks?: readonly LwMusicTrackItem[],
+    serverPlaylists?: readonly LwGmPlaylistItem[],
+    serverTriggers?: readonly LwGmMusicTriggerItem[],
+    activeTrackId?: string,
+    activePlaylistId?: string,
   ): void {
     if (serverPresets?.length) {
       this.presets.set(serverPresets);
     }
     this.activePresetId.set(activePresetId || 'preset-cinth-ballroom');
     this.masterVolume.set(masterVolume ?? 0.8);
+
+    if (serverTracks?.length) {
+      const custom = this.readStorage<LwMusicTrackItem[]>(STORAGE_CUSTOM_TRACKS_KEY, []);
+      const merged = [...serverTracks];
+      for (const c of custom) {
+        if (!merged.some((m) => m.id === c.id || m.url === c.url)) {
+          merged.push(c);
+        }
+      }
+      this.tracks.set(merged);
+    }
+    if (serverPlaylists?.length) {
+      const localPlaylists = this.readStorage<LwGmPlaylistItem[] | null>(STORAGE_PLAYLISTS_KEY, null);
+      this.playlists.set(localPlaylists?.length ? localPlaylists : serverPlaylists);
+    }
+    if (serverTriggers?.length) {
+      const localTriggers = this.readStorage<LwGmMusicTriggerItem[] | null>(STORAGE_TRIGGERS_KEY, null);
+      this.triggers.set(localTriggers?.length ? localTriggers : serverTriggers);
+    }
+    if (activeTrackId && this.tracks().some((t) => t.id === activeTrackId)) {
+      this.activeTrackId.set(activeTrackId);
+    }
+    if (activePlaylistId && this.playlists().some((p) => p.id === activePlaylistId)) {
+      this.activePlaylistId.set(activePlaylistId);
+    }
+
     const activePreset =
       this.presets().find((p) => p.id === this.activePresetId()) ?? this.presets()[0];
 
@@ -161,18 +355,256 @@ export class WebAudioAmbienceService {
 
   togglePlayback(): void {
     if (this.isPlaying()) {
-      this.stopEngine();
+      this.pauseEngine();
     } else {
-      this.startEngine();
+      this.startOrResumeTrack(this.activeTrackId(), 0.8);
+    }
+  }
+
+  playTrack(trackId: string, playlistId?: string, crossfadeSeconds = 1.5): LwMusicTrackItem | undefined {
+    const track = this.tracks().find((t) => t.id === trackId);
+    if (!track) return undefined;
+    if (playlistId && this.playlists().some((p) => p.id === playlistId)) {
+      this.activePlaylistId.set(playlistId);
+    }
+    this.activeTrackId.set(track.id);
+    this.durationSeconds.set(track.durationSeconds || 180);
+    this.startOrResumeTrack(track.id, crossfadeSeconds);
+    return track;
+  }
+
+  selectPlaylist(playlistId: string, autoPlay = true): LwGmPlaylistItem | undefined {
+    const pl = this.playlists().find((p) => p.id === playlistId);
+    if (!pl) return undefined;
+    this.activePlaylistId.set(pl.id);
+    const firstTrackId = pl.trackIds[0] || this.activeTrackId();
+    if (firstTrackId) {
+      this.activeTrackId.set(firstTrackId);
+      if (autoPlay || this.isPlaying()) {
+        this.startOrResumeTrack(firstTrackId, 1.8);
+      }
+    }
+    this.lastTriggerBanner.set(`Activated playlist "${pl.name}" (${pl.trackIds.length} songs)`);
+    return pl;
+  }
+
+  nextTrack(): void {
+    const queue = this.getActiveQueueTrackIds();
+    if (queue.length === 0) return;
+    const idx = queue.indexOf(this.activeTrackId());
+    const nextIdx = idx >= 0 ? (idx + 1) % queue.length : 0;
+    this.playTrack(queue[nextIdx], this.activePlaylistId(), 1.2);
+  }
+
+  previousTrack(): void {
+    if (this.activeAudioEl && this.activeAudioEl.currentTime > 4) {
+      this.activeAudioEl.currentTime = 0;
+      this.currentTimeSeconds.set(0);
+      return;
+    }
+    const queue = this.getActiveQueueTrackIds();
+    if (queue.length === 0) return;
+    const idx = queue.indexOf(this.activeTrackId());
+    const prevIdx = idx > 0 ? idx - 1 : queue.length - 1;
+    this.playTrack(queue[prevIdx], this.activePlaylistId(), 1.2);
+  }
+
+  seekTo(seconds: number): void {
+    const clamped = Math.max(0, seconds);
+    this.currentTimeSeconds.set(clamped);
+    if (this.activeAudioEl) {
+      try {
+        this.activeAudioEl.currentTime = clamped;
+      } catch {
+        // Ignore seek before metadata ready
+      }
+    }
+  }
+
+  toggleLoopMode(): void {
+    const next = this.loopMode() === 'playlist' ? 'track' : 'playlist';
+    this.loopMode.set(next);
+    if (this.activeAudioEl) {
+      this.activeAudioEl.loop = next === 'track';
     }
   }
 
   setMasterVolume(vol: number): void {
     const clamped = Math.max(0, Math.min(1, vol));
     this.masterVolume.set(clamped);
-    if (this.audioCtx && this.masterGainNode) {
-      this.masterGainNode.gain.setTargetAtTime(clamped * 0.18, this.audioCtx.currentTime, 0.08);
+    if (this.activeAudioEl) {
+      this.activeAudioEl.volume = clamped;
     }
+  }
+
+  createPlaylist(event: LwCreatePlaylistEvent): LwGmPlaylistItem {
+    const id = `playlist-${event.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now().toString().slice(-4)}`;
+    const created: LwGmPlaylistItem = {
+      id,
+      name: event.name.trim(),
+      description: event.description.trim() || 'Custom GM Soundtrack Playlist',
+      trackIds: event.trackIds.length > 0 ? event.trackIds : [this.activeTrackId()],
+      loop: true,
+    };
+    this.playlists.update((cur) => {
+      const next = [...cur, created];
+      this.writeStorage(STORAGE_PLAYLISTS_KEY, next);
+      return next;
+    });
+    this.activePlaylistId.set(created.id);
+    this.lastTriggerBanner.set(`Created playlist "${created.name}"`);
+    return created;
+  }
+
+  deletePlaylist(playlistId: string): void {
+    this.playlists.update((cur) => {
+      const next = cur.filter((p) => p.id !== playlistId);
+      this.writeStorage(STORAGE_PLAYLISTS_KEY, next);
+      return next.length > 0 ? next : [...DEFAULT_GM_PLAYLISTS];
+    });
+    if (this.activePlaylistId() === playlistId) {
+      this.activePlaylistId.set(this.playlists()[0]?.id || 'playlist-campaign-overworld');
+    }
+  }
+
+  toggleTrackInPlaylist(playlistId: string, trackId: string): void {
+    this.playlists.update((cur) => {
+      const next = cur.map((pl) => {
+        if (pl.id !== playlistId) return pl;
+        const exists = pl.trackIds.includes(trackId);
+        const updatedIds = exists
+          ? pl.trackIds.filter((id) => id !== trackId)
+          : [...pl.trackIds, trackId];
+        return { ...pl, trackIds: updatedIds };
+      });
+      this.writeStorage(STORAGE_PLAYLISTS_KEY, next);
+      return next;
+    });
+  }
+
+  upsertTrigger(event: LwUpsertMusicTriggerEvent): LwGmMusicTriggerItem {
+    const existing = this.triggers().find(
+      (t) => t.scope === event.scope && t.targetKey === event.targetKey,
+    );
+    const item: LwGmMusicTriggerItem = {
+      id: existing?.id || `trig-${event.scope}-${Date.now().toString().slice(-5)}`,
+      scope: event.scope,
+      targetKey: event.targetKey || '*',
+      targetLabel: event.targetLabel,
+      playlistId: event.playlistId,
+      trackId: event.trackId,
+      autoPlay: event.autoPlay,
+      crossfadeSeconds: event.crossfadeSeconds,
+    };
+    this.triggers.update((cur) => {
+      const filtered = cur.filter((t) => t.id !== item.id);
+      const next = [item, ...filtered];
+      this.writeStorage(STORAGE_TRIGGERS_KEY, next);
+      return next;
+    });
+    const trackTitle = this.tracks().find((t) => t.id === item.trackId)?.title ?? item.trackId;
+    this.lastTriggerBanner.set(
+      `Assigned ${item.scope.toUpperCase()} trigger (${item.targetLabel}) -> "${trackTitle}"`,
+    );
+    return item;
+  }
+
+  removeTrigger(triggerId: string): void {
+    this.triggers.update((cur) => {
+      const next = cur.filter((t) => t.id !== triggerId);
+      this.writeStorage(STORAGE_TRIGGERS_KEY, next);
+      return next;
+    });
+  }
+
+  addCustomAudioFiles(files: FileList): void {
+    if (typeof URL === 'undefined') return;
+    const added: LwMusicTrackItem[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files.item(i);
+      if (!file) continue;
+      const cleanTitle = file.name
+        .replace(/\.(mp3|ogg|wav|flac|m4a)$/i, '')
+        .replace(/[_-]+/g, ' ')
+        .trim();
+      const id = `track-custom-${Date.now()}-${i}`;
+      const objectUrl = URL.createObjectURL(file);
+      added.push({
+        id,
+        title: cleanTitle || file.name,
+        artist: 'GM Custom Upload',
+        category: 'Custom Upload',
+        url: objectUrl,
+        durationSeconds: 180,
+        mood: 'Custom GM Soundtrack',
+      });
+    }
+    if (added.length > 0) {
+      this.tracks.update((cur) => [...added, ...cur]);
+      this.playlists.update((cur) => {
+        const activeId = this.activePlaylistId();
+        const next = cur.map((pl) =>
+          pl.id === activeId
+            ? { ...pl, trackIds: [...added.map((a) => a.id), ...pl.trackIds] }
+            : pl,
+        );
+        this.writeStorage(STORAGE_PLAYLISTS_KEY, next);
+        return next;
+      });
+      this.playTrack(added[0].id, this.activePlaylistId(), 1.0);
+      this.lastTriggerBanner.set(`Added ${added.length} MP3 track(s) to library & active playlist`);
+    }
+  }
+
+  /**
+   * Automatically fires when:
+   * - `scope === 'campaign'`: Campaign is selected or opened
+   * - `scope === 'session'`: Session starts or becomes active
+   * - `scope === 'battlemap'`: Battlemap goes live on the VTT or is published to an encounter
+   */
+  fireTrigger(
+    scope: LwMusicTriggerScope,
+    targetKey = '*',
+    targetContextLabel?: string,
+    forcePlay = false,
+  ): LwGmMusicTriggerItem | null {
+    const list = this.triggers().filter((t) => t.scope === scope);
+    if (list.length === 0) return null;
+
+    const exact =
+      targetKey && targetKey !== '*'
+        ? list.find((t) => t.targetKey.toLowerCase() === targetKey.toLowerCase())
+        : undefined;
+    const matched = exact ?? list.find((t) => t.targetKey === '*') ?? list[0];
+    if (!matched) return null;
+
+    if (matched.playlistId && this.playlists().some((p) => p.id === matched.playlistId)) {
+      this.activePlaylistId.set(matched.playlistId);
+    }
+    const track =
+      this.tracks().find((t) => t.id === matched.trackId) ??
+      this.tracks().find(
+        (t) => t.id === this.playlists().find((p) => p.id === matched.playlistId)?.trackIds[0],
+      ) ??
+      this.tracks()[0];
+
+    if (!track) return null;
+
+    const previousTrackId = this.activeTrackId();
+    this.activeTrackId.set(track.id);
+    this.durationSeconds.set(track.durationSeconds || 180);
+
+    const contextText = targetContextLabel || matched.targetLabel;
+    this.lastTriggerBanner.set(
+      `${scope.toUpperCase()} Trigger (${contextText}) -> "${track.title}"`,
+    );
+
+    if (forcePlay || this.isPlaying() || (matched.autoPlay && scope === 'battlemap')) {
+      if (previousTrackId !== track.id || !this.isPlaying()) {
+        this.startOrResumeTrack(track.id, matched.crossfadeSeconds || 1.8);
+      }
+    }
+    return matched;
   }
 
   setStemGain(stemId: string, gain: number): void {
@@ -180,10 +612,6 @@ export class WebAudioAmbienceService {
     this.stems.update((list) =>
       list.map((s) => (s.id === stemId ? { ...s, gain: clamped } : s)),
     );
-    const voice = this.voices.get(stemId);
-    if (this.audioCtx && voice) {
-      voice.gainNode.gain.setTargetAtTime(clamped * 0.25, this.audioCtx.currentTime, 0.12);
-    }
   }
 
   crossfadeToPreset(presetId: string): LwAudioScenePresetItem | undefined {
@@ -198,18 +626,19 @@ export class WebAudioAmbienceService {
       })),
     );
 
-    if (this.audioCtx) {
-      const now = this.audioCtx.currentTime;
-      for (const stem of this.stems()) {
-        const voice = this.voices.get(stem.id);
-        if (voice) {
-          voice.gainNode.gain.cancelScheduledValues(now);
-          voice.gainNode.gain.setValueAtTime(voice.gainNode.gain.value, now);
-          voice.gainNode.gain.linearRampToValueAtTime(
-            stem.gain * 0.25,
-            now + preset.crossfadeSeconds,
-          );
-        }
+    // Map scene presets to real MP3 tracks
+    const presetTrackMap: Record<string, string> = {
+      'preset-cinth-ballroom': 'track-dnd-acoustic-loop',
+      'preset-ballroom': 'track-dnd-acoustic-loop',
+      'preset-shadow-mountain': 'track-here-be-dragons',
+      'preset-blood-waltz-combat': 'track-challenge-of-the-goliath',
+      'preset-skyship-horizon': 'track-in-pursuit-of-a-pirate',
+    };
+    const mappedTrackId = presetTrackMap[preset.id];
+    if (mappedTrackId) {
+      this.activeTrackId.set(mappedTrackId);
+      if (this.isPlaying()) {
+        this.startOrResumeTrack(mappedTrackId, preset.crossfadeSeconds);
       }
     }
 
@@ -217,69 +646,182 @@ export class WebAudioAmbienceService {
   }
 
   stopEngine(): void {
-    for (const v of this.voices.values()) {
-      try {
-        v.osc.stop();
-        v.lfo.stop();
-      } catch {
-        // Ignore already-stopped nodes
-      }
+    this.pauseEngine();
+  }
+
+  private pauseEngine(): void {
+    if (this.fadeTimer) {
+      clearInterval(this.fadeTimer);
+      this.fadeTimer = null;
     }
-    this.voices.clear();
-    if (this.audioCtx) {
-      void this.audioCtx.close();
-      this.audioCtx = null;
-      this.masterGainNode = null;
+    if (this.fadingAudioEl) {
+      try {
+        this.fadingAudioEl.pause();
+      } catch {}
+      this.fadingAudioEl = null;
+    }
+    if (this.activeAudioEl) {
+      try {
+        this.activeAudioEl.pause();
+      } catch {}
     }
     this.isPlaying.set(false);
   }
 
-  private startEngine(): void {
-    if (typeof window === 'undefined') return;
-    const AudioContextCtor =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextCtor) return;
+  private startOrResumeTrack(trackId: string, crossfadeSeconds = 1.5): void {
+    if (typeof window === 'undefined' || typeof Audio === 'undefined') return;
+    const track = this.tracks().find((t) => t.id === trackId) ?? this.tracks()[0];
+    if (!track) return;
 
-    this.audioCtx = new AudioContextCtor();
-    const filter = this.audioCtx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 520;
+    this.activeTrackId.set(track.id);
 
-    this.masterGainNode = this.audioCtx.createGain();
-    this.masterGainNode.gain.value = this.masterVolume() * 0.18;
+    // If same track is already loaded in activeAudioEl, simply resume it
+    if (
+      this.activeAudioEl &&
+      this.activeAudioEl.dataset['trackId'] === track.id &&
+      !this.activeAudioEl.ended
+    ) {
+      this.activeAudioEl.volume = this.masterVolume();
+      this.activeAudioEl
+        .play()
+        .then(() => {
+          this.isPlaying.set(true);
+        })
+        .catch(() => {
+          this.isPlaying.set(false);
+        });
+      return;
+    }
 
-    filter.connect(this.masterGainNode);
-    this.masterGainNode.connect(this.audioCtx.destination);
+    if (this.fadeTimer) {
+      clearInterval(this.fadeTimer);
+      this.fadeTimer = null;
+    }
+    if (this.fadingAudioEl) {
+      try {
+        this.fadingAudioEl.pause();
+      } catch {}
+      this.fadingAudioEl = null;
+    }
 
-    this.stems().forEach((stem, idx) => {
-      if (!this.audioCtx) return;
-      const osc = this.audioCtx.createOscillator();
-      osc.type = (['sine', 'triangle', 'sawtooth', 'square'].includes(stem.waveform)
-        ? stem.waveform
-        : 'sine') as OscillatorType;
-      osc.frequency.value = stem.baseFrequencyHz;
+    const outgoing = this.activeAudioEl;
+    const incoming = new Audio(track.url);
+    incoming.preload = 'auto';
+    incoming.dataset['trackId'] = track.id;
+    incoming.loop = this.loopMode() === 'track';
 
-      const lfo = this.audioCtx.createOscillator();
-      lfo.type = 'sine';
-      lfo.frequency.value = 0.22 + idx * 0.14;
-
-      const lfoGain = this.audioCtx.createGain();
-      lfoGain.gain.value = 3.5;
-      lfo.connect(lfoGain);
-      lfoGain.connect(osc.frequency);
-
-      const stemGain = this.audioCtx.createGain();
-      stemGain.gain.value = stem.gain * 0.25;
-
-      osc.connect(stemGain);
-      stemGain.connect(filter);
-
-      osc.start();
-      lfo.start();
-      this.voices.set(stem.id, { osc, lfo, gainNode: stemGain });
+    incoming.addEventListener('loadedmetadata', () => {
+      if (Number.isFinite(incoming.duration) && incoming.duration > 0) {
+        this.durationSeconds.set(Math.round(incoming.duration));
+      }
     });
 
-    this.isPlaying.set(true);
+    incoming.addEventListener('timeupdate', () => {
+      if (this.activeAudioEl === incoming) {
+        this.currentTimeSeconds.set(Math.floor(incoming.currentTime));
+      }
+    });
+
+    incoming.addEventListener('ended', () => {
+      if (this.activeAudioEl === incoming && this.loopMode() === 'playlist') {
+        this.nextTrack();
+      }
+    });
+
+    this.activeAudioEl = incoming;
+    this.currentTimeSeconds.set(0);
+    this.durationSeconds.set(track.durationSeconds || 180);
+
+    const targetVol = this.masterVolume();
+    if (outgoing && !outgoing.paused && crossfadeSeconds > 0.2) {
+      this.fadingAudioEl = outgoing;
+      incoming.volume = 0.02;
+      incoming
+        .play()
+        .then(() => {
+          this.isPlaying.set(true);
+          const steps = Math.max(6, Math.round(crossfadeSeconds * 15));
+          let step = 0;
+          const outStartVol = outgoing.volume;
+          this.fadeTimer = setInterval(() => {
+            step++;
+            const t = Math.min(1, step / steps);
+            incoming.volume = Math.min(1, targetVol * t);
+            outgoing.volume = Math.max(0, outStartVol * (1 - t));
+            if (t >= 1) {
+              if (this.fadeTimer) {
+                clearInterval(this.fadeTimer);
+                this.fadeTimer = null;
+              }
+              try {
+                outgoing.pause();
+              } catch {}
+              this.fadingAudioEl = null;
+            }
+          }, Math.round((crossfadeSeconds * 1000) / steps));
+        })
+        .catch(() => {
+          try {
+            outgoing.pause();
+          } catch {}
+          this.fadingAudioEl = null;
+          this.isPlaying.set(false);
+        });
+    } else {
+      if (outgoing) {
+        try {
+          outgoing.pause();
+        } catch {}
+      }
+      incoming.volume = targetVol;
+      incoming
+        .play()
+        .then(() => {
+          this.isPlaying.set(true);
+        })
+        .catch(() => {
+          this.isPlaying.set(false);
+        });
+    }
+  }
+
+  private getActiveQueueTrackIds(): readonly string[] {
+    const pl = this.activePlaylist();
+    if (pl && pl.trackIds.length > 0) {
+      return pl.trackIds;
+    }
+    return this.tracks().map((t) => t.id);
+  }
+
+  private loadInitialTracks(): readonly LwMusicTrackItem[] {
+    const custom = this.readStorage<LwMusicTrackItem[]>(STORAGE_CUSTOM_TRACKS_KEY, []);
+    return [...DEFAULT_MUSIC_TRACKS, ...custom];
+  }
+
+  private loadInitialPlaylists(): readonly LwGmPlaylistItem[] {
+    const saved = this.readStorage<LwGmPlaylistItem[] | null>(STORAGE_PLAYLISTS_KEY, null);
+    return saved && saved.length > 0 ? saved : DEFAULT_GM_PLAYLISTS;
+  }
+
+  private loadInitialTriggers(): readonly LwGmMusicTriggerItem[] {
+    const saved = this.readStorage<LwGmMusicTriggerItem[] | null>(STORAGE_TRIGGERS_KEY, null);
+    return saved && saved.length > 0 ? saved : DEFAULT_GM_TRIGGERS;
+  }
+
+  private readStorage<T>(key: string, fallback: T): T {
+    try {
+      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+      return raw ? (JSON.parse(raw) as T) : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  private writeStorage(key: string, value: unknown): void {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(key, JSON.stringify(value));
+      }
+    } catch {}
   }
 }

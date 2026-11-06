@@ -117,11 +117,13 @@ export class GlbModelCache {
     if (!id || !sourceFile || !sourceFile.toLowerCase().endsWith('.glb')) return;
     const objBase = `/assets/object-library/models/${id}.glb`;
     const srcBase = `/assets/models-3d/${toBaseGlbUrl(sourceFile)}`;
-    this.lodManifest.set(objBase, {
+    const variants = {
       low: resolveGlbLodUrl(srcBase, 'low'),
       mid: resolveGlbLodUrl(srcBase, 'mid'),
       high: resolveGlbLodUrl(srcBase, 'high'),
-    });
+    };
+    this.lodManifest.set(objBase, variants);
+    this.lodManifest.set(srcBase, variants);
   }
 
   static ensureScene(scene: Scene): void {

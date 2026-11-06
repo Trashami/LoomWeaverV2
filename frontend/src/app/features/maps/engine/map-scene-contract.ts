@@ -132,14 +132,21 @@ export interface LightSourceNode extends LightExtras {
   readonly colorHex: string;
   readonly flicker?: boolean;
   readonly showFixture?: boolean;
+  readonly attachedWallId?: string;
+  readonly wallNormalX?: number;
+  readonly wallNormalZ?: number;
+  readonly wallRotationYRad?: number;
 }
 
 export interface WallOpeningNode {
   readonly id: string;
   readonly type: WallOpeningType;
+  readonly kind?: string;
+  readonly doorStyle?: string;
   readonly name?: string;
   readonly modelUrl?: string;
   readonly thumbnailUrl?: string;
+  readonly tintColorHex?: string;
   readonly t: number;
   readonly widthMeters: number;
   readonly heightMeters?: number;
@@ -156,6 +163,7 @@ export interface MapWallSegmentNode {
   readonly drawMode: WallDrawMode;
   readonly material: string;
   readonly colorHex?: string;
+  readonly tintColorHex?: string;
   readonly modelUrl?: string;
   readonly albedoUrl?: string;
   readonly normalUrl?: string;
@@ -166,6 +174,8 @@ export interface MapWallSegmentNode {
   readonly stampScale?: number;
   readonly connectionOverlap?: number;
   readonly rotationOffsetDeg?: number;
+  readonly wallNormalStrength?: number;
+  readonly wallDisplacementScale?: number;
   readonly perspective: CutawayPerspectiveMode;
   readonly projection: CutawayProjectionMode;
   readonly hasCornerPosts: boolean;
@@ -173,6 +183,8 @@ export interface MapWallSegmentNode {
   readonly points: readonly (readonly [number, number])[];
   readonly openings: readonly WallOpeningNode[];
 }
+
+export type WallSegmentNode = MapWallSegmentNode;
 
 export interface MapPathRibbonNode {
   readonly id: string;
@@ -202,6 +214,13 @@ export interface MapSceneGraphState {
   readonly name: string;
   readonly biome: string;
   readonly revision: number;
+  readonly gridScalePct?: number;
+  readonly gridCols?: number;
+  readonly gridRows?: number;
+  readonly gridMode?: string;
+  readonly gridOffsetX?: number;
+  readonly gridOffsetZ?: number;
+  readonly gridOpacityPct?: number;
   readonly floorAlbedoUrl?: string;
   readonly floorNormalUrl?: string;
   readonly floorHeightUrl?: string;

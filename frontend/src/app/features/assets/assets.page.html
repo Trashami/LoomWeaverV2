@@ -1,11 +1,11 @@
 <div class="lw-page">
   <lw-page-header
-    title="Music, Ambience & Adaptive Soundscape Studio"
-    subtitle="Mix 4 harmonic audio stems in real time, trigger smooth scene crossfades, and synchronize table ambience."
+    title="GM Soundtrack Player, Playlists & Scene Triggers"
+    subtitle="Build campaign playlists from /assets/music-library and assign triggers that automatically play when a campaign opens, a session starts, or a battlemap goes live."
     icon="Music"
   >
     <div pageActions class="lw-assets-actions">
-      <lw-badge [label]="'Active Scene: ' + activePreset().name" tone="emerald" icon="Music" />
+      <lw-badge [label]="'Now Playing: ' + audio.activeTrack().title" tone="emerald" icon="Music" />
       <lw-badge [label]="lastSyncBanner()" tone="gold" />
       <a class="lw-action-link" routerLink="/arcane-screen">Open in Arcane Screen VTT</a>
     </div>
@@ -18,10 +18,35 @@
       [masterVolume]="audio.masterVolume()"
       [stems]="audio.stems()"
       [presets]="audio.presets()"
+      [tracks]="audio.tracks()"
+      [playlists]="audio.playlists()"
+      [triggers]="audio.triggers()"
+      [activeTrackId]="audio.activeTrackId()"
+      [activePlaylistId]="audio.activePlaylistId()"
+      [currentTimeSeconds]="audio.currentTimeSeconds()"
+      [durationSeconds]="audio.durationSeconds()"
+      [loopMode]="audio.loopMode()"
+      [lastTriggerBanner]="audio.lastTriggerBanner()"
+      [availableSessions]="availableSessions()"
+      [availableBattlemaps]="availableBattlemaps()"
+      [activeCampaignName]="store.activeCampaign().name"
       (togglePlaybackRequested)="audio.togglePlayback()"
       (presetTransitionRequested)="handlePresetTransition($event)"
       (stemGainChanged)="handleStemGainChange($event)"
       (masterVolumeChanged)="audio.setMasterVolume($event)"
+      (trackSelected)="handleTrackSelected($event)"
+      (playlistSelected)="handlePlaylistSelected($event)"
+      (nextTrackRequested)="audio.nextTrack()"
+      (previousTrackRequested)="audio.previousTrack()"
+      (seekRequested)="audio.seekTo($event)"
+      (loopModeToggled)="audio.toggleLoopMode()"
+      (createPlaylistRequested)="handleCreatePlaylist($event)"
+      (deletePlaylistRequested)="handleDeletePlaylist($event)"
+      (togglePlaylistTrackRequested)="handleTogglePlaylistTrack($event)"
+      (upsertTriggerRequested)="handleUpsertTrigger($event)"
+      (removeTriggerRequested)="handleRemoveTrigger($event)"
+      (testTriggerRequested)="handleTestTrigger($event)"
+      (customAudioFilesAdded)="audio.addCustomAudioFiles($event)"
     />
   </lw-panel>
 

@@ -14,6 +14,7 @@ import {
   buildFallbackSessionsHelper, formatSessionLocationLabelHelper, mergeServerCampaignMembersHelper,
 } from './loomweaver-seed.data';
 import { LwNotificationService } from './lw-notification.service';
+import { WebAudioAmbienceService } from '../../features/assets/engine/web-audio-ambience.service';
 
 interface ServerCampaign {
   readonly id: number; readonly slug: string; readonly name: string; readonly subtitle: string;
@@ -51,6 +52,7 @@ export class LoomWeaverStoreService {
   private readonly http = inject(HttpClient);
   private readonly fullscreenDice = inject(FullscreenDiceOverlayService);
   private readonly notifications = inject(LwNotificationService);
+  private readonly audio = inject(WebAudioAmbienceService);
 
   readonly navigationItems = signal<readonly NavDestination[]>(LW_NAVIGATION);
   readonly campaigns = signal<readonly CampaignVm[]>([NO_CAMPAIGN]);
@@ -181,6 +183,7 @@ export class LoomWeaverStoreService {
     this.activeCampaignId.set(validated.id); this.inspectedEntityKey.set(null); this.viewerRole.set(this.isUserGmForCampaign(validated) ? 'gm' : 'players');
     try { if (typeof localStorage !== 'undefined') localStorage.setItem(ACTIVE_CAMPAIGN_STORAGE_KEY, String(validated.id)); } catch {}
     this.refreshCampaignDashboard(); this.loadCampaignSessions(validated.id); this.loadSessionAttachments(validated.id); this.loadCampaignRulesFromServer(validated.id); this.loadCampaignMembersFromServer(validated.id);
+    if (validated.id > 0) this.audio.fireTrigger('campaign', String(validated.id), validated.name);
   }
   loadCampaignMembersFromServer(campaignId = this.activeCampaignId()): void {
     if (campaignId <= 0) return;
@@ -339,7 +342,11 @@ export class LoomWeaverStoreService {
     this.activeSessionId.set(sessionId);
     const cid = this.activeCampaignId();
     try { if (typeof localStorage !== 'undefined' && cid > 0) localStorage.setItem(`${ACTIVE_SESSION_STORAGE_PREFIX}${cid}`, sessionId); } catch {}
-    if (syncServer && cid > 0) this.http.post(`/api/v2/campaigns/${cid}/active-session`, { sessionId }).subscribe({ error: () => {} });
+    if (syncServer && cid > 0) {
+      this.http.post(`/api/v2/campaigns/${cid}/active-session`, { sessionId }).subscribe({ error: () => {} });
+      const sessLabel = this.sessions().find((s) => s.sessionId === sessionId)?.label || sessionId;
+      this.audio.fireTrigger('session', sessionId, sessLabel, true);
+    }
   }
 
   createSession(req: { title: string; summary: string; locationLabel: string }): void {

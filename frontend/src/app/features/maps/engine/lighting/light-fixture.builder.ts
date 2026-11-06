@@ -192,17 +192,26 @@ export class LightFixtureBuilder {
   }
 
   private static collectCasters(scene: Scene): AbstractMesh[] {
+    let totalVerts = 0;
+    const MAX_VERTS = 90000;
     return scene.meshes.filter((m) => {
       const matName = m.material?.name ?? '';
       if (matName.startsWith('lw-stamp-decal-mat-') || matName.startsWith('lw-token-glowmat-')) {
         return false;
       }
-      return (
+      const vCount = m.getTotalVertices();
+      if (vCount <= 0 || vCount > 30000 || totalVerts + vCount > MAX_VERTS) {
+        return false;
+      }
+      const isCaster =
         m.name.startsWith('lw-wall-') ||
         m.name.startsWith('lw-door-') ||
         m.name.startsWith('lw-stamp-') ||
-        (Boolean(m.metadata?.lwNodeName) && !m.name.startsWith('lw-light-') && !m.name.startsWith('mapLightSconce'))
-      );
+        (Boolean(m.metadata?.lwNodeName) && !m.name.startsWith('lw-light-') && !m.name.startsWith('mapLightSconce'));
+      if (isCaster) {
+        totalVerts += vCount;
+      }
+      return isCaster;
     });
   }
 

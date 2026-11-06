@@ -425,20 +425,26 @@ export class WallMeshBuilder {
 
           if (wallTpl) {
             const primaryRawSpan = Math.max(
-              1.2,
+              1.6,
               wallTpl.rawDepth > wallTpl.rawWidth * 1.35 ? wallTpl.rawDepth : wallTpl.rawWidth,
             );
-            const rawCourseH = Math.max(0.9, Math.min(2.4, wallTpl.rawHeight));
+            const rawCourseH = Math.max(1.2, Math.min(2.6, wallTpl.rawHeight));
             const hScale = (stampScale * stretchX) / texDensity;
             const vScale = (stampScale * stretchY) / texDensity;
-            const idealChunkLen = Math.max(0.65, Math.min(4.2, primaryRawSpan * hScale));
-            const idealCourseH = Math.max(0.55, Math.min(3.6, rawCourseH * vScale));
+            const idealChunkLen = Math.max(1.35, Math.min(4.5, primaryRawSpan * hScale));
+            const idealCourseH = Math.max(1.2, Math.min(3.8, rawCourseH * vScale));
 
-            const chunkCount = Math.max(1, Math.round(extendedSpanLen / idealChunkLen));
+            const chunkCount = Math.min(
+              12,
+              Math.max(1, Math.round(extendedSpanLen / idealChunkLen)),
+            );
             const chunkLen = extendedSpanLen / chunkCount;
             const chunkRenderW = chunkLen * (1 + Math.max(0.03, overlapFrac * 0.22));
 
-            const vCourseCount = Math.max(1, Math.round(effectiveHeight / idealCourseH));
+            const vCourseCount = Math.min(
+              2,
+              Math.max(1, Math.round(effectiveHeight / idealCourseH)),
+            );
             const courseH = effectiveHeight / vCourseCount;
             const courseRenderH = courseH * (vCourseCount > 1 ? 1.04 : 1.0);
 
@@ -468,6 +474,10 @@ export class WallMeshBuilder {
                 meshCount++;
               }
             }
+          } else if (isGlbWall && !GlbModelCache.hasFailed(wallUrl)) {
+            // While the 3D GLB wall stamp is still downloading/decoding, skip generating
+            // temporary subdivided procedural wall geometry + DynamicTextures that would be immediately discarded.
+            continue;
           } else {
             const spanMeshes = buildProceduralWallSpan(scene, wall, {
               spanId: `${i}-${sIdx}`,
@@ -505,17 +515,23 @@ export class WallMeshBuilder {
             const bridgeSpanLen = cutoutSpanLen + Math.min(0.28, effectiveThickness * 0.42);
             if (wallTpl) {
               const primaryRawSpan = Math.max(
-                1.2,
+                1.6,
                 wallTpl.rawDepth > wallTpl.rawWidth * 1.35 ? wallTpl.rawDepth : wallTpl.rawWidth,
               );
-              const rawCourseH = Math.max(0.9, Math.min(2.4, wallTpl.rawHeight));
+              const rawCourseH = Math.max(1.2, Math.min(2.6, wallTpl.rawHeight));
               const hScale = (stampScale * stretchX) / texDensity;
               const vScale = (stampScale * stretchY) / texDensity;
-              const idealChunkLen = Math.max(0.65, Math.min(4.2, primaryRawSpan * hScale));
-              const idealCourseH = Math.max(0.55, Math.min(3.6, rawCourseH * vScale));
-              const lChunkCount = Math.max(1, Math.round(bridgeSpanLen / idealChunkLen));
+              const idealChunkLen = Math.max(1.35, Math.min(4.5, primaryRawSpan * hScale));
+              const idealCourseH = Math.max(1.2, Math.min(3.8, rawCourseH * vScale));
+              const lChunkCount = Math.min(
+                2,
+                Math.max(1, Math.round(bridgeSpanLen / idealChunkLen)),
+              );
               const lChunkLen = bridgeSpanLen / lChunkCount;
-              const lCourseCount = Math.max(1, Math.round(lintelH / idealCourseH));
+              const lCourseCount = Math.min(
+                2,
+                Math.max(1, Math.round(lintelH / idealCourseH)),
+              );
               const lCourseH = lintelH / lCourseCount;
               const lintelStartX = doorX - ux * (bridgeSpanLen * 0.5);
               const lintelStartZ = doorZ - uz * (bridgeSpanLen * 0.5);
@@ -549,7 +565,7 @@ export class WallMeshBuilder {
                   meshCount++;
                 }
               }
-            } else {
+            } else if (!isGlbWall || GlbModelCache.hasFailed(wallUrl)) {
               const lintelMeshes = buildProceduralWallSpan(scene, wall, {
                 spanId: `${i}-lintel-${op.id}`,
                 centerX: doorX,

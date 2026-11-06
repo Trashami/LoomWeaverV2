@@ -81,11 +81,11 @@ export class SceneLightingController {
       dirLight.shadowMinZ = 1;
       dirLight.shadowMaxZ = 135;
 
-      shadowGen = new ShadowGenerator(2048, dirLight);
+      shadowGen = new ShadowGenerator(1024, dirLight);
       shadowGen.usePercentageCloserFiltering = true;
-      shadowGen.filteringQuality = ShadowGenerator.QUALITY_MEDIUM;
-      shadowGen.bias = 0.0012;
-      shadowGen.normalBias = 0.015;
+      shadowGen.filteringQuality = ShadowGenerator.QUALITY_LOW;
+      shadowGen.bias = 0.0016;
+      shadowGen.normalBias = 0.018;
       this.shadowGenByScene.set(scene, shadowGen);
     } else {
       dirLight.direction.copyFrom(lightDir);
@@ -144,11 +144,16 @@ export class SceneLightingController {
     }
 
     shadowMap.renderList = [];
+    let totalShadowVerts = 0;
+    const MAX_SHADOW_VERTS = 180000;
     for (const mesh of scene.meshes) {
       if (isScatterMesh(mesh)) continue;
       if (isNonShadowCastingVttMesh(mesh)) {
         continue;
       }
+      const vCount = mesh.getTotalVertices();
+      if (vCount <= 0 || vCount > 45000) continue;
+      if (totalShadowVerts + vCount > MAX_SHADOW_VERTS) continue;
       if (
         mesh.name.startsWith('lw-wall-') ||
         mesh.name.startsWith('lw-door-') ||
@@ -157,6 +162,7 @@ export class SceneLightingController {
         (Boolean(mesh.metadata?.lwNodeName) && !mesh.name.startsWith('lw-light-'))
       ) {
         shadowMap.renderList.push(mesh);
+        totalShadowVerts += vCount;
       }
     }
   }

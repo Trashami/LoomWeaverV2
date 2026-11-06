@@ -857,10 +857,10 @@ export class BabylonMapStageService {
     this.updateGhostMeshAt(h.x, h.z);
   }
 
-  configureGrid(config: FloorGridConfig): void {
+  configureGrid(config: FloorGridConfig, skipSceneRebuild = false): void {
     if (!this.scene) return;
     TerrainMeshBuilder.configureGrid(this.scene, config);
-    if (this.lastState) {
+    if (!skipSceneRebuild && this.lastState) {
       WallMeshBuilder.rebuildWallMeshes(this.scene, this.lastState.walls, this.hideGmSecrets);
       this.rebuildStamps(this.scene, this.lastState.stamps);
       SceneLightingController.refreshShadowCasters(this.scene);

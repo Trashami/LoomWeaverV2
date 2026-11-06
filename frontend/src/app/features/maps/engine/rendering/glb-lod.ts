@@ -6,12 +6,12 @@ const LOD_SUFFIX = /_(low|mid|high)\.glb$/i;
 export function lodTierForQualityPreset(preset: string): GlbLodTier {
   switch (preset) {
     case 'Cinematic 3D':
-      return 'high';
+      return 'mid';
     case 'Performance 3D':
     case 'Classic 2D':
       return 'low';
     default:
-      return 'mid';
+      return 'low';
   }
 }
 
@@ -60,7 +60,10 @@ export function glbLodCandidates(url: string, tier: GlbLodTier, manifest?: Reado
   const known = manifest?.get(base);
   if (known) {
     const listed = TIER_FALLBACK[tier].map((t) => known[t]).filter((u): u is string => !!u);
-    return Array.from(new Set([...listed, ...directTierUrls, base]));
+    if (listed.length > 0) {
+      return Array.from(new Set([...listed, ...directTierUrls]));
+    }
+    return Array.from(new Set([...directTierUrls, base]));
   }
   return Array.from(new Set([...directTierUrls, base]));
 }

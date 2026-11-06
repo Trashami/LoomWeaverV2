@@ -669,10 +669,16 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.syncGhostCursorToStage();
   }
 
+  private viewportMountTimer: ReturnType<typeof setTimeout> | null = null;
+
   private mountStudioViewports(): void {
     this.pngApi.ensureManifestLoaded();
     this.studio.ensureStudioResourcesLoaded();
-    setTimeout(() => {
+    if (this.viewportMountTimer !== null) {
+      clearTimeout(this.viewportMountTimer);
+    }
+    this.viewportMountTimer = setTimeout(() => {
+      this.viewportMountTimer = null;
       const canvas = this.canvasRef?.nativeElement;
       if (canvas) {
         this.stage.mountCanvas(
@@ -686,13 +692,16 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         );
         this.stage.setQualityPreset(this.activeQuality());
         this.stage.setCameraMode(this.cameraView());
-        this.stage.configureGrid({
-          mode: this.gridSizeLabel(),
-          scaleFactor: this.gridScalePct() / 100,
-          offsetX: this.gridOffsetX(),
-          offsetZ: this.gridOffsetZ(),
-          opacity: this.gridOpacityPct() / 100,
-        });
+        this.stage.configureGrid(
+          {
+            mode: this.gridSizeLabel(),
+            scaleFactor: this.gridScalePct() / 100,
+            offsetX: this.gridOffsetX(),
+            offsetZ: this.gridOffsetZ(),
+            opacity: this.gridOpacityPct() / 100,
+          },
+          true,
+        );
         this.wireLightDrag();
         this.wireStampDrag();
         this.syncSurfaceLock();
@@ -897,6 +906,8 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.store.setCampaign(summary.campaignId);
     this.dimensionMode.set(summary.dimensionMode);
     this.cameraView.set(summary.dimensionMode === '2d' ? 'real-2d' : 'isometric');
+    this.stage.resetTerrainElevations();
+    this.stage.clearFloorPaint();
     this.sceneGraph.set(createBlankSceneGraph(summary.name, summary.sceneKey));
     this.selectedPlacedId.set(null);
     this.selectedPlacedKind.set(null);
@@ -908,6 +919,12 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.showLandingHub.set(false);
     this.mountStudioViewports();
     this.studio.loadSceneDocument(summary.campaignId, summary.sceneKey, (document) => {
+      if (!document.customElevations || document.customElevations.length === 0) {
+        this.stage.resetTerrainElevations();
+      }
+      if (!document.floorPaintDabs || document.floorPaintDabs.length === 0) {
+        this.stage.clearFloorPaint();
+      }
       this.sceneGraph.set(document);
       this.mapTitle.set(document.name);
       this.studio.mapTitle.set(document.name);
@@ -937,13 +954,16 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       if (document.gridOpacityPct !== undefined) {
         this.gridOpacityPct.set(document.gridOpacityPct);
       }
-      this.stage.configureGrid({
-        mode: this.gridSizeLabel(),
-        scaleFactor: this.gridScalePct() / 100,
-        offsetX: this.gridOffsetX(),
-        offsetZ: this.gridOffsetZ(),
-        opacity: this.gridOpacityPct() / 100,
-      });
+      this.stage.configureGrid(
+        {
+          mode: this.gridSizeLabel(),
+          scaleFactor: this.gridScalePct() / 100,
+          offsetX: this.gridOffsetX(),
+          offsetZ: this.gridOffsetZ(),
+          opacity: this.gridOpacityPct() / 100,
+        },
+        true,
+      );
       this.stage.syncSceneGraph(document);
       this.render2dViewport();
     });

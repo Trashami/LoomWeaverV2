@@ -2,6 +2,7 @@ import '@babylonjs/loaders/glTF';
 import {
   AbstractMesh,
   Color3,
+  DracoCompression,
   Mesh,
   MeshoptCompression,
   PBRMaterial,
@@ -9,7 +10,6 @@ import {
   SceneLoader,
   StandardMaterial,
   TransformNode,
-  Vector3,
   VertexBuffer,
 } from '@babylonjs/core';
 
@@ -59,11 +59,44 @@ export class GlbModelCache {
   private static sharedGhostMat: StandardMaterial | null = null;
   private static tintedMatCache = new Map<string, StandardMaterial>();
   private static decoderConfigured = false;
-  private static lodTier: GlbLodTier = 'mid';
+  private static lodTier: GlbLodTier = 'low';
   private static lodManifest = new Map<string, Partial<Record<GlbLodTier, string>>>();
   private static catalogManifestPromise: Promise<void> | null = null;
+  private static catalogIdSet = new Set<string>();
+  private static activeLoadCount = 0;
+  private static readonly MAX_CONCURRENT_LOADS = 2;
+  private static loadQueue: Array<() => void> = [];
   /** Bumped on every eviction so loads started under an old tier are discarded on completion. */
   private static generation = 0;
+
+  private static acquireLoadSlot(): Promise<void> {
+    if (this.activeLoadCount < this.MAX_CONCURRENT_LOADS) {
+      this.activeLoadCount++;
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => {
+      this.loadQueue.push(() => {
+        this.activeLoadCount++;
+        resolve();
+      });
+    });
+  }
+
+  private static releaseLoadSlot(): void {
+    this.activeLoadCount = Math.max(0, this.activeLoadCount - 1);
+    const next = this.loadQueue.shift();
+    if (next) {
+      next();
+    }
+  }
+
+  static hasFailed(modelUrl: string): boolean {
+    if (!modelUrl || !modelUrl.toLowerCase().endsWith('.glb')) return true;
+    const baseUrl = toBaseGlbUrl(modelUrl);
+    if (this.failedUrls.has(baseUrl)) return true;
+    const candidates = glbLodCandidates(baseUrl, this.lodTier, this.lodManifest);
+    return candidates.length > 0 && candidates.every((c) => this.failedUrls.has(c));
+  }
 
   /**
    * Ensures `/assets/object-library/index.json` (`obj-<hash>` -> `sourceFile`) and
@@ -80,6 +113,9 @@ export class GlbModelCache {
       .then((r) => (r.ok ? r.json() : null))
       .then((doc: { assets?: Array<{ id?: string; sourceFile?: string }> } | null) => {
         for (const a of doc?.assets ?? []) {
+          if (a.id) {
+            this.catalogIdSet.add(a.id);
+          }
           if (a.id && a.sourceFile) {
             this.registerSourceFileLodMapping(a.id, a.sourceFile);
           }
@@ -130,6 +166,11 @@ export class GlbModelCache {
   static ensureScene(scene: Scene): void {
     void this.ensureCatalogManifestsLoaded();
     if (!this.decoderConfigured) {
+      try {
+        DracoCompression.DefaultNumWorkers = 1;
+      } catch {
+        // Ignore if DracoCompression worker pool is already initialized
+      }
       try {
         MeshoptCompression.Configuration.decoder = {
           url: '/assets/object-library/meshopt_decoder.js',
@@ -297,11 +338,35 @@ export class GlbModelCache {
   ): Promise<CachedGlbTemplate | null> {
     await this.ensureCatalogManifestsLoaded();
     if (scene.isDisposed || gen !== this.generation) return null;
+
+    // Fast-fail legacy/deleted object-library hashes that are not in the catalog or manifest
+    const objMatch = baseUrl.match(/\/object-library\/models\/(obj-[a-f0-9]+)\.glb$/i);
+    if (
+      objMatch &&
+      this.catalogIdSet.size > 0 &&
+      !this.catalogIdSet.has(objMatch[1]) &&
+      !this.lodManifest.has(baseUrl)
+    ) {
+      this.failedUrls.add(baseUrl);
+      for (const c of glbLodCandidates(baseUrl, this.lodTier, this.lodManifest)) {
+        this.failedUrls.add(c);
+      }
+      return null;
+    }
+
     const candidates = glbLodCandidates(baseUrl, this.lodTier, this.lodManifest);
     for (const candidateUrl of candidates) {
       if (scene.isDisposed || gen !== this.generation) return null;
       if (this.failedUrls.has(candidateUrl)) continue;
-      const tpl = await this.loadGlbTemplateAsync(scene, baseUrl, candidateUrl, gen);
+      await this.acquireLoadSlot();
+      let tpl: CachedGlbTemplate | null = null;
+      try {
+        if (!scene.isDisposed && gen === this.generation) {
+          tpl = await this.loadGlbTemplateAsync(scene, baseUrl, candidateUrl, gen);
+        }
+      } finally {
+        this.releaseLoadSlot();
+      }
       if (gen !== this.generation) return null;
       if (tpl) {
         this.cache.set(baseUrl, tpl);
@@ -361,56 +426,9 @@ export class GlbModelCache {
       const postBounds = templatePivot.getHierarchyBoundingVectors(true);
       const baseOffsetY = Number.isFinite(postBounds.min.y) ? -postBounds.min.y : 0;
 
-      // Measure vertical silhouette profile across 8 height bands so walls attach flush into doors
-      // with flared rocky plinths, recessed jambs, or arched upper frames.
-      const bandCount = 8;
-      const bandMaxHalfSpan = new Float32Array(bandCount);
-      const useZAsLength = rawDepth > rawWidth * 1.35;
-      const primaryRawSpan = Math.max(0.1, useZAsLength ? rawDepth : rawWidth);
-      const minY = Number.isFinite(postBounds.min.y) ? postBounds.min.y : 0;
-      const tmpVec = new Vector3();
-
-      for (const m of result.meshes) {
-        if (!(m instanceof Mesh) || m.getTotalVertices() === 0) continue;
-        const pos = m.getVerticesData(VertexBuffer.PositionKind);
-        if (!pos) continue;
-        const wm = m.computeWorldMatrix(true);
-        for (let vi = 0; vi < pos.length; vi += 3) {
-          Vector3.TransformCoordinatesFromFloatsToRef(pos[vi], pos[vi + 1], pos[vi + 2], wm, tmpVec);
-          const ny = Math.max(0, Math.min(0.999, (tmpVec.y - minY) / rawHeight));
-          const bIdx = Math.floor(ny * bandCount);
-          const halfCoord = Math.abs(useZAsLength ? tmpVec.z : tmpVec.x) / primaryRawSpan;
-          if (halfCoord > bandMaxHalfSpan[bIdx]) {
-            bandMaxHalfSpan[bIdx] = halfCoord;
-          }
-        }
-      }
-
-      const halfSpanProfile: number[] = [];
-      for (let b = 0; b < bandCount; b++) {
-        let val = bandMaxHalfSpan[b];
-        if (val < 0.05) {
-          for (let d = 1; d < bandCount; d++) {
-            if (b - d >= 0 && bandMaxHalfSpan[b - d] >= 0.05) {
-              val = bandMaxHalfSpan[b - d];
-              break;
-            }
-            if (b + d < bandCount && bandMaxHalfSpan[b + d] >= 0.05) {
-              val = bandMaxHalfSpan[b + d];
-              break;
-            }
-          }
-        }
-        halfSpanProfile.push(Math.max(0.18, Math.min(0.5, val || 0.5)));
-      }
-
-      const midHalfSpan = Math.min(
-        halfSpanProfile[2],
-        halfSpanProfile[3],
-        halfSpanProfile[4],
-        halfSpanProfile[5],
-      );
-      const waistWidthRatio = Math.max(0.58, Math.min(1.0, midHalfSpan * 2.0));
+      // Lightweight default profile without reading/allocating CPU vertex arrays on 200k+ vertex GLBs
+      const halfSpanProfile: readonly number[] = [0.46, 0.46, 0.45, 0.45, 0.45, 0.45, 0.45, 0.44];
+      const waistWidthRatio = 0.9;
 
       templatePivot.setEnabled(false);
 
@@ -516,6 +534,8 @@ export class GlbModelCache {
       if (m.isVerticesDataPresent(VertexBuffer.ColorKind)) {
         m.removeVerticesData(VertexBuffer.ColorKind);
       }
+      // Skip CPU normal buffer clone on high-poly photogrammetry wall scans (>25k vertices) to avoid OOM
+      if (m.getTotalVertices() > 25000) continue;
       const norms = m.getVerticesData(VertexBuffer.NormalKind);
       if (!norms || norms.length < 3) continue;
       const updated = new Float32Array(norms.length);

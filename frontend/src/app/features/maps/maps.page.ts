@@ -492,7 +492,13 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
 
   readonly doorWallPositionPct = signal<number>(50);
   readonly doorWidthMeters = signal<number>(2.4);
-  readonly doorHeightMeters = signal<number>(2.6);
+  readonly doorHeightMeters = signal<number>(2.4);
+  readonly doorMaxHeightMeters = computed<number>(() => {
+    const wallId = this.selectedPlacedWallId();
+    const walls = this.sceneGraph().walls ?? [];
+    const targetWall = wallId ? walls.find((w) => w.id === wallId) : walls[walls.length - 1];
+    return Math.max(2.4, targetWall?.heightMeters ?? this.selectedNode().heightSquares * 1.5);
+  });
   readonly doorIsOpen = signal<boolean>(false);
   readonly doorHingeSide = signal<DoorHingeSide>('left');
   readonly doorSwingDirection = signal<DoorSwingDirection>('inward');
@@ -1879,6 +1885,8 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     const isExplicitGlb = Boolean(
       node.modelUrl && !node.modelUrl.startsWith('proc-door://'),
     );
+    const clampedDoorH = Math.min(hit.wallHeight, this.doorHeightMeters());
+    this.doorHeightMeters.set(clampedDoorH);
     const newOpening: WallOpeningNode = {
       id: doorId,
       type: resolvedDoor.style === 'archway' ? 'archway' : resolvedDoor.style === 'bars' ? 'bars' : 'door',
@@ -1891,7 +1899,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       tintColorHex: node.colorHex !== '#ffffff' ? node.colorHex : undefined,
       t: hit.t,
       widthMeters: this.doorWidthMeters(),
-      heightMeters: this.doorHeightMeters(),
+      heightMeters: clampedDoorH,
       isOpen: this.doorIsOpen(),
       hingeSide: this.doorHingeSide(),
       swingDirection: this.doorSwingDirection(),

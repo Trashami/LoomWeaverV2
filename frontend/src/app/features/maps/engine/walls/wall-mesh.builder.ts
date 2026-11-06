@@ -212,17 +212,25 @@ export class WallMeshBuilder {
     }
 
     WallSurfacePaint.clear(scene);
-    scene.transformNodes
-      .filter((n) => n.name.startsWith('lw-wall-node-') || n.name.startsWith('lw-door-node-'))
-      .forEach((n) => n.dispose(false, false));
-    scene.meshes
-      .filter(
-        (m) =>
-          m.name.startsWith('lw-wall-') ||
-          m.name.startsWith('lw-portal-') ||
-          m.name.startsWith('lw-door-'),
-      )
-      .forEach((m) => m.dispose(false, false));
+    const oldWallNodes = scene.transformNodes.filter(
+      (n) => n.name.startsWith('lw-wall-node-') || n.name.startsWith('lw-door-node-'),
+    );
+    for (const n of oldWallNodes) {
+      if (!n.isDisposed()) {
+        n.dispose(false, false);
+      }
+    }
+    const oldWallMeshes = scene.meshes.filter(
+      (m) =>
+        m.name.startsWith('lw-wall-') ||
+        m.name.startsWith('lw-portal-') ||
+        m.name.startsWith('lw-door-'),
+    );
+    for (const m of oldWallMeshes) {
+      if (!m.isDisposed()) {
+        m.dispose(false, false);
+      }
+    }
 
     if (!walls || walls.length === 0) {
       this.builtWallSigByScene.set(scene, { sig, count: 0 });
@@ -336,7 +344,9 @@ export class WallMeshBuilder {
                 ? (op.t - segGlobalStartT) / (segGlobalEndT - segGlobalStartT)
                 : 0.5;
             const doorWidth = Math.max(0.75, op.widthMeters || 1.5);
-            const doorH = Math.min(height, op.heightMeters ?? Math.min(height, 2.5));
+            const rawDoorH = Math.min(height, op.heightMeters ?? Math.min(height, 2.6));
+            // If door height is within 0.14m of the wall top, snap cleanly to full wall height
+            const doorH = height - rawDoorH <= 0.14 ? height : rawDoorH;
             const doorX = a[0] + dx * localCenter;
             const doorZ = a[1] + dz * localCenter;
             const groundY = TerrainMeshBuilder.sampleElevationAt(scene, doorX, doorZ);
@@ -491,7 +501,8 @@ export class WallMeshBuilder {
           const cutoutSpanLen = Math.max(doorWidth * 0.88, (cut.endLocal - cut.startLocal) * totalLen);
 
           if (wallTopH - doorH > 0.14) {
-            const lintelH = wallTopH - doorH + 0.05;
+            const lintelH = wallTopH - doorH + 0.06;
+            const bridgeSpanLen = cutoutSpanLen + Math.min(0.28, effectiveThickness * 0.42);
             if (wallTpl) {
               const primaryRawSpan = Math.max(
                 1.2,
@@ -502,24 +513,25 @@ export class WallMeshBuilder {
               const vScale = (stampScale * stretchY) / texDensity;
               const idealChunkLen = Math.max(0.65, Math.min(4.2, primaryRawSpan * hScale));
               const idealCourseH = Math.max(0.55, Math.min(3.6, rawCourseH * vScale));
-              const lChunkCount = Math.max(1, Math.round(cutoutSpanLen / idealChunkLen));
-              const lChunkLen = cutoutSpanLen / lChunkCount;
+              const lChunkCount = Math.max(1, Math.round(bridgeSpanLen / idealChunkLen));
+              const lChunkLen = bridgeSpanLen / lChunkCount;
               const lCourseCount = Math.max(1, Math.round(lintelH / idealCourseH));
               const lCourseH = lintelH / lCourseCount;
-              const lintelStartX = doorX - ux * (cutoutSpanLen * 0.5);
-              const lintelStartZ = doorZ - uz * (cutoutSpanLen * 0.5);
+              const lintelStartX = doorX - ux * (bridgeSpanLen * 0.5);
+              const lintelStartZ = doorZ - uz * (bridgeSpanLen * 0.5);
 
               for (let lvIdx = 0; lvIdx < lCourseCount; lvIdx++) {
                 for (let lcIdx = 0; lcIdx < lChunkCount; lcIdx++) {
                   const uMid = (lcIdx + 0.5) / lChunkCount;
-                  const lcx = lintelStartX + ux * (cutoutSpanLen * uMid);
-                  const lcz = lintelStartZ + uz * (cutoutSpanLen * uMid);
+                  const lcx = lintelStartX + ux * (bridgeSpanLen * uMid);
+                  const lcz = lintelStartZ + uz * (bridgeSpanLen * uMid);
+                  const lcy = TerrainMeshBuilder.sampleElevationAt(scene, lcx, lcz);
                   const lintelInst = GlbModelCache.instantiateClone(
                     scene,
                     wallTpl,
                     `lw-wall-node-lintel-${wall.id}-${i}-${op.id}-${lvIdx}-${lcIdx}`,
-                    lChunkLen * 1.04,
-                    lCourseH * 1.04,
+                    lChunkLen * (1 + Math.max(0.04, overlapFrac * 0.22)),
+                    lCourseH * 1.05,
                     effectiveThickness,
                     false,
                     false,
@@ -530,7 +542,7 @@ export class WallMeshBuilder {
                   );
                   lintelInst.position.set(
                     lcx,
-                    groundY + offsetY + doorH - 0.04 + lvIdx * lCourseH,
+                    lcy + offsetY + doorH - 0.05 + lvIdx * lCourseH,
                     lcz,
                   );
                   lintelInst.rotation.y = angleY;
@@ -543,12 +555,12 @@ export class WallMeshBuilder {
                 centerX: doorX,
                 centerZ: doorZ,
                 groundY: groundY + offsetY,
-                baseElevationY: doorH - 0.04,
-                spanLength: cutoutSpanLen,
+                baseElevationY: doorH - 0.05,
+                spanLength: bridgeSpanLen,
                 spanHeight: lintelH,
                 thickness: effectiveThickness,
                 angleY,
-                worldStartDistMeters: segStartMeters + localCenter * totalLen - cutoutSpanLen * 0.5,
+                worldStartDistMeters: segStartMeters + localCenter * totalLen - bridgeSpanLen * 0.5,
                 style: wallStyle,
                 includePlinth: false,
                 includeCoping: true,

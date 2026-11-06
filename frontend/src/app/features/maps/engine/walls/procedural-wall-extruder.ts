@@ -27,7 +27,7 @@ export function getOrCreateWallTrimMaterial(
 ): BABYLON.PBRMaterial {
   const key = `${scene.uid}|trim|${style.id}`;
   const cached = cachedTrimMaterials.get(key);
-  if (cached) return cached;
+  if (cached && cached.getScene() === scene) return cached;
 
   const baseMat = getOrCreateProceduralWallMaterial(scene, style, undefined, 1.15);
   const mat = new BABYLON.PBRMaterial(`procWallTrim_${style.id}`, scene);

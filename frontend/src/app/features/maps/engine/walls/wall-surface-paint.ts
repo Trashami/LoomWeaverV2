@@ -80,19 +80,20 @@ class WorldSurfacePaintPlugin extends MaterialPluginBase {
     const code = `
       #ifdef LW_WORLD_SURFACE_PAINT
         if (lwPaintDabCount > 0.5) {
-          int dabTotal = int(min(lwPaintDabCount, 256.0));
-          for (int di = 0; di < 256; di++) {
+          int dabTotal = int(min(lwPaintDabCount, 128.0));
+          for (int di = 0; di < 128; di++) {
             if (di >= dabTotal) {
               break;
             }
-            vec4 dabPosRad = texelFetch(lwPaintDabSampler, ivec2(di, 0), 0);
+            float uCoord = (float(di) + 0.5) / 256.0;
+            vec4 dabPosRad = texture(lwPaintDabSampler, vec2(uCoord, 0.25));
             float dabR = max(0.05, dabPosRad.w);
             vec3 dVec = vPositionW.xyz - dabPosRad.xyz;
             // Fast axis-aligned bounding box rejection before length()
             if (abs(dVec.x) < dabR && abs(dVec.y) < dabR && abs(dVec.z) < dabR) {
               float dist = length(dVec);
               if (dist < dabR) {
-                vec4 dabColMeta = texelFetch(lwPaintDabSampler, ivec2(di, 1), 0);
+                vec4 dabColMeta = texture(lwPaintDabSampler, vec2(uCoord, 0.75));
                 float packed = dabColMeta.w;
                 float opacity = clamp(floor(packed) / 100.0, 0.01, 1.0);
                 float hardness = clamp( fract(packed) * 2.0, 0.0, 0.96 );
@@ -156,6 +157,7 @@ export class WallSurfacePaint {
 
   static attachToSceneMaterials(scene: Scene): void {
     const buf = this.getOrCreateSceneBuffer(scene);
+    if (buf.dabs.length === 0) return;
     for (const m of scene.meshes) {
       const isWallOrDoor =
         m.metadata?.lwKind === 'wall' ||
@@ -233,7 +235,6 @@ export class WallSurfacePaint {
 
   static apply(scene: Scene, _wallId: string, dab: WallPaintDab): void {
     const buf = this.getOrCreateSceneBuffer(scene);
-    this.attachToSceneMaterials(scene);
     if (buf.dabs.length >= MAX_WORLD_PAINT_DABS) {
       buf.dabs.shift();
       for (let i = 0; i < buf.dabs.length; i++) {
@@ -244,6 +245,7 @@ export class WallSurfacePaint {
     buf.dabs.push(dab);
     this.writeDabToBuffer(buf.data, idx, dab);
     buf.texture.update(buf.data);
+    this.attachToSceneMaterials(scene);
 
     // If the dab reaches near the floor (bottom of wall or directly on floor),
     // also bleed onto the 2D/3D floor composite canvas so top-down 2D & floor persistence stay synced!

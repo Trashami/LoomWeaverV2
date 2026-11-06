@@ -792,18 +792,53 @@
 
           <div class="lw-map-inspector__slider-block">
             <div class="lw-map-inspector__slider-head">
-              <span>Door &amp; Cutout Height</span>
-              <strong>{{ doorHeightMeters().toFixed(1) }}m</strong>
+              <span>Door Height (Smaller = Wall Bricks Overhead)</span>
+              <strong>
+                {{
+                  doorHeightMeters() >= doorMaxHeightMeters() - 0.14
+                    ? 'Full Wall Height (' + doorMaxHeightMeters().toFixed(1) + 'm)'
+                    : doorHeightMeters().toFixed(1) + 'm (Bricks Overhead)'
+                }}
+              </strong>
             </div>
             <input
               type="range"
-              min="1.8"
-              max="5.0"
-              step="0.2"
+              min="1.5"
+              [max]="doorMaxHeightMeters()"
+              step="0.1"
               class="lw-map-inspector__range"
               [value]="doorHeightMeters()"
               (input)="onNumInput($event, doorHeightChange)"
             />
+            <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="doorHeightMeters() <= 2.25"
+                (click)="doorHeightChange.emit(2.0)"
+              >
+                Low Door (2.0m · Bricks Over)
+              </button>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="doorHeightMeters() > 2.25 && doorHeightMeters() < doorMaxHeightMeters() - 0.14"
+                (click)="doorHeightChange.emit(2.6)"
+              >
+                Standard (2.6m · Bricks Over)
+              </button>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="doorHeightMeters() >= doorMaxHeightMeters() - 0.14"
+                (click)="doorHeightChange.emit(doorMaxHeightMeters())"
+              >
+                Full Wall Height ({{ doorMaxHeightMeters().toFixed(1) }}m)
+              </button>
+            </div>
           </div>
 
           <div class="lw-map-inspector__toggle-row">

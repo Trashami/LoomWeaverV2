@@ -135,7 +135,7 @@ export function getOrCreateProceduralWallMaterial(
 ): BABYLON.PBRMaterial {
   const cacheKey = `${scene.uid}|${style.id}|${customTintHex || ''}|${normalStrength.toFixed(2)}`;
   const existing = cachedWallMaterials.get(cacheKey);
-  if (existing) return existing;
+  if (existing && existing.getScene() === scene) return existing;
 
   const size = 256;
   const albedoTex = new BABYLON.DynamicTexture(`procWallAlbedo_${style.id}`, size, scene, true);

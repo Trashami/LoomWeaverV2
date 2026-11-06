@@ -201,6 +201,7 @@ export class LwMapPropertiesInspectorComponent {
   readonly doorWallPositionPct = input<number>(50);
   readonly doorWidthMeters = input<number>(2.4);
   readonly doorHeightMeters = input<number>(2.6);
+  readonly doorMaxHeightMeters = input<number>(7.5);
   readonly doorIsOpen = input<boolean>(false);
   readonly doorHingeSide = input<DoorHingeSide>('left');
   readonly doorSwingDirection = input<DoorSwingDirection>('inward');

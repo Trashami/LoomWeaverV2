@@ -64,7 +64,7 @@ function getDoorPbrMat(
 ): BABYLON.PBRMaterial {
   const fullKey = `${scene.uid}|doorTex|${key}|${hex}|${surfaceKind}|${emissiveHex || ''}`;
   const cached = doorMatCache.get(fullKey);
-  if (cached) return cached;
+  if (cached && cached.getScene() === scene) return cached;
 
   const size = 128;
   const albedoTex = new BABYLON.DynamicTexture(`procDoorAlbedo_${key}`, size, scene, true);

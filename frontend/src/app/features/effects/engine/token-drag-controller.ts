@@ -67,6 +67,17 @@ const TILT_20_DEG_RAD = (20 * Math.PI) / 180; // ~0.349066 rad (20 degrees)
 const DROP_FALL_MS = 105;
 const WOBBLE_DURATION_MS = 560;
 
+export function resolveTokenKeyFromMesh(mesh: AbstractMesh | null | undefined): string | null {
+  let cur: { metadata?: { tokenKey?: unknown }; parent?: unknown } | null | undefined = mesh;
+  while (cur) {
+    if (typeof cur.metadata?.tokenKey === 'string' && cur.metadata.tokenKey.length > 0) {
+      return cur.metadata.tokenKey;
+    }
+    cur = cur.parent as typeof cur;
+  }
+  return null;
+}
+
 export function sampleTokenFootprintElevation(
   scene: Scene,
   x: number,
@@ -148,10 +159,11 @@ export class TokenDragController {
     const pick = this.scene.pick(
       cx,
       cy,
-      (mesh) => mesh.isPickable && typeof mesh.metadata?.tokenKey === 'string',
+      (mesh) => mesh.isPickable && resolveTokenKeyFromMesh(mesh) !== null,
     );
-    if (pick?.hit && typeof pick.pickedMesh?.metadata?.tokenKey === 'string') {
-      return pick.pickedMesh.metadata.tokenKey;
+    const pickedKey = resolveTokenKeyFromMesh(pick?.pickedMesh);
+    if (pick?.hit && pickedKey) {
+      return pickedKey;
     }
     const gPick = this.scene.pick(
       cx,
@@ -160,14 +172,16 @@ export class TokenDragController {
     );
     if (gPick?.hit && gPick.pickedPoint) {
       let bestKey: string | null = null;
-      let bestDist = 0.78;
+      let bestDist = 0.85;
       for (const m of this.scene.meshes) {
         if (
           !m.isPickable ||
+          m.parent !== null ||
           !m.name.startsWith('lw-token-') ||
           m.name.startsWith('lw-token-hitbox-') ||
           m.name.startsWith('lw-token-puck-') ||
-          m.name.startsWith('lw-token-part-')
+          m.name.startsWith('lw-token-part-') ||
+          m.name.startsWith('lw-token-glow-')
         ) {
           continue;
         }
@@ -190,13 +204,14 @@ export class TokenDragController {
     this.downClientY = evt.clientY;
     this.downHadToken = false;
     if (evt.button === 2) return;
-    const key =
-      (typeof info.pickInfo?.pickedMesh?.metadata?.tokenKey === 'string'
-        ? (info.pickInfo.pickedMesh.metadata.tokenKey as string)
-        : null) ?? this.pickTokenKey(evt);
+    const key = resolveTokenKeyFromMesh(info.pickInfo?.pickedMesh) ?? this.pickTokenKey(evt);
 
     if (evt.button !== 0 || !key) return;
     this.downHadToken = true;
+
+    const canDrag = this.handlers.canStartTokenDrag
+      ? this.handlers.canStartTokenDrag(key, evt)
+      : true;
 
     this.handlers.onTokenSelected?.(
       key,
@@ -204,7 +219,7 @@ export class TokenDragController {
       evt.ctrlKey === true || evt.metaKey === true,
     );
 
-    if (this.handlers.canStartTokenDrag && !this.handlers.canStartTokenDrag(key, evt)) {
+    if (!canDrag) {
       return;
     }
 

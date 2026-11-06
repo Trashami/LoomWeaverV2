@@ -160,6 +160,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   openCharactersPage(): void { void this.router.navigate(['/characters']); }
   onMapWheel(event: WheelEvent): void { event.preventDefault(); if (!this.isHighPerformance2d()) this.stage.zoomCamera(event.deltaY * 0.05); else this.view2d.wheel(event.deltaY); }
   onMapMouseDown(event: MouseEvent): void {
+    if (this.workflow.state() !== null) return;
     this.mapDownClient = { x: event.clientX, y: event.clientY };
     if (event.button === 0 && this.battle.fogBrushMode() !== 'none') {
       this.fogBrushPainting = true;
@@ -170,6 +171,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   }
   private lastPickMs = 0;
   onMapMouseMove(event: MouseEvent): void {
+    if (this.workflow.state() !== null) return;
     if (this.fogBrushPainting && this.battle.fogBrushMode() !== 'none') {
       paintFogBrushAtScreenPoint(event.clientX, event.clientY, this.isHighPerformance2d(), this.stage, this.battle, this.battleSvgRef?.nativeElement, () => this.sync3dStage());
       return;
@@ -204,15 +206,17 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     this.stage.mountStage(
       this.vttCanvasRef.nativeElement,
       this.vtt.tokens(),
-      this.vtt.selectedAttackerKey(),
+      this.battle.activeObserverToken()?.key ?? this.vtt.selectedAttackerKey(),
       this.vtt.selectedTargetKey(),
       (k, shiftKey, ctrlKey) => {
+        if (this.workflow.state() !== null) return;
         const tok = this.vtt.tokens().find((t) => t.key === k);
         if (tok) this.handleTokenSelectionOrCast(tok, shiftKey === true, ctrlKey === true);
       },
       (ev) => this.battle.openTokenContextMenu(ev.key, ev.clientX, ev.clientY),
       (k, evt) => {
         if (
+          this.workflow.state() !== null ||
           this.battle.fogBrushMode() !== 'none' ||
           this.battle.pendingAbility() ||
           this.battle.targetSelectionMode() ||
@@ -226,15 +230,17 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
         return tok ? this.battle.canMoveToken(tok).allowed : false;
       },
       (pt) => {
+        if (this.workflow.state() !== null) return;
+        const priorSnapped = this.battle.activeRangeAndAoePreview()?.snappedToken ?? null;
         this.battle.cursorWorldPos.set(pt);
         if (this.battle.pendingAbility()) {
-          const step = this.battle.recordPendingAbilityTargetClick();
+          const step = this.battle.recordPendingAbilityTargetClick(priorSnapped ?? undefined);
           this.sync3dStage();
           if (step.shouldExecuteNow) void this.executePendingAbilityCast();
           return;
         }
         if (this.battle.targetSelectionMode()) {
-          const snapped = this.battle.activeRangeAndAoePreview()?.snappedToken;
+          const snapped = this.battle.activeRangeAndAoePreview()?.snappedToken ?? priorSnapped;
           if (snapped) { this.battle.handleTokenClick(snapped, false, false); this.sync3dStage(); }
         }
       },
@@ -282,7 +288,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       this.battle.activeTetherTargetPoints(),
       preview ? { active: true, casterPos: preview.clamped.start, endPos: preview.clamped.end, isSingleOrMulti: preview.isSingleOrMulti, aoeRadiusFeet: preview.aoeRadiusFeet, blockedByWall: preview.clamped.blockedByWall } : null,
     );
-    this.stage.syncTokens(this.vtt.tokens(), this.vtt.selectedAttackerKey(), this.vtt.selectedTargetKey(), this.battle.allReticleTargetKeys(), this.fog.opacityByKey(), this.vttDisplay.gridScale());
+    this.stage.syncTokens(this.vtt.tokens(), obs?.key ?? this.vtt.selectedAttackerKey(), this.vtt.selectedTargetKey(), this.battle.allReticleTargetKeys(), this.fog.opacityByKey(), this.vttDisplay.gridScale());
     this.stage.syncFog(this.fog.layer());
   }
 
@@ -337,6 +343,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   }
 
   onBattleMapPointerMove(event: MouseEvent): void {
+    if (this.workflow.state() !== null) return;
     if (update2dMapPointerPosition(event, this.battleSvgRef?.nativeElement, this.battle)) {
       this.dragMoved = true;
     }
@@ -419,19 +426,34 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     this.tryOpenWorkflowWithPreselectedTargets(ab);
   }
   onDockMenuAction(detail: { action: DockAction; token: DockToken }): void {
-    if (typeof detail.token.sheetRef === 'string') this.vtt.selectedAttackerKey.set(detail.token.sheetRef);
+    if (typeof detail.token.sheetRef === 'string') {
+      const candidate = this.vtt.tokens().find((t) => t.key === detail.token.sheetRef);
+      if (this.store.viewerRole() === 'gm' || (candidate && this.battle.canControlToken(candidate))) {
+        this.vtt.selectedAttackerKey.set(detail.token.sheetRef);
+      }
+    }
     const ab = this.battle.triggerDockAction(detail.action);
     this.tryOpenWorkflowWithPreselectedTargets(ab);
   }
-  private tryOpenWorkflowWithPreselectedTargets(ability: VttTacticalAbilityVm | null): void {
+  private tryOpenWorkflowWithPreselectedTargets(ability: VttTacticalAbilityVm | null): boolean {
     this.sync3dStage();
-    if (!ability || !this.battle.isSingleOrMultiTargetAbility(ability) || !this.battle.hasActiveTargetTether()) return;
+    if (!ability || !this.battle.isSingleOrMultiTargetAbility(ability) || !this.battle.hasActiveTargetTether()) {
+      return false;
+    }
     const obs = this.battle.activeObserverToken();
     const keys = this.battle.queuedTargetSequence().length > 0 ? this.battle.queuedTargetSequence() : this.battle.multiTargetKeys();
-    const targets = keys.filter((k) => !obs || k !== obs.key).map((k) => this.vtt.tokens().find((t) => t.key === k)).filter((t): t is VttTokenVm => !!t);
-    if (obs && targets.length > 0 && targets.length >= Math.max(1, ability.maxTargets || 1)) {
-      this.workflow.openWorkflow(obs, ability, targets, () => this.sync3dStage());
+    const baseTargets = keys
+      .filter((k) => !obs || k !== obs.key)
+      .map((k) => this.vtt.tokens().find((t) => t.key === k))
+      .filter((t): t is VttTokenVm => !!t);
+    if (!obs || baseTargets.length === 0) return false;
+    const requiredCount = Math.max(1, ability.maxTargets || 1);
+    const targets: VttTokenVm[] = [...baseTargets];
+    while (targets.length < requiredCount) {
+      targets.push(baseTargets[baseTargets.length - 1]);
     }
+    this.workflow.openWorkflow(obs, ability, targets, () => this.sync3dStage());
+    return true;
   }
   dockStandardAction(detail: { action: { name: string }; token: DockToken }): void { this.dmToolReadout.set(`${detail.token.name} uses ${detail.action.name}.`); }
   dockCheck(label: string, token: DockToken): void {

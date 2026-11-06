@@ -283,6 +283,16 @@ export function pickTokenOrNearbyAtScreenPoint(
   if (hit?.hit && typeof hit.pickedMesh?.metadata?.tokenKey === 'string') {
     return hit.pickedMesh.metadata.tokenKey as string;
   }
+  const anyHit = scene.pick(cx, cy, (m) => m.isPickable);
+  if (anyHit?.hit && anyHit.pickedMesh) {
+    let cur: { metadata?: { tokenKey?: unknown }; parent?: unknown } | null | undefined = anyHit.pickedMesh;
+    while (cur) {
+      if (typeof cur.metadata?.tokenKey === 'string' && cur.metadata.tokenKey.length > 0) {
+        return cur.metadata.tokenKey;
+      }
+      cur = cur.parent as typeof cur;
+    }
+  }
   const gPick = scene.pick(cx, cy, (m) => m === ground || m.name === 'lw-terrain-ground');
   if (!gPick?.hit || !gPick.pickedPoint) return null;
   const maxRadius = 0.82 * Math.max(0.5, gridScale);

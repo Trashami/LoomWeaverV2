@@ -263,7 +263,7 @@ export function handleVttWindowKeydown(
     toggleGrid();
   } else if (event.key === 't' || event.key === 'T') {
     event.preventDefault();
-    battle.targetSelectionMode.update((v) => !v);
+    battle.toggleTargetSelectionMode();
     onCastOrSync(false);
   } else if (event.key === 'Enter' && battle.pendingAbility()) {
     event.preventDefault();
@@ -425,7 +425,7 @@ export function registerArcaneScreenStageEffects(
   effect(() => {
     if (!host.hasConfiguredMap()) return;
     const tokens = vtt.tokens();
-    const attackerKey = vtt.selectedAttackerKey();
+    const attackerKey = battle.activeObserverToken()?.key ?? vtt.selectedAttackerKey();
     const targetKey = vtt.selectedTargetKey();
     const reticleKeys = battle.allReticleTargetKeys();
     const opacities = fog.opacityByKey();

@@ -1,4 +1,6 @@
 import { Injectable, inject } from '@angular/core';
+import { AuthSessionService } from '../../../core/services/auth-session.service';
+import { LoomWeaverStoreService } from '../../../core/services/loomweaver-store.service';
 import { CharacterStudioService } from '../../characters/services/character-studio.service';
 import { CharacterSheetVm } from '../../characters/models/character-studio.models';
 import { VttTokenVm } from '../../effects/engine/effect-timeline.contract';
@@ -26,8 +28,67 @@ const PARTY_FORMATION_SLOTS: readonly { x: number; z: number }[] = [
 @Injectable({ providedIn: 'root' })
 export class VttPartyAndActionsService {
   private readonly characterStudio = inject(CharacterStudioService);
+  private readonly store = inject(LoomWeaverStoreService);
+  private readonly auth = inject(AuthSessionService);
   private readonly abilitiesCache = new Map<string, VttTacticalAbilityVm[]>();
   private readonly dockActionsCache = new Map<string, DockAction[]>();
+
+  isSheetControlledByCurrentViewer(sheet: CharacterSheetVm): boolean {
+    if (this.store.viewerRole() === 'gm') return true;
+    const owned = this.characterStudio.userOwnedSheets();
+    if (owned.some((s) => s.characterKey === sheet.characterKey)) return true;
+
+    const sheetKeyLower = sheet.characterKey.toLowerCase();
+    const altKeyLower = sheetKeyLower.startsWith('char-')
+      ? sheetKeyLower.replace(/^char-/, 'pc-')
+      : sheetKeyLower.replace(/^pc-/, 'char-');
+    const sheetNameLower = sheet.name.trim().toLowerCase();
+    const sheetFirstWord = sheetNameLower.split(/[\s(]+/)[0] || '';
+
+    const myCharKey = (this.store.activeCampaign().myCharacterKey || '').trim().toLowerCase();
+    if (myCharKey && (myCharKey === sheetKeyLower || myCharKey === altKeyLower || sheetKeyLower.endsWith(myCharKey))) {
+      return true;
+    }
+
+    const profile = this.auth.activeProfile();
+    const unameLower = (this.store.activeUsername() || profile?.username || '').trim().toLowerCase();
+    const accIdLower = (profile?.accountId || '').trim().toLowerCase();
+
+    if (unameLower && sheet.ownerUsername && sheet.ownerUsername.trim().toLowerCase() === unameLower) {
+      return true;
+    }
+    if ((unameLower === 'sbrogan' || unameLower === 'scottbrogan') && (sheetKeyLower === 'char-dal' || sheetFirstWord === 'dal' || sheetFirstWord === 'dallas')) {
+      return true;
+    }
+
+    const rosterEntry = this.store.activeCampaignPlayers().find(
+      (p) =>
+        (unameLower && p.username.trim().toLowerCase() === unameLower) ||
+        (accIdLower && p.accountId.trim().toLowerCase() === accIdLower),
+    );
+    if (rosterEntry) {
+      const assignedKey = (rosterEntry.assignedCharacterKey || '').trim().toLowerCase();
+      const assignedName = (rosterEntry.assignedCharacterName || '').trim().toLowerCase();
+      if (
+        assignedKey &&
+        (assignedKey === sheetKeyLower ||
+          assignedKey === altKeyLower ||
+          sheetKeyLower.endsWith(assignedKey) ||
+          assignedKey.endsWith(sheetKeyLower))
+      ) {
+        return true;
+      }
+      if (
+        assignedName &&
+        (assignedName === sheetNameLower ||
+          (sheetFirstWord.length >= 3 && assignedName.includes(sheetFirstWord)))
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
 
   resolveSheetForToken(token: VttTokenVm | null | undefined): CharacterSheetVm | null {
     if (!token) return null;
@@ -89,6 +150,7 @@ export class VttPartyAndActionsService {
       const darkvisionFeet = this.inferDarkvisionFeet(sheet);
       const sightFeet = this.inferSightFeet(sheet);
       const slot = PARTY_FORMATION_SLOTS[idx % PARTY_FORMATION_SLOTS.length];
+      const canControl = this.isSheetControlledByCurrentViewer(sheet);
 
       if (existing) {
         matchedTokenKeys.add(existing.key);
@@ -106,7 +168,7 @@ export class VttPartyAndActionsService {
           movementFeet: existing.movementFeet > 0 ? existing.movementFeet : sheet.speedFeet,
           sightFeet: existing.sightFeet ?? sightFeet,
           darkvisionFeet: existing.darkvisionFeet ?? darkvisionFeet,
-          canControl: true,
+          canControl,
           avatarUrl: resolvedAssets.avatarUrl,
           glbUrl: resolvedAssets.glbUrl,
         });
@@ -129,7 +191,7 @@ export class VttPartyAndActionsService {
           movementFeet: sheet.speedFeet || 30,
           sightFeet,
           darkvisionFeet,
-          canControl: true,
+          canControl,
           avatarUrl: resolvedAssets.avatarUrl,
           glbUrl: resolvedAssets.glbUrl,
           sizeCategory: this.inferSizeCategory(sheet),
@@ -137,13 +199,25 @@ export class VttPartyAndActionsService {
       }
     });
 
+    if (this.store.viewerRole() !== 'gm' && partyTokens.length > 0 && !partyTokens.some((t) => t.canControl)) {
+      const preferredKey = this.characterStudio.activeSheet()?.characterKey;
+      const idx = preferredKey
+        ? partyTokens.findIndex((t) => t.key.endsWith(`:${preferredKey}`) || t.key === preferredKey)
+        : 0;
+      const fallbackIdx = idx >= 0 ? idx : 0;
+      partyTokens[fallbackIdx] = { ...partyTokens[fallbackIdx], canControl: true };
+    }
+
     const otherTokens = existingTokens.filter((t) => {
       if (matchedTokenKeys.has(t.key)) return false;
       if (t.faction === 'party' && (t.name === 'Tobin Vance' || t.name === 'Sister Elowen')) {
         return false;
       }
       return true;
-    });
+    }).map((t) => ({
+      ...t,
+      canControl: this.store.viewerRole() === 'gm',
+    }));
 
     return [...partyTokens, ...otherTokens];
   }

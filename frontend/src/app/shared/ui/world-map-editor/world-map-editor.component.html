@@ -385,7 +385,7 @@
                     <span>Linked Session</span>
                     <select [ngModel]="editSessionId()" (ngModelChange)="editSessionId.set($event || null); emitSave(true)">
                       <option value="">No Attached Session</option>
-                      @for (s of sessionOptions; track s.id) {
+                      @for (s of availableSessionOptions(); track s.id) {
                         <option [value]="s.id">{{ s.label }}</option>
                       }
                     </select>
@@ -406,6 +406,9 @@
                     <span>Attached Tactical Battle Map</span>
                     <select [ngModel]="editSceneKey()" (ngModelChange)="editSceneKey.set($event); emitSave(true)">
                       <option value="">None</option>
+                      @for (bm of availableBattlemaps(); track bm.sceneKey) {
+                        <option [value]="bm.sceneKey">{{ bm.name }}</option>
+                      }
                     </select>
                   </label>
 

@@ -17,6 +17,26 @@ import {
 } from './adventure-guide-seed.data';
 import { LoomWeaverStoreService } from './loomweaver-store.service';
 
+const ASSIGNED_MAPS_STORAGE_KEY = 'lw.adventureGuide.assignedMapsBySession.v1';
+
+function readSavedAssignedMaps(): Readonly<Record<string, AdventureAssignedBattlemapVm>> {
+  try {
+    if (typeof localStorage === 'undefined') return {};
+    const raw = localStorage.getItem(ASSIGNED_MAPS_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, AdventureAssignedBattlemapVm>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeSavedAssignedMaps(map: Readonly<Record<string, AdventureAssignedBattlemapVm>>): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(ASSIGNED_MAPS_STORAGE_KEY, JSON.stringify(map));
+    }
+  } catch {}
+}
+
 @Injectable({ providedIn: 'root' })
 export class AdventureGuideService {
   private readonly http = inject(HttpClient);
@@ -32,7 +52,35 @@ export class AdventureGuideService {
   private readonly localNpcs = signal<readonly AdventureGuideNpcItemVm[]>(SEED_ADVENTURE_NPCS);
   private readonly localBeats = signal<readonly AdventureSessionBeatItemVm[]>(SEED_ADVENTURE_BEATS);
   private readonly localAssignedMap = signal<AdventureAssignedBattlemapVm>(SEED_ASSIGNED_BATTLEMAP);
+  private readonly localAssignedMapsByScope = signal<Readonly<Record<string, AdventureAssignedBattlemapVm>>>(
+    readSavedAssignedMaps(),
+  );
   private readonly localEvents = signal<readonly AdventurePlayEventVm[]>([]);
+
+  private resolveLocalMapForScope(campaignId: number, scopeId: string): AdventureAssignedBattlemapVm | undefined {
+    const mapByScope = this.localAssignedMapsByScope();
+    const direct = mapByScope[`${campaignId}:${scopeId}`] ?? mapByScope[scopeId];
+    if (direct) return direct;
+    const mapAtt = this.store
+      .sessionAttachments()
+      .find((a) => a.sessionId === scopeId && a.elementKind === 'Map');
+    if (mapAtt) {
+      return {
+        ...SEED_ASSIGNED_BATTLEMAP,
+        sceneKey: mapAtt.elementId,
+        title: mapAtt.title,
+        sessionId: mapAtt.sessionId,
+        sessionTitle: mapAtt.summary || mapAtt.sessionId,
+        locationNodeId: '',
+        locationTitle: mapAtt.subtitle || 'Session Battlemap',
+        artworkUrl: mapAtt.artworkUrl || '/combat-caves.jpg',
+        routeLink: `/maps?scene=${mapAtt.elementId}`,
+        vttRouteLink: `/arcane-screen?scene=${mapAtt.elementId}`,
+        clickableRegions: [],
+      };
+    }
+    return undefined;
+  }
 
   readonly guide = signal<ContextualAdventureGuideVm>(
     buildSeedAdventureGuide(1, 'gm', 'session', 'session-15'),
@@ -81,6 +129,7 @@ export class AdventureGuideService {
     this.activeScopeId.set(scopeId);
     const cid = this.store.activeCampaignId();
     const role = this.store.viewerRole();
+    const scopedMap = this.resolveLocalMapForScope(cid, scopeId);
     this.guide.set(
       buildSeedAdventureGuide(
         cid,
@@ -89,7 +138,7 @@ export class AdventureGuideService {
         scopeId,
         this.localNpcs(),
         this.localBeats(),
-        this.localAssignedMap(),
+        scopedMap,
         this.localEvents(),
       ),
     );
@@ -107,6 +156,7 @@ export class AdventureGuideService {
     scopeId = this.activeScopeId(),
     filter = this.activeProgressFilter(),
   ): void {
+    const scopedMap = this.resolveLocalMapForScope(campaignId, scopeId);
     this.guide.set(
       buildSeedAdventureGuide(
         campaignId,
@@ -115,7 +165,7 @@ export class AdventureGuideService {
         scopeId,
         this.localNpcs(),
         this.localBeats(),
-        this.localAssignedMap(),
+        scopedMap,
         this.localEvents(),
       ),
     );
@@ -127,7 +177,17 @@ export class AdventureGuideService {
       .subscribe({
         next: (res) => {
           if (res && res.campaignId === this.store.activeCampaignId()) {
-            this.guide.set(res);
+            const localOverride = this.resolveLocalMapForScope(campaignId, scopeId);
+            if (localOverride && (!res.assignedBattlemap?.sceneKey || res.assignedBattlemap.sessionId !== scopeId)) {
+              this.guide.set({
+                ...res,
+                headerTitle: localOverride.title || res.headerTitle,
+                artworkUrl: localOverride.artworkUrl || res.artworkUrl,
+                assignedBattlemap: localOverride,
+              });
+            } else {
+              this.guide.set(res);
+            }
           }
         },
         error: () => {},
@@ -368,6 +428,19 @@ export class AdventureGuideService {
 
     this.localAssignedMap.set(updatedMap);
     if (params.sessionId) {
+      this.localAssignedMapsByScope.update((cur) => {
+        const next: Record<string, AdventureAssignedBattlemapVm> = {
+          ...cur,
+          [params.sessionId]: updatedMap,
+          [`${cid}:${params.sessionId}`]: updatedMap,
+        };
+        if (params.locationNodeId) {
+          next[params.locationNodeId] = updatedMap;
+          next[`${cid}:${params.locationNodeId}`] = updatedMap;
+        }
+        writeSavedAssignedMaps(next);
+        return next;
+      });
       this.store.setActiveSession(params.sessionId);
       this.activeScopeKind.set('session');
       this.activeScopeId.set(params.sessionId);

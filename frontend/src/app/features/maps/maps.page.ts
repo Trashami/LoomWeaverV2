@@ -583,6 +583,52 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     );
   }
 
+  onAssignExistingMapToSession(evt: { map: LwExistingMapSummary; sessionId: string }): void {
+    const { map, sessionId } = evt;
+    const sessObj = this.sessions().find((s) => s.id === sessionId) ?? this.sessions()[0];
+    const resolvedSessionId = sessObj?.id || sessionId || this.store.activeSessionId() || 'session-1';
+    const sessLabel =
+      sessObj?.label ||
+      this.store.activeSession()?.label ||
+      this.store.activeSession()?.title ||
+      'Selected Session';
+
+    this.store.setActiveSession(resolvedSessionId);
+    this.adventureGuide.assignBattlemapToSessionAndPlace({
+      sceneKey: map.sceneKey,
+      sceneTitle: map.name,
+      sessionId: resolvedSessionId,
+      sessionTitle: sessLabel,
+      locationNodeId: this.assignLocationNodeId() || '',
+      locationTitle: map.encounterLabel || 'Session Battlemap',
+      artworkUrl: map.previewUrl || '/battlemap-showcase.jpg',
+      biome: map.floorBumpName || 'Custom Map',
+    });
+    this.store.attachElementToSession({
+      sessionId: resolvedSessionId,
+      elementKind: 'Map',
+      targetKey: map.sceneKey,
+      title: map.name,
+      subtitle: `${map.dimensionMode.toUpperCase()} Battlemap · ${map.floorBumpName}`,
+      summary: `${sessLabel} · ${map.encounterLabel}`,
+      routeLink: `/arcane-screen?scene=${map.sceneKey}`,
+      visibility: 'players',
+      artworkUrl: map.previewUrl || '/battlemap-showcase.jpg',
+    });
+    this.existingMaps.update((cur) =>
+      cur.map((m) =>
+        m.sceneKey === map.sceneKey
+          ? {
+              ...m,
+              sessionLabel: sessLabel,
+              updatedLabel: `Assigned to ${sessLabel}`,
+            }
+          : m,
+      ),
+    );
+    this.pngPipelineBanner.set(`Assigned '${map.name}' directly to ${sessLabel}.`);
+  }
+
   onOpenExistingMapFromLanding(summary: LwExistingMapSummary): void {
     this.selectedSceneKey.set(summary.sceneKey);
     this.mapTitle.set(summary.name);

@@ -95,6 +95,9 @@ export class LwMapStudioLandingComponent {
   readonly applyMarketplaceMap = output<LwApplyMarketplaceMapIntent>();
   readonly purchaseMarketplaceMap = output<LwMarketplaceMapItem>();
   readonly campaignChange = output<number>();
+  readonly assignMapToSession = output<{ map: LwExistingMapSummary; sessionId: string }>();
+
+  readonly cardSessionSelections = signal<Readonly<Record<string, string>>>({});
 
   readonly showCreatePrompt = signal<boolean>(false);
   readonly showMarketplaceModal = signal<boolean>(false);
@@ -280,5 +283,24 @@ export class LwMapStudioLandingComponent {
     if (!Number.isNaN(id)) {
       this.campaignChange.emit(id);
     }
+  }
+
+  getCardSelectedSessionId(sceneKey: string): string {
+    const mapSel = this.cardSessionSelections()[sceneKey];
+    if (mapSel && this.sessions().some((s) => s.id === mapSel)) {
+      return mapSel;
+    }
+    return this.resolveValidSessionId();
+  }
+
+  onCardSessionChange(sceneKey: string, sessionId: string): void {
+    this.cardSessionSelections.update((cur) => ({ ...cur, [sceneKey]: sessionId }));
+  }
+
+  onAssignCardToSession(map: LwExistingMapSummary, event: Event): void {
+    event.stopPropagation();
+    const sessionId = this.getCardSelectedSessionId(map.sceneKey);
+    if (!sessionId) return;
+    this.assignMapToSession.emit({ map, sessionId });
   }
 }

@@ -93,6 +93,16 @@ export class VttCombatWorkflowService {
   openWorkflow(attacker: VttTokenVm, ability: VttTacticalAbilityVm, targets: readonly VttTokenVm[], onStageSync?: () => void): void {
     if (targets.length === 0) return;
     this.onStageSyncCallback = onStageSync ?? null;
+    const targetKeys = Array.from(new Set(targets.map((t) => t.key)));
+    this.battle.pendingAbility.set(null);
+    this.battle.targetSelectionMode.set(false);
+    this.battle.measureEnabled.set(false);
+    this.battle.multiTargetKeys.set(targetKeys);
+    this.battle.queuedTargetSequence.set(targets.map((t) => t.key));
+    this.battle.hasActiveTargetTether.set(targetKeys.length > 0);
+    if (targetKeys[0]) {
+      this.vtt.selectedTargetKey.set(targetKeys[0]);
+    }
     this.stage.prefetchCampaignEffects(this.store.activeCampaignId());
     const requiresSave = ability.saveDc > 0 && ability.targetMode === 'aoe';
     this.state.set({
@@ -101,6 +111,7 @@ export class VttCombatWorkflowService {
       qualifyingReactions: this.detectQualifyingReactions(ability, targets),
       selectedReactionId: null, targetOutcomes: [], attackRollSummary: '', damageRollSummary: '', canRollDamage: false,
     });
+    this.onStageSyncCallback?.();
   }
 
   setAdvantageMode(mode: VttRollAdvantageMode): void { this.state.update((s) => (s ? { ...s, advantageMode: mode } : null)); }

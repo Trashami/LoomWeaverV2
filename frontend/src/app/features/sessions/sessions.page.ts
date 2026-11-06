@@ -100,13 +100,46 @@ export class SessionsPageComponent {
           routeLink: '/arcane-screen?scene=scene-c1-shattered-nave',
         },
       );
+      for (const sc of this.store.authorizedScenes()) {
+        if (!items.some((i) => i.key === sc.sceneKey)) {
+          items.push({
+            key: sc.sceneKey,
+            title: sc.name,
+            subtitle: `Battlemap · ${sc.biome || 'Campaign Scene'}`,
+            routeLink: `/arcane-screen?scene=${sc.sceneKey}`,
+          });
+        }
+      }
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = window.localStorage.getItem('lw.mapStudio.savedScenes.v1');
+          if (raw) {
+            const parsed = JSON.parse(raw) as Record<string, { sceneKey?: string; name?: string }>;
+            for (const entry of Object.values(parsed)) {
+              if (entry?.sceneKey && entry?.name && !items.some((i) => i.key === entry.sceneKey)) {
+                items.push({
+                  key: entry.sceneKey,
+                  title: entry.name,
+                  subtitle: 'Custom Studio Battlemap',
+                  routeLink: `/arcane-screen?scene=${entry.sceneKey}`,
+                });
+              }
+            }
+          }
+        } catch {
+          // ignore storage parse errors
+        }
+      }
       for (const m of this.worldLore.workspace().maps) {
-        items.push({
-          key: m.linkedSceneKey || m.mapId,
-          title: m.name,
-          subtitle: `${m.scopeLevel} Map`,
-          routeLink: `/world-lore`,
-        });
+        const key = m.linkedSceneKey || m.mapId;
+        if (!items.some((i) => i.key === key)) {
+          items.push({
+            key,
+            title: m.name,
+            subtitle: `${m.scopeLevel} Map`,
+            routeLink: `/world-lore`,
+          });
+        }
       }
     } else if (kind === 'Lore') {
       for (const l of this.worldLore.workspace().loreEntries) {

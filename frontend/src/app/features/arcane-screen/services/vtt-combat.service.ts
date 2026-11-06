@@ -136,6 +136,9 @@ export class VttCombatService {
     effect(() => {
       const sheets = this.characterStudio.campaignSheets();
       const cid = this.store.activeCampaignId() || 1;
+      void this.store.viewerRole();
+      void this.store.activeUsername();
+      void this.store.activeCampaignPlayers();
       if (sheets.length > 0) untracked(() => this.ensureCampaignPartyTokens(cid));
     });
   }
@@ -181,7 +184,12 @@ export class VttCombatService {
     const merged = this.partyAndActions.mergeCampaignPartyIntoTokens(this.tokens(), campaignId).map((t) => ({ ...t, ...snapToFiveFootGrid(saved[t.key] ?? { x: t.x, z: t.z }) }));
     if (merged.length > 0) {
       this.tokens.set(merged);
-      if (!merged.some((t) => t.key === this.selectedAttackerKey())) this.selectedAttackerKey.set(merged[0].key);
+      const myOwned = merged.find((t) => t.canControl);
+      if (this.store.viewerRole() !== 'gm' && myOwned) {
+        this.selectedAttackerKey.set(myOwned.key);
+      } else if (!merged.some((t) => t.key === this.selectedAttackerKey())) {
+        this.selectedAttackerKey.set(merged[0].key);
+      }
     }
   }
 
@@ -253,7 +261,10 @@ export class VttCombatService {
       .sort((a, b) => b.initiative - a.initiative);
     if (combined.length > 0) {
       this.tokens.set(combined);
-      this.selectedAttackerKey.set(combined[0].key);
+      const myOwned = combined.find((t) => t.canControl);
+      this.selectedAttackerKey.set(
+        this.store.viewerRole() !== 'gm' && myOwned ? myOwned.key : combined[0].key,
+      );
       this.selectedTargetKey.set((combined.find((t) => t.faction === 'hostile') ?? combined[0]).key);
     }
   }
@@ -267,7 +278,9 @@ export class VttCombatService {
       this.tokens.update((list) => list.map((t) => ({ ...t, actionUsed: false, bonusUsed: false, reactionUsed: false })));
     }
     this.activeTurnIndex.set(next);
-    this.selectedAttackerKey.set(this.tokens()[next].key);
+    if (this.store.viewerRole() === 'gm') {
+      this.selectedAttackerKey.set(this.tokens()[next].key);
+    }
   }
 
   toggleEconomySlot(key: string, slot: 'actionUsed' | 'bonusUsed' | 'reactionUsed'): void {
@@ -471,7 +484,9 @@ export class VttCombatService {
     const index = this.tokens().findIndex((t) => t.key === activeKey);
     if (index < 0) return;
     this.activeTurnIndex.set(index);
-    this.selectedAttackerKey.set(activeKey);
+    if (this.store.viewerRole() === 'gm') {
+      this.selectedAttackerKey.set(activeKey);
+    }
   }
 
   applyRemoteEffect(presetId: string, startX: number, startZ: number, endX: number, endZ: number, targetKeys: readonly string[]): void {

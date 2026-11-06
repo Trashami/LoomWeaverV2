@@ -321,7 +321,7 @@
           [getMeleeAttacks]="dockMeleeAttacks" [getRangedAttacks]="dockRangedAttacks"
           [getSpells]="dockSpells" [getBonusActions]="dockBonusActions" [getReactions]="dockReactions"
           (chooseAction)="selectDockAction($event)" (menuActionSelect)="onDockMenuAction($event)"
-          (startActionTest)="onDockMenuAction($event)" (endTurn)="nextTurn()" (toggleMeasure)="dockToggleMeasure()" (toggleTargetMode)="battle.targetSelectionMode.update(v => !v); sync3dStage()"
+          (startActionTest)="onDockMenuAction($event)" (endTurn)="nextTurn()" (toggleMeasure)="dockToggleMeasure()" (toggleTargetMode)="battle.toggleTargetSelectionMode(); sync3dStage()"
           (standardAction)="dockStandardAction($event)" (skillCheck)="dockCheck($event.skill.name, $event.token)"
           (saveCheck)="dockCheck($event.save.name, $event.token)" (abilityCheck)="dockCheck($event.stat, $event.token)"
           (savingThrow)="dockCheck($event.stat + ' save', $event.token)" (openSheet)="openCharactersPage()"

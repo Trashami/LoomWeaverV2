@@ -292,6 +292,41 @@
   }
 }
 
+.lw-existing-card__session-assign {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+}
+
+.lw-existing-card__session-select {
+  flex: 1;
+  min-width: 0;
+  padding: 0.28rem 0.45rem;
+  border-radius: 5px;
+  border: 1px solid rgba(73, 232, 146, 0.24);
+  background: rgba(4, 14, 10, 0.94);
+  color: #e4f7ec;
+  font-size: 0.72rem;
+}
+
+.lw-existing-card__assign-btn {
+  padding: 0.28rem 0.55rem;
+  border-radius: 5px;
+  border: 1px solid rgba(217, 183, 122, 0.45);
+  background: rgba(34, 28, 16, 0.85);
+  color: #f4e2bc;
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover {
+    border-color: #d9b77a;
+    background: rgba(54, 44, 24, 0.92);
+  }
+}
+
 .lw-existing-card__footer {
   display: flex;
   align-items: center;

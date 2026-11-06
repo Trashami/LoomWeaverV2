@@ -130,6 +130,29 @@
               <span>Campaign: <strong>{{ map.campaignName }}</strong></span>
               <span>Planned: <strong>{{ map.sessionLabel }} · {{ map.encounterLabel }}</strong></span>
             </div>
+            @if (sessions().length > 0) {
+              <div class="lw-existing-card__session-assign" (click)="$event.stopPropagation()">
+                <select
+                  class="lw-existing-card__session-select"
+                  aria-label="Select session to assign this map"
+                  [ngModel]="getCardSelectedSessionId(map.sceneKey)"
+                  (ngModelChange)="onCardSessionChange(map.sceneKey, $event)"
+                  (click)="$event.stopPropagation()"
+                >
+                  @for (s of sessions(); track s.id) {
+                    <option [value]="s.id">{{ s.label }}</option>
+                  }
+                </select>
+                <button
+                  ngpButton
+                  type="button"
+                  class="lw-existing-card__assign-btn"
+                  (click)="onAssignCardToSession(map, $event)"
+                >
+                  Assign to Session
+                </button>
+              </div>
+            }
             <div class="lw-existing-card__footer">
               <small>{{ map.updatedLabel }} · Rev {{ map.revision }}</small>
               <button ngpButton type="button" class="lw-existing-card__open-btn">

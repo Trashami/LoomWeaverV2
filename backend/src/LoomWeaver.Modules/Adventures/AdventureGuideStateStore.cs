@@ -372,6 +372,32 @@ public static class AdventureGuideStateStore
         {
             if (AssignedMapsByScope.TryGetValue($"{campaignId}:{scopeId}", out var byCampScope)) return byCampScope;
             if (AssignedMapsByScope.TryGetValue(scopeId, out var byScope)) return byScope;
+            if (AttachmentsByCampaign.TryGetValue(campaignId, out var campAttachments))
+            {
+                var mapAtt = campAttachments.FirstOrDefault(a =>
+                    string.Equals(a.SessionId, scopeId, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(a.ElementKind, "Map", StringComparison.OrdinalIgnoreCase));
+                if (mapAtt is not null && !string.IsNullOrWhiteSpace(mapAtt.TargetKey))
+                {
+                    return new AdventureAssignedBattlemapDto(
+                        SceneKey: mapAtt.TargetKey,
+                        Title: mapAtt.Title,
+                        SessionId: scopeId,
+                        SessionTitle: scopeId,
+                        LocationNodeId: "",
+                        LocationTitle: mapAtt.Subtitle ?? "Session Battlemap",
+                        AreaKey: null,
+                        ArtworkUrl: string.IsNullOrWhiteSpace(mapAtt.ArtworkUrl) ? "/battlemap-showcase.jpg" : mapAtt.ArtworkUrl,
+                        RouteLink: $"/maps?scene={mapAtt.TargetKey}",
+                        VttRouteLink: $"/arcane-screen?scene={mapAtt.TargetKey}",
+                        ClickableRegions: Array.Empty<AdventureMapRegionChipDto>());
+                }
+            }
+            if (scopeId.StartsWith("session-", StringComparison.OrdinalIgnoreCase) ||
+                scopeId.StartsWith("sess-", StringComparison.OrdinalIgnoreCase))
+            {
+                return EmptyBattlemap();
+            }
         }
         if (!string.IsNullOrWhiteSpace(activeSesId))
         {

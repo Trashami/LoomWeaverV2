@@ -9,6 +9,7 @@ import {
   WorldMapRegionOverlayVm, WorldMapSummaryVm,
 } from '../../../core/models/world-lore.models';
 import { buildRegionSvgPath, parseRegionPointsFromSvgPath } from '../../../core/services/world-lore-facade.helpers';
+import { AdventureGuideService } from '../../../core/services/adventure-guide.service';
 import { LoomWeaverStoreService } from '../../../core/services/loomweaver-store.service';
 import {
   CAMPAIGN_SESSION_OPTIONS, DEFAULT_MARKER_ICONS, MARKER_COLOR_SWATCHES,
@@ -49,6 +50,7 @@ export interface MapEditorSavePayload {
 })
 export class LwWorldMapEditorComponent {
   readonly store = inject(LoomWeaverStoreService);
+  readonly adventureGuide = inject(AdventureGuideService);
   readonly map = input.required<WorldMapSummaryVm>();
   readonly maps = input<readonly WorldMapSummaryVm[]>([]);
   readonly overlays = input<readonly WorldMapRegionOverlayVm[]>([]);
@@ -183,6 +185,53 @@ export class LwWorldMapEditorComponent {
   readonly filteredStamps = computed(() => {
     const f = this.stampArtistFilter();
     return f === 'All' ? this.stampCatalog : this.stampCatalog.filter((s) => s.collection === f);
+  });
+
+  readonly availableSessionOptions = computed(() => {
+    const storeSessions = this.store.sessions();
+    if (storeSessions.length > 0) {
+      return storeSessions.map((s) => ({
+        id: s.sessionId,
+        number: s.sessionNumber,
+        label: s.label || `Session ${s.sessionNumber} — ${s.title}`,
+      }));
+    }
+    return this.sessionOptions;
+  });
+
+  readonly availableBattlemaps = computed(() => {
+    const mapByKey = new Map<string, { sceneKey: string; name: string }>();
+    for (const sc of this.store.authorizedScenes()) {
+      mapByKey.set(sc.sceneKey, { sceneKey: sc.sceneKey, name: sc.name });
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = window.localStorage.getItem('lw.mapStudio.savedScenes.v1');
+        if (raw) {
+          const parsed = JSON.parse(raw) as Record<string, { sceneKey?: string; name?: string }>;
+          for (const entry of Object.values(parsed)) {
+            if (entry?.sceneKey && entry?.name && !mapByKey.has(entry.sceneKey)) {
+              mapByKey.set(entry.sceneKey, { sceneKey: entry.sceneKey, name: entry.name });
+            }
+          }
+        }
+      } catch {
+        // ignore storage parse errors
+      }
+    }
+    if (!mapByKey.has('scene-c1-shattered-nave')) {
+      mapByKey.set('scene-c1-shattered-nave', {
+        sceneKey: 'scene-c1-shattered-nave',
+        name: 'Ruined Chapel — Shattered Nave',
+      });
+    }
+    if (!mapByKey.has('scene-vampire-gala-ballroom')) {
+      mapByKey.set('scene-vampire-gala-ballroom', {
+        sceneKey: 'scene-vampire-gala-ballroom',
+        name: 'Vampire Gala — Crimson Ballroom',
+      });
+    }
+    return Array.from(mapByKey.values());
   });
 
   zoomIn(): void { this.zoom.update((z) => Math.min(12.0, +(z * 1.25).toFixed(2))); }
@@ -409,7 +458,34 @@ export class LwWorldMapEditorComponent {
   emitSave(silent: boolean, feedbackMessage?: string): void {
     const loc = this.selectedLocation();
     if (!loc) return;
-    const sess = this.sessionOptions.find((s) => s.id === String(this.editSessionId()) || s.number === Number(this.editSessionId()));
+    const sess = this.availableSessionOptions().find(
+      (s) => s.id === String(this.editSessionId()) || s.number === Number(this.editSessionId()),
+    );
+    const sceneKey = this.editSceneKey() || null;
+    if (sess && sceneKey) {
+      const battlemapObj = this.availableBattlemaps().find((b) => b.sceneKey === sceneKey);
+      const mapTitle = battlemapObj?.name || this.editName().trim() || loc.name;
+      this.adventureGuide.assignBattlemapToSessionAndPlace({
+        sceneKey,
+        sceneTitle: mapTitle,
+        sessionId: String(sess.id),
+        sessionTitle: sess.label,
+        locationNodeId: loc.locationKey,
+        locationTitle: this.editName().trim() || loc.name,
+        artworkUrl: loc.artworkUrl || '/battlemap-showcase.jpg',
+      });
+      this.store.attachElementToSession({
+        sessionId: String(sess.id),
+        elementKind: 'Map',
+        targetKey: sceneKey,
+        title: mapTitle,
+        subtitle: `Tactical Battlemap · ${this.editName().trim() || loc.name}`,
+        summary: `Assigned to ${sess.label}`,
+        routeLink: `/arcane-screen?scene=${sceneKey}`,
+        visibility: this.editVisibility(),
+        artworkUrl: loc.artworkUrl || '/battlemap-showcase.jpg',
+      });
+    }
     const style: MarkerVisualStyleVm = {
       iconMode: this.iconMode(),
       defaultIconName: this.defaultIconName(),

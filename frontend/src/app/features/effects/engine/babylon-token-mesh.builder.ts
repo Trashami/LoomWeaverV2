@@ -356,14 +356,14 @@ export class BabylonTokenMeshBuilder {
         rootNode.position.set(0, baseHeight / 2 + 0.004, 0);
       }
 
-      const tagMesh = (m: AbstractMesh) => {
-        m.metadata = { tokenKey: token.key };
-        m.name = `lw-token-part-${token.key}-${m.name}`;
-        m.getChildMeshes().forEach(tagMesh);
-      };
-      instance.rootNodes.forEach((node) => {
-        if (node instanceof AbstractMesh) tagMesh(node);
-      });
+      rootNode.metadata = { tokenKey: token.key };
+      for (const m of allMeshes) {
+        m.metadata = { ...(m.metadata ?? {}), tokenKey: token.key };
+        m.isPickable = true;
+        if (!m.name.startsWith(`lw-token-part-${token.key}-`)) {
+          m.name = `lw-token-part-${token.key}-${m.name}`;
+        }
+      }
 
       attachGrassBaseAndFactionRim(
         scene,

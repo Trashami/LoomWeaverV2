@@ -58,9 +58,60 @@ export class CampaignsPageComponent {
   readonly viewMode = signal<StoryPageViewMode>('story-acts');
   readonly showAddBeatModal = signal<boolean>(false);
   readonly targetActId = signal<string>('act-2');
+  readonly targetSessionId = signal<string>('');
+  readonly targetSceneKey = signal<string>('');
   readonly newBeatTitle = signal<string>('');
   readonly newBeatKind = signal<string>('scene');
   readonly newBeatLocationKey = signal<string>('loc-ruined-chapel');
+
+  readonly availableSessionOptions = computed(() => {
+    const storeSessions = this.store.sessions();
+    if (storeSessions.length > 0) {
+      return storeSessions.map((s) => ({
+        id: s.sessionId,
+        label: s.label || `Session ${s.sessionNumber} — ${s.title}`,
+      }));
+    }
+    return this.story.workspace().sessionSequence.map((s) => ({
+      id: s.sessionId,
+      label: s.title,
+    }));
+  });
+
+  readonly availableBattlemaps = computed(() => {
+    const mapByKey = new Map<string, { sceneKey: string; name: string }>();
+    for (const sc of this.store.authorizedScenes()) {
+      mapByKey.set(sc.sceneKey, { sceneKey: sc.sceneKey, name: sc.name });
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = window.localStorage.getItem('lw.mapStudio.savedScenes.v1');
+        if (raw) {
+          const parsed = JSON.parse(raw) as Record<string, { sceneKey?: string; name?: string }>;
+          for (const entry of Object.values(parsed)) {
+            if (entry?.sceneKey && entry?.name && !mapByKey.has(entry.sceneKey)) {
+              mapByKey.set(entry.sceneKey, { sceneKey: entry.sceneKey, name: entry.name });
+            }
+          }
+        }
+      } catch {
+        // ignore storage parse errors
+      }
+    }
+    if (!mapByKey.has('scene-c1-shattered-nave')) {
+      mapByKey.set('scene-c1-shattered-nave', {
+        sceneKey: 'scene-c1-shattered-nave',
+        name: 'Ruined Chapel — Shattered Nave',
+      });
+    }
+    if (!mapByKey.has('scene-vampire-gala-ballroom')) {
+      mapByKey.set('scene-vampire-gala-ballroom', {
+        sceneKey: 'scene-vampire-gala-ballroom',
+        name: 'Vampire Gala — Crimson Ballroom',
+      });
+    }
+    return Array.from(mapByKey.values());
+  });
 
   readonly relFromKey = signal<string>('');
   readonly relType = signal<string>('CURRENTLY_IN');
@@ -123,6 +174,11 @@ export class CampaignsPageComponent {
 
   openAddBeatForAct(actId: string): void {
     this.targetActId.set(actId);
+    if (!this.targetSessionId()) {
+      this.targetSessionId.set(
+        this.store.activeSessionId() || this.availableSessionOptions()[0]?.id || '',
+      );
+    }
     this.showAddBeatModal.set(true);
   }
 
@@ -130,8 +186,43 @@ export class CampaignsPageComponent {
     const title = this.newBeatTitle().trim();
     if (!title) return;
     this.story.addBeat(this.targetActId(), title, this.newBeatKind(), this.newBeatLocationKey());
+    const sessionId = this.targetSessionId();
+    const sceneKey = this.targetSceneKey();
+    if (sessionId && sceneKey) {
+      this.assignBattlemapToSession(sessionId, sceneKey);
+    }
     this.newBeatTitle.set('');
     this.showAddBeatModal.set(false);
+  }
+
+  assignBattlemapToSession(sessionId: string, sceneKey: string): void {
+    if (!sessionId || !sceneKey) return;
+    const mapObj = this.availableBattlemaps().find((m) => m.sceneKey === sceneKey);
+    const sessObj = this.availableSessionOptions().find((s) => s.id === sessionId);
+    const mapTitle = mapObj?.name || sceneKey;
+    const sessLabel = sessObj?.label || sessionId;
+    this.store.setActiveSession(sessionId);
+    this.advGuide.assignBattlemapToSessionAndPlace({
+      sceneKey,
+      sceneTitle: mapTitle,
+      sessionId,
+      sessionTitle: sessLabel,
+      locationNodeId: this.newBeatLocationKey() || 'node-room-c1-nave',
+      locationTitle: sessLabel,
+      artworkUrl: '/battlemap-showcase.jpg',
+    });
+    this.store.attachElementToSession({
+      sessionId,
+      elementKind: 'Map',
+      targetKey: sceneKey,
+      title: mapTitle,
+      subtitle: `Battlemap · ${sessLabel}`,
+      summary: `Assigned to ${sessLabel}`,
+      routeLink: `/arcane-screen?scene=${sceneKey}`,
+      visibility: 'players',
+      artworkUrl: '/battlemap-showcase.jpg',
+    });
+    this.story.statusBanner.set(`Assigned map '${mapTitle}' to ${sessLabel}.`);
   }
 
   onBeatSelected(beat: StoryBeatItemVm): void {
@@ -139,11 +230,9 @@ export class CampaignsPageComponent {
   }
 
   onSessionSelected(ses: StorySessionSequenceItemVm): void {
-    if (ses.sessionId === 'session-14') {
-      this.advGuide.selectScope('session', 'session-14');
-    } else {
-      this.advGuide.selectScope('session', 'session-15');
-    }
+    this.targetSessionId.set(ses.sessionId);
+    this.store.setActiveSession(ses.sessionId);
+    this.advGuide.selectScope('session', ses.sessionId);
   }
 
   onFeedItemSelected(item: StoryLoreClueFeedItemVm): void {

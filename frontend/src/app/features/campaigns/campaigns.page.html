@@ -76,6 +76,18 @@
             <option [value]="act.id">{{ act.title }} — {{ act.subtitle }}</option>
           }
         </select>
+        <select class="lw-story-select" [ngModel]="targetSessionId()" (ngModelChange)="targetSessionId.set($event)" aria-label="Target Session">
+          <option value="">Act Only (No Specific Session)</option>
+          @for (ses of availableSessionOptions(); track ses.id) {
+            <option [value]="ses.id">{{ ses.label }}</option>
+          }
+        </select>
+        <select class="lw-story-select" [ngModel]="targetSceneKey()" (ngModelChange)="targetSceneKey.set($event)" aria-label="Assigned Battlemap">
+          <option value="">No Battlemap Assigned</option>
+          @for (mp of availableBattlemaps(); track mp.sceneKey) {
+            <option [value]="mp.sceneKey">Map: {{ mp.name }}</option>
+          }
+        </select>
         <input type="text" class="lw-story-input" placeholder="e.g. 2.6 Opening the Sealed Gate..." [ngModel]="newBeatTitle()" (ngModelChange)="newBeatTitle.set($event)" />
         <select class="lw-story-select" [ngModel]="newBeatKind()" (ngModelChange)="newBeatKind.set($event)">
           <option value="scene">Scene</option>
@@ -159,7 +171,7 @@
             <lw-icon name="calendar" [size]="16" tone="gold" />
             <div><h4>SESSION SEQUENCE — ACT II</h4><p>Track your upcoming and recent sessions for this act.</p></div>
           </div>
-          <a class="lw-strip-panel__link" routerLink="/loom">View All Sessions</a>
+          <a class="lw-strip-panel__link" routerLink="/sessions">Manage Sessions &amp; Maps</a>
         </div>
 
         <div class="lw-session-seq">

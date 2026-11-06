@@ -110,7 +110,7 @@ export class WallMeshBuilder {
         })
         .join(',');
       parts.push(
-        `${w.id}|${w.drawMode}|${w.heightMeters}|${w.thicknessMeters}|${w.perspective}|${w.material}|${wallUrl}|${hasWallTpl ? 1 : 0}|${w.albedoUrl ?? ''}|${w.normalUrl ?? ''}|${w.colorHex ?? ''}|${w.wallNormalStrength ?? 1.35}|${w.wallDisplacementScale ?? 1}|${w.hasCornerPosts ? 1 : 0}|${w.cornerPostScale ?? 1}|${w.connectionOverlap ?? 15}|${w.offsetY ?? -0.06}|${w.stampScale ?? 1}|${w.wallTextureScale ?? 100}|${w.wallStretchX ?? 100}|${w.wallStretchY ?? 100}|${w.rotationOffsetDeg ?? 0}|${ptsSig}|${opsSig}`,
+        `${w.id}|${w.drawMode}|${w.heightMeters}|${w.thicknessMeters}|${w.perspective}|${w.material}|${wallUrl}|${hasWallTpl ? 1 : 0}|${w.albedoUrl ?? ''}|${w.normalUrl ?? ''}|${w.colorHex ?? ''}|${w.wallNormalStrength ?? 1.35}|${w.wallDisplacementScale ?? 1}|${w.hasCornerPosts ? 1 : 0}|${w.cornerPostScale ?? 1}|${w.connectionOverlap ?? 15}|${w.offsetY ?? -0.06}|${w.stampScale ?? 1}|${w.wallTextureScale ?? 100}|${w.wallStretchX ?? 100}|${w.wallStretchY ?? 100}|${w.terrainSmoothing ?? 75}|${w.rotationOffsetDeg ?? 0}|${ptsSig}|${opsSig}`,
       );
     }
     return parts.join('||');
@@ -396,7 +396,7 @@ export class WallMeshBuilder {
                   [ux, uz],
                   wall,
                   walls,
-                  wall.thicknessMeters * (0.48 + overlapFrac * 0.5),
+                  wall.thicknessMeters * (0.58 + overlapFrac * 0.8),
                 )
               : 0;
           const endCornerExt =
@@ -406,7 +406,7 @@ export class WallMeshBuilder {
                   [ux, uz],
                   wall,
                   walls,
-                  wall.thicknessMeters * (0.48 + overlapFrac * 0.5),
+                  wall.thicknessMeters * (0.58 + overlapFrac * 0.8),
                 )
               : 0;
           const spanStartX = a[0] + dx * s0 - ux * startCornerExt;
@@ -422,6 +422,15 @@ export class WallMeshBuilder {
           const minGroundY = Math.min(yStart, yMid, yEnd);
           const maxGroundY = Math.max(yStart, yMid, yEnd);
           const effectiveHeight = Math.max(0.45, maxGroundY + height - minGroundY);
+          const smoothingFrac = Math.max(0, Math.min(1, (wall.terrainSmoothing ?? 75) / 100));
+
+          const sampleSpanElevation = (uFrac: number): number => {
+            const sx = spanStartX + ux * (extendedSpanLen * uFrac);
+            const sz = spanStartZ + uz * (extendedSpanLen * uFrac);
+            const rawY = TerrainMeshBuilder.sampleElevationAt(scene, sx, sz);
+            const linY = yStart + (yEnd - yStart) * uFrac;
+            return rawY * (1 - smoothingFrac * 0.65) + linY * (smoothingFrac * 0.65);
+          };
 
           if (wallTpl) {
             const primaryRawSpan = Math.max(
@@ -435,32 +444,43 @@ export class WallMeshBuilder {
             const idealCourseH = Math.max(1.2, Math.min(3.8, rawCourseH * vScale));
 
             const chunkCount = Math.min(
-              12,
+              16,
               Math.max(1, Math.round(extendedSpanLen / idealChunkLen)),
             );
             const chunkLen = extendedSpanLen / chunkCount;
-            const chunkRenderW = chunkLen * (1 + Math.max(0.03, overlapFrac * 0.22));
+            // Ensure staggered stone ends of 3D wall stamps overlap by at least 16% so there are never gaps between chunks
+            const chunkRenderW = chunkLen * (1 + Math.max(0.16, overlapFrac * 1.15));
 
             const vCourseCount = Math.min(
               2,
-              Math.max(1, Math.round(effectiveHeight / idealCourseH)),
+              Math.max(1, Math.round(height / idealCourseH)),
             );
-            const courseH = effectiveHeight / vCourseCount;
-            const courseRenderH = courseH * (vCourseCount > 1 ? 1.04 : 1.0);
+            const courseH = height / vCourseCount;
+            const courseRenderH = courseH * (vCourseCount > 1 ? 1.14 : 1.06);
+            const cosRot = Math.cos(rotOffsetRad);
+            const sinRot = Math.sin(rotOffsetRad);
 
             for (let vIdx = 0; vIdx < vCourseCount; vIdx++) {
               const courseBaseY = vIdx * courseH;
               for (let cIdx = 0; cIdx < chunkCount; cIdx++) {
+                const u0 = cIdx / chunkCount;
+                const u1 = (cIdx + 1) / chunkCount;
                 const uMid = (cIdx + 0.5) / chunkCount;
                 const cx = spanStartX + ux * (extendedSpanLen * uMid);
                 const cz = spanStartZ + uz * (extendedSpanLen * uMid);
-                const cy = TerrainMeshBuilder.sampleElevationAt(scene, cx, cz);
+                const y0 = sampleSpanElevation(u0);
+                const y1 = sampleSpanElevation(u1);
+                const rawMidY = TerrainMeshBuilder.sampleElevationAt(scene, cx, cz);
+                const cy = 0.5 * (y0 + y1);
+                const sinkDip = Math.max(0, cy - rawMidY);
+                const slopePitch = Math.atan2(y1 - y0, Math.max(0.25, chunkLen));
+
                 const cInst = GlbModelCache.instantiateClone(
                   scene,
                   wallTpl,
                   `lw-wall-node-${wall.id}-${i}-${sIdx}-${vIdx}-${cIdx}`,
                   chunkRenderW,
-                  courseRenderH,
+                  courseRenderH + (vIdx === 0 ? sinkDip : 0),
                   effectiveThickness,
                   false,
                   false,
@@ -469,8 +489,12 @@ export class WallMeshBuilder {
                     colorHex: wall.colorHex || wall.tintColorHex,
                   },
                 );
-                cInst.position.set(cx, cy + offsetY + courseBaseY, cz);
-                cInst.rotation.y = angleY;
+                cInst.position.set(
+                  cx,
+                  cy + offsetY - (vIdx === 0 ? sinkDip : 0) + courseBaseY,
+                  cz,
+                );
+                cInst.rotation.set(-slopePitch * sinRot, angleY, slopePitch * cosRot);
                 meshCount++;
               }
             }

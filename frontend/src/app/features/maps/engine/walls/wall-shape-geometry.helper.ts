@@ -46,7 +46,7 @@ export function snapWallCursorPointHelper(
   snapToGrid: boolean,
 ): SnappedWallCursorResult {
   const edges = extractWallEdges(walls);
-  const cornerSnapRadius = snapToGrid ? 1.15 : 0.65;
+  const cornerSnapRadius = snapToGrid ? 1.35 : 0.75;
 
   let bestCornerDist = cornerSnapRadius;
   let bestCorner: { x: number; z: number; wallId: string; edgeAngleY: number; dx: number; dz: number } | null =
@@ -95,6 +95,42 @@ export function snapWallCursorPointHelper(
       snappedToCorner: true,
       connectedWallId: bestCorner.wallId,
       previewAngleY: perpAngleY,
+    };
+  }
+
+  // Also snap to existing wall segment centerlines for T-junction connections
+  const edgeSnapRadius = snapToGrid ? 0.92 : 0.55;
+  let bestEdgeDist = edgeSnapRadius;
+  let bestEdgeHit: { x: number; z: number; wallId: string; edgeAngleY: number } | null = null;
+  for (const e of edges) {
+    const edx = e.bx - e.ax;
+    const edz = e.bz - e.az;
+    const lenSq = edx * edx + edz * edz;
+    if (lenSq < 0.01) continue;
+    const t = Math.max(0, Math.min(1, ((rawX - e.ax) * edx + (rawZ - e.az) * edz) / lenSq));
+    const px = e.ax + edx * t;
+    const pz = e.az + edz * t;
+    const dist = Math.hypot(rawX - px, rawZ - pz);
+    if (dist < bestEdgeDist && (!anchor || Math.hypot(px - anchor.x, pz - anchor.z) > 0.25)) {
+      bestEdgeDist = dist;
+      bestEdgeHit = {
+        x: Math.round(px * 100) / 100,
+        z: Math.round(pz * 100) / 100,
+        wallId: e.wallId,
+        edgeAngleY: e.angleY,
+      };
+    }
+  }
+  if (bestEdgeHit) {
+    const previewAngleY = anchor
+      ? -Math.atan2(bestEdgeHit.z - anchor.z, bestEdgeHit.x - anchor.x)
+      : bestEdgeHit.edgeAngleY + Math.PI / 2;
+    return {
+      x: bestEdgeHit.x,
+      z: bestEdgeHit.z,
+      snappedToCorner: true,
+      connectedWallId: bestEdgeHit.wallId,
+      previewAngleY,
     };
   }
 

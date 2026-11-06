@@ -21,6 +21,7 @@ import {
   resolveGlbLodUrl,
   toBaseGlbUrl,
 } from './glb-lod';
+import { WallSurfacePaint } from '../walls/wall-surface-paint';
 
 export interface CachedGlbTemplate {
   readonly url: string;
@@ -234,6 +235,8 @@ export class GlbModelCache {
     } else {
       mat.specularColor = Color3.FromHexString('#25332b');
     }
+    mat.maxSimultaneousLights = 6;
+    WallSurfacePaint.registerMaterial(scene, mat);
     this.tintedMatCache.set(key, mat);
     return mat;
   }
@@ -403,11 +406,11 @@ export class GlbModelCache {
       for (const m of result.meshes) {
         m.computeWorldMatrix(true);
         if (m.material instanceof PBRMaterial) {
-          m.material.maxSimultaneousLights = 8;
+          m.material.maxSimultaneousLights = 6;
           m.material.directIntensity = 1.5;
           m.material.environmentIntensity = 0.72;
         } else if (m.material instanceof StandardMaterial) {
-          m.material.maxSimultaneousLights = 8;
+          m.material.maxSimultaneousLights = 6;
         }
       }
 
@@ -527,8 +530,10 @@ export class GlbModelCache {
         m.material.twoSidedLighting = true;
         m.material.directIntensity = 1.15;
         m.material.environmentIntensity = 0.85;
+        WallSurfacePaint.registerMaterial(m.getScene(), m.material);
       } else if (m.material instanceof StandardMaterial) {
         m.material.backFaceCulling = false;
+        WallSurfacePaint.registerMaterial(m.getScene(), m.material);
       }
       if (!(m instanceof Mesh) || m.getTotalVertices() === 0) continue;
       if (m.isVerticesDataPresent(VertexBuffer.ColorKind)) {

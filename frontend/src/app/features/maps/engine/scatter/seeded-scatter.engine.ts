@@ -18,7 +18,11 @@ export class SeededScatterEngine {
   ): number {
     const signature = clusters && clusters.length > 0 ? JSON.stringify(clusters) : '';
     const built = this.builtSignature.get(scene);
-    if (built && built.key === signature && scene.transformNodes.some((n) => n.name.startsWith('lw-scatter-node-'))) {
+    if (
+      built &&
+      built.key === signature &&
+      (built.count === 0 || scene.transformNodes.some((n) => n.name.startsWith('lw-scatter-node-')))
+    ) {
       return built.count;
     }
     this.builtSignature.delete(scene);
@@ -32,6 +36,7 @@ export class SeededScatterEngine {
 
     const hasClusters = Boolean(clusters && clusters.length > 0);
     if (!hasClusters) {
+      this.builtSignature.set(scene, { key: signature, count: 0 });
       return 0;
     }
 
@@ -57,8 +62,10 @@ export class SeededScatterEngine {
           : null;
 
         if (!glbTpl) {
-          // Leave the signature unset so the async model load triggers a real rebuild.
-          unresolved = true;
+          if (cluster.modelUrl && !GlbModelCache.hasFailed(cluster.modelUrl)) {
+            // Leave the signature unset only while the model is genuinely still loading.
+            unresolved = true;
+          }
           continue;
         }
         for (let j = 0; j < itemCount; j++) {
@@ -71,21 +78,19 @@ export class SeededScatterEngine {
           const s = .85 + nextRand() * .3;
           const rotY = nextRand() * Math.PI * 2;
 
-          if (glbTpl) {
-            const node = GlbModelCache.instantiateClone(
-              scene,
-              glbTpl,
-              `lw-scatter-node-${cluster.id}-${j}`,
-              1.35 * s,
-              1.35 * s,
-              1.35 * s,
-              true,
-              false,
-            );
-            node.position.set(ix, gy, iz);
-            node.rotation.set(0, rotY, 0);
-            node.getChildMeshes().forEach(m => m.isPickable = false);
-          }
+          const node = GlbModelCache.instantiateClone(
+            scene,
+            glbTpl,
+            `lw-scatter-node-${cluster.id}-${j}`,
+            1.35 * s,
+            1.35 * s,
+            1.35 * s,
+            true,
+            false,
+          );
+          node.position.set(ix, gy, iz);
+          node.rotation.set(0, rotY, 0);
+          node.getChildMeshes().forEach(m => m.isPickable = false);
           totalInstances++;
         }
       }

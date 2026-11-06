@@ -6,6 +6,7 @@ import {
 import { WaterChannelTerrain } from '../water/water-channel-terrain';
 import { GlbModelCache } from '../rendering/glb-model-cache';
 import { resolveTextureLodUrl } from '../rendering/glb-lod';
+import { WallSurfacePaint } from '../walls/wall-surface-paint';
 import {
   Color3,
   DynamicTexture,
@@ -1044,6 +1045,7 @@ export class TerrainMeshBuilder {
       vScale,
       this.floorBumpIntensity,
     );
+    WallSurfacePaint.registerMaterial(scene, mat);
     ground.material = mat;
     ground.receiveShadows = true;
   }

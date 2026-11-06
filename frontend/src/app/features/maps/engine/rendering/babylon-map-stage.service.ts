@@ -928,9 +928,17 @@ export class BabylonMapStageService {
     }, 150);
   }
 
+  updateLightsOnly(state: MapSceneGraphState): void {
+    if (!this.scene) return;
+    this.lastState = state;
+    this.wallBrush.walls = state.walls ?? [];
+    SceneLightingController.syncLights(this.scene, state.lights, undefined, state.walls);
+  }
+
   syncSceneGraph(state: MapSceneGraphState): void {
     if (!this.scene) return;
     this.lastState = state;
+    this.wallBrush.walls = state.walls ?? [];
 
     if (state.customElevations !== undefined) {
       TerrainMeshBuilder.importElevations(state.customElevations);

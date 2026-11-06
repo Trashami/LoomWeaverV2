@@ -7,12 +7,18 @@ export interface WallBrushSettings {
 }
 
 export const DEFAULT_WALL_BRUSH: WallBrushSettings = {
-  active: false, radius: 0.6, opacity: 35, hardness: 35, colorHex: '#4e8c57',
+  active: false,
+  radius: 0.6,
+  opacity: 35,
+  hardness: 35,
+  colorHex: '#4e8c57',
 };
 
 export interface WallPaintDab {
   readonly position: readonly [number, number, number];
   readonly normal: readonly [number, number, number];
+  /** Optional wall half-space barrier `[normalX, normalZ, originX, originZ]` so strokes never bleed through a wall. */
+  readonly barrier?: readonly [number, number, number, number];
   readonly radius: number;
   readonly opacity: number;
   readonly hardness: number;

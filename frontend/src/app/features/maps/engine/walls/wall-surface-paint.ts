@@ -10,11 +10,11 @@ import {
   Texture,
   UniformBuffer,
 } from '@babylonjs/core';
-import type { MapFloorPaintDab, MapWallSegmentNode } from '../map-scene-contract';
-import { TerrainMeshBuilder } from '../terrain/terrain-mesh.builder';
+import type { MapWallSegmentNode } from '../map-scene-contract';
 import type { WallPaintDab } from './wall-surface.models';
 
 const MAX_WORLD_PAINT_DABS = 256;
+const DAB_TEXTURE_ROWS = 3;
 
 interface ScenePaintBuffer {
   readonly data: Float32Array;
@@ -25,8 +25,9 @@ interface ScenePaintBuffer {
 
 /**
  * High-performance GPU 3D world-space volumetric surface paint shader plugin.
- * Replaces CPU `MeshBuilder.CreateDecal` clipping so painting runs at 60 FPS with zero lag
- * and seamlessly blends grime/moss/color across walls, adjacent corner walls, and the floor.
+ * Enforces a half-space wall barrier plane per dab so strokes drawn on the floor in front of a wall
+ * or on the front face of a wall transition smoothly between floor and wall without ever bleeding
+ * through to the back face of the wall or the floor behind the wall.
  */
 class WorldSurfacePaintPlugin extends MaterialPluginBase {
   private _isEnabled = true;
@@ -50,22 +51,9 @@ class WorldSurfacePaintPlugin extends MaterialPluginBase {
     samplers.push('lwPaintDabSampler');
   }
 
-  override getUniforms(): {
-    ubo: Array<{ name: string; size: number; type: string }>;
-    fragment: string;
-  } {
-    return {
-      ubo: [{ name: 'lwPaintDabCount', size: 1, type: 'float' }],
-      fragment: `#ifdef LW_WORLD_SURFACE_PAINT
-        uniform float lwPaintDabCount;
-      #endif`,
-    };
-  }
-
   override bindForSubMesh(uniformBuffer: UniformBuffer): void {
     if (!this._isEnabled) return;
     const state = WallSurfacePaint.getOrCreateSceneBuffer(this.sceneRef);
-    uniformBuffer.updateFloat('lwPaintDabCount', state.dabs.length);
     uniformBuffer.setTexture('lwPaintDabSampler', state.texture);
   }
 
@@ -80,34 +68,37 @@ class WorldSurfacePaintPlugin extends MaterialPluginBase {
 
     const code = `
       #ifdef LW_WORLD_SURFACE_PAINT
-        if (lwPaintDabCount > 0.5) {
-          int dabTotal = int(min(lwPaintDabCount, 128.0));
-          for (int di = 0; di < 128; di++) {
-            if (di >= dabTotal) {
-              break;
-            }
-            float uCoord = (float(di) + 0.5) / 256.0;
-            vec4 dabPosRad = texture(lwPaintDabSampler, vec2(uCoord, 0.25));
-            float dabR = max(0.05, dabPosRad.w);
-            vec3 dVec = vPositionW.xyz - dabPosRad.xyz;
-            // Fast axis-aligned bounding box rejection before length()
-            if (abs(dVec.x) < dabR && abs(dVec.y) < dabR && abs(dVec.z) < dabR) {
-              float dist = length(dVec);
-              if (dist < dabR) {
-                vec4 dabColMeta = texture(lwPaintDabSampler, vec2(uCoord, 0.75));
-                float packed = dabColMeta.w;
-                float opacity = clamp(floor(packed) / 100.0, 0.01, 1.0);
-                float hardness = clamp( fract(packed) * 2.0, 0.0, 0.96 );
-                float innerR = dabR * hardness;
-                float t = clamp((dist - innerR) / max(0.005, dabR - innerR), 0.0, 1.0);
-                float falloff = 0.5 * (1.0 + cos(3.14159265 * t));
-                float w = opacity * falloff;
-                vec3 pCol = dabColMeta.rgb;
-                // Grime & pigment blend that preserves underlying stone/brick/floor relief & mortar luminance
-                float baseLum = dot(${targetVar}, vec3(0.299, 0.587, 0.114));
-                vec3 stained = mix(${targetVar} * pCol * 1.45, pCol * (0.42 + 0.78 * baseLum), 0.58);
-                ${targetVar} = mix(${targetVar}, stained, w);
+        for (int di = 0; di < 128; di++) {
+          float uCoord = (float(di) + 0.5) / 256.0;
+          vec4 dabPosRad = texture(lwPaintDabSampler, vec2(uCoord, 0.166667));
+          float dabR = dabPosRad.w;
+          if (dabR <= 0.001) {
+            break;
+          }
+          vec3 dVec = vPositionW.xyz - dabPosRad.xyz;
+          if (abs(dVec.x) < dabR && abs(dVec.y) < dabR && abs(dVec.z) < dabR) {
+            float dist = length(dVec);
+            if (dist < dabR) {
+              vec4 dabBarrier = texture(lwPaintDabSampler, vec2(uCoord, 0.5));
+              vec2 bNorm = dabBarrier.xy;
+              if (dot(bNorm, bNorm) > 0.25) {
+                float signedSide = dot(vPositionW.xz - dabBarrier.zw, bNorm);
+                if (signedSide < -0.015) {
+                  continue;
+                }
               }
+              vec4 dabColMeta = texture(lwPaintDabSampler, vec2(uCoord, 0.833333));
+              float packed = dabColMeta.w;
+              float opacity = clamp(floor(packed) / 100.0, 0.01, 1.0);
+              float hardness = clamp(fract(packed) * 2.0, 0.0, 0.96);
+              float innerR = dabR * hardness;
+              float t = clamp((dist - innerR) / max(0.005, dabR - innerR), 0.0, 1.0);
+              float falloff = 0.5 * (1.0 + cos(3.14159265 * t));
+              float w = opacity * falloff;
+              vec3 pCol = dabColMeta.rgb;
+              float baseLum = dot(${targetVar}, vec3(0.299, 0.587, 0.114));
+              vec3 stained = mix(${targetVar} * pCol * 1.45, pCol * (0.42 + 0.78 * baseLum), 0.58);
+              ${targetVar} = mix(${targetVar}, stained, w);
             }
           }
         }
@@ -133,11 +124,11 @@ export class WallSurfacePaint {
     if (existing) {
       return existing;
     }
-    const data = new Float32Array(MAX_WORLD_PAINT_DABS * 2 * 4);
+    const data = new Float32Array(MAX_WORLD_PAINT_DABS * DAB_TEXTURE_ROWS * 4);
     const texture = RawTexture.CreateRGBATexture(
       data,
       MAX_WORLD_PAINT_DABS,
-      2,
+      DAB_TEXTURE_ROWS,
       scene,
       false,
       false,
@@ -156,53 +147,112 @@ export class WallSurfacePaint {
     return existing;
   }
 
-  static attachToSceneMaterials(scene: Scene): void {
+  static registerMaterial(scene: Scene, mat: Material | null | undefined): void {
+    if (!mat) return;
+    if (!(mat instanceof PBRBaseMaterial) && !(mat instanceof StandardMaterial)) return;
     const buf = this.getOrCreateSceneBuffer(scene);
-    if (buf.dabs.length === 0) return;
+    if (buf.attachedMaterials.has(mat)) return;
+    buf.attachedMaterials.add(mat);
+    try {
+      new WorldSurfacePaintPlugin(mat, scene);
+      mat.markAsDirty(Material.AllDirtyFlag);
+    } catch {
+      // Plugin already registered on material
+    }
+  }
+
+  static attachToSceneMaterials(scene: Scene): void {
     for (const m of scene.meshes) {
-      const isWallOrDoor =
+      const isWallDoorOrGround =
         m.metadata?.lwKind === 'wall' ||
         m.metadata?.lwKind === 'door' ||
         m.name.startsWith('lw-wall-') ||
         m.name.startsWith('lw-door-') ||
         m.name === 'lw-terrain-ground';
-      if (!isWallOrDoor) continue;
-      let mat = m.material;
-      if (!mat) continue;
-      // Ensure shared GLB template materials are cloned once per scene if needed
-      if (
-        (mat instanceof PBRBaseMaterial || mat instanceof StandardMaterial) &&
-        !buf.attachedMaterials.has(mat)
-      ) {
-        buf.attachedMaterials.add(mat);
-        try {
-          new WorldSurfacePaintPlugin(mat, scene);
-          mat.markAsDirty(Material.MiscDirtyFlag);
-        } catch {
-          // Plugin already registered on material
-        }
-      }
+      if (!isWallDoorOrGround || !m.material) continue;
+      this.registerMaterial(scene, m.material);
     }
   }
 
-  private static writeDabToBuffer(data: Float32Array, index: number, dab: WallPaintDab): void {
+  private static writeDabToBuffer(
+    data: Float32Array,
+    index: number,
+    dab: WallPaintDab,
+    walls?: readonly MapWallSegmentNode[],
+  ): void {
     if (index < 0 || index >= MAX_WORLD_PAINT_DABS) return;
     const row0Offset = index * 4;
     const row1Offset = (MAX_WORLD_PAINT_DABS + index) * 4;
+    const row2Offset = (MAX_WORLD_PAINT_DABS * 2 + index) * 4;
 
     data[row0Offset] = dab.position[0];
     data[row0Offset + 1] = dab.position[1];
     data[row0Offset + 2] = dab.position[2];
     data[row0Offset + 3] = Math.max(0.08, dab.radius);
 
+    const barrier = dab.barrier ?? this.inferBarrierFromWalls(dab, walls);
+    data[row1Offset] = barrier[0];
+    data[row1Offset + 1] = barrier[1];
+    data[row1Offset + 2] = barrier[2];
+    data[row1Offset + 3] = barrier[3];
+
     const col = Color3.FromHexString(dab.colorHex || '#4e8c57');
     const opacityInt = Math.max(1, Math.min(100, Math.round(dab.opacity)));
     const hardnessFrac = Math.max(0, Math.min(0.48, (dab.hardness / 100) * 0.48));
 
-    data[row1Offset] = col.r;
-    data[row1Offset + 1] = col.g;
-    data[row1Offset + 2] = col.b;
-    data[row1Offset + 3] = opacityInt + hardnessFrac;
+    data[row2Offset] = col.r;
+    data[row2Offset + 1] = col.g;
+    data[row2Offset + 2] = col.b;
+    data[row2Offset + 3] = opacityInt + hardnessFrac;
+  }
+
+  private static inferBarrierFromWalls(
+    dab: WallPaintDab,
+    walls?: readonly MapWallSegmentNode[],
+  ): readonly [number, number, number, number] {
+    const px = dab.position[0];
+    const pz = dab.position[2];
+    if (walls && walls.length > 0) {
+      let bestDist = Infinity;
+      let best: readonly [number, number, number, number] | null = null;
+      for (const wall of walls) {
+        const pts = wall.points;
+        if (pts.length < 2) continue;
+        const closed = wall.drawMode !== 'line' && wall.drawMode !== 'freehand';
+        const segCount = closed ? pts.length : pts.length - 1;
+        for (let i = 0; i < segCount; i++) {
+          const a = pts[i];
+          const b = pts[(i + 1) % pts.length];
+          const sdx = b[0] - a[0];
+          const sdz = b[1] - a[1];
+          const lenSq = sdx * sdx + sdz * sdz;
+          if (lenSq < 0.005) continue;
+          const t = Math.max(0, Math.min(1, ((px - a[0]) * sdx + (pz - a[1]) * sdz) / lenSq));
+          const cx = a[0] + sdx * t;
+          const cz = a[1] + sdz * t;
+          const dist = Math.hypot(px - cx, pz - cz);
+          if (dist < bestDist) {
+            bestDist = dist;
+            const segLen = Math.sqrt(lenSq);
+            const nx = -sdz / segLen;
+            const nz = sdx / segLen;
+            const relDot = (px - cx) * nx + (pz - cz) * nz;
+            const normDot = dab.normal[0] * nx + dab.normal[2] * nz;
+            const sign = Math.abs(relDot) > 0.03 ? (relDot >= 0 ? 1 : -1) : normDot >= 0 ? 1 : -1;
+            best = [nx * sign, nz * sign, cx, cz];
+          }
+        }
+      }
+      if (best) return best;
+    }
+
+    const horizLen = Math.hypot(dab.normal[0], dab.normal[2]);
+    if (horizLen > 0.25) {
+      const bnx = dab.normal[0] / horizLen;
+      const bnz = dab.normal[2] / horizLen;
+      return [bnx, bnz, px - bnx * 0.2, pz - bnz * 0.2];
+    }
+    return [0, 0, px, pz];
   }
 
   static clear(scene: Scene): void {
@@ -214,6 +264,7 @@ export class WallSurfacePaint {
   }
 
   static replay(scene: Scene, walls: readonly MapWallSegmentNode[] | undefined): void {
+    this.attachToSceneMaterials(scene);
     const hasAnyDabs = Boolean(walls?.some((w) => (w.paintDabs?.length ?? 0) > 0));
     if (!hasAnyDabs && !this.sceneBuffers.has(scene)) {
       return;
@@ -232,16 +283,17 @@ export class WallSurfacePaint {
       }
     }
     for (let i = 0; i < buf.dabs.length; i++) {
-      this.writeDabToBuffer(buf.data, i, buf.dabs[i]);
+      this.writeDabToBuffer(buf.data, i, buf.dabs[i], walls);
     }
     buf.texture.update(buf.data);
-    this.attachToSceneMaterials(scene);
   }
 
   static apply(scene: Scene, _wallId: string, dab: WallPaintDab): void {
     const buf = this.getOrCreateSceneBuffer(scene);
+    this.attachToSceneMaterials(scene);
     if (buf.dabs.length >= MAX_WORLD_PAINT_DABS) {
       buf.dabs.shift();
+      buf.data.fill(0);
       for (let i = 0; i < buf.dabs.length; i++) {
         this.writeDabToBuffer(buf.data, i, buf.dabs[i]);
       }
@@ -250,27 +302,5 @@ export class WallSurfacePaint {
     buf.dabs.push(dab);
     this.writeDabToBuffer(buf.data, idx, dab);
     buf.texture.update(buf.data);
-    this.attachToSceneMaterials(scene);
-
-    // If the dab reaches near the floor (bottom of wall or directly on floor),
-    // also bleed onto the 2D/3D floor composite canvas so top-down 2D & floor persistence stay synced!
-    const groundY = TerrainMeshBuilder.sampleElevationAt(scene, dab.position[0], dab.position[2]);
-    const heightAboveFloor = Math.abs(dab.position[1] - groundY);
-    if (heightAboveFloor < dab.radius * 0.92) {
-      const verticalReach = Math.sqrt(
-        Math.max(0.04, dab.radius * dab.radius - heightAboveFloor * heightAboveFloor),
-      );
-      const falloffScale = Math.max(0.25, 1 - (heightAboveFloor / dab.radius) * 0.65);
-      const floorDab: MapFloorPaintDab = {
-        x: Math.round(dab.position[0] * 100) / 100,
-        z: Math.round(dab.position[2] * 100) / 100,
-        radius: Math.round(verticalReach * 100) / 100,
-        colorHex: dab.colorHex,
-        blendMode: 'multiply',
-        opacity: Math.max(4, Math.round(dab.opacity * falloffScale * 0.65)),
-        sharpness: Math.round(dab.hardness * 0.7),
-      };
-      TerrainMeshBuilder.paintFloorStrokeAt(scene, floorDab);
-    }
   }
 }

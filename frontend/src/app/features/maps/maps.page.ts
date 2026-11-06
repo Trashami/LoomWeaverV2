@@ -459,12 +459,21 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     if (!id || !dabs.length) return;
     this.recordHistoryBeforeEdit('Paint selected wall surface');
     const floorDabs = this.stage.exportFloorPaintDabs();
-    this.commitSceneUpdate(cur => ({
-      ...cur,
-      revision: cur.revision + 1,
-      floorPaintDabs: floorDabs,
-      walls: cur.walls?.map(w => w.id === id ? { ...w, paintDabs: [...(w.paintDabs ?? []), ...dabs] } : w),
-    }));
+    this.sceneGraph.update((cur) => {
+      const updated: MapSceneGraphState = {
+        ...cur,
+        revision: cur.revision + 1,
+        floorPaintDabs: floorDabs,
+        walls: cur.walls?.map((w) =>
+          w.id === id ? { ...w, paintDabs: [...(w.paintDabs ?? []), ...dabs] } : w,
+        ),
+      };
+      this.stage.updateLightsOnly(updated);
+      return updated;
+    });
+    if (this.dimensionMode() === '2d') {
+      this.render2dViewport();
+    }
   }
 
   readonly floorBrushActive = signal<boolean>(false);
@@ -2079,7 +2088,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     const effectiveY = wallSnap.snapped ? wallSnap.suggestedElevationY : draft.y;
     const labels = { point: 'Point', spot: 'Spot', aoe: 'Ambient' } as const;
     this.recordHistoryBeforeEdit(wallSnap.snapped ? 'Mount Wall Sconce Light' : 'Add Scene Light');
-    this.commitSceneUpdate((cur) => ({
+    this.commitLightUpdate((cur) => ({
       ...cur,
       revision: cur.revision + 1,
       lights: [
@@ -2116,7 +2125,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.lightDraft.set(next);
     const targetId = this.selectedPlacedKind() === 'light' ? this.selectedPlacedId() : null;
     if (!targetId) return;
-    this.commitSceneUpdate((cur) => ({
+    this.commitLightUpdate((cur) => ({
       ...cur,
       revision: cur.revision + 1,
       lights: cur.lights.map((lt) => (lt.id === targetId ? { ...lt, ...next } : lt)),
@@ -2133,6 +2142,17 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     if (this.selectedPlacedKind() === 'light') this.onDeleteSelectedPlacedNode();
   }
 
+  private commitLightUpdate(updater: (cur: MapSceneGraphState) => MapSceneGraphState): void {
+    this.sceneGraph.update((cur) => {
+      const updated = updater(cur);
+      this.stage.updateLightsOnly(updated);
+      return updated;
+    });
+    if (this.dimensionMode() === '2d') {
+      this.render2dViewport();
+    }
+  }
+
   private wireLightDrag(): void {
     this.stage.lightDrag.onStart = (id) => {
       this.selectPlacedEntity({ lwKind: 'light', lwEntityId: id } as PickedSceneEntityMeta, 0, 0);
@@ -2143,7 +2163,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       const wallSnap = snapToNearestWallFace(this.sceneGraph().walls, x, z, 0.16, 0.95);
       const lx = wallSnap.snapped ? wallSnap.x : x;
       const lz = wallSnap.snapped ? wallSnap.z : z;
-      this.commitSceneUpdate((cur) => ({
+      this.commitLightUpdate((cur) => ({
         ...cur,
         revision: cur.revision + 1,
         lights: cur.lights.map((lt) =>

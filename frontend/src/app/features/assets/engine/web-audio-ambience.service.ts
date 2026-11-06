@@ -13,6 +13,8 @@ import {
 const STORAGE_PLAYLISTS_KEY = 'lw_gm_music_playlists_v2';
 const STORAGE_TRIGGERS_KEY = 'lw_gm_music_triggers_v2';
 const STORAGE_CUSTOM_TRACKS_KEY = 'lw_gm_music_custom_tracks_v2';
+const STORAGE_USER_VOLUME_KEY = 'lw_user_audio_volume_v1';
+const STORAGE_USER_MUTED_KEY = 'lw_user_audio_muted_v1';
 
 export const DEFAULT_MUSIC_TRACKS: readonly LwMusicTrackItem[] = [
   {
@@ -263,7 +265,9 @@ export class WebAudioAmbienceService {
 
   readonly isPlaying = signal<boolean>(false);
   readonly activePresetId = signal<string>('preset-cinth-ballroom');
-  readonly masterVolume = signal<number>(0.8);
+  readonly masterVolume = signal<number>(this.readStorage<number>(STORAGE_USER_VOLUME_KEY, 0.8));
+  readonly isMuted = signal<boolean>(this.readStorage<boolean>(STORAGE_USER_MUTED_KEY, false));
+  readonly effectiveVolume = computed(() => (this.isMuted() ? 0 : this.masterVolume()));
   readonly stems = signal<readonly LwAudioStemItem[]>(DEFAULT_STEMS);
   readonly presets = signal<readonly LwAudioScenePresetItem[]>(DEFAULT_PRESETS);
 
@@ -309,7 +313,10 @@ export class WebAudioAmbienceService {
       this.presets.set(serverPresets);
     }
     this.activePresetId.set(activePresetId || 'preset-cinth-ballroom');
-    this.masterVolume.set(masterVolume ?? 0.8);
+    const savedPersonalVolume = this.readStorage<number | null>(STORAGE_USER_VOLUME_KEY, null);
+    if (savedPersonalVolume === null && masterVolume !== undefined) {
+      this.masterVolume.set(masterVolume);
+    }
 
     if (serverTracks?.length) {
       const custom = this.readStorage<LwMusicTrackItem[]>(STORAGE_CUSTOM_TRACKS_KEY, []);
@@ -358,6 +365,35 @@ export class WebAudioAmbienceService {
       this.pauseEngine();
     } else {
       this.startOrResumeTrack(this.activeTrackId(), 0.8);
+    }
+  }
+
+  play(): void {
+    this.startOrResumeTrack(this.activeTrackId(), 0.6);
+  }
+
+  pause(): void {
+    this.pauseEngine();
+  }
+
+  restartTrack(): void {
+    this.seekTo(0);
+    if (!this.isPlaying()) {
+      this.startOrResumeTrack(this.activeTrackId(), 0.3);
+    } else if (this.activeAudioEl) {
+      try {
+        this.activeAudioEl.currentTime = 0;
+        void this.activeAudioEl.play();
+      } catch {}
+    }
+  }
+
+  toggleMute(): void {
+    const next = !this.isMuted();
+    this.isMuted.set(next);
+    this.writeStorage(STORAGE_USER_MUTED_KEY, next);
+    if (this.activeAudioEl) {
+      this.activeAudioEl.volume = this.effectiveVolume();
     }
   }
 
@@ -432,8 +468,13 @@ export class WebAudioAmbienceService {
   setMasterVolume(vol: number): void {
     const clamped = Math.max(0, Math.min(1, vol));
     this.masterVolume.set(clamped);
+    this.writeStorage(STORAGE_USER_VOLUME_KEY, clamped);
+    if (clamped > 0 && this.isMuted()) {
+      this.isMuted.set(false);
+      this.writeStorage(STORAGE_USER_MUTED_KEY, false);
+    }
     if (this.activeAudioEl) {
-      this.activeAudioEl.volume = clamped;
+      this.activeAudioEl.volume = this.effectiveVolume();
     }
   }
 
@@ -681,7 +722,7 @@ export class WebAudioAmbienceService {
       this.activeAudioEl.dataset['trackId'] === track.id &&
       !this.activeAudioEl.ended
     ) {
-      this.activeAudioEl.volume = this.masterVolume();
+      this.activeAudioEl.volume = this.effectiveVolume();
       this.activeAudioEl
         .play()
         .then(() => {
@@ -732,7 +773,7 @@ export class WebAudioAmbienceService {
     this.currentTimeSeconds.set(0);
     this.durationSeconds.set(track.durationSeconds || 180);
 
-    const targetVol = this.masterVolume();
+    const targetVol = this.effectiveVolume();
     if (outgoing && !outgoing.paused && crossfadeSeconds > 0.2) {
       this.fadingAudioEl = outgoing;
       incoming.volume = 0.02;

@@ -1,5 +1,27 @@
 <div class="lw-vtt-settings">
   <fieldset class="lw-vtt-settings__group">
+    <legend>Your Personal Volume (Saved to Browser)</legend>
+    <p class="lw-vtt-settings__hint">Controls your own tabletop audio volume without affecting other players.</p>
+    <div class="lw-vtt-settings__row-head">
+      <span>Audio Volume ({{ audio.activeTrack().title }})</span>
+      <strong>{{ audio.isMuted() ? 'Muted' : userVolumePercent() + '%' }}</strong>
+    </div>
+    <div class="lw-vtt-settings__slider-row">
+      <button type="button" class="lw-vtt-settings__reset-btn" (click)="audio.toggleMute()">
+        {{ audio.isMuted() ? 'Unmute' : 'Mute' }}
+      </button>
+      <input
+        type="range"
+        min="0"
+        max="100"
+        step="1"
+        [value]="userVolumePercent()"
+        (input)="onVolumeInput($event)"
+      />
+    </div>
+  </fieldset>
+
+  <fieldset class="lw-vtt-settings__group">
     <legend>Map Quality (Saved to Account)</legend>
     <p class="lw-vtt-settings__hint">Choose how detailed the battle map artwork is. Saved to your account until changed.</p>
     @for (opt of qualityOptions; track opt.id) {

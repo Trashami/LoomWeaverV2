@@ -990,6 +990,70 @@
           </div>
 
           <div class="lw-map-inspector__group-box">
+            <span class="lw-map-inspector__subhead">Door Hinge Side &amp; Swing Direction</span>
+            <p class="lw-map-inspector__hint">
+              Doors pivot naturally from their left or right jamb hinge (or as twin double doors), never from the center.
+            </p>
+
+            <div class="lw-map-inspector__row">
+              <span class="lw-map-inspector__label">Hinge Side</span>
+              <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="doorHingeSide() === 'left'"
+                  (click)="doorHingeSideChange.emit('left')"
+                >
+                  Left Hinge
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="doorHingeSide() === 'right'"
+                  (click)="doorHingeSideChange.emit('right')"
+                >
+                  Right Hinge
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="doorHingeSide() === 'double'"
+                  (click)="doorHingeSideChange.emit('double')"
+                >
+                  Double Door
+                </button>
+              </div>
+            </div>
+
+            <div class="lw-map-inspector__row">
+              <span class="lw-map-inspector__label">Swing Direction</span>
+              <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="doorSwingDirection() === 'inward'"
+                  (click)="doorSwingDirectionChange.emit('inward')"
+                >
+                  Swing Inward
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="doorSwingDirection() === 'outward'"
+                  (click)="doorSwingDirectionChange.emit('outward')"
+                >
+                  Swing Outward
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="lw-map-inspector__group-box">
             <span class="lw-map-inspector__subhead">Door Side Post Blocks (Wall-Matched Jambs)</span>
             <p class="lw-map-inspector__hint">
               Interlocks 3D stone/brick/timber quoin blocks onto both sides of the door cutout so the cut wall ends blend naturally into the doorway.

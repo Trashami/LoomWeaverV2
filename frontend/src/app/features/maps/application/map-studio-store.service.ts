@@ -163,6 +163,77 @@ export class MapStudioStoreService {
     this.activeLayerId.set(id);
   }
 
+  private getLocalCacheKey(campaignId: number): string {
+    return `lw.maps.savedScenes.v1.${campaignId}`;
+  }
+
+  saveLocalCachedScene(campaignId: number, sceneKey: string, doc: SavedMapSceneDocument, revision: number): void {
+    try {
+      if (typeof localStorage === 'undefined' || campaignId <= 0 || !sceneKey) return;
+      const key = this.getLocalCacheKey(campaignId);
+      const raw = localStorage.getItem(key);
+      const map: Record<string, { revision: number; updatedAt: string; document: SavedMapSceneDocument }> =
+        raw ? JSON.parse(raw) : {};
+      map[sceneKey] = {
+        revision,
+        updatedAt: new Date().toISOString(),
+        document: doc,
+      };
+      localStorage.setItem(key, JSON.stringify(map));
+    } catch {}
+  }
+
+  listLocalCachedScenes(campaignId: number): readonly {
+    sceneKey: string;
+    name: string;
+    campaignId: number;
+    revision: number;
+    gridCols: number;
+    gridRows: number;
+    floorAlbedoUrl?: string | null;
+    updatedAt: string;
+  }[] {
+    try {
+      if (typeof localStorage === 'undefined' || campaignId <= 0) return [];
+      const raw = localStorage.getItem(this.getLocalCacheKey(campaignId));
+      if (!raw) return [];
+      const map = JSON.parse(raw) as Record<
+        string,
+        { revision: number; updatedAt: string; document: SavedMapSceneDocument }
+      >;
+      return Object.entries(map).map(([sceneKey, entry]) => ({
+        sceneKey,
+        name: entry.document?.name || entry.document?.studio?.mapTitle || sceneKey,
+        campaignId,
+        revision: entry.revision || entry.document?.revision || 1,
+        gridCols: entry.document?.gridCols || 50,
+        gridRows: entry.document?.gridRows || 50,
+        floorAlbedoUrl: entry.document?.floorAlbedoUrl ?? null,
+        updatedAt: entry.updatedAt || new Date().toISOString(),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  private getLocalCachedScene(
+    campaignId: number,
+    sceneKey: string,
+  ): { revision: number; document: SavedMapSceneDocument } | null {
+    try {
+      if (typeof localStorage === 'undefined' || campaignId <= 0 || !sceneKey) return null;
+      const raw = localStorage.getItem(this.getLocalCacheKey(campaignId));
+      if (!raw) return null;
+      const map = JSON.parse(raw) as Record<
+        string,
+        { revision: number; updatedAt: string; document: SavedMapSceneDocument }
+      >;
+      return map[sceneKey] ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   loadSceneDocument(
     campaignId: number,
     sceneKey: string,
@@ -188,11 +259,28 @@ export class MapStudioStoreService {
             this.levels.set(res.document.studio.levels);
             this.layers.set(res.document.studio.layers);
           }
+          this.saveLocalCachedScene(campaignId, sceneKey, res.document, res.revision);
           onLoaded(res.document);
           this.saveStatusBanner.set(`Loaded saved server scene at revision ${res.revision}.`);
         },
         error: (err) => {
           if (requestVersion !== this.sceneLoadVersion) return;
+          const cached = this.getLocalCachedScene(campaignId, sceneKey);
+          if (cached) {
+            this.serverSceneRevision.set(cached.revision);
+            if (cached.document.studio) {
+              this.mapTitle.set(cached.document.studio.mapTitle);
+              this.activeLevelIndex.set(cached.document.studio.activeLevelIndex);
+              this.ghostLowerFloors.set(cached.document.studio.ghostLowerFloors);
+              this.testTokenSandbox.set(cached.document.studio.testTokenSandbox);
+              this.gridConfig.set(cached.document.studio.gridConfig);
+              this.levels.set(cached.document.studio.levels);
+              this.layers.set(cached.document.studio.layers);
+            }
+            onLoaded(cached.document);
+            this.saveStatusBanner.set(`Loaded cached scene at revision ${cached.revision}.`);
+            return;
+          }
           this.saveStatusBanner.set(
             err.status === 404
               ? 'No saved server scene exists yet; the starter scene is ready to edit.'
@@ -208,20 +296,22 @@ export class MapStudioStoreService {
     sceneGraph: MapSceneGraphState,
   ): void {
     this.savingRevision.set(true);
+    const savedDoc: SavedMapSceneDocument = {
+      ...sceneGraph,
+      studio: {
+        mapTitle: this.mapTitle(),
+        activeLevelIndex: this.activeLevelIndex(),
+        ghostLowerFloors: this.ghostLowerFloors(),
+        testTokenSandbox: this.testTokenSandbox(),
+        gridConfig: this.gridConfig(),
+        levels: this.levels(),
+        layers: this.layers(),
+      },
+    };
+    this.saveLocalCachedScene(campaignId, sceneKey, savedDoc, Math.max(1, sceneGraph.revision));
     const payload = {
       expectedRevision: this.serverSceneRevision(),
-      document: {
-        ...sceneGraph,
-        studio: {
-          mapTitle: this.mapTitle(),
-          activeLevelIndex: this.activeLevelIndex(),
-          ghostLowerFloors: this.ghostLowerFloors(),
-          testTokenSandbox: this.testTokenSandbox(),
-          gridConfig: this.gridConfig(),
-          levels: this.levels(),
-          layers: this.layers(),
-        },
-      },
+      document: savedDoc,
     };
 
     this.http
@@ -233,11 +323,12 @@ export class MapStudioStoreService {
         next: (res) => {
           this.savingRevision.set(false);
           this.serverSceneRevision.set(res.revision);
+          this.saveLocalCachedScene(campaignId, sceneKey, savedDoc, res.revision);
           this.saveStatusBanner.set(`Saved scene to the server at revision ${res.revision}.`);
         },
         error: (err) => {
           this.savingRevision.set(false);
-          const msg = err?.error?.error ?? 'Scene save failed; no server copy was written.';
+          const msg = err?.error?.error ?? 'Scene saved to local cache; server sync pending.';
           this.saveStatusBanner.set(msg);
         },
       });

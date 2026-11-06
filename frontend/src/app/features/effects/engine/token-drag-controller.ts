@@ -280,7 +280,7 @@ export class TokenDragController {
     const dx = snapped.x - drag.x;
     const dz = snapped.z - drag.z;
     if (Math.hypot(dx, dz) > 0.05) {
-      drag.facingY = Math.atan2(-dx, -dz);
+      drag.facingY = Math.atan2(dx, dz);
     }
     drag.velX = drag.velX * 0.45 + Math.max(-1, Math.min(1, dx)) * 0.55;
     drag.velZ = drag.velZ * 0.45 + Math.max(-1, Math.min(1, dz)) * 0.55;
@@ -315,7 +315,7 @@ export class TokenDragController {
     const totalDx = drag.x - drag.startX;
     const totalDz = drag.z - drag.startZ;
     if (Math.hypot(totalDx, totalDz) > 0.08 && drag.facingY === undefined) {
-      drag.facingY = Math.atan2(-totalDx, -totalDz);
+      drag.facingY = Math.atan2(totalDx, totalDz);
     }
     if (drag.facingY !== undefined) {
       this.placeMeshes(drag.key, drag.x, drag.z, drag.facingY);
@@ -372,9 +372,10 @@ export class TokenDragController {
           groundY + baseHeight / 2 + 0.01 + LIFT_HEIGHT_WORLD * ease + hoverBob,
           drag.z,
         );
-        // 20-degree board-piece tilt (pitched toward camera + slight roll/bank with drag velocity)
-        const targetRotX = (TILT_20_DEG_RAD * 0.88 + drag.velZ * 0.14) * ease;
-        const targetRotZ = (-TILT_20_DEG_RAD * 0.46 - drag.velX * 0.14) * ease;
+        // Smooth board-piece tilt in local space (tokenMesh.rotation.y already faces movement direction)
+        const moveSpeed = Math.min(1, Math.hypot(drag.velX, drag.velZ));
+        const targetRotX = TILT_20_DEG_RAD * (0.38 + moveSpeed * 0.32) * ease;
+        const targetRotZ = 0;
         tokenMesh.rotation.x += (targetRotX - tokenMesh.rotation.x) * 0.28;
         tokenMesh.rotation.z += (targetRotZ - tokenMesh.rotation.z) * 0.28;
       }
@@ -413,12 +414,8 @@ export class TokenDragController {
         const wt = (elapsed - DROP_FALL_MS) / 1000;
         const decay = Math.exp(-wt * 7.8);
         const phase = wt * 31.0;
-        const tiltMag = TILT_20_DEG_RAD * 0.72 * decay * Math.cos(phase);
-        const perpMag = TILT_20_DEG_RAD * 0.28 * decay * Math.sin(phase * 1.15);
-        const c = Math.cos(st.wobbleAxisAngle);
-        const s = Math.sin(st.wobbleAxisAngle);
-        const rotX = tiltMag * c - perpMag * s;
-        const rotZ = tiltMag * s + perpMag * c;
+        const rotX = TILT_20_DEG_RAD * 0.55 * decay * Math.cos(phase);
+        const rotZ = TILT_20_DEG_RAD * 0.22 * decay * Math.sin(phase * 1.15);
         // Slight vertical rim-pivot lift so the miniature rocks on its bottom edge instead of clipping the floor
         const rimLift = Math.abs(Math.hypot(rotX, rotZ)) * radius * 0.65;
         tokenMesh.position.y = baseRestY + rimLift;

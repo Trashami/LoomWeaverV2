@@ -1,11 +1,140 @@
 <div class="lw-gm-panel">
-  @if (encounter(); as enc) {
-    <nav class="lw-gm-subtabs" aria-label="Tracker sections">
-      <button ngpButton type="button" [class.active]="section() === 'npcs'" (click)="section.set('npcs')">Session NPCs</button>
-      <button ngpButton type="button" [class.active]="section() === 'traps'" (click)="section.set('traps')">Traps</button>
-      <button ngpButton type="button" [class.active]="section() === 'monsters'" (click)="section.set('monsters')">Monsters</button>
-    </nav>
+  <nav class="lw-gm-subtabs" aria-label="Tracker sections">
+    <button ngpButton type="button" [class.active]="section() === 'music'" (click)="section.set('music')">Soundtrack</button>
+    <button ngpButton type="button" [class.active]="section() === 'npcs'" (click)="section.set('npcs')">NPCs</button>
+    <button ngpButton type="button" [class.active]="section() === 'traps'" (click)="section.set('traps')">Traps</button>
+    <button ngpButton type="button" [class.active]="section() === 'monsters'" (click)="section.set('monsters')">Monsters</button>
+  </nav>
 
+  @if (section() === 'music') {
+    <!-- Personal User Volume (Every User: Player & DM) -->
+    <article class="lw-gm-card">
+      <header class="lw-gm-card__head">
+        <h3>Your Personal Volume</h3>
+        <span class="lw-gm-pill lw-gm-pill--live">{{ audio.isMuted() ? 'Muted (0%)' : userVolumePct() + '%' }}</span>
+      </header>
+      <small class="lw-gm-sub">Saved to your browser only — adjusts your own volume without affecting other players.</small>
+      <div class="lw-gm-row__head" style="margin-top: 4px;">
+        <button
+          ngpButton
+          type="button"
+          class="lw-gm-btn"
+          (click)="audio.toggleMute()"
+        >
+          {{ audio.isMuted() ? 'Unmute' : 'Mute' }}
+        </button>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          style="flex: 1; accent-color: #49e892; cursor: pointer;"
+          aria-label="Your Personal Volume"
+          [value]="userVolumePct()"
+          (input)="onUserVolumeChange($event)"
+        />
+      </div>
+    </article>
+
+    <!-- Now Playing Card -->
+    <article class="lw-gm-card">
+      <header class="lw-gm-card__head">
+        <h3>{{ audio.activeTrack().title }}</h3>
+        <span class="lw-gm-pill" [class.lw-gm-pill--live]="audio.isPlaying()">
+          {{ audio.isPlaying() ? 'Playing' : 'Paused' }}
+        </span>
+      </header>
+      <small class="lw-gm-sub">{{ audio.activeTrack().artist }} · {{ audio.activeTrack().category }}</small>
+      <div class="lw-gm-row__meta">
+        <span>{{ formatTime(audio.currentTimeSeconds()) }} / {{ formatTime(audio.durationSeconds()) }}</span>
+        <span>{{ audio.loopMode() === 'track' ? 'Looping Single Track' : 'Looping Playlist' }}</span>
+      </div>
+
+      @if (isGm()) {
+        <div class="lw-gm-row__head" style="flex-wrap: wrap; gap: 6px; margin-top: 6px;">
+          <button ngpButton type="button" class="lw-gm-btn" (click)="dmPrevTrack()" title="Previous Track">
+            &laquo; Prev
+          </button>
+          <button
+            ngpButton
+            type="button"
+            class="lw-gm-btn lw-gm-btn--gold"
+            (click)="dmTogglePlayPause()"
+          >
+            {{ audio.isPlaying() ? 'Pause' : 'Play' }}
+          </button>
+          <button
+            ngpButton
+            type="button"
+            class="lw-gm-btn"
+            (click)="dmRestartTrack()"
+            title="Start / Restart Track from 0:00"
+          >
+            Start (0:00)
+          </button>
+          <button ngpButton type="button" class="lw-gm-btn" (click)="dmNextTrack()" title="Next Track">
+            Next &raquo;
+          </button>
+          <button
+            ngpButton
+            type="button"
+            class="lw-gm-btn"
+            (click)="dmToggleLoop()"
+          >
+            {{ audio.loopMode() === 'track' ? 'Loop: Track' : 'Loop: Playlist' }}
+          </button>
+        </div>
+      }
+    </article>
+
+    @if (isGm()) {
+      <!-- DM Playlist & Track Switcher -->
+      <article class="lw-gm-card">
+        <header class="lw-gm-card__head">
+          <h3>DM Soundtrack &amp; Track Switcher</h3>
+          <span class="lw-gm-pill">{{ audio.tracks().length }} Tracks</span>
+        </header>
+        <small class="lw-gm-sub">Select a playlist or click any track below to switch table music live.</small>
+        <select
+          class="lw-gm-select"
+          aria-label="Select Active Playlist"
+          [ngModel]="audio.activePlaylistId()"
+          (ngModelChange)="dmSelectPlaylist($event)"
+        >
+          @for (pl of audio.playlists(); track pl.id) {
+            <option [value]="pl.id">{{ pl.name }} ({{ pl.trackIds.length }} tracks)</option>
+          }
+        </select>
+
+        <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;">
+          @for (trk of audio.tracks(); track trk.id) {
+            <div
+              class="lw-gm-row"
+              [class.lw-gm-row--active]="trk.id === audio.activeTrackId()"
+              style="cursor: pointer;"
+              (click)="dmSelectTrack(trk.id)"
+            >
+              <div class="lw-gm-row__head">
+                <strong>{{ trk.title }}</strong>
+                <button
+                  ngpButton
+                  type="button"
+                  class="lw-gm-btn"
+                  (click)="$event.stopPropagation(); dmSelectTrack(trk.id)"
+                >
+                  {{ trk.id === audio.activeTrackId() && audio.isPlaying() ? 'Playing' : 'Play' }}
+                </button>
+              </div>
+              <div class="lw-gm-row__meta">
+                <span>{{ trk.category }}</span>
+                <span>{{ formatTime(trk.durationSeconds) }}</span>
+              </div>
+            </div>
+          }
+        </div>
+      </article>
+    }
+  } @else if (encounter(); as enc) {
     @if (section() === 'npcs') {
       @for (npc of enc.sessionNpcs; track npc.compositeKey) {
         <article class="lw-gm-card">

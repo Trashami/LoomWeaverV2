@@ -470,7 +470,7 @@ export class VttCombatService {
           facingY !== undefined
             ? facingY
             : Math.hypot(dx, dz) > 0.08
-              ? Math.atan2(-dx, -dz)
+              ? Math.atan2(dx, dz)
               : t.facingY;
         return { ...t, x: snapped.x, z: snapped.z, facingY: nextFacing };
       });

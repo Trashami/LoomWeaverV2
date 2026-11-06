@@ -15,7 +15,14 @@ export type VttRemoteEvent =
       readonly targetKeys: readonly string[];
     }
   | { readonly kind: 'fog_changed'; readonly mode: VttFogMode }
-  | { readonly kind: 'handout_revealed'; readonly title: string; readonly body: string };
+  | { readonly kind: 'handout_revealed'; readonly title: string; readonly body: string }
+  | {
+      readonly kind: 'audio_control';
+      readonly action: 'play' | 'pause' | 'restart' | 'track' | 'loop';
+      readonly trackId?: string;
+      readonly playlistId?: string;
+      readonly loopMode?: 'playlist' | 'track';
+    };
 
 type Payload = Readonly<Record<string, unknown>>;
 
@@ -78,6 +85,25 @@ export function parseVttEvent(evt: VttRealtimeEvent): VttRemoteEvent | null {
       return typeof p['title'] === 'string' && typeof p['body'] === 'string'
         ? { kind: 'handout_revealed', title: p['title'], body: p['body'] }
         : null;
+    case 'audio_control': {
+      const action = p['action'];
+      if (
+        action !== 'play' &&
+        action !== 'pause' &&
+        action !== 'restart' &&
+        action !== 'track' &&
+        action !== 'loop'
+      ) {
+        return null;
+      }
+      return {
+        kind: 'audio_control',
+        action,
+        trackId: isString(p['trackId']) ? p['trackId'] : undefined,
+        playlistId: isString(p['playlistId']) ? p['playlistId'] : undefined,
+        loopMode: p['loopMode'] === 'track' ? 'track' : p['loopMode'] === 'playlist' ? 'playlist' : undefined,
+      };
+    }
     default:
       return null;
   }

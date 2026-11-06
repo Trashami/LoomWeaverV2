@@ -387,7 +387,7 @@ export class BabylonFogPlane {
 
     const mat = new StandardMaterial('lw-fog-mat', this.scene);
     mat.disableLighting = true;
-    const fogColor = new Color3(3 / 255, 8 / 255, 6 / 255);
+    const fogColor = Color3.Black();
     mat.diffuseColor = fogColor;
     mat.emissiveColor = fogColor;
     mat.specularColor = Color3.Black();

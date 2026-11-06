@@ -21,7 +21,7 @@ export class CutawayWallEngine {
       // Cutaway waist/chest diorama height (optimal for isometric tavern viewing without camera obstruction)
       return 1.35;
     }
-    const factor = perspective === 'heavy' ? 1.25 : 0.85;
+    const factor = perspective === 'heavy' ? 1.25 : 1.0;
     return Math.max(0.6, Math.round(baseHeightMeters * factor * 100) / 100);
   }
 

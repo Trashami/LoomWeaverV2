@@ -242,6 +242,8 @@ export function getOrCreateProceduralWallMaterial(
   mat.bumpTexture.level = normalStrength;
   mat.roughness = style.roughness;
   mat.metallic = style.metallic;
+  mat.backFaceCulling = false;
+  mat.twoSidedLighting = true;
   if (customTintHex && customTintHex.toLowerCase() !== '#ffffff') {
     mat.albedoColor = BABYLON.Color3.FromHexString(customTintHex);
   } else {

@@ -12,6 +12,7 @@ import { snapToFiveFootGrid } from '../engine/vtt-los-and-grid.engine';
 import { VttBattleStateService } from './vtt-battle-state.service';
 import { VttCombatService } from './vtt-combat.service';
 import { VttPartyAndActionsService } from './vtt-party-and-actions.service';
+import { WebAudioAmbienceService } from '../../assets/engine/web-audio-ambience.service';
 import { parseVttEvent } from './vtt-realtime-events';
 
 /** Loads combat tokens and turn state from the API and sends movement and turn requests; client-first with SignalR broadcast. */
@@ -23,6 +24,7 @@ export class VttServerSyncService {
   private readonly battle = inject(VttBattleStateService);
   private readonly partyAndActions = inject(VttPartyAndActionsService);
   private readonly characterStudio = inject(CharacterStudioService);
+  private readonly audio = inject(WebAudioAmbienceService);
   private readonly realtime = inject(TableRealtimeSyncService);
   private readonly alertify = inject(LwAlertifyService);
   private readonly destroyRef = inject(DestroyRef);
@@ -84,6 +86,41 @@ export class VttServerSyncService {
       case 'fog_changed':
         this.battle.applyRemoteFog(parsed.mode);
         break;
+      case 'audio_control':
+        if (parsed.action === 'play') {
+          if (parsed.trackId) this.audio.playTrack(parsed.trackId, parsed.playlistId, 1.0);
+          else this.audio.play();
+        } else if (parsed.action === 'pause') {
+          this.audio.pause();
+        } else if (parsed.action === 'restart') {
+          if (parsed.trackId && parsed.trackId !== this.audio.activeTrackId()) {
+            this.audio.playTrack(parsed.trackId, parsed.playlistId, 0.5);
+          } else {
+            this.audio.restartTrack();
+          }
+        } else if (parsed.action === 'track' && parsed.trackId) {
+          this.audio.playTrack(parsed.trackId, parsed.playlistId, 1.2);
+        } else if (parsed.action === 'loop' && parsed.loopMode) {
+          if (this.audio.loopMode() !== parsed.loopMode) {
+            this.audio.toggleLoopMode();
+          }
+        }
+        break;
+    }
+  }
+
+  publishAudioControl(
+    action: 'play' | 'pause' | 'restart' | 'track' | 'loop',
+    payload?: { trackId?: string; playlistId?: string; loopMode?: 'playlist' | 'track' },
+  ): void {
+    const campaignId = this.store.activeCampaignId();
+    if (campaignId > 0) {
+      void this.realtime.publishVtt(campaignId, 'audio_control', this.localActorKey(), {
+        action,
+        trackId: payload?.trackId ?? this.audio.activeTrackId(),
+        playlistId: payload?.playlistId ?? this.audio.activePlaylistId(),
+        loopMode: payload?.loopMode ?? this.audio.loopMode(),
+      });
     }
   }
 

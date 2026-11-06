@@ -4,6 +4,7 @@ import {
   Scene,
   StandardMaterial,
   Texture,
+  TransformNode,
   Vector3,
 } from '@babylonjs/core';
 import { MapWallSegmentNode, WallDrawMode, WallOpeningNode } from '../map-scene-contract';
@@ -93,6 +94,11 @@ export class WallMeshBuilder {
     const parts: string[] = [`${tier}|${elevVer}|${hideSecrets ? 1 : 0}`];
     for (const w of walls) {
       const ptsSig = w.points.map((p) => `${p[0]},${p[1]}`).join(';');
+      const wallUrl = w.modelUrl || '';
+      const isGlbWall = Boolean(wallUrl && !wallUrl.startsWith('proc-wall://'));
+      const hasWallTpl = isGlbWall
+        ? Boolean(GlbModelCache.getOrLoadTemplate(scene, wallUrl, onGlbLoaded))
+        : true;
       const opsSig = w.openings
         .map((op) => {
           const doorUrl = op.modelUrl || '';
@@ -100,12 +106,12 @@ export class WallMeshBuilder {
           const hasDoorTpl = isGlbDoor
             ? Boolean(GlbModelCache.getOrLoadTemplate(scene, doorUrl, onGlbLoaded))
             : true;
-          return `${op.id}:${op.t}:${op.type}:${op.doorStyle ?? ''}:${op.widthMeters}:${op.heightMeters ?? 0}:${op.isOpen ? 1 : 0}:${op.isSecret ? 1 : 0}:${op.isRevealedToPlayers ? 1 : 0}:${op.hasSidePosts !== false ? 1 : 0}:${op.sidePostStyle ?? 'quoin'}:${op.sidePostScale ?? 1}:${doorUrl}:${hasDoorTpl ? 1 : 0}`;
+          return `${op.id}:${op.t}:${op.type}:${op.doorStyle ?? ''}:${op.widthMeters}:${op.heightMeters ?? 0}:${op.isOpen ? 1 : 0}:${op.hingeSide ?? 'left'}:${op.swingDirection ?? 'inward'}:${op.isSecret ? 1 : 0}:${op.isRevealedToPlayers ? 1 : 0}:${op.hasSidePosts !== false ? 1 : 0}:${op.sidePostStyle ?? 'quoin'}:${op.sidePostScale ?? 1}:${doorUrl}:${hasDoorTpl ? 1 : 0}`;
         })
         .join(',');
       const paintSig = `${w.paintDabs?.length ?? 0}`;
       parts.push(
-        `${w.id}|${w.drawMode}|${w.heightMeters}|${w.thicknessMeters}|${w.perspective}|${w.material}|${w.albedoUrl ?? ''}|${w.normalUrl ?? ''}|${w.colorHex ?? ''}|${w.wallNormalStrength ?? 1.35}|${w.wallDisplacementScale ?? 1}|${w.hasCornerPosts ? 1 : 0}|${w.cornerPostScale ?? 1}|${w.connectionOverlap ?? 15}|${w.offsetY ?? -0.06}|${w.stampScale ?? 1}|${w.rotationOffsetDeg ?? 0}|${ptsSig}|${opsSig}|${paintSig}`,
+        `${w.id}|${w.drawMode}|${w.heightMeters}|${w.thicknessMeters}|${w.perspective}|${w.material}|${wallUrl}|${hasWallTpl ? 1 : 0}|${w.albedoUrl ?? ''}|${w.normalUrl ?? ''}|${w.colorHex ?? ''}|${w.wallNormalStrength ?? 1.35}|${w.wallDisplacementScale ?? 1}|${w.hasCornerPosts ? 1 : 0}|${w.cornerPostScale ?? 1}|${w.connectionOverlap ?? 15}|${w.offsetY ?? -0.06}|${w.stampScale ?? 1}|${w.rotationOffsetDeg ?? 0}|${ptsSig}|${opsSig}|${paintSig}`,
       );
     }
     return parts.join('||');
@@ -240,6 +246,14 @@ export class WallMeshBuilder {
         `lw-wall-custom-mat-${wall.id}`,
         wall,
       );
+      const wallUrl = wall.modelUrl || '';
+      const isGlbWall = Boolean(wallUrl && !wallUrl.startsWith('proc-wall://'));
+      const wallTpl = isGlbWall
+        ? GlbModelCache.getOrLoadTemplate(scene, wallUrl, onGlbLoaded)
+        : null;
+      if (wallTpl) {
+        GlbModelCache.normalizeWallTemplateLighting(wallTpl);
+      }
 
       const overlapFrac = Math.max(-0.2, Math.min(0.5, (wall.connectionOverlap ?? 15) / 100));
       const offsetY = wall.offsetY ?? -0.06;
@@ -324,7 +338,7 @@ export class WallMeshBuilder {
             const doorZ = a[1] + dz * localCenter;
             const groundY = TerrainMeshBuilder.sampleElevationAt(scene, doorX, doorZ);
             // Cut span so the solid wall ends inside the left & right Door Side Post Blocks
-            const halfSpan = Math.min(0.47, (doorWidth * 0.46) / totalLen);
+            const halfSpan = Math.min(0.47, (doorWidth * 0.42) / totalLen);
             localCutouts.push({
               startLocal: Math.max(0, localCenter - halfSpan),
               endLocal: Math.min(1, localCenter + halfSpan),
@@ -351,6 +365,13 @@ export class WallMeshBuilder {
         if (1 - cursor > 0.015) {
           solidSpans.push({ s0: cursor, s1: 1 });
         }
+
+        const wallMeta = {
+          lwNodeName: `lw-wall-${wall.id}`,
+          lwKind: 'wall' as const,
+          lwEntityId: wall.id,
+          lwWallId: wall.id,
+        };
 
         for (let sIdx = 0; sIdx < solidSpans.length; sIdx++) {
           const { s0, s1 } = solidSpans[sIdx];
@@ -389,56 +410,111 @@ export class WallMeshBuilder {
           const maxGroundY = Math.max(yStart, yMid, yEnd);
           const effectiveHeight = (maxGroundY + height - minGroundY) * stampScale;
 
-          const spanMeshes = buildProceduralWallSpan(scene, wall, {
-            spanId: `${i}-${sIdx}`,
-            centerX: bx,
-            centerZ: bz,
-            groundY: minGroundY + offsetY,
-            baseElevationY: 0,
-            spanLength: extendedSpanLen,
-            spanHeight: effectiveHeight,
-            thickness: effectiveThickness,
-            angleY,
-            worldStartDistMeters: segStartMeters + s0 * totalLen,
-            style: wallStyle,
-            includePlinth: true,
-            includeCoping: true,
-          });
-          if (customBitmapMat && spanMeshes[0]) {
-            spanMeshes[0].material = customBitmapMat;
+          if (wallTpl) {
+            const primaryRawSpan = Math.max(
+              1.2,
+              wallTpl.rawDepth > wallTpl.rawWidth * 1.35 ? wallTpl.rawDepth : wallTpl.rawWidth,
+            );
+            const idealChunkLen = Math.max(1.2, Math.min(3.4, primaryRawSpan * stampScale));
+            const chunkCount = Math.max(1, Math.round(extendedSpanLen / idealChunkLen));
+            const chunkLen = extendedSpanLen / chunkCount;
+            const chunkRenderW = chunkLen * (1 + Math.max(0.04, overlapFrac * 0.25));
+            for (let cIdx = 0; cIdx < chunkCount; cIdx++) {
+              const uMid = (cIdx + 0.5) / chunkCount;
+              const cx = spanStartX + ux * (extendedSpanLen * uMid);
+              const cz = spanStartZ + uz * (extendedSpanLen * uMid);
+              const cy = TerrainMeshBuilder.sampleElevationAt(scene, cx, cz);
+              const cInst = GlbModelCache.instantiateClone(
+                scene,
+                wallTpl,
+                `lw-wall-node-${wall.id}-${i}-${sIdx}-${cIdx}`,
+                chunkRenderW,
+                effectiveHeight,
+                effectiveThickness,
+                false,
+                false,
+                wallMeta,
+                {
+                  colorHex: wall.colorHex || wall.tintColorHex,
+                },
+              );
+              cInst.position.set(cx, cy + offsetY, cz);
+              cInst.rotation.y = angleY;
+              meshCount++;
+            }
+          } else {
+            const spanMeshes = buildProceduralWallSpan(scene, wall, {
+              spanId: `${i}-${sIdx}`,
+              centerX: bx,
+              centerZ: bz,
+              groundY: minGroundY + offsetY,
+              baseElevationY: 0,
+              spanLength: extendedSpanLen,
+              spanHeight: effectiveHeight,
+              thickness: effectiveThickness,
+              angleY,
+              worldStartDistMeters: segStartMeters + s0 * totalLen,
+              style: wallStyle,
+              includePlinth: true,
+              includeCoping: true,
+            });
+            if (customBitmapMat && spanMeshes[0]) {
+              spanMeshes[0].material = customBitmapMat;
+            }
+            meshCount += spanMeshes.length;
           }
-          meshCount += spanMeshes.length;
         }
 
-        // Render continuous procedural lintel wall above each door + cased door frame & leaf
+        // Render continuous lintel wall above each door + cased door frame & leaf
         for (const cut of localCutouts) {
           const op = cut.opening;
           if (hideSecrets && op.isSecret && !op.isRevealedToPlayers) continue;
 
           const { doorX, doorZ, groundY, doorH, doorWidth, localCenter } = cut;
           const wallTopH = height * stampScale;
+          const cutoutSpanLen = Math.max(doorWidth * 0.84, (cut.endLocal - cut.startLocal) * totalLen);
 
           if (wallTopH - doorH > 0.14) {
-            const lintelH = wallTopH - doorH + 0.05;
-            const lintelMeshes = buildProceduralWallSpan(scene, wall, {
-              spanId: `${i}-lintel-${op.id}`,
-              centerX: doorX,
-              centerZ: doorZ,
-              groundY: groundY + offsetY,
-              baseElevationY: doorH - 0.05,
-              spanLength: doorWidth + 0.06,
-              spanHeight: lintelH,
-              thickness: effectiveThickness,
-              angleY,
-              worldStartDistMeters: segStartMeters + localCenter * totalLen - doorWidth * 0.5,
-              style: wallStyle,
-              includePlinth: false,
-              includeCoping: true,
-            });
-            if (customBitmapMat && lintelMeshes[0]) {
-              lintelMeshes[0].material = customBitmapMat;
+            const lintelH = wallTopH - doorH + 0.04;
+            if (wallTpl) {
+              const lintelInst = GlbModelCache.instantiateClone(
+                scene,
+                wallTpl,
+                `lw-wall-node-lintel-${wall.id}-${i}-${op.id}`,
+                cutoutSpanLen + 0.04,
+                lintelH,
+                effectiveThickness,
+                false,
+                false,
+                wallMeta,
+                {
+                  colorHex: wall.colorHex || wall.tintColorHex,
+                },
+              );
+              lintelInst.position.set(doorX, groundY + offsetY + doorH - 0.04, doorZ);
+              lintelInst.rotation.y = angleY;
+              meshCount++;
+            } else {
+              const lintelMeshes = buildProceduralWallSpan(scene, wall, {
+                spanId: `${i}-lintel-${op.id}`,
+                centerX: doorX,
+                centerZ: doorZ,
+                groundY: groundY + offsetY,
+                baseElevationY: doorH - 0.04,
+                spanLength: cutoutSpanLen,
+                spanHeight: lintelH,
+                thickness: effectiveThickness,
+                angleY,
+                worldStartDistMeters: segStartMeters + localCenter * totalLen - cutoutSpanLen * 0.5,
+                style: wallStyle,
+                includePlinth: false,
+                includeCoping: true,
+              });
+              if (customBitmapMat && lintelMeshes[0]) {
+                lintelMeshes[0].material = customBitmapMat;
+              }
+              meshCount += lintelMeshes.length;
             }
-            meshCount += lintelMeshes.length;
           }
 
           const doorUrl = op.modelUrl || '';
@@ -484,23 +560,50 @@ export class WallMeshBuilder {
               lwKind: 'door' as const,
               lwEntityId: op.id,
               lwWallId: wall.id,
+              wallId: wall.id,
+              openingId: op.id,
             };
             const waistScale = 1 / Math.max(0.74, Math.min(0.96, doorTpl.waistWidthRatio));
-            const doorRenderWidth = doorWidth * waistScale;
-            const doorInst = GlbModelCache.instantiateClone(
-              scene,
-              doorTpl,
-              `lw-door-node-${op.id}`,
-              doorRenderWidth,
-              doorH,
-              effectiveThickness * 1.16,
-              false,
-              false,
-              doorMeta,
-            );
-            doorInst.position.set(doorX, groundY + offsetY - 0.015, doorZ);
-            doorInst.rotation.y = angleY + (op.isOpen ? Math.PI * 0.42 : 0);
-            meshCount++;
+            const isDoubleGlb = op.hingeSide === 'double' || op.type === 'double_door';
+            const leafCount = isDoubleGlb ? 2 : 1;
+            const totalDoorSpan = doorWidth * 0.84;
+            const leafSpan = isDoubleGlb ? totalDoorSpan * 0.5 : totalDoorSpan;
+            const leafRenderW = leafSpan * waistScale;
+            const swingSign = op.swingDirection === 'outward' ? -1 : 1;
+
+            const doorRoot = new TransformNode(`lw-door-node-glb-root-${wall.id}-${op.id}`, scene);
+            doorRoot.position.set(doorX, groundY + offsetY - 0.015, doorZ);
+            doorRoot.rotation.y = angleY;
+
+            for (let lIdx = 0; lIdx < leafCount; lIdx++) {
+              const hingeSign: -1 | 1 = isDoubleGlb
+                ? lIdx === 0
+                  ? -1
+                  : 1
+                : op.hingeSide === 'right'
+                  ? 1
+                  : -1;
+              const pivotX = hingeSign * (totalDoorSpan * 0.5);
+              const hingePivot = new TransformNode(`lw-door-node-hinge-${op.id}-${lIdx}`, scene);
+              hingePivot.parent = doorRoot;
+              hingePivot.position.set(pivotX, 0, 0);
+              hingePivot.rotation.y = op.isOpen ? -hingeSign * swingSign * Math.PI * 0.46 : 0;
+
+              const doorInst = GlbModelCache.instantiateClone(
+                scene,
+                doorTpl,
+                `lw-door-node-${op.id}-${lIdx}`,
+                leafRenderW,
+                doorH,
+                effectiveThickness * 1.16,
+                false,
+                false,
+                doorMeta,
+              );
+              doorInst.parent = hingePivot;
+              doorInst.position.set(-hingeSign * (leafSpan * 0.5), 0, 0);
+              meshCount++;
+            }
           }
         }
       }

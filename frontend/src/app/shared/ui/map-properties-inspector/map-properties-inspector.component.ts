@@ -19,7 +19,9 @@ import {
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { NgpButton } from 'ng-primitives/button';
 import {
+  DoorHingeSide,
   DoorSidePostStyle,
+  DoorSwingDirection,
   MapFloorBlendMode,
   MapLightFixtureKind,
   MapObjectPlacementMode,
@@ -193,6 +195,8 @@ export class LwMapPropertiesInspectorComponent {
   readonly doorWidthMeters = input<number>(2.4);
   readonly doorHeightMeters = input<number>(2.6);
   readonly doorIsOpen = input<boolean>(false);
+  readonly doorHingeSide = input<DoorHingeSide>('left');
+  readonly doorSwingDirection = input<DoorSwingDirection>('inward');
   readonly doorHasSidePosts = input<boolean>(true);
   readonly doorSidePostStyle = input<DoorSidePostStyle>('quoin');
   readonly doorSidePostScale = input<number>(1.0);
@@ -274,6 +278,8 @@ export class LwMapPropertiesInspectorComponent {
   readonly doorWidthChange = output<number>();
   readonly doorHeightChange = output<number>();
   readonly doorOpenToggle = output<void>();
+  readonly doorHingeSideChange = output<DoorHingeSide>();
+  readonly doorSwingDirectionChange = output<DoorSwingDirection>();
   readonly doorSidePostsToggle = output<void>();
   readonly doorSidePostStyleChange = output<DoorSidePostStyle>();
   readonly doorSidePostScaleChange = output<number>();

@@ -100,7 +100,7 @@ export class BabylonTokenMeshBuilder {
       if (typeof t.facingY === 'number') {
         this.facingByTokenKey.set(t.key, t.facingY);
       } else if (prevPos && Math.hypot(t.x - prevPos.x, t.z - prevPos.z) > 0.08) {
-        this.facingByTokenKey.set(t.key, Math.atan2(-(t.x - prevPos.x), -(t.z - prevPos.z)));
+        this.facingByTokenKey.set(t.key, Math.atan2(t.x - prevPos.x, t.z - prevPos.z));
       }
       this.lastPosByTokenKey.set(t.key, { x: t.x, z: t.z });
       const facingY = this.facingByTokenKey.get(t.key) ?? 0;

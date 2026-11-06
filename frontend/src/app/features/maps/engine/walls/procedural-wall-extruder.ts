@@ -29,10 +29,15 @@ export function getOrCreateWallTrimMaterial(
   const cached = cachedTrimMaterials.get(key);
   if (cached) return cached;
 
+  const baseMat = getOrCreateProceduralWallMaterial(scene, style, undefined, 1.15);
   const mat = new BABYLON.PBRMaterial(`procWallTrim_${style.id}`, scene);
-  mat.albedoColor = BABYLON.Color3.FromHexString(style.plinthColorHex);
-  mat.roughness = Math.max(0.25, style.roughness - 0.08);
+  mat.albedoTexture = baseMat.albedoTexture;
+  mat.bumpTexture = baseMat.bumpTexture;
+  mat.albedoColor = BABYLON.Color3.FromHexString('#d8d2c7');
+  mat.roughness = Math.max(0.28, style.roughness - 0.06);
   mat.metallic = style.metallic;
+  mat.backFaceCulling = false;
+  mat.twoSidedLighting = true;
   cachedTrimMaterials.set(key, mat);
   return mat;
 }
@@ -122,22 +127,23 @@ export function buildProceduralWallSpan(
   }
 
   if (includeCoping && spanHeight >= 0.4) {
-    const copingH = 0.11;
-    const coping = BABYLON.MeshBuilder.CreateBox(
+    const copingH = 0.12;
+    const coping = buildSubdividedReliefPostBox(
       `lw-wall-proc-coping-${wall.id}-${spanId}`,
-      {
-        width: spanLength + 0.03,
-        height: copingH,
-        depth: thickness * 1.20,
-      },
       scene,
+      spanLength + 0.03,
+      copingH,
+      thickness * 1.18,
+      worldStartDistMeters,
+      style,
+      wall.wallDisplacementScale ?? 1.0,
     );
     coping.position.set(centerX, groundY + baseElevationY + spanHeight - copingH * 0.35, centerZ);
     coping.rotation.y = angleY;
     coping.isPickable = true;
     coping.receiveShadows = true;
     coping.metadata = wallMeta;
-    coping.material = trimMat;
+    coping.material = bodyMesh.material;
     created.push(coping);
   }
 
@@ -159,7 +165,7 @@ function buildSubdividedReliefWallBox(
   style: ProceduralWallStyleSpec,
   userReliefMultiplier: number,
 ): BABYLON.Mesh {
-  const cols = Math.max(4, Math.min(44, Math.ceil(width / 0.18)));
+  const cols = Math.max(4, Math.min(64, Math.ceil(width / 0.18)));
   const rows = Math.max(4, Math.min(24, Math.ceil(height / 0.20)));
   const halfW = width * 0.5;
   const halfH = height * 0.5;
@@ -167,6 +173,7 @@ function buildSubdividedReliefWallBox(
   const maxRelief = style.reliefMeters * Math.max(0.2, Math.min(2.5, userReliefMultiplier));
 
   const positions: number[] = [];
+  const normals: number[] = [];
   const uvs: number[] = [];
   const indices: number[] = [];
 
@@ -182,18 +189,27 @@ function buildSubdividedReliefWallBox(
         const u01 = c / cols;
         const localX = -halfW + u01 * width;
         const worldU = worldStartDistMeters + u01 * width;
-        const edgeU = Math.min(u01 * 6.0, (1 - u01) * 6.0, 1.0);
-        const taper = Math.min(edgeU, edgeV);
+        const uSample = worldU + (frontSign < 0 ? 1.37 : 0);
 
-        const sample = sampleProceduralWallRelief(
-          style.pattern,
-          worldU + (frontSign < 0 ? 1.37 : 0),
-          worldV,
-        );
-        const disp = sample * maxRelief * taper;
+        const sample = sampleProceduralWallRelief(style.pattern, uSample, worldV);
+        const disp = sample * maxRelief * edgeV;
         const localZ = frontSign * (halfD + disp);
 
+        // Analytical macro normal so lighting is 100% uniform along the wall and across door lintels
+        // while the high-res tangent-space bump map renders crisp stone/brick mortar lighting.
+        const eps = 0.04;
+        const dU =
+          (sampleProceduralWallRelief(style.pattern, uSample + eps, worldV) -
+            sampleProceduralWallRelief(style.pattern, uSample - eps, worldV)) *
+          0.06;
+        const dV =
+          (sampleProceduralWallRelief(style.pattern, uSample, worldV + eps) -
+            sampleProceduralWallRelief(style.pattern, uSample, worldV - eps)) *
+          0.06;
+        const invLen = 1 / Math.hypot(dU, dV, 1);
+
         positions.push(localX, localY, localZ);
+        normals.push(-dU * invLen * frontSign, -dV * invLen, frontSign * invLen);
         uvs.push(worldU / style.tileWidthMeters, worldV / style.tileHeightMeters);
       }
     }
@@ -206,9 +222,9 @@ function buildSubdividedReliefWallBox(
         const i2 = i0 + stride;
         const i3 = i2 + 1;
         if (frontSign > 0) {
-          indices.push(i0, i1, i2, i1, i3, i2);
-        } else {
           indices.push(i0, i2, i1, i1, i2, i3);
+        } else {
+          indices.push(i0, i1, i2, i1, i3, i2);
         }
       }
     }
@@ -218,17 +234,19 @@ function buildSubdividedReliefWallBox(
   addGridFace(1);
   addGridFace(-1);
 
-  // Top, Bottom, Left, Right end caps
+  // Top, Bottom, Left, Right end caps with explicit outward normals
   const addQuadCap = (
     p0: [number, number, number],
     p1: [number, number, number],
     p2: [number, number, number],
     p3: [number, number, number],
+    norm: [number, number, number],
     uSpan: number,
     vSpan: number,
   ) => {
     const b = positions.length / 3;
     positions.push(...p0, ...p1, ...p2, ...p3);
+    normals.push(...norm, ...norm, ...norm, ...norm);
     uvs.push(0, 0, uSpan, 0, uSpan, vSpan, 0, vSpan);
     indices.push(b, b + 1, b + 2, b, b + 2, b + 3);
   };
@@ -239,6 +257,7 @@ function buildSubdividedReliefWallBox(
     [halfW, halfH, halfD],
     [halfW, halfH, -halfD],
     [-halfW, halfH, -halfD],
+    [0, 1, 0],
     width / style.tileWidthMeters,
     depth / style.tileHeightMeters,
   );
@@ -248,6 +267,7 @@ function buildSubdividedReliefWallBox(
     [halfW, -halfH, -halfD],
     [halfW, -halfH, halfD],
     [-halfW, -halfH, halfD],
+    [0, -1, 0],
     width / style.tileWidthMeters,
     depth / style.tileHeightMeters,
   );
@@ -257,6 +277,7 @@ function buildSubdividedReliefWallBox(
     [-halfW, -halfH, halfD],
     [-halfW, halfH, halfD],
     [-halfW, halfH, -halfD],
+    [-1, 0, 0],
     depth / style.tileWidthMeters,
     height / style.tileHeightMeters,
   );
@@ -266,12 +287,10 @@ function buildSubdividedReliefWallBox(
     [halfW, -halfH, -halfD],
     [halfW, halfH, -halfD],
     [halfW, halfH, halfD],
+    [1, 0, 0],
     depth / style.tileWidthMeters,
     height / style.tileHeightMeters,
   );
-
-  const normals: number[] = [];
-  BABYLON.VertexData.ComputeNormals(positions, indices, normals);
 
   const vertexData = new BABYLON.VertexData();
   vertexData.positions = positions;
@@ -304,9 +323,10 @@ export function buildSubdividedReliefPostBox(
   const halfW = width * 0.5;
   const halfH = height * 0.5;
   const halfD = depth * 0.5;
-  const maxRelief = style.reliefMeters * Math.max(0.25, Math.min(2.2, userReliefMultiplier)) * 0.85;
+  const maxRelief = style.reliefMeters * Math.max(0.25, Math.min(2.2, userReliefMultiplier)) * 0.72;
 
   const positions: number[] = [];
+  const normals: number[] = [];
   const uvs: number[] = [];
   const indices: number[] = [];
 
@@ -326,7 +346,8 @@ export function buildSubdividedReliefPostBox(
         const taper = Math.min(edgeU, edgeV);
         const disp = sampleProceduralWallRelief(style.pattern, worldU, worldV) * maxRelief * taper;
         positions.push(localX, localY, zSign * (halfD + disp));
-        uvs.push((u01 * width) / style.tileWidthMeters, worldV / style.tileHeightMeters);
+        normals.push(0, 0, zSign);
+        uvs.push(worldU / style.tileWidthMeters, worldV / style.tileHeightMeters);
       }
     }
     const stride = colsX + 1;
@@ -337,9 +358,9 @@ export function buildSubdividedReliefPostBox(
         const i2 = i0 + stride;
         const i3 = i2 + 1;
         if (zSign > 0) {
-          indices.push(i0, i1, i2, i1, i3, i2);
-        } else {
           indices.push(i0, i2, i1, i1, i2, i3);
+        } else {
+          indices.push(i0, i1, i2, i1, i3, i2);
         }
       }
     }
@@ -361,7 +382,8 @@ export function buildSubdividedReliefPostBox(
         const taper = Math.min(edgeU, edgeV);
         const disp = sampleProceduralWallRelief(style.pattern, worldU, worldV) * maxRelief * taper;
         positions.push(xSign * (halfW + disp), localY, localZ);
-        uvs.push((u01 * depth) / style.tileWidthMeters, worldV / style.tileHeightMeters);
+        normals.push(xSign, 0, 0);
+        uvs.push(worldU / style.tileWidthMeters, worldV / style.tileHeightMeters);
       }
     }
     const stride = colsZ + 1;
@@ -372,9 +394,9 @@ export function buildSubdividedReliefPostBox(
         const i2 = i0 + stride;
         const i3 = i2 + 1;
         if (xSign > 0) {
-          indices.push(i0, i2, i1, i1, i2, i3);
-        } else {
           indices.push(i0, i1, i2, i1, i3, i2);
+        } else {
+          indices.push(i0, i2, i1, i1, i2, i3);
         }
       }
     }
@@ -390,11 +412,13 @@ export function buildSubdividedReliefPostBox(
     p1: [number, number, number],
     p2: [number, number, number],
     p3: [number, number, number],
+    norm: [number, number, number],
     uSpan: number,
     vSpan: number,
   ) => {
     const b = positions.length / 3;
     positions.push(...p0, ...p1, ...p2, ...p3);
+    normals.push(...norm, ...norm, ...norm, ...norm);
     uvs.push(0, 0, uSpan, 0, uSpan, vSpan, 0, vSpan);
     indices.push(b, b + 1, b + 2, b, b + 2, b + 3);
   };
@@ -405,6 +429,7 @@ export function buildSubdividedReliefPostBox(
     [halfW, halfH, halfD],
     [halfW, halfH, -halfD],
     [-halfW, halfH, -halfD],
+    [0, 1, 0],
     width / style.tileWidthMeters,
     depth / style.tileHeightMeters,
   );
@@ -413,12 +438,10 @@ export function buildSubdividedReliefPostBox(
     [halfW, -halfH, -halfD],
     [halfW, -halfH, halfD],
     [-halfW, -halfH, halfD],
+    [0, -1, 0],
     width / style.tileWidthMeters,
     depth / style.tileHeightMeters,
   );
-
-  const normals: number[] = [];
-  BABYLON.VertexData.ComputeNormals(positions, indices, normals);
 
   const vertexData = new BABYLON.VertexData();
   vertexData.positions = positions;
@@ -502,7 +525,7 @@ export function buildProceduralCornerPillar(
       `lw-wall-corner-quoin-${wall.id}-${vertexIndex}-${c}`,
       scene,
       quoinW,
-      courseH * 0.88,
+      courseH * 0.90,
       quoinD,
       vertexIndex * 3.1 + c * 0.73,
       style,
@@ -517,7 +540,7 @@ export function buildProceduralCornerPillar(
     quoin.isPickable = true;
     quoin.receiveShadows = true;
     quoin.metadata = wallMeta;
-    quoin.material = c % 3 === 1 ? trimMat : wallMat;
+    quoin.material = wallMat;
     meshes.push(quoin);
   }
 
@@ -599,12 +622,14 @@ export function buildProceduralDoorSidePosts(
   const postStyle: DoorSidePostStyle = op.sidePostStyle ?? 'quoin';
   const postScale = Math.max(0.6, Math.min(1.8, op.sidePostScale ?? 1.0));
 
-  const postWidth = Math.max(0.28, wallThickness * 0.92 * postScale);
-  const postDepth = Math.max(0.36, wallThickness * 1.38 * postScale);
+  const postWidth = Math.max(0.24, wallThickness * 0.78 * postScale);
+  const postDepth = Math.max(0.32, wallThickness * 1.18 * postScale);
+  // For quoin and jamb styles, the side posts terminate cleanly beneath the lintel header block
+  // so the lintel header rests on top of both side posts without posts sticking into the upper wall.
   const postHeight =
     postStyle === 'pillar'
-      ? Math.max(doorHeight + 0.14, wallHeight)
-      : Math.min(wallHeight, doorHeight + 0.16);
+      ? Math.max(doorHeight, wallHeight)
+      : Math.max(0.6, Math.min(wallHeight, doorHeight) - 0.14);
 
   const wallMat =
     customWallMat ??
@@ -635,13 +660,13 @@ export function buildProceduralDoorSidePosts(
     created.push(m);
   };
 
-  const plinthH = Math.min(0.24, postHeight * 0.14);
-  const capH = 0.14;
+  const plinthH = Math.min(0.22, postHeight * 0.14);
+  const capH = 0.11;
 
   for (const side of [-1, 1] as const) {
-    // Position the side post block so its inner face frames the door opening and its outer body
-    // wraps and buries the cut end of the wall segment.
-    const postCenterX = side * (doorWidth * 0.5 - postWidth * 0.12);
+    // Center the side post right on the wall cutout seam (±doorWidth * 0.44) so it buries the cut wall end
+    // and frames the inner doorway opening naturally.
+    const postCenterX = side * (doorWidth * 0.44);
 
     // 1. Core 3D Relief Side Post Column
     const corePost = buildSubdividedReliefPostBox(
@@ -659,13 +684,13 @@ export function buildProceduralDoorSidePosts(
     corePost.material = wallMat;
     tagMesh(corePost);
 
-    // 2. Base Plinth Block (grounds the door side post into the floor & wall plinth)
+    // 2. Base Plinth Block (grounds the door side post flush with the wall plinth)
     const plinth = BABYLON.MeshBuilder.CreateBox(
       `lw-door-sidepost-plinth-${op.id}-${side}`,
       {
-        width: postWidth * 1.24,
+        width: postWidth * 1.18,
         height: plinthH,
-        depth: postDepth * 1.14,
+        depth: postDepth * 1.08,
       },
       scene,
     );
@@ -677,21 +702,21 @@ export function buildProceduralDoorSidePosts(
     // 3. Alternating Interlocking Quoin Blocks (for 'quoin' and 'pillar' styles)
     if (postStyle === 'quoin' || postStyle === 'pillar') {
       const quoinSpanH = Math.max(0.5, postHeight - plinthH - capH);
-      const courseCount = Math.max(4, Math.min(9, Math.round(quoinSpanH / 0.34)));
+      const courseCount = Math.max(4, Math.min(9, Math.round(quoinSpanH / 0.36)));
       const courseH = quoinSpanH / courseCount;
 
       for (let c = 0; c < courseCount; c++) {
         const isLongQuoin = c % 2 === 0;
-        // Long quoin blocks reach outward into the adjacent wall span to interlock with the wall masonry
-        const qWidth = postWidth * (isLongQuoin ? 1.48 : 1.12);
-        const qDepth = postDepth * (isLongQuoin ? 1.06 : 1.12);
-        const outwardShift = side * (isLongQuoin ? postWidth * 0.18 : postWidth * 0.03);
+        // Long quoin stones reach outward into the adjacent wall span so the doorway masonry interlocks with the wall courses
+        const qWidth = postWidth * (isLongQuoin ? 1.42 : 1.08);
+        const qDepth = postDepth * (isLongQuoin ? 1.03 : 1.06);
+        const outwardShift = side * (isLongQuoin ? postWidth * 0.19 : postWidth * 0.02);
 
         const quoinBlock = buildSubdividedReliefPostBox(
           `lw-door-sidepost-quoin-${op.id}-${side}-${c}`,
           scene,
           qWidth,
-          courseH * 0.86,
+          courseH * 0.91,
           qDepth,
           (side > 0 ? 7.1 : 2.9) + c * 0.83,
           style,
@@ -703,45 +728,47 @@ export function buildProceduralDoorSidePosts(
           plinthH + (c + 0.5) * courseH,
           0,
         );
-        quoinBlock.material = c % 2 === 1 ? trimMat : wallMat;
+        quoinBlock.material = wallMat;
         tagMesh(quoinBlock);
       }
     }
 
-    // 4. Impost / Corbel Shoulder Block at Door Header Height (supports the lintel/arch)
-    const corbelH = 0.15;
+    // 4. Impost / Corbel Shoulder Block supporting the lintel header
+    const corbelH = 0.12;
     const corbel = BABYLON.MeshBuilder.CreateBox(
       `lw-door-sidepost-corbel-${op.id}-${side}`,
       {
-        width: postWidth * 1.28,
+        width: postWidth * 1.18,
         height: corbelH,
-        depth: postDepth * 1.12,
+        depth: postDepth * 1.06,
       },
       scene,
     );
     corbel.parent = root;
     corbel.position.set(
-      postCenterX - side * (postWidth * 0.10),
-      Math.max(0.6, doorHeight - corbelH * 0.45),
+      postCenterX - side * (postWidth * 0.06),
+      postHeight - corbelH * 0.5,
       0,
     );
     corbel.material = trimMat;
     tagMesh(corbel);
 
-    // 5. Top Capital / Coping Block
-    const topCap = BABYLON.MeshBuilder.CreateBox(
-      `lw-door-sidepost-cap-${op.id}-${side}`,
-      {
-        width: postWidth * 1.24,
-        height: capH,
-        depth: postDepth * 1.16,
-      },
-      scene,
-    );
-    topCap.parent = root;
-    topCap.position.set(postCenterX, postHeight - capH * 0.35, 0);
-    topCap.material = trimMat;
-    tagMesh(topCap);
+    // 5. Top Capital Block only when full-height pillar style is chosen
+    if (postStyle === 'pillar') {
+      const topCap = BABYLON.MeshBuilder.CreateBox(
+        `lw-door-sidepost-cap-${op.id}-${side}`,
+        {
+          width: postWidth * 1.20,
+          height: capH,
+          depth: postDepth * 1.12,
+        },
+        scene,
+      );
+      topCap.parent = root;
+      topCap.position.set(postCenterX, postHeight - capH * 0.35, 0);
+      topCap.material = trimMat;
+      tagMesh(topCap);
+    }
   }
 
   return created;

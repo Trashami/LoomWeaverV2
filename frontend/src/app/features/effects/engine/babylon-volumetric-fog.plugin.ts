@@ -52,9 +52,13 @@ function resolveDiscardModeForMaterial(matName: string): number {
   ) {
     return 0.0;
   }
-  // 3D objects, stamps, walls, doors, scatter, and tokens use whole-object LoS visibility
-  // so no object in Line of Sight is ever partially sliced or darkened by its own shadow.
-  return -1.0;
+  // Token meshes are controlled via per-token LoS opacity (opacityByKey)
+  if (matName.startsWith('lw-token-') || matName.startsWith('lw-mini-plinth-')) {
+    return -1.0;
+  }
+  // Walls, doors, and 3D architecture use neighborhood-aware volumetric fog masking (0.5)
+  // so unrevealed walls are completely hidden in darkness while visible walls show their full thickness.
+  return 0.5;
 }
 
 /**
@@ -159,13 +163,22 @@ if (lwFogActive > 0.5 && lwFogDiscardMode >= -0.5) {
   vec2 lwFogUv = vec2((vLwFogXZ.x + 18.0) / 36.0, 1.0 - (vLwFogXZ.y + 13.5) / 27.0);
   float lwFogOut = step(lwFogUv.x, 0.0) + step(1.0, lwFogUv.x) + step(lwFogUv.y, 0.0) + step(1.0, lwFogUv.y);
   float lwFogAlpha = lwFogOut > 0.0 ? 1.0 : texture2D(lwFogTex, clamp(lwFogUv, vec2(0.001, 0.001), vec2(0.999, 0.999))).a;
-  if (lwFogDiscardMode > 0.5 && lwFogAlpha > 0.96) {
+  if (lwFogDiscardMode > 0.25 && lwFogDiscardMode < 0.75 && lwFogOut <= 0.0) {
+    vec2 lwDu = vec2(0.010, 0.0);
+    vec2 lwDv = vec2(0.0, 0.013);
+    float a1 = texture2D(lwFogTex, clamp(lwFogUv + lwDu, vec2(0.001, 0.001), vec2(0.999, 0.999))).a;
+    float a2 = texture2D(lwFogTex, clamp(lwFogUv - lwDu, vec2(0.001, 0.001), vec2(0.999, 0.999))).a;
+    float a3 = texture2D(lwFogTex, clamp(lwFogUv + lwDv, vec2(0.001, 0.001), vec2(0.999, 0.999))).a;
+    float a4 = texture2D(lwFogTex, clamp(lwFogUv - lwDv, vec2(0.001, 0.001), vec2(0.999, 0.999))).a;
+    lwFogAlpha = min(lwFogAlpha, min(min(a1, a2), min(a3, a4)));
+  }
+  if (lwFogDiscardMode > 0.25 && lwFogAlpha > 0.96) {
     discard;
   }
-  if (lwFogDiscardMode < 0.5 && lwFogAlpha > 0.992) {
+  if (lwFogDiscardMode < 0.25 && lwFogAlpha > 0.992) {
     discard;
   }
-  vec3 lwFogVoidColor = lwFogDiscardMode > 1.5 ? vec3(0.0, 0.0, 0.0) : vec3(0.012, 0.031, 0.024);
+  vec3 lwFogVoidColor = vec3(0.0, 0.0, 0.0);
   gl_FragColor.rgb = mix(gl_FragColor.rgb, lwFogVoidColor, clamp(lwFogAlpha, 0.0, 1.0));
   if (lwFogDiscardMode > 1.5) {
     gl_FragColor.a *= (1.0 - clamp(lwFogAlpha, 0.0, 1.0));

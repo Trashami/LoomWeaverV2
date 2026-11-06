@@ -150,7 +150,7 @@
 
 .lw-vtt-map-stage {
   position: relative; width: 100%; height: 100%; min-height: 0;
-  overflow: hidden; background: #040b08;
+  overflow: hidden; background: #000000;
   display: flex; flex-direction: column; justify-content: space-between;
   overscroll-behavior: none; touch-action: none;
 }
@@ -494,3 +494,35 @@
   box-shadow: 0 0 0 1px rgba(5, 16, 12, 0.85);
 }
 @keyframes lwAttackPulseFlow { from { stroke-dashoffset: 18; } to { stroke-dashoffset: 0; } }
+
+.top-audio-dm-deck {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  padding: 0.14rem 0.35rem; border-radius: 6px;
+  background: rgba(9, 24, 18, 0.92); border: 1px solid rgba(217, 183, 122, 0.28);
+  .top-audio-btn {
+    padding: 0.18rem 0.42rem; font-size: 0.68rem;
+    &.active { border-color: #49e892; color: #49e892; background: rgba(73, 232, 146, 0.14); }
+  }
+  .top-audio-track-select {
+    max-width: 155px; padding: 0.16rem 0.38rem; border-radius: 5px;
+    background: rgba(6, 16, 12, 0.95); border: 1px solid rgba(217, 183, 122, 0.32);
+    color: #e6f2ec; font-size: 0.68rem; font-weight: 600; outline: none;
+    &:focus { border-color: #49e892; }
+  }
+}
+
+.top-audio-user-volume {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.14rem 0.45rem; border-radius: 6px;
+  background: rgba(9, 24, 18, 0.92); border: 1px solid rgba(73, 232, 146, 0.28);
+  .top-audio-mute-btn {
+    padding: 0.16rem 0.4rem; font-size: 0.68rem;
+    &.active { border-color: #ef5d72; color: #ef5d72; background: rgba(239, 93, 114, 0.14); }
+  }
+  .top-audio-volume-slider {
+    width: 68px; height: 4px; accent-color: #49e892; cursor: pointer;
+  }
+  .top-audio-volume-pct {
+    min-width: 2.1rem; text-align: right; font-size: 0.68rem; font-weight: 700; color: #49e892;
+  }
+}

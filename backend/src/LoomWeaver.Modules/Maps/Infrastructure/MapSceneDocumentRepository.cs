@@ -6,22 +6,103 @@ namespace LoomWeaver.Modules.Maps.Infrastructure;
 
 public sealed record StoredMapSceneDocument(int Revision, JsonElement Document, string Visibility = "players");
 
+public sealed record StoredMapSceneSummary(
+    string SceneKey,
+    string Name,
+    int CampaignId,
+    int Revision,
+    int GridCols,
+    int GridRows,
+    string? FloorAlbedoUrl,
+    string UpdatedBy,
+    DateTime UpdatedAt);
+
 public static class MapSceneDocumentRepository
 {
+    public static async Task<IReadOnlyList<StoredMapSceneSummary>> ListByCampaignAsync(
+        LoomWeaverMySqlRepository mysql, int campaignId, CancellationToken ct)
+    {
+        var list = new List<StoredMapSceneSummary>();
+        var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using var db = await mysql.OpenConnectionAsync(ct);
+        await using var cmd = new MySqlCommand("""
+            SELECT
+                scene_key,
+                COALESCE(JSON_UNQUOTE(JSON_EXTRACT(document_json, '$.name')), JSON_UNQUOTE(JSON_EXTRACT(document_json, '$.studio.mapTitle')), scene_key) AS map_name,
+                campaign_id,
+                revision,
+                COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(document_json, '$.gridCols')) AS UNSIGNED), 50) AS grid_cols,
+                COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(document_json, '$.gridRows')) AS UNSIGNED), 50) AS grid_rows,
+                JSON_UNQUOTE(JSON_EXTRACT(document_json, '$.floorAlbedoUrl')) AS floor_url,
+                COALESCE(updated_by, 'GM') AS updated_by,
+                updated_at
+            FROM lw_battlemap_scenes
+            ORDER BY (campaign_id = @c) DESC, updated_at DESC, revision DESC
+            LIMIT 50
+            """, db);
+        cmd.Parameters.AddWithValue("@c", campaignId);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var sceneKey = reader.GetString(0);
+            if (!seenKeys.Add(sceneKey)) continue;
+            var rawName = reader.IsDBNull(1) ? sceneKey : reader.GetString(1);
+            var name = string.IsNullOrWhiteSpace(rawName) || rawName == "null" ? sceneKey : rawName;
+            var campId = reader.GetInt32(2);
+            var rev = reader.GetInt32(3);
+            var cols = reader.IsDBNull(4) ? 50 : Convert.ToInt32(reader.GetValue(4));
+            var rows = reader.IsDBNull(5) ? 50 : Convert.ToInt32(reader.GetValue(5));
+            var floorUrl = reader.IsDBNull(6) ? null : reader.GetString(6);
+            if (floorUrl == "null") floorUrl = null;
+            var updatedBy = reader.IsDBNull(7) ? "GM" : reader.GetString(7);
+            var updatedAt = reader.IsDBNull(8) ? DateTime.UtcNow : reader.GetDateTime(8);
+            list.Add(new StoredMapSceneSummary(
+                sceneKey,
+                name,
+                campId,
+                rev,
+                cols > 0 ? cols : 50,
+                rows > 0 ? rows : 50,
+                floorUrl,
+                updatedBy,
+                updatedAt));
+        }
+        return list;
+    }
     public static async Task<StoredMapSceneDocument?> LoadAsync(
         LoomWeaverMySqlRepository mysql, int campaignId, string sceneKey, CancellationToken ct)
     {
         await using var db = await mysql.OpenConnectionAsync(ct);
-        await using var cmd = new MySqlCommand("""
+        await using (var cmd = new MySqlCommand("""
             SELECT revision, document_json, visibility
             FROM lw_battlemap_scenes WHERE campaign_id = @c AND scene_key = @s
-            """, db);
-        cmd.Parameters.AddWithValue("@c", campaignId);
-        cmd.Parameters.AddWithValue("@s", sceneKey);
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct)
-            ? new StoredMapSceneDocument(reader.GetInt32(0), JsonSerializer.Deserialize<JsonElement>(reader.GetString(1)), reader.GetString(2))
-            : null;
+            """, db))
+        {
+            cmd.Parameters.AddWithValue("@c", campaignId);
+            cmd.Parameters.AddWithValue("@s", sceneKey);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
+            {
+                return new StoredMapSceneDocument(reader.GetInt32(0), JsonSerializer.Deserialize<JsonElement>(reader.GetString(1)), reader.GetString(2));
+            }
+        }
+
+        await using (var fallbackCmd = new MySqlCommand("""
+            SELECT revision, document_json, visibility
+            FROM lw_battlemap_scenes WHERE scene_key = @s
+            ORDER BY updated_at DESC, revision DESC
+            LIMIT 1
+            """, db))
+        {
+            fallbackCmd.Parameters.AddWithValue("@s", sceneKey);
+            await using var fallbackReader = await fallbackCmd.ExecuteReaderAsync(ct);
+            if (await fallbackReader.ReadAsync(ct))
+            {
+                return new StoredMapSceneDocument(fallbackReader.GetInt32(0), JsonSerializer.Deserialize<JsonElement>(fallbackReader.GetString(1)), fallbackReader.GetString(2));
+            }
+        }
+
+        return null;
     }
 
     public static async Task<(string SceneKey, StoredMapSceneDocument Document)?> LoadLatestAsync(
@@ -33,8 +114,9 @@ public static class MapSceneDocumentRepository
             await using var byTitle = new MySqlCommand("""
                 SELECT scene_key, revision, document_json, visibility
                 FROM lw_battlemap_scenes
-                WHERE campaign_id = @c AND JSON_UNQUOTE(JSON_EXTRACT(document_json, '$.name')) = @t
-                ORDER BY updated_at DESC, revision DESC
+                WHERE JSON_UNQUOTE(JSON_EXTRACT(document_json, '$.name')) = @t
+                   OR JSON_UNQUOTE(JSON_EXTRACT(document_json, '$.studio.mapTitle')) = @t
+                ORDER BY (campaign_id = @c) DESC, updated_at DESC, revision DESC
                 LIMIT 1
                 """, db);
             byTitle.Parameters.AddWithValue("@c", campaignId);
@@ -52,8 +134,7 @@ public static class MapSceneDocumentRepository
         await using var latest = new MySqlCommand("""
             SELECT scene_key, revision, document_json, visibility
             FROM lw_battlemap_scenes
-            WHERE campaign_id = @c
-            ORDER BY updated_at DESC, revision DESC
+            ORDER BY (campaign_id = @c) DESC, updated_at DESC, revision DESC
             LIMIT 1
             """, db);
         latest.Parameters.AddWithValue("@c", campaignId);

@@ -394,19 +394,26 @@ export function buildProceduralDoorAssembly(
     return created;
   }
 
-  const isDoubleDoor = op.type === 'double_door' || width >= 2.35;
+  const isDoubleDoor = op.hingeSide === 'double' || op.type === 'double_door' || width >= 2.35;
   const leafCount = isDoubleDoor ? 2 : 1;
   const singleLeafWidth = isDoubleDoor ? clearWidth * 0.495 : clearWidth;
   const leafH = clearHeight - 0.07;
+  const swingSign = op.swingDirection === 'outward' ? -1 : 1;
 
   for (let leafIdx = 0; leafIdx < leafCount; leafIdx++) {
-    const hingeSide: -1 | 1 = leafIdx === 0 ? -1 : 1;
+    const hingeSide: -1 | 1 = isDoubleDoor
+      ? leafIdx === 0
+        ? -1
+        : 1
+      : op.hingeSide === 'right'
+        ? 1
+        : -1;
     const dir = -hingeSide; // +1 for left-hinged leaf, -1 for right-hinged leaf
 
     const hingePivot = new BABYLON.TransformNode(`lw-door-hinge-${op.id}-${leafIdx}`, scene);
     hingePivot.parent = root;
     hingePivot.position.set(hingeSide * (clearWidth * 0.5), 0.065, 0);
-    hingePivot.rotation.y = op.isOpen ? hingeSide * Math.PI * 0.46 : 0;
+    hingePivot.rotation.y = op.isOpen ? -hingeSide * swingSign * Math.PI * 0.46 : 0;
 
     // Iron Hinge Barrels mounted at the jamb post
     for (const hFrac of [0.2, 0.8]) {

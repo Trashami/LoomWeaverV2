@@ -329,7 +329,7 @@ export class BabylonEffectStageService {
       this.engine.setHardwareScalingLevel(1 / Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 1.35));
       this.scene = new Scene(this.engine);
       this.scene.skipPointerMovePicking = true;
-      this.scene.clearColor = new Color4(3 / 255, 8 / 255, 6 / 255, 1);
+      this.scene.clearColor = new Color4(0, 0, 0, 1);
       this.scene.shadowsEnabled = true;
 
       const onResize = () => { if (canvas.clientWidth > 0 && canvas.clientHeight > 0) this.engine?.resize(); };

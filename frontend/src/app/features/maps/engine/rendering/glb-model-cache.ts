@@ -34,6 +34,7 @@ export interface CachedGlbTemplate {
   readonly waistWidthRatio: number;
   /** 8-band vertical profile (bottom y=0 to top y=1) of normalized half-span (0.15..0.50) along the length axis. */
   readonly halfSpanProfile: readonly number[];
+  wallLightingNormalized?: boolean;
 }
 
 export interface GlbCloneMetadata {
@@ -490,5 +491,55 @@ export class GlbModelCache {
       }
     }
     return wrapper;
+  }
+
+  /**
+   * Eliminates lighting jumps between tiled 3D wall GLB stamps by flattening the smoothed
+   * longitudinal end-cap normal curvature along the wall axis and neutralizing baked vertex AO.
+   */
+  static normalizeWallTemplateLighting(template: CachedGlbTemplate): void {
+    if (template.wallLightingNormalized) return;
+    template.wallLightingNormalized = true;
+
+    const useZAsLength = template.rawDepth > template.rawWidth * 1.35;
+    const meshes = template.templatePivot.getChildMeshes(false);
+    for (const m of meshes) {
+      if (m.material instanceof PBRMaterial) {
+        m.material.backFaceCulling = false;
+        m.material.twoSidedLighting = true;
+        m.material.directIntensity = 1.15;
+        m.material.environmentIntensity = 0.85;
+      } else if (m.material instanceof StandardMaterial) {
+        m.material.backFaceCulling = false;
+      }
+      if (!(m instanceof Mesh) || m.getTotalVertices() === 0) continue;
+      if (m.isVerticesDataPresent(VertexBuffer.ColorKind)) {
+        m.removeVerticesData(VertexBuffer.ColorKind);
+      }
+      const norms = m.getVerticesData(VertexBuffer.NormalKind);
+      if (!norms || norms.length < 3) continue;
+      const updated = new Float32Array(norms.length);
+      for (let i = 0; i < norms.length; i += 3) {
+        let nx = norms[i];
+        let ny = norms[i + 1];
+        let nz = norms[i + 2];
+        if (useZAsLength) {
+          nz *= 0.04;
+          if (Math.abs(nx) < 0.15 && Math.abs(ny) < 0.5) {
+            nx = nx >= 0 ? 0.92 : -0.92;
+          }
+        } else {
+          nx *= 0.04;
+          if (Math.abs(nz) < 0.15 && Math.abs(ny) < 0.5) {
+            nz = nz >= 0 ? 0.92 : -0.92;
+          }
+        }
+        const len = Math.hypot(nx, ny, nz) || 1;
+        updated[i] = nx / len;
+        updated[i + 1] = ny / len;
+        updated[i + 2] = nz / len;
+      }
+      m.setVerticesData(VertexBuffer.NormalKind, updated, false);
+    }
   }
 }

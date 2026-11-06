@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output } from '@angular/core';
 import { LoomWeaverStoreService } from '../../../../core/services/loomweaver-store.service';
+import { WebAudioAmbienceService } from '../../../assets/engine/web-audio-ambience.service';
 import { VttBattleStateService } from '../../services/vtt-battle-state.service';
 import { VTT_MAP_QUALITY_OPTIONS, VttDisplaySettingsService, VttMapQuality } from '../../services/vtt-display-settings.service';
 
@@ -14,11 +15,20 @@ export class VttSettingsPanelComponent {
   readonly display = inject(VttDisplaySettingsService);
   readonly store = inject(LoomWeaverStoreService);
   readonly battle = inject(VttBattleStateService);
+  readonly audio = inject(WebAudioAmbienceService);
   readonly enableGrid = output<void>();
 
   readonly qualityOptions = VTT_MAP_QUALITY_OPTIONS;
   readonly isGm = computed(() => this.store.viewerRole() === 'gm');
   readonly gridScalePercent = computed(() => Math.round(this.display.gridScale() * 100));
+  readonly userVolumePercent = computed(() => Math.round(this.audio.effectiveVolume() * 100));
+
+  onVolumeInput(event: Event): void {
+    const val = parseFloat((event.target as HTMLInputElement).value);
+    if (!Number.isNaN(val)) {
+      this.audio.setMasterVolume(val / 100);
+    }
+  }
 
   select(value: VttMapQuality): void {
     this.display.setMapQuality(value);

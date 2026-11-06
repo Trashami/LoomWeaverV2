@@ -9,6 +9,11 @@ import {
 import { FormsModule } from '@angular/forms';
 import { NgpButton } from 'ng-primitives/button';
 import { LwIconComponent, LwModalComponent } from '../../../../shared/ui/public-api';
+import {
+  PRESET_MERCHANT_AVATARS,
+  PresetMerchantAvatar,
+  getMerchantTypeIcon,
+} from '../../merchant-generator.helpers';
 import { MERCHANT_TYPES_CATALOG } from '../../merchant-haggle.helpers';
 
 @Component({
@@ -36,9 +41,11 @@ export class MerchantCreateModalComponent {
     greeting: string;
     buyRatePercent: number;
     markupPercent: number;
+    imageUrl?: string;
   }>();
 
   readonly merchantTypes = MERCHANT_TYPES_CATALOG;
+  readonly presetAvatars = PRESET_MERCHANT_AVATARS;
 
   readonly storeName = signal('');
   readonly merchantType = signal('General Goods & Provisions');
@@ -49,6 +56,7 @@ export class MerchantCreateModalComponent {
   readonly greeting = signal('Welcome! Look around, tell me what catches your eye.');
   readonly buyRate = signal(50);
   readonly markup = signal(100);
+  readonly imageUrl = signal('/assets/5e-tools/races/PHB/Human.webp');
 
   ngOnInit(): void {
     this.resetForm();
@@ -64,6 +72,15 @@ export class MerchantCreateModalComponent {
     this.greeting.set('Welcome! Look around, tell me what catches your eye.');
     this.buyRate.set(50);
     this.markup.set(100);
+    this.imageUrl.set('/assets/5e-tools/races/PHB/Human.webp');
+  }
+
+  selectPreset(preset: PresetMerchantAvatar): void {
+    this.imageUrl.set(preset.imageUrl);
+  }
+
+  getTypeIcon(): string {
+    return getMerchantTypeIcon(this.merchantType());
   }
 
   onSubmit(): void {
@@ -79,6 +96,7 @@ export class MerchantCreateModalComponent {
       greeting: this.greeting().trim(),
       buyRatePercent: this.buyRate(),
       markupPercent: this.markup(),
+      imageUrl: this.imageUrl().trim(),
     });
   }
 
@@ -86,3 +104,4 @@ export class MerchantCreateModalComponent {
     this.open.set(false);
   }
 }
+

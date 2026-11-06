@@ -9,6 +9,7 @@ export class MapWaterEditor {
   private drawing = false;
   private activeId: string | null = null;
   private serial = 0;
+  private lastDrawMs = 0;
 
   constructor(
     private readonly scene: () => MapSceneGraphState,
@@ -101,12 +102,16 @@ export class MapWaterEditor {
     if (!water) return;
 
     const last = water.points[water.points.length - 1];
+    const minSpacing = Math.max(0.65, settings.width * 0.25);
+    const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
     if (
-      Math.hypot(x - last[0], z - last[2]) < Math.max(0.06, settings.width * 0.025) ||
-      water.points.length >= 512
+      Math.hypot(x - last[0], z - last[2]) < minSpacing ||
+      water.points.length >= 160 ||
+      nowMs - this.lastDrawMs < 40
     ) {
       return;
     }
+    this.lastDrawMs = nowMs;
     const point: readonly [number, number, number] = [x, this.ground(x, z), z];
     this.commit((cur) => ({
       ...cur,

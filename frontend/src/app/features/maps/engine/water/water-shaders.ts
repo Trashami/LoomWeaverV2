@@ -123,7 +123,7 @@ void main() {
     if (lwFogAlpha > 0.96) {
       discard;
     }
-    gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.012, 0.031, 0.024), clamp(lwFogAlpha, 0.0, 1.0));
+    gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.0, 0.0, 0.0), clamp(lwFogAlpha, 0.0, 1.0));
     gl_FragColor.a *= clamp(1.0 - lwFogAlpha, 0.0, 1.0);
   }
 }`;

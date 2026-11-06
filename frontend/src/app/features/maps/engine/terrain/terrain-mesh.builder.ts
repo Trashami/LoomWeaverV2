@@ -337,25 +337,10 @@ export class TerrainMeshBuilder {
       ground.isPickable = true;
       ground.receiveShadows = true;
 
-      // Subtle expansive world horizon plane beneath the playable terrain so the world feels vast
       const existingHorizon = scene.getMeshByName('lw-terrain-horizon');
-      existingHorizon?.dispose();
-      const horizon = MeshBuilder.CreateGround(
-        'lw-terrain-horizon',
-        { width: this.GROUND_W * 3.2, height: this.GROUND_H * 3.2, subdivisions: 2 },
-        scene,
-      );
-      horizon.position.y = -0.14;
-      horizon.isPickable = false;
-      horizon.receiveShadows = false;
-      let horizonMat = scene.getMaterialByName('lw-terrain-horizon-mat') as StandardMaterial | null;
-      if (!horizonMat) {
-        horizonMat = new StandardMaterial('lw-terrain-horizon-mat', scene);
-        horizonMat.diffuseColor = Color3.FromHexString('#05100c');
-        horizonMat.emissiveColor = Color3.FromHexString('#030907');
-        horizonMat.specularColor = Color3.Black();
+      if (existingHorizon && !existingHorizon.isDisposed()) {
+        existingHorizon.dispose();
       }
-      horizon.material = horizonMat;
 
       const positions = ground.getVerticesData('position');
       if (positions) {
@@ -377,15 +362,18 @@ export class TerrainMeshBuilder {
     ground: Mesh,
     baseReliefScale = 24,
     waterSplineCount = 0,
+    skipGridOverlay = false,
   ): void {
     const waterSig = JSON.stringify(WaterChannelTerrain.getBodies(scene));
-    const sig = `${this.elevationVersion}|${waterSplineCount}|${waterSig}|${this.activeGridMode}|${this.gridScaleFactor}|${this.gridOffsetX}|${this.gridOffsetZ}|${this.gridOpacity}`;
+    const sig = `${this.elevationVersion}|${waterSplineCount}|${waterSig}|${this.activeGridMode}|${this.gridScaleFactor}|${this.gridOffsetX}|${this.gridOffsetZ}|${this.gridOpacity}|${skipGridOverlay ? 'drag' : 'full'}`;
     if (this.appliedReliefSigByScene.get(scene) === sig) {
       return;
     }
     this.appliedReliefSigByScene.set(scene, sig);
     this.applyVertexReliefAndHeightMap(scene, ground, baseReliefScale);
-    this.rebuildGridOverlay(scene);
+    if (!skipGridOverlay) {
+      this.rebuildGridOverlay(scene);
+    }
   }
 
   /**
@@ -977,12 +965,12 @@ export class TerrainMeshBuilder {
     // Standard 3D Surface Finish (Matte, Semi-Glossy, Shiny) + Roughness & Specular controls
     const roughnessFrac = Math.max(0.04, Math.min(1.0, this.floorRoughness / 100));
     const specStrength = Math.max(0, Math.min(1.8, this.floorSpecularIntensity / 100));
-    mat.diffuseColor = Color3.FromHexString('#c6d4cc');
+    mat.diffuseColor = Color3.FromHexString('#dcdcdc');
     mat.roughness = roughnessFrac;
     mat.specularPower = Math.round(8 + Math.pow(1 - roughnessFrac, 2) * 180);
     mat.specularColor = new Color3(
-      0.56 * specStrength,
-      0.64 * specStrength,
+      0.6 * specStrength,
+      0.6 * specStrength,
       0.6 * specStrength,
     );
 
@@ -1042,7 +1030,7 @@ export class TerrainMeshBuilder {
       }
     } catch {
       if (biome.toLowerCase().includes('forest')) {
-        mat.diffuseColor = Color3.FromHexString('#183326');
+        mat.diffuseColor = Color3.FromHexString('#2a2826');
       }
     }
 
@@ -1128,9 +1116,15 @@ export class TerrainMeshBuilder {
     }
 
     this.elevationVersion++;
+    if (WaterChannelTerrain.getBodies(scene).length > 0) {
+      for (let i = 0; i < positions.length; i += 3) {
+        positions[i + 1] = this.customElevations[i / 3] ?? 0;
+      }
+      WaterChannelTerrain.apply(scene, positions, this.GROUND_W, this.GROUND_H);
+    }
     ground.updateVerticesData('position', positions);
+    this.cachedPositionsByScene.set(scene, new Float32Array(positions));
     this.recomputeNormals(ground, positions);
     ground.refreshBoundingInfo();
-    this.rebuildGridOverlay(scene);
   }
 }

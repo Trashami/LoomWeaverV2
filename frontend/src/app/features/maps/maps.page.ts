@@ -1551,6 +1551,10 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.lastScatterPaintPos = null;
     this.lastFloorPaintPos = null;
     const tool = this.activeDockToolId();
+    if (tool === 'terrain' || tool === 'water') {
+      this.stage.finalizeTerrainStroke();
+      return;
+    }
     if ((tool === 'wall' || tool === 'room') && this.wallDrawMode() === 'freehand') {
       const pts = this.freehandWallPoints();
       if (pts.length >= 2) {

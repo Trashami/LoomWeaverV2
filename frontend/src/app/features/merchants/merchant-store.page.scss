@@ -127,6 +127,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+
+  .store-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
 }
 
 .patron-badge {

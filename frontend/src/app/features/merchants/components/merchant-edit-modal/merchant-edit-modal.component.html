@@ -1,0 +1,285 @@
+<lw-modal
+  [(open)]="open"
+  title="Customize Merchant & Storefront"
+  subtitle="Sculpt store branding, shopkeeper persona, portrait artwork, and trade rates"
+  size="lg"
+>
+  <div class="edit-modal-content">
+    <!-- Live Card Preview -->
+    <div class="preview-panel">
+      <span class="preview-heading">Storefront Preview</span>
+      <article class="preview-card">
+        <div class="preview-card__badges">
+          <span class="type-pill">
+            <lw-icon [name]="getTypeIcon()" [size]="12" />
+            <span>{{ merchantType() }}</span>
+          </span>
+          <span class="loc-pill">
+            <lw-icon name="map-pin" [size]="11" />
+            <span>{{ locationName() || 'Unassigned Location' }}</span>
+          </span>
+        </div>
+
+        <div class="preview-card__main">
+          <div class="preview-avatar">
+            @if (imageUrl()) {
+              <img [src]="imageUrl()" [alt]="storeName()" class="avatar-img" />
+            } @else {
+              <div class="avatar-fallback">
+                <lw-icon [name]="getTypeIcon()" [size]="28" tone="gold" />
+              </div>
+            }
+          </div>
+          <div class="preview-info">
+            <h4 class="preview-title">{{ storeName() || 'Untitled Merchant' }}</h4>
+            <p class="preview-proprietor">
+              Proprietor: <strong>{{ merchantName() || 'Unnamed Merchant' }}</strong>
+            </p>
+            <p class="preview-tagline">{{ tagline() || 'Specialty wares and local trade goods.' }}</p>
+          </div>
+        </div>
+
+        <div class="preview-card__meta">
+          <span class="meta-tag">
+            <lw-icon name="inventory_2" [size]="12" />
+            <span>Wares Active</span>
+          </span>
+          @if (rollTableName()) {
+            <span class="meta-tag meta-tag--table">
+              <lw-icon name="table-chart" [size]="12" />
+              <span>{{ rollTableName() }}</span>
+            </span>
+          }
+        </div>
+      </article>
+    </div>
+
+    <!-- Edit Form -->
+    <form class="edit-form" (ngSubmit)="onSubmit()">
+      <!-- Store Identity -->
+      <div class="form-row">
+        <label class="field-label">
+          <span>Store Name *</span>
+          <input
+            type="text"
+            placeholder="e.g. The Iron Anvil Forge, Moonlit Elixirs..."
+            [ngModel]="storeName()"
+            (ngModelChange)="storeName.set($event)"
+            name="storeName"
+            required
+          />
+        </label>
+
+        <label class="field-label">
+          <span>Specialization</span>
+          <select
+            [ngModel]="merchantType()"
+            (ngModelChange)="merchantType.set($event)"
+            name="merchantType"
+          >
+            @for (type of merchantTypes; track type) {
+              <option [value]="type">{{ type }}</option>
+            }
+          </select>
+        </label>
+      </div>
+
+      <!-- Proprietor & Location with Campaign Dropdowns -->
+      <div class="form-row">
+        <div class="field-combo">
+          <label class="field-label">
+            <span>Proprietor / NPC Shopkeeper</span>
+            <select
+              [ngModel]="merchantName()"
+              (ngModelChange)="merchantName.set($event)"
+              name="npcSelect"
+            >
+              @for (npc of campaignNpcs(); track npc) {
+                <option [value]="npc">{{ npc }}</option>
+              }
+            </select>
+          </label>
+          <input
+            type="text"
+            placeholder="Or type custom NPC..."
+            [ngModel]="merchantName()"
+            (ngModelChange)="merchantName.set($event)"
+            name="customNpc"
+            class="sub-input"
+          />
+        </div>
+
+        <div class="field-combo">
+          <label class="field-label">
+            <span>Settlement / Location</span>
+            <select
+              [ngModel]="locationName()"
+              (ngModelChange)="locationName.set($event)"
+              name="locSelect"
+            >
+              @for (loc of campaignLocations(); track loc) {
+                <option [value]="loc">{{ loc }}</option>
+              }
+            </select>
+          </label>
+          <input
+            type="text"
+            placeholder="Or type custom settlement..."
+            [ngModel]="locationName()"
+            (ngModelChange)="locationName.set($event)"
+            name="customLoc"
+            class="sub-input"
+          />
+        </div>
+      </div>
+
+      <!-- Portrait / Avatar Presets -->
+      <div class="avatar-picker-section">
+        <span class="picker-title">Proprietor Portrait / Avatar</span>
+        <div class="preset-gallery">
+          @for (preset of presetAvatars; track preset.id) {
+            <button
+              type="button"
+              class="preset-btn"
+              [class.active]="imageUrl() === preset.imageUrl"
+              (click)="selectPreset(preset)"
+              [title]="preset.label"
+            >
+              <img [src]="preset.imageUrl" [alt]="preset.label" class="preset-thumb" />
+              <span class="preset-label">{{ preset.label }}</span>
+            </button>
+          }
+        </div>
+
+        <div class="custom-url-row">
+          <lw-icon name="image" [size]="14" tone="muted" />
+          <input
+            type="text"
+            placeholder="Or paste custom image / portrait URL..."
+            [ngModel]="imageUrl()"
+            (ngModelChange)="imageUrl.set($event)"
+            name="imageUrl"
+          />
+          @if (imageUrl()) {
+            <button type="button" class="btn-clear-img" (click)="imageUrl.set('')">Clear</button>
+          }
+        </div>
+      </div>
+
+      <!-- Tagline & Description -->
+      <div class="form-row">
+        <label class="field-label full-width">
+          <span>Tagline / Catchphrase</span>
+          <input
+            type="text"
+            placeholder="e.g. Masterwork blades and reinforced plate armor"
+            [ngModel]="tagline()"
+            (ngModelChange)="tagline.set($event)"
+            name="tagline"
+          />
+        </label>
+      </div>
+
+      <div class="form-row">
+        <label class="field-label full-width">
+          <span>Store Atmosphere & Background</span>
+          <textarea
+            rows="2"
+            placeholder="Describe the sights, sounds, smells, and atmosphere of the store..."
+            [ngModel]="description()"
+            (ngModelChange)="description.set($event)"
+            name="description"
+          ></textarea>
+        </label>
+      </div>
+
+      <!-- In-Character Greeting -->
+      <div class="form-row">
+        <label class="field-label full-width">
+          <span>In-Character Greeting (Shown when visiting)</span>
+          <input
+            type="text"
+            placeholder="e.g. Hail, travelers! Watch your step around the forge coals."
+            [ngModel]="greeting()"
+            (ngModelChange)="greeting.set($event)"
+            name="greeting"
+          />
+        </label>
+      </div>
+
+      <!-- Attached Roll Table -->
+      @if (campaignTables().length > 0) {
+        <div class="form-row">
+          <label class="field-label full-width">
+            <span>Attached 5e Roll Table (Restock Source)</span>
+            <select
+              [ngModel]="rollTableId() ?? ''"
+              (ngModelChange)="onTableChange($event)"
+              name="tableSelect"
+            >
+              <option value="">No Attached Table</option>
+              @for (tbl of campaignTables(); track tbl.id) {
+                <option [value]="tbl.id">{{ tbl.name }}</option>
+              }
+            </select>
+          </label>
+        </div>
+      }
+
+      <!-- Trade Rates -->
+      <div class="form-row">
+        <label class="field-label">
+          <span>Price Markup (%)</span>
+          <input
+            type="number"
+            min="50"
+            max="300"
+            [ngModel]="markupPercent()"
+            (ngModelChange)="markupPercent.set($event)"
+            name="markup"
+          />
+          <span class="sub-hint">100% = normal book prices; 120% = 20% mark up</span>
+        </label>
+
+        <label class="field-label">
+          <span>Player Buyback Rate (%)</span>
+          <input
+            type="number"
+            min="10"
+            max="100"
+            [ngModel]="buyRatePercent()"
+            (ngModelChange)="buyRatePercent.set($event)"
+            name="buyRate"
+          />
+          <span class="sub-hint">50% = standard 5e resale return to players</span>
+        </label>
+      </div>
+
+      <!-- Modal Actions -->
+      <div class="modal-actions">
+        <button
+          ngpButton
+          type="button"
+          class="lw-btn lw-btn--subtle"
+          (click)="close()"
+        >
+          Cancel
+        </button>
+
+        <button
+          ngpButton
+          type="submit"
+          class="lw-btn lw-btn--primary"
+          [disabled]="!storeName().trim() || saving()"
+        >
+          @if (saving()) {
+            <span>Saving Changes...</span>
+          } @else {
+            <lw-icon name="check" [size]="14" />
+            <span>Save Merchant Changes</span>
+          }
+        </button>
+      </div>
+    </form>
+  </div>
+</lw-modal>

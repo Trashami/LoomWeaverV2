@@ -1,5 +1,6 @@
 import {
   Color3,
+  Constants,
   Material,
   MaterialPluginBase,
   PBRBaseMaterial,
@@ -141,7 +142,7 @@ export class WallSurfacePaint {
       false,
       false,
       Texture.NEAREST_SAMPLINGMODE,
-      5, // Engine.TEXTURETYPE_FLOAT
+      Constants.TEXTURETYPE_FLOAT,
     );
     texture.wrapU = Texture.CLAMP_ADDRESSMODE;
     texture.wrapV = Texture.CLAMP_ADDRESSMODE;
@@ -213,6 +214,10 @@ export class WallSurfacePaint {
   }
 
   static replay(scene: Scene, walls: readonly MapWallSegmentNode[] | undefined): void {
+    const hasAnyDabs = Boolean(walls?.some((w) => (w.paintDabs?.length ?? 0) > 0));
+    if (!hasAnyDabs && !this.sceneBuffers.has(scene)) {
+      return;
+    }
     const buf = this.getOrCreateSceneBuffer(scene);
     buf.dabs.length = 0;
     buf.data.fill(0);

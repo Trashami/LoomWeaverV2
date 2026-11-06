@@ -9,8 +9,8 @@ interface Point {
   field: WaterField;
 }
 
-const MAP_HALF_W = 18;
-const MAP_HALF_H = 13.5;
+const MAP_HALF_W = 37.2;
+const MAP_HALF_H = 37.2;
 
 /** Clip a regular surface grid to the union outline and strictly to map boundaries. */
 export function createWaterNetworkMesh(
@@ -25,7 +25,8 @@ export function createWaterNetworkMesh(
   const minZ = Math.max(-MAP_HALF_H, Math.min(...points.map((p) => p.z)) - radius);
   const maxZ = Math.min(MAP_HALF_H, Math.max(...points.map((p) => p.z)) + radius);
 
-  const cell = Math.max(0.2, Math.min(0.35, Math.min(...profiles.map((p) => p.settings.width)) / 9));
+  const baseCell = Math.max(0.32, Math.min(0.55, Math.min(...profiles.map((p) => p.settings.width)) / 6));
+  const cell = Math.max(baseCell, (maxX - minX) / 84, (maxZ - minZ) / 84);
   const cols = Math.max(1, Math.ceil((maxX - minX) / cell));
   const rows = Math.max(1, Math.ceil((maxZ - minZ) / cell));
   const stepX = (maxX - minX) / cols;

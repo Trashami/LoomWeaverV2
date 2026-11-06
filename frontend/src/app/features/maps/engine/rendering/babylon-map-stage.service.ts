@@ -113,6 +113,7 @@ export class BabylonMapStageService {
   private isSpaceKeyHeld = false;
   private lastWallHoverAngleY = 0;
   private lastFpsUpdateMs = 0;
+  private lastTerrainSculptMs = 0;
   private holdTimer: ReturnType<typeof setInterval> | null = null;
   private holdTicks = 0;
 
@@ -155,7 +156,7 @@ export class BabylonMapStageService {
         stencil: true,
       });
       this.scene = new Scene(this.engine);
-      this.scene.clearColor = new Color4(0.02, 0.06, 0.04, 1);
+      this.scene.clearColor = new Color4(0.024, 0.027, 0.032, 1);
       this.scene.shadowsEnabled = true;
       GlbModelCache.ensureScene(this.scene);
 
@@ -295,7 +296,9 @@ export class BabylonMapStageService {
               this.hoverCoords.set(groundPt);
               onSurfaceStart?.();
               onSurfaceDrag(groundPt.x, groundPt.z, 0);
-              this.startHoldTimer(onSurfaceDrag);
+              if (this.ghostConfig.kind === 'terrain') {
+                this.startHoldTimer(onSurfaceDrag);
+              }
             }
           }
           return;
@@ -792,6 +795,9 @@ export class BabylonMapStageService {
     plateauLimit = 6.0,
   ): void {
     if (!this.scene) return;
+    const nowMs = performance.now();
+    if (nowMs - this.lastTerrainSculptMs < 32) return;
+    this.lastTerrainSculptMs = nowMs;
     TerrainMeshBuilder.sculptElevationAt(
       this.scene,
       worldX,
@@ -803,13 +809,31 @@ export class BabylonMapStageService {
       plateauLimit,
     );
     if (this.lastState) {
-      const ground = this.scene.getMeshByName('lw-terrain-ground');
-      if (ground) TerrainMeshBuilder.applyVertexReliefAndHeightMap(this.scene, ground as import('@babylonjs/core').Mesh, this.lastState.terrainRelief);
-      WallMeshBuilder.rebuildWallMeshes(this.scene, this.lastState.walls, this.hideGmSecrets);
-      WaterSplineBuilder.rebuildWaterSplines(this.scene, this.lastState.waterSplines);
       this.rebuildStamps(this.scene, this.lastState.stamps);
     }
     this.updateGhostMeshAt(worldX, worldZ);
+  }
+
+  finalizeTerrainStroke(): void {
+    if (!this.scene || !this.lastState) return;
+    const ground = this.scene.getMeshByName('lw-terrain-ground') as import('@babylonjs/core').Mesh | null;
+    if (ground) {
+      TerrainMeshBuilder.syncReliefAndGridIfChanged(
+        this.scene,
+        ground,
+        this.lastState.terrainRelief,
+        this.lastState.waterSplines?.length ?? 0,
+      );
+    }
+    WallMeshBuilder.rebuildWallMeshes(
+      this.scene,
+      this.lastState.walls,
+      this.hideGmSecrets,
+      () => this.scheduleSceneResync(),
+    );
+    WaterSplineBuilder.rebuildWaterSplines(this.scene, this.lastState.waterSplines);
+    this.rebuildStamps(this.scene, this.lastState.stamps);
+    SceneLightingController.refreshShadowCasters(this.scene);
   }
 
   updateCelestialLight(config: CelestialLightConfig): void {
@@ -923,6 +947,7 @@ export class BabylonMapStageService {
       ground,
       state.terrainRelief,
       state.waterSplines?.length ?? 0,
+      this.isLeftPointerDown && this.surfaceLockEnabled,
     );
     WaterSplineBuilder.rebuildWaterSplines(this.scene, state.waterSplines);
     SceneLightingController.syncLights(this.scene, state.lights, undefined, state.walls);

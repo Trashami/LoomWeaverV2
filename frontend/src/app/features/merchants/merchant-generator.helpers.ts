@@ -21,6 +21,7 @@ export interface GeneratedMerchantPreview {
   readonly tagline: string;
   readonly greeting: string;
   readonly description: string;
+  readonly imageUrl: string;
   readonly inventory: readonly GeneratedMerchantPreviewItem[];
 }
 
@@ -219,6 +220,53 @@ export function generateRandomMerchantPreview(
     tagline: `Specialized ${type.toLowerCase()} and fine goods in ${location}.`,
     greeting: `Welcome to ${storeName}! Look around and let me know what catches your eye.`,
     description: `A reputable ${type.toLowerCase()} established in ${location}, known across the region for quality wares.`,
+    imageUrl: `/assets/5e-tools/races/PHB/${npcRace}.webp`,
     inventory,
   };
 }
+
+export interface PresetMerchantAvatar {
+  readonly id: string;
+  readonly label: string;
+  readonly race: string;
+  readonly imageUrl: string;
+}
+
+export const PRESET_MERCHANT_AVATARS: readonly PresetMerchantAvatar[] = [
+  { id: 'dwarf', label: 'Dwarf', race: 'Dwarf', imageUrl: '/assets/5e-tools/races/PHB/Dwarf.webp' },
+  { id: 'elf', label: 'Elf', race: 'Elf', imageUrl: '/assets/5e-tools/races/PHB/Elf.webp' },
+  { id: 'human', label: 'Human', race: 'Human', imageUrl: '/assets/5e-tools/races/PHB/Human.webp' },
+  { id: 'halfling', label: 'Halfling', race: 'Halfling', imageUrl: '/assets/5e-tools/races/PHB/Halfling.webp' },
+  { id: 'gnome', label: 'Gnome', race: 'Gnome', imageUrl: '/assets/5e-tools/races/PHB/Gnome.webp' },
+  { id: 'half-elf', label: 'Half-Elf', race: 'Half-Elf', imageUrl: '/assets/5e-tools/races/PHB/Half-Elf.webp' },
+  { id: 'half-orc', label: 'Half-Orc', race: 'Half-Orc', imageUrl: '/assets/5e-tools/races/PHB/Half-Orc.webp' },
+  { id: 'tiefling', label: 'Tiefling', race: 'Tiefling', imageUrl: '/assets/5e-tools/races/PHB/Tiefling.webp' },
+  { id: 'dragonborn', label: 'Dragonborn', race: 'Dragonborn', imageUrl: '/assets/5e-tools/races/PHB/Dragonborn.webp' },
+];
+
+export function getMerchantTypeIcon(type?: string): string {
+  switch (type) {
+    case 'Blacksmith & Armory':
+      return 'swords';
+    case 'Alchemist & Apothecary':
+      return 'science';
+    case 'Arcane & Wandmaker':
+      return 'wand';
+    case 'Jeweler & Gemcutter':
+      return 'diamond';
+    case 'Curios & Antiquities':
+      return 'history-edu';
+    case 'Tavern & Brewer':
+      return 'home';
+    case 'Fletcher & Bowyer':
+      return 'target';
+    case 'Tailor & Weaver':
+      return 'layers';
+    case 'Wandering Exotic Trader':
+      return 'compass';
+    case 'General Goods & Provisions':
+    default:
+      return 'store';
+  }
+}
+

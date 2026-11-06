@@ -8,7 +8,6 @@ import { WaterSurfaceMaterial } from './water-surface-material';
 import { createWaterfallSpray } from './waterfall-spray';
 
 export class WaterSplineBuilder {
-  private static watched = new WeakSet<Scene>();
   private static rendered = new WeakMap<Scene, readonly unknown[]>();
   private static builtSigByScene = new WeakMap<Scene, string>();
 
@@ -34,22 +33,14 @@ export class WaterSplineBuilder {
     this.rendered.set(scene, profiles);
 
     for (const system of [...scene.particleSystems]) {
-      if (system.name.startsWith('lw-water-spray-')) system.dispose();
+      if (system.name.startsWith('lw-water-spray-')) system.dispose(false);
     }
     for (const mesh of [...scene.meshes]) {
       if (!mesh.name.startsWith('lw-water-spline-')) continue;
-      mesh.material?.dispose(false, false);
-      mesh.dispose();
-    }
-
-    if (!this.watched.has(scene)) {
-      this.watched.add(scene);
-      scene.onBeforeRenderObservable.add(() => {
-        if (this.rendered.get(scene) !== WaterChannelTerrain.getProfiles(scene)) {
-          this.builtSigByScene.delete(scene);
-          this.rebuildWaterSplines(scene, WaterChannelTerrain.getBodies(scene));
-        }
-      });
+      if (!mesh.isDisposed()) {
+        mesh.material?.dispose(false, false);
+        mesh.dispose(false, false);
+      }
     }
 
     for (const network of WaterChannelTerrain.getNetworks(scene)) {

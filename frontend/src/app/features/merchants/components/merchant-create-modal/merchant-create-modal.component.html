@@ -81,6 +81,39 @@
       </div>
     </div>
 
+    <!-- Portrait / Avatar Presets -->
+    <div class="avatar-picker-section">
+      <span class="picker-title">Proprietor Portrait / Avatar</span>
+      <div class="preset-gallery">
+        @for (preset of presetAvatars; track preset.id) {
+          <button
+            type="button"
+            class="preset-btn"
+            [class.active]="imageUrl() === preset.imageUrl"
+            (click)="selectPreset(preset)"
+            [title]="preset.label"
+          >
+            <img [src]="preset.imageUrl" [alt]="preset.label" class="preset-thumb" />
+            <span class="preset-label">{{ preset.label }}</span>
+          </button>
+        }
+      </div>
+
+      <div class="custom-url-row">
+        <lw-icon name="image" [size]="14" tone="muted" />
+        <input
+          type="text"
+          placeholder="Or paste custom image URL..."
+          [ngModel]="imageUrl()"
+          (ngModelChange)="imageUrl.set($event)"
+          name="imageUrl"
+        />
+        @if (imageUrl()) {
+          <button type="button" class="btn-clear-img" (click)="imageUrl.set('')">Clear</button>
+        }
+      </div>
+    </div>
+
     <div class="form-row">
       <label class="full-width">
         <span>Tagline / Specialty</span>

@@ -38,7 +38,7 @@ public static class MerchantGenerationService
 
         var mid = await MerchantStore.InsertMerchantAsync(
             db, campaignId, storeName, npc.Name, tagline, desc, greeting,
-            $"/portraits/merchants/{type.ToLower().Replace(" & ", "-").Replace(" ", "-")}.png",
+            $"/assets/5e-tools/races/PHB/{npc.Race}.webp",
             "/campaigns/market-banner.jpg",
             req.LocationKey ?? $"loc-{Guid.NewGuid():N}", locName,
             $"npc-{Guid.NewGuid():N}", npc.Name,

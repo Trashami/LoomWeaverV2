@@ -15,13 +15,15 @@ import {
   LwPageHeaderComponent,
 } from '../../shared/ui/public-api';
 import {
+  LwMerchantDetailVm,
   LwMerchantSummaryVm,
   MerchantsApiService,
 } from './merchants-api.service';
-import { FANTASY_NPC_NAMES } from './merchant-generator.helpers';
+import { FANTASY_NPC_NAMES, getMerchantTypeIcon } from './merchant-generator.helpers';
 import { MerchantChoiceModalComponent } from './components/merchant-choice-modal/merchant-choice-modal.component';
 import { MerchantRandomModalComponent } from './components/merchant-random-modal/merchant-random-modal.component';
 import { MerchantCreateModalComponent } from './components/merchant-create-modal/merchant-create-modal.component';
+import { MerchantEditModalComponent } from './components/merchant-edit-modal/merchant-edit-modal.component';
 
 type MerchantFilterTab = 'all' | 'near' | 'visited';
 
@@ -37,6 +39,7 @@ type MerchantFilterTab = 'all' | 'near' | 'visited';
     MerchantChoiceModalComponent,
     MerchantRandomModalComponent,
     MerchantCreateModalComponent,
+    MerchantEditModalComponent,
   ],
   templateUrl: './merchants.page.html',
   styleUrl: './merchants.page.scss',
@@ -59,6 +62,9 @@ export class MerchantsPageComponent {
   readonly choiceModalOpen = signal(false);
   readonly randomModalOpen = signal(false);
   readonly createModalOpen = signal(false);
+  readonly editModalOpen = signal(false);
+  readonly selectedMerchantForEdit = signal<LwMerchantSummaryVm | null>(null);
+  readonly campaignTables = signal<readonly { id: number; name: string }[]>([]);
   readonly actionBusy = signal(false);
 
   readonly activeCampaign = computed(() => this.store.activeCampaign());
@@ -157,6 +163,12 @@ export class MerchantsPageComponent {
         this.loading.set(false);
       },
     });
+
+    this.api.listCampaignRollTables(cid).subscribe({
+      next: (tables) => {
+        this.campaignTables.set(tables.map((t) => ({ id: t.rollTableId, name: t.tableName })));
+      },
+    });
   }
 
   setTab(tab: MerchantFilterTab): void {
@@ -165,6 +177,48 @@ export class MerchantsPageComponent {
 
   openMerchantStore(merchant: LwMerchantSummaryVm): void {
     this.router.navigate(['/merchants', merchant.id]);
+  }
+
+  openEditMerchant(merchant: LwMerchantSummaryVm, event: Event): void {
+    event.stopPropagation();
+    this.selectedMerchantForEdit.set(merchant);
+    this.editModalOpen.set(true);
+  }
+
+  onMerchantUpdated(payload: Partial<LwMerchantDetailVm>): void {
+    const target = this.selectedMerchantForEdit();
+    if (!target) return;
+
+    const cid = this.store.activeCampaignId() || 1;
+    this.actionBusy.set(true);
+
+    this.api.updateMerchant(cid, target.id, payload).subscribe({
+      next: () => {
+        this.actionBusy.set(false);
+        this.editModalOpen.set(false);
+        this.selectedMerchantForEdit.set(null);
+        this.loadMerchants();
+      },
+      error: () => {
+        this.actionBusy.set(false);
+        this.errorMessage.set('Could not update merchant.');
+      },
+    });
+  }
+
+  getMerchantIcon(type?: string): string {
+    return getMerchantTypeIcon(type);
+  }
+
+  onImgError(event: Event): void {
+    const img = event.target as HTMLElement | null;
+    if (img) {
+      img.style.display = 'none';
+      const fallback = img.nextElementSibling as HTMLElement | null;
+      if (fallback) {
+        fallback.classList.remove('hidden');
+      }
+    }
   }
 
   openAddMerchantChoice(): void {
@@ -221,6 +275,7 @@ export class MerchantsPageComponent {
     greeting: string;
     buyRatePercent: number;
     markupPercent: number;
+    imageUrl?: string;
   }): void {
     const cid = this.store.activeCampaignId() || 1;
     this.actionBusy.set(true);
@@ -236,7 +291,7 @@ export class MerchantsPageComponent {
         greeting: payload.greeting,
         buyRatePercent: payload.buyRatePercent,
         markupPercent: payload.markupPercent,
-        imageUrl: `/portraits/merchants/${payload.merchantType.toLowerCase().replace(/ & /g, '-').replace(/ /g, '-')}.png`,
+        imageUrl: payload.imageUrl || '/assets/5e-tools/races/PHB/Human.webp',
         bannerUrl: '/campaigns/market-banner.jpg',
         isUnlocked: true,
       })

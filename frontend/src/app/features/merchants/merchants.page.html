@@ -139,79 +139,110 @@
           [class.merchant-card--near]="m.isAtCurrentLocation"
           (click)="openMerchantStore(m)"
         >
-          <div class="merchant-card__banner">
-            <div class="store-badge-row">
-              <span class="location-pill" [class.location-pill--local]="m.isAtCurrentLocation">
-                <lw-icon name="map-pin" [size]="12" />
-                <span>{{ m.locationName }}</span>
+          <!-- Badges Row -->
+          <div class="card-header-row">
+            <div class="card-badges">
+              <span class="type-pill">
+                <lw-icon [name]="getMerchantIcon(m.merchantType)" [size]="12" />
+                <span>{{ m.merchantType || 'General Goods' }}</span>
               </span>
 
+              <span class="location-pill" [class.location-pill--local]="m.isAtCurrentLocation">
+                <lw-icon name="map-pin" [size]="11" />
+                <span>{{ m.locationName }}</span>
+              </span>
+            </div>
+
+            <div class="status-wrap">
               @if (m.isAtCurrentLocation) {
                 <span class="status-pill status-pill--open">Open Locally</span>
               } @else {
                 <span class="status-pill status-pill--distant">Distant Outpost</span>
               }
             </div>
+          </div>
 
+          <!-- Merchant Avatar & Info -->
+          <div class="card-identity-row">
             <div class="merchant-avatar-wrap">
-              <div class="avatar-ring">
-                <lw-icon name="storefront" [size]="28" tone="emerald" />
-              </div>
+              @if (m.imageUrl) {
+                <img
+                  [src]="m.imageUrl"
+                  [alt]="m.storeName"
+                  class="avatar-img"
+                  (error)="onImgError($event)"
+                />
+                <div class="avatar-fallback hidden">
+                  <lw-icon [name]="getMerchantIcon(m.merchantType)" [size]="26" tone="gold" />
+                </div>
+              } @else {
+                <div class="avatar-fallback">
+                  <lw-icon [name]="getMerchantIcon(m.merchantType)" [size]="26" tone="gold" />
+                </div>
+              }
+            </div>
+
+            <div class="merchant-info">
+              <h3 class="store-title">{{ m.storeName }}</h3>
+              <p class="proprietor-line">
+                <lw-icon name="users" [size]="12" tone="muted" />
+                <span>Proprietor: <strong>{{ m.merchantName }}</strong></span>
+              </p>
+              <p class="tagline">{{ m.tagline || 'Specialty wares and local regional trade.' }}</p>
             </div>
           </div>
 
-          <div class="merchant-card__body">
-            <div class="title-row">
-              <h3 class="store-title">{{ m.storeName }}</h3>
+          <!-- Meta Strip -->
+          <div class="meta-row">
+            <div class="meta-item">
+              <lw-icon name="inventory_2" [size]="13" tone="muted" />
+              <span>{{ m.inventoryCount }} Wares</span>
+            </div>
+
+            @if (m.rollTableName) {
+              <div class="meta-item meta-item--table" title="Attached 5e Roll Table">
+                <lw-icon name="table-chart" [size]="13" tone="gold" />
+                <span class="table-name">{{ m.rollTableName }}</span>
+              </div>
+            }
+
+            @if (m.pastPurchasesCount > 0) {
+              <div class="meta-item meta-item--patron" title="Transactions completed">
+                <lw-icon name="shopping-bag" [size]="13" tone="emerald" />
+                <span>{{ m.pastPurchasesCount }} Visits</span>
+              </div>
+            }
+          </div>
+
+          <!-- Footer Actions -->
+          <div class="merchant-card__footer">
+            <div class="dm-controls" (click)="$event.stopPropagation()">
               @if (isGm() && isGmMode()) {
                 <button
                   type="button"
-                  class="card-delete-btn"
+                  class="btn-customize"
+                  (click)="openEditMerchant(m, $event)"
+                  title="Customize Merchant Appearance, Name, Location & Trade Rates"
+                >
+                  <lw-icon name="pen" [size]="13" />
+                  <span>Customize</span>
+                </button>
+
+                <button
+                  type="button"
+                  class="btn-delete"
                   title="Remove Merchant"
                   (click)="deleteMerchant(m, $event)"
                 >
-                  <lw-icon name="trash" [size]="14" tone="crimson" />
+                  <lw-icon name="trash" [size]="13" tone="crimson" />
                 </button>
               }
             </div>
 
-            <p class="shopkeeper">
-              Proprietor: <strong>{{ m.merchantName }}</strong>
-            </p>
-
-            <p class="tagline">{{ m.tagline }}</p>
-
-            <div class="meta-row">
-              <div class="meta-item">
-                <lw-icon name="inventory_2" [size]="13" tone="muted" />
-                <span>{{ m.inventoryCount }} Wares</span>
-              </div>
-
-              @if (m.pastPurchasesCount > 0) {
-                <div class="meta-item patron">
-                  <lw-icon name="shopping-bag" [size]="13" tone="gold" />
-                  <span>{{ m.pastPurchasesCount }} Visits</span>
-                </div>
-              }
-
-              @if (m.rollTableName) {
-                <div class="meta-item table" title="Attached Roll Table">
-                  <lw-icon name="table-chart" [size]="13" tone="gold" />
-                  <span class="table-name">{{ m.rollTableName }}</span>
-                </div>
-              }
+            <div class="action-hint">
+              <span>{{ m.isAtCurrentLocation ? 'Enter Storefront' : 'Browse Distant Catalog' }}</span>
+              <lw-icon name="chevron-right" [size]="15" tone="emerald" />
             </div>
-          </div>
-
-          <div class="merchant-card__footer">
-            <span class="action-hint">
-              @if (m.isAtCurrentLocation) {
-                <span>Enter Storefront</span>
-              } @else {
-                <span>Browse Distant Catalog</span>
-              }
-            </span>
-            <lw-icon name="chevron-right" [size]="16" tone="emerald" />
           </div>
         </article>
       }
@@ -243,6 +274,17 @@
       [currentLocation]="currentLocation()"
       [creating]="actionBusy()"
       (createMerchant)="onManualCreated($event)"
+    />
+
+    <!-- CUSTOMIZE / EDIT MERCHANT MODAL -->
+    <lw-merchant-edit-modal
+      [(open)]="editModalOpen"
+      [merchant]="selectedMerchantForEdit()"
+      [campaignLocations]="campaignLocations()"
+      [campaignNpcs]="campaignNpcs()"
+      [campaignTables]="campaignTables()"
+      [saving]="actionBusy()"
+      (saveMerchant)="onMerchantUpdated($event)"
     />
   }
 </section>

@@ -56,7 +56,7 @@ export class SceneLightingController {
     }
     hemi.intensity = config.mode === 'sun' ? 0.52 : 0.32;
     hemi.diffuse = Color3.FromHexString(config.mode === 'sun' ? '#f6efe2' : '#89b4f8');
-    hemi.groundColor = Color3.FromHexString(config.mode === 'sun' ? '#13241c' : '#060d14');
+    hemi.groundColor = Color3.FromHexString(config.mode === 'sun' ? '#1e1c1a' : '#0a0d14');
 
     const azRad = (config.azimuthDeg * Math.PI) / 180;
     const altRad = (Math.max(12, Math.min(82, config.altitudeDeg)) * Math.PI) / 180;

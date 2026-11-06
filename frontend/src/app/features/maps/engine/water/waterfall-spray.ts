@@ -1,6 +1,36 @@
 import { Color4, ParticleSystem, RawTexture, Scene, Texture, Vector3 } from '@babylonjs/core';
 import type { WaterProfile } from './water-profile';
 
+const sharedSprayTexByScene = new WeakMap<Scene, RawTexture>();
+
+function getOrCreateSprayTexture(scene: Scene): RawTexture {
+  const existing = sharedSprayTexByScene.get(scene);
+  if (existing && existing.getScene() === scene) {
+    return existing;
+  }
+  const pixels = new Uint8Array(16 * 16 * 4);
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const i = (y * 16 + x) * 4;
+      const alpha = Math.max(0, 1 - Math.hypot((x - 7.5) / 7.5, (y - 7.5) / 7.5));
+      pixels[i] = pixels[i + 1] = pixels[i + 2] = 255;
+      pixels[i + 3] = Math.round(alpha * alpha * 255);
+    }
+  }
+  const tex = RawTexture.CreateRGBATexture(
+    pixels,
+    16,
+    16,
+    scene,
+    false,
+    false,
+    Texture.BILINEAR_SAMPLINGMODE,
+  );
+  tex.hasAlpha = true;
+  sharedSprayTexByScene.set(scene, tex);
+  return tex;
+}
+
 export function createWaterfallSpray(scene: Scene, profile: WaterProfile): void {
   if (!profile.settings.spray || profile.settings.mode === 'pond') return;
   const falls = profile.samples.filter(
@@ -16,25 +46,7 @@ export function createWaterfallSpray(scene: Scene, profile: WaterProfile): void 
       profile.samples.find((s) => s.distance > p.distance + 0.45 && s.fall < 0.14) ??
       profile.samples[profile.samples.length - 1];
     const system = new ParticleSystem(`lw-water-spray-${profile.id}-${index}`, 220, scene);
-    const pixels = new Uint8Array(16 * 16 * 4);
-    for (let y = 0; y < 16; y++) {
-      for (let x = 0; x < 16; x++) {
-        const i = (y * 16 + x) * 4;
-        const alpha = Math.max(0, 1 - Math.hypot((x - 7.5) / 7.5, (y - 7.5) / 7.5));
-        pixels[i] = pixels[i + 1] = pixels[i + 2] = 255;
-        pixels[i + 3] = Math.round(alpha * alpha * 255);
-      }
-    }
-    system.particleTexture = RawTexture.CreateRGBATexture(
-      pixels,
-      16,
-      16,
-      scene,
-      false,
-      false,
-      Texture.BILINEAR_SAMPLINGMODE,
-    );
-    system.particleTexture.hasAlpha = true;
+    system.particleTexture = getOrCreateSprayTexture(scene);
     system.blendMode = ParticleSystem.BLENDMODE_STANDARD;
     system.emitter = new Vector3(
       (p.x * 0.35 + below.x * 0.65),

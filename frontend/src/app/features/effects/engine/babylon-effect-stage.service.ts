@@ -298,8 +298,8 @@ export class BabylonEffectStageService {
       const t = -ray.origin.y / ray.direction.y;
       if (t > 0) {
         return {
-          x: Math.max(-18, Math.min(18, ray.origin.x + ray.direction.x * t)),
-          z: Math.max(-13.5, Math.min(13.5, ray.origin.z + ray.direction.z * t)),
+          x: Math.max(-37.5, Math.min(37.5, ray.origin.x + ray.direction.x * t)),
+          z: Math.max(-37.5, Math.min(37.5, ray.origin.z + ray.direction.z * t)),
         };
       }
     }
@@ -372,8 +372,8 @@ export class BabylonEffectStageService {
 
       const hemi = new HemisphericLight('lw-vtt-hemi', new Vector3(0, 1, 0), this.scene);
       hemi.intensity = 0.68;
-      hemi.diffuse = new Color3(0.94, 0.96, 0.94);
-      hemi.groundColor = Color3.FromHexString('#091410');
+      hemi.diffuse = new Color3(0.95, 0.95, 0.95);
+      hemi.groundColor = Color3.FromHexString('#141416');
 
       const pt = new PointLight('lw-vtt-pt', new Vector3(0, 8, 0), this.scene);
       pt.intensity = 0.65;
@@ -383,7 +383,7 @@ export class BabylonEffectStageService {
       ground.receiveShadows = true;
       const gMat = new StandardMaterial('lw-vtt-gmat', this.scene);
       gMat.maxSimultaneousLights = 12;
-      gMat.diffuseColor = Color3.FromHexString('#0d1914');
+      gMat.diffuseColor = Color3.FromHexString('#141518');
       gMat.specularColor = Color3.Black();
       ground.material = gMat;
       this.ground = ground;

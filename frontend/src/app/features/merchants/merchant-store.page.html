@@ -36,7 +36,11 @@
       <div class="store-hero__left">
         <div class="shopkeeper-frame">
           <div class="shopkeeper-avatar">
-            <lw-icon name="storefront" [size]="36" tone="emerald" />
+            @if (m.imageUrl) {
+              <img [src]="m.imageUrl" [alt]="m.storeName" class="store-avatar-img" />
+            } @else {
+              <lw-icon name="storefront" [size]="36" tone="emerald" />
+            }
           </div>
           @if (m.pastPurchasesCount > 0) {
             <span class="patron-badge">

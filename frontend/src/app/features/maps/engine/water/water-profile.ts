@@ -19,8 +19,8 @@ export interface WaterProfile {
 
 export type GroundSampler = (x: number, z: number) => number;
 
-const MAP_HALF_W = 18;
-const MAP_HALF_H = 13.5;
+const MAP_HALF_W = 37.2;
+const MAP_HALF_H = 37.2;
 
 function clampToMapBounds(x: number, z: number): [number, number] {
   return [
@@ -80,9 +80,9 @@ export function buildWaterProfile(water: WaterSplineNode, ground: GroundSampler)
     points.reverse();
   }
 
-  // Three Chaikin corner-cutting passes produce natural, organic curves without polygonal kinks.
+  // Two Chaikin corner-cutting passes produce natural, organic curves without polygonal kinks.
   let smooth: [number, number][] = points;
-  for (let pass = 0; pass < 3; pass++) {
+  for (let pass = 0; pass < 2; pass++) {
     const next: [number, number][] = [smooth[0]];
     for (let i = 0; i < smooth.length - 1; i++) {
       const a = smooth[i];
@@ -100,11 +100,11 @@ export function buildWaterProfile(water: WaterSplineNode, ground: GroundSampler)
   let distance = 0;
   let previous = Infinity;
 
-  for (let i = 0; i < smooth.length - 1 && samples.length < 1024; i++) {
+  for (let i = 0; i < smooth.length - 1 && samples.length < 240; i++) {
     const a = smooth[i];
     const b = smooth[i + 1];
     const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    const steps = Math.max(1, Math.ceil(length / 0.28));
+    const steps = Math.max(1, Math.ceil(length / 0.55));
     for (let k = 0; k < steps; k++) {
       const t = k / steps;
       const [x, z] = clampToMapBounds(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t);
@@ -112,7 +112,7 @@ export function buildWaterProfile(water: WaterSplineNode, ground: GroundSampler)
       const level = Math.min(previous, raw);
       const p = samples[samples.length - 1];
       const delta = p ? Math.hypot(x - p.x, z - p.z) : 0;
-      if (p && delta < 0.1) continue;
+      if (p && delta < 0.25) continue;
       distance += delta;
       const slope = p ? (p.level - level) / Math.max(0.01, delta) : 0;
       samples.push({

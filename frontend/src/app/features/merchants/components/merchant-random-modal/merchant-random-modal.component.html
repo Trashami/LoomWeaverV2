@@ -63,7 +63,11 @@
 
         <div class="proprietor-dossier">
           <div class="avatar-ring">
-            <lw-icon name="account-circle" [size]="30" tone="emerald" />
+            @if (p.imageUrl) {
+              <img [src]="p.imageUrl" [alt]="p.npcName" class="dossier-avatar-img" />
+            } @else {
+              <lw-icon name="account-circle" [size]="30" tone="emerald" />
+            }
           </div>
           <div class="dossier-info">
             <div class="dossier-name-row">

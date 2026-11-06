@@ -73,9 +73,9 @@ export class Real2dMapRenderer {
     // 1. Background bump/height terrain base + seamless 2D floor texture tiling
     const isMoon = options.celestialMode === 'moon';
     const grad = ctx.createRadialGradient(cx, cy, 30, cx, cy, Math.max(width, height) * 0.65);
-    grad.addColorStop(0, isMoon ? '#0e1d2a' : '#162d21');
-    grad.addColorStop(0.65, isMoon ? '#08121b' : '#0b1912');
-    grad.addColorStop(1, '#040a07');
+    grad.addColorStop(0, isMoon ? '#0e1622' : '#18191c');
+    grad.addColorStop(0.65, isMoon ? '#080e16' : '#0f1013');
+    grad.addColorStop(1, '#060708');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, width, height);
 
@@ -132,7 +132,7 @@ export class Real2dMapRenderer {
           ctx.restore();
         }
         // Subtle directional sun/moon lighting overlay
-        ctx.fillStyle = isMoon ? 'rgba(8, 20, 36, 0.32)' : 'rgba(5, 16, 12, 0.18)';
+        ctx.fillStyle = isMoon ? 'rgba(8, 20, 36, 0.32)' : 'rgba(8, 9, 12, 0.16)';
         ctx.fillRect(0, 0, width, height);
         ctx.restore();
       }

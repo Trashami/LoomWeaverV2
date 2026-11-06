@@ -1,8 +1,8 @@
 import type { GroundSampler, WaterProfile } from './water-profile';
 import { sampleWaterNetwork, WaterField } from './water-network-field';
 
-const MAP_HALF_W = 18;
-const MAP_HALF_H = 13.5;
+const MAP_HALF_W = 37.2;
+const MAP_HALF_H = 37.2;
 
 /** Extend into the carved bank and clip cleanly against terrain height and map edges. */
 export function sampleWaterShoreline(

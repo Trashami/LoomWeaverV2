@@ -276,6 +276,26 @@ export function buildProceduralDoorAssembly(
     created.push(m);
   };
 
+  const isGlbDoor = !includeProceduralLeaf;
+  if (isGlbDoor) {
+    // When using a selected 3D GLB door stamp, only place a subtle recessed jamb liner and threshold
+    // so the selected 3D door stamp sits naturally inside the modular wall opening with no fake blocks.
+    const slimJambW = 0.09;
+    const clearInnerSpan = Math.max(0.55, width * 0.88);
+    for (const side of [-1, 1] as const) {
+      const jamb = BABYLON.MeshBuilder.CreateBox(
+        `lw-door-jamb-${side}-${op.id}`,
+        { width: slimJambW, height: height, depth: wallThickness * 1.04 },
+        scene,
+      );
+      jamb.parent = root;
+      jamb.position.set(side * (clearInnerSpan * 0.5), height * 0.5, 0);
+      jamb.material = frameMat;
+      tagMesh(jamb);
+    }
+    return created;
+  }
+
   // 2. Inner Recessed Jamb Reveal Liners (line the doorway cutout inside the wall)
   const clearInnerSpan = Math.max(0.55, width - sidePostWidth * 0.72);
   for (const side of [-1, 1] as const) {

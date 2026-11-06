@@ -255,7 +255,7 @@ export class WallMeshBuilder {
         GlbModelCache.normalizeWallTemplateLighting(wallTpl);
       }
 
-      const overlapFrac = Math.max(-0.2, Math.min(0.5, (wall.connectionOverlap ?? 15) / 100));
+      const overlapFrac = Math.max(-0.1, Math.min(0.4, (wall.connectionOverlap ?? 15) / 100));
       const offsetY = wall.offsetY ?? -0.06;
       const stampScale = Math.max(0.4, Math.min(3.0, wall.stampScale ?? 1.0));
       const texDensity = Math.max(0.35, Math.min(3.5, (wall.wallTextureScale ?? 100) / 100));
@@ -275,8 +275,8 @@ export class WallMeshBuilder {
         totalPerimeter += len;
       }
 
-      // Build 3D Corner Quoin Pillars at wall vertices only on procedural walls when enabled
-      if (wall.hasCornerPosts !== false && !isGlbWall) {
+      // Build 3D Corner Quoin Pillars ONLY when explicitly enabled on non-GLB walls
+      if (wall.hasCornerPosts === true && !isGlbWall) {
         for (let vIdx = 0; vIdx < pts.length; vIdx++) {
           const [vx, vz] = pts[vIdx];
           const vGroundY = TerrainMeshBuilder.sampleElevationAt(scene, vx, vz) + offsetY;
@@ -340,8 +340,8 @@ export class WallMeshBuilder {
             const doorX = a[0] + dx * localCenter;
             const doorZ = a[1] + dz * localCenter;
             const groundY = TerrainMeshBuilder.sampleElevationAt(scene, doorX, doorZ);
-            // Cut span so the solid wall ends inside the left & right Door Side Post Blocks
-            const halfSpan = Math.min(0.47, (doorWidth * 0.42) / totalLen);
+            // Cut span so the modular wall stamp chunks butt cleanly right into the door jambs
+            const halfSpan = Math.min(0.47, (doorWidth * 0.44) / totalLen);
             localCutouts.push({
               startLocal: Math.max(0, localCenter - halfSpan),
               endLocal: Math.min(1, localCenter + halfSpan),
@@ -386,7 +386,7 @@ export class WallMeshBuilder {
                   [ux, uz],
                   wall,
                   walls,
-                  wall.thicknessMeters * (0.48 + overlapFrac * 0.65),
+                  wall.thicknessMeters * (0.48 + overlapFrac * 0.5),
                 )
               : 0;
           const endCornerExt =
@@ -396,7 +396,7 @@ export class WallMeshBuilder {
                   [ux, uz],
                   wall,
                   walls,
-                  wall.thicknessMeters * (0.48 + overlapFrac * 0.65),
+                  wall.thicknessMeters * (0.48 + overlapFrac * 0.5),
                 )
               : 0;
           const spanStartX = a[0] + dx * s0 - ux * startCornerExt;
@@ -418,8 +418,7 @@ export class WallMeshBuilder {
               1.2,
               wallTpl.rawDepth > wallTpl.rawWidth * 1.35 ? wallTpl.rawDepth : wallTpl.rawWidth,
             );
-            const rawCourseH = Math.max(0.9, Math.min(2.2, wallTpl.rawHeight));
-            // Brick/stone pattern scale: higher texDensity -> smaller bricks & more courses/chunks
+            const rawCourseH = Math.max(0.9, Math.min(2.4, wallTpl.rawHeight));
             const hScale = (stampScale * stretchX) / texDensity;
             const vScale = (stampScale * stretchY) / texDensity;
             const idealChunkLen = Math.max(0.65, Math.min(4.2, primaryRawSpan * hScale));
@@ -482,35 +481,62 @@ export class WallMeshBuilder {
           }
         }
 
-        // Render continuous lintel wall above each door + cased door frame & leaf
+        // Render modular lintel wall above each door + selected door stamp
         for (const cut of localCutouts) {
           const op = cut.opening;
           if (hideSecrets && op.isSecret && !op.isRevealedToPlayers) continue;
 
           const { doorX, doorZ, groundY, doorH, doorWidth, localCenter } = cut;
           const wallTopH = height;
-          const cutoutSpanLen = Math.max(doorWidth * 0.84, (cut.endLocal - cut.startLocal) * totalLen);
+          const cutoutSpanLen = Math.max(doorWidth * 0.88, (cut.endLocal - cut.startLocal) * totalLen);
 
           if (wallTopH - doorH > 0.14) {
-            const lintelH = wallTopH - doorH + 0.04;
+            const lintelH = wallTopH - doorH + 0.05;
             if (wallTpl) {
-              const lintelInst = GlbModelCache.instantiateClone(
-                scene,
-                wallTpl,
-                `lw-wall-node-lintel-${wall.id}-${i}-${op.id}`,
-                cutoutSpanLen + 0.04,
-                lintelH,
-                effectiveThickness,
-                false,
-                false,
-                wallMeta,
-                {
-                  colorHex: wall.colorHex || wall.tintColorHex,
-                },
+              const primaryRawSpan = Math.max(
+                1.2,
+                wallTpl.rawDepth > wallTpl.rawWidth * 1.35 ? wallTpl.rawDepth : wallTpl.rawWidth,
               );
-              lintelInst.position.set(doorX, groundY + offsetY + doorH - 0.04, doorZ);
-              lintelInst.rotation.y = angleY;
-              meshCount++;
+              const rawCourseH = Math.max(0.9, Math.min(2.4, wallTpl.rawHeight));
+              const hScale = (stampScale * stretchX) / texDensity;
+              const vScale = (stampScale * stretchY) / texDensity;
+              const idealChunkLen = Math.max(0.65, Math.min(4.2, primaryRawSpan * hScale));
+              const idealCourseH = Math.max(0.55, Math.min(3.6, rawCourseH * vScale));
+              const lChunkCount = Math.max(1, Math.round(cutoutSpanLen / idealChunkLen));
+              const lChunkLen = cutoutSpanLen / lChunkCount;
+              const lCourseCount = Math.max(1, Math.round(lintelH / idealCourseH));
+              const lCourseH = lintelH / lCourseCount;
+              const lintelStartX = doorX - ux * (cutoutSpanLen * 0.5);
+              const lintelStartZ = doorZ - uz * (cutoutSpanLen * 0.5);
+
+              for (let lvIdx = 0; lvIdx < lCourseCount; lvIdx++) {
+                for (let lcIdx = 0; lcIdx < lChunkCount; lcIdx++) {
+                  const uMid = (lcIdx + 0.5) / lChunkCount;
+                  const lcx = lintelStartX + ux * (cutoutSpanLen * uMid);
+                  const lcz = lintelStartZ + uz * (cutoutSpanLen * uMid);
+                  const lintelInst = GlbModelCache.instantiateClone(
+                    scene,
+                    wallTpl,
+                    `lw-wall-node-lintel-${wall.id}-${i}-${op.id}-${lvIdx}-${lcIdx}`,
+                    lChunkLen * 1.04,
+                    lCourseH * 1.04,
+                    effectiveThickness,
+                    false,
+                    false,
+                    wallMeta,
+                    {
+                      colorHex: wall.colorHex || wall.tintColorHex,
+                    },
+                  );
+                  lintelInst.position.set(
+                    lcx,
+                    groundY + offsetY + doorH - 0.04 + lvIdx * lCourseH,
+                    lcz,
+                  );
+                  lintelInst.rotation.y = angleY;
+                  meshCount++;
+                }
+              }
             } else {
               const lintelMeshes = buildProceduralWallSpan(scene, wall, {
                 spanId: `${i}-lintel-${op.id}`,
@@ -536,14 +562,19 @@ export class WallMeshBuilder {
 
           const doorUrl = op.modelUrl || '';
           const isExplicitGlbDoor = Boolean(
-            doorUrl && !doorUrl.startsWith('proc-door://') && !op.doorStyle,
+            doorUrl && !doorUrl.startsWith('proc-door://'),
           );
           const doorTpl = isExplicitGlbDoor
             ? GlbModelCache.getOrLoadTemplate(scene, doorUrl, onGlbLoaded)
             : null;
 
+          // Build clean doorway jambs and leaf without procedural stone side-post blocks on GLB walls
+          const effectiveOp: WallOpeningNode = isGlbWall
+            ? { ...op, hasSidePosts: false }
+            : op;
+
           const cutPlacement: DoorCutoutPlacement = {
-            op,
+            op: effectiveOp,
             centerDist: localCenter * totalLen,
             startDist: cut.startLocal * totalLen,
             endDist: cut.endLocal * totalLen,
@@ -559,7 +590,6 @@ export class WallMeshBuilder {
             angleY,
           };
 
-          // Build the 3D Door Side Post Blocks, cased jambs, lintel/arch, and hinged leaf
           const doorMeshes = buildProceduralDoorAssembly(
             scene,
             wall,
@@ -583,7 +613,7 @@ export class WallMeshBuilder {
             const waistScale = 1 / Math.max(0.74, Math.min(0.96, doorTpl.waistWidthRatio));
             const isDoubleGlb = op.hingeSide === 'double' || op.type === 'double_door';
             const leafCount = isDoubleGlb ? 2 : 1;
-            const totalDoorSpan = doorWidth * 0.84;
+            const totalDoorSpan = doorWidth * 0.88;
             const leafSpan = isDoubleGlb ? totalDoorSpan * 0.5 : totalDoorSpan;
             const leafRenderW = leafSpan * waistScale;
             const swingSign = op.swingDirection === 'outward' ? -1 : 1;

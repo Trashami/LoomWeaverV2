@@ -635,23 +635,6 @@
       <!-- 3. WALL LINE & ROOM TOOLS -->
       @if (effectiveMode() === 'wall' || effectiveMode() === 'room') {
         <div class="lw-map-inspector__section">
-          <div class="lw-map-inspector__group-box">
-            <span class="lw-map-inspector__subhead">Procedural 3D Wall Style &amp; Relief</span>
-            <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
-              @for (ws of proceduralWallStyles; track ws.id) {
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  [class.lw-map-inspector__pill--active]="node.id === ws.id || node.materialId === ws.id"
-                  (click)="materialChange.emit(ws.id)"
-                >
-                  {{ ws.name }}
-                </button>
-              }
-            </div>
-          </div>
-
           <div class="lw-map-inspector__row">
             <label class="lw-map-inspector__label" for="lw-wall-shape-select">
               Room / Wall Mode
@@ -691,284 +674,52 @@
             </select>
           </div>
 
-          <!-- Seamless Connection Overlap & Stamp Transform Controls -->
-          <div class="lw-map-inspector__group-box">
-            <span class="lw-map-inspector__subhead">Seamless Stamp &amp; Floor Blending</span>
-
-            <div class="lw-map-inspector__slider-block">
-              <div class="lw-map-inspector__slider-head">
-                <span>Connection Overlap (Corner &amp; Seam Join)</span>
-                <strong>{{ (node.connectionOverlap ?? 15) >= 0 ? '+' : '' }}{{ node.connectionOverlap ?? 15 }}%</strong>
-              </div>
-              <input
-                type="range"
-                min="-20"
-                max="50"
-                step="5"
-                class="lw-map-inspector__range"
-                [value]="node.connectionOverlap ?? 15"
-                (input)="onNumInput($event, wallConnectionOverlapChange)"
-              />
+          <div class="lw-map-inspector__slider-block">
+            <div class="lw-map-inspector__slider-head">
+              <span>Brick / Stone Density</span>
+              <strong>{{ wallTextureScale() }}%</strong>
             </div>
+            <input
+              type="range"
+              min="40"
+              max="260"
+              step="5"
+              class="lw-map-inspector__range"
+              [value]="wallTextureScale()"
+              (input)="onNumInput($event, wallTextureScaleChange)"
+            />
+          </div>
 
-            <div class="lw-map-inspector__toggle-row">
-              <span>3D Corner Post Blocks</span>
-              <button
-                type="button"
-                ngpButton
-                class="lw-map-inspector__switch"
-                [class.lw-map-inspector__switch--on]="wallCornerPosts()"
-                (click)="wallCornerPostsToggle.emit()"
-              >
-                {{ wallCornerPosts() ? 'On (Quoin Posts)' : 'Off' }}
-              </button>
+          <div class="lw-map-inspector__slider-block">
+            <div class="lw-map-inspector__slider-head">
+              <span>Wall Thickness</span>
+              <strong>{{ node.thickness.toFixed(2) }}x</strong>
             </div>
+            <input
+              type="range"
+              min="0.5"
+              max="2.5"
+              step="0.05"
+              class="lw-map-inspector__range"
+              [value]="node.thickness"
+              (input)="onNumInput($event, thicknessChange)"
+            />
+          </div>
 
-            @if (wallCornerPosts()) {
-              <div class="lw-map-inspector__slider-block">
-                <div class="lw-map-inspector__slider-head">
-                  <span>Corner Post Block Scale</span>
-                  <strong>{{ wallCornerPostScale().toFixed(2) }}x</strong>
-                </div>
-                <input
-                  type="range"
-                  min="0.6"
-                  max="1.8"
-                  step="0.05"
-                  class="lw-map-inspector__range"
-                  [value]="wallCornerPostScale()"
-                  (input)="onNumInput($event, wallCornerPostScaleChange)"
-                />
-              </div>
-            }
-
-            <div class="lw-map-inspector__slider-block">
-              <div class="lw-map-inspector__slider-head">
-                <span>Move Up / Down (Floor Blend Offset)</span>
-                <strong>{{ node.elevationY >= 0 ? '+' : '' }}{{ node.elevationY.toFixed(2) }}m</strong>
-              </div>
-              <input
-                type="range"
-                min="-2.0"
-                max="2.0"
-                step="0.02"
-                class="lw-map-inspector__range"
-                [value]="node.elevationY"
-                (input)="onNumInput($event, elevationChange)"
-              />
-              <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  (click)="elevationChange.emit(-0.25)"
-                >
-                  Sink Base (-0.25m)
-                </button>
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  (click)="elevationChange.emit(-0.06)"
-                >
-                  Natural Blend (-0.06m)
-                </button>
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  (click)="elevationChange.emit(0)"
-                >
-                  Flush (0m)
-                </button>
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  (click)="elevationChange.emit(0.4)"
-                >
-                  Raise (+0.4m)
-                </button>
-              </div>
+          <div class="lw-map-inspector__slider-block">
+            <div class="lw-map-inspector__slider-head">
+              <span>Floor Base Offset (Up / Down)</span>
+              <strong>{{ node.elevationY >= 0 ? '+' : '' }}{{ node.elevationY.toFixed(2) }}m</strong>
             </div>
-
-            <div class="lw-map-inspector__slider-block">
-              <div class="lw-map-inspector__slider-head">
-                <span>Wall Texture / Brick Density</span>
-                <strong>
-                  {{ wallTextureScale() }}%
-                  {{
-                    wallTextureScale() >= 145
-                      ? '(Small / Dense Bricks)'
-                      : wallTextureScale() <= 75
-                        ? '(Large Stones)'
-                        : '(Standard)'
-                  }}
-                </strong>
-              </div>
-              <input
-                type="range"
-                min="40"
-                max="260"
-                step="5"
-                class="lw-map-inspector__range"
-                [value]="wallTextureScale()"
-                (input)="onNumInput($event, wallTextureScaleChange)"
-              />
-              <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  [class.lw-map-inspector__pill--active]="wallTextureScale() === 65"
-                  (click)="wallTextureScaleChange.emit(65)"
-                >
-                  Large Stone (65%)
-                </button>
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  [class.lw-map-inspector__pill--active]="wallTextureScale() === 100"
-                  (click)="wallTextureScaleChange.emit(100)"
-                >
-                  Standard (100%)
-                </button>
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  [class.lw-map-inspector__pill--active]="wallTextureScale() === 150"
-                  (click)="wallTextureScaleChange.emit(150)"
-                >
-                  Dense Bricks (150%)
-                </button>
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  [class.lw-map-inspector__pill--active]="wallTextureScale() === 210"
-                  (click)="wallTextureScaleChange.emit(210)"
-                >
-                  Fine Masonry (210%)
-                </button>
-              </div>
-            </div>
-
-            <div class="lw-map-inspector__slider-block">
-              <div class="lw-map-inspector__slider-head">
-                <span>Horizontal Brick Stretch (Width)</span>
-                <strong>{{ wallStretchX() }}%</strong>
-              </div>
-              <input
-                type="range"
-                min="45"
-                max="220"
-                step="5"
-                class="lw-map-inspector__range"
-                [value]="wallStretchX()"
-                (input)="onNumInput($event, wallStretchXChange)"
-              />
-            </div>
-
-            <div class="lw-map-inspector__slider-block">
-              <div class="lw-map-inspector__slider-head">
-                <span>Vertical Course Stretch (Height)</span>
-                <strong>{{ wallStretchY() }}%</strong>
-              </div>
-              <input
-                type="range"
-                min="45"
-                max="220"
-                step="5"
-                class="lw-map-inspector__range"
-                [value]="wallStretchY()"
-                (input)="onNumInput($event, wallStretchYChange)"
-              />
-            </div>
-
-            <div class="lw-map-inspector__slider-block">
-              <div class="lw-map-inspector__slider-head">
-                <span>Wall Stamp Scale</span>
-                <strong>{{ (node.scale || 1).toFixed(2) }}x</strong>
-              </div>
-              <input
-                type="range"
-                min="0.5"
-                max="2.5"
-                step="0.05"
-                class="lw-map-inspector__range"
-                [value]="node.scale || 1"
-                (input)="onNumInput($event, scaleChange)"
-              />
-            </div>
-
-            <div class="lw-map-inspector__slider-block">
-              <div class="lw-map-inspector__slider-head">
-                <span>Wall Thickness</span>
-                <strong>{{ node.thickness.toFixed(2) }}x</strong>
-              </div>
-              <input
-                type="range"
-                min="0.5"
-                max="2.5"
-                step="0.05"
-                class="lw-map-inspector__range"
-                [value]="node.thickness"
-                (input)="onNumInput($event, thicknessChange)"
-              />
-            </div>
-
-            <div class="lw-map-inspector__slider-block">
-              <div class="lw-map-inspector__slider-head">
-                <span>Rotate Wall Stamp</span>
-                <strong>{{ node.rotationDeg }}°</strong>
-              </div>
-              <input
-                type="range"
-                min="-180"
-                max="180"
-                step="5"
-                class="lw-map-inspector__range"
-                aria-label="Facing angle in degrees"
-                [value]="node.rotationDeg"
-                (input)="onNumInput($event, rotationChange)"
-              />
-              <div class="lw-map-inspector__pill-group">
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  (click)="rotationChange.emit(-90)"
-                >
-                  -90°
-                </button>
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  (click)="rotationChange.emit(0)"
-                >
-                  0°
-                </button>
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  (click)="rotationChange.emit(90)"
-                >
-                  +90°
-                </button>
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  (click)="rotationChange.emit(180)"
-                >
-                  180°
-                </button>
-              </div>
-            </div>
+            <input
+              type="range"
+              min="-1.5"
+              max="1.5"
+              step="0.02"
+              class="lw-map-inspector__range"
+              [value]="node.elevationY"
+              (input)="onNumInput($event, elevationChange)"
+            />
           </div>
 
           @if (hasPlacedSelection()) {
@@ -1007,23 +758,6 @@
       <!-- 4. DOOR & WALL CUTOUT TOOL -->
       @if (effectiveMode() === 'door') {
         <div class="lw-map-inspector__section">
-          <div class="lw-map-inspector__group-box">
-            <span class="lw-map-inspector__subhead">D&amp;D Door Architectural Style (Wall-Fitted)</span>
-            <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
-              @for (ds of proceduralDoorStyles; track ds.id) {
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  [class.lw-map-inspector__pill--active]="node.id === ds.id || node.materialId === ds.id"
-                  (click)="materialChange.emit(ds.id)"
-                >
-                  {{ ds.name }}
-                </button>
-              }
-            </div>
-          </div>
-
           <div class="lw-map-inspector__slider-block">
             <div class="lw-map-inspector__slider-head">
               <span>Position Along Wall</span>
@@ -1085,168 +819,61 @@
             </button>
           </div>
 
-          <div class="lw-map-inspector__group-box">
-            <span class="lw-map-inspector__subhead">Door Hinge Side &amp; Swing Direction</span>
-            <p class="lw-map-inspector__hint">
-              Doors pivot naturally from their left or right jamb hinge (or as twin double doors), never from the center.
-            </p>
-
-            <div class="lw-map-inspector__row">
-              <span class="lw-map-inspector__label">Hinge Side</span>
-              <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  [class.lw-map-inspector__pill--active]="doorHingeSide() === 'left'"
-                  (click)="doorHingeSideChange.emit('left')"
-                >
-                  Left Hinge
-                </button>
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  [class.lw-map-inspector__pill--active]="doorHingeSide() === 'right'"
-                  (click)="doorHingeSideChange.emit('right')"
-                >
-                  Right Hinge
-                </button>
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  [class.lw-map-inspector__pill--active]="doorHingeSide() === 'double'"
-                  (click)="doorHingeSideChange.emit('double')"
-                >
-                  Double Door
-                </button>
-              </div>
-            </div>
-
-            <div class="lw-map-inspector__row">
-              <span class="lw-map-inspector__label">Swing Direction</span>
-              <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  [class.lw-map-inspector__pill--active]="doorSwingDirection() === 'inward'"
-                  (click)="doorSwingDirectionChange.emit('inward')"
-                >
-                  Swing Inward
-                </button>
-                <button
-                  type="button"
-                  ngpButton
-                  class="lw-map-inspector__pill"
-                  [class.lw-map-inspector__pill--active]="doorSwingDirection() === 'outward'"
-                  (click)="doorSwingDirectionChange.emit('outward')"
-                >
-                  Swing Outward
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="lw-map-inspector__group-box">
-            <span class="lw-map-inspector__subhead">Door Side Post Blocks (Wall-Matched Jambs)</span>
-            <p class="lw-map-inspector__hint">
-              Interlocks 3D stone/brick/timber quoin blocks onto both sides of the door cutout so the cut wall ends blend naturally into the doorway.
-            </p>
-
-            <div class="lw-map-inspector__toggle-row">
-              <span>Door Side Blocks</span>
+          <div class="lw-map-inspector__row">
+            <span class="lw-map-inspector__label">Hinge Side</span>
+            <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
               <button
                 type="button"
                 ngpButton
-                class="lw-map-inspector__switch"
-                [class.lw-map-inspector__switch--on]="doorHasSidePosts()"
-                (click)="doorSidePostsToggle.emit()"
+                class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="doorHingeSide() === 'left'"
+                (click)="doorHingeSideChange.emit('left')"
               >
-                {{ doorHasSidePosts() ? 'On (Side Blocks)' : 'Off' }}
+                Left Hinge
+              </button>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="doorHingeSide() === 'right'"
+                (click)="doorHingeSideChange.emit('right')"
+              >
+                Right Hinge
+              </button>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="doorHingeSide() === 'double'"
+                (click)="doorHingeSideChange.emit('double')"
+              >
+                Double Door
               </button>
             </div>
+          </div>
 
-            @if (doorHasSidePosts()) {
-              <div class="lw-map-inspector__row">
-                <span class="lw-map-inspector__label">Side Block Style</span>
-                <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
-                  <button
-                    type="button"
-                    ngpButton
-                    class="lw-map-inspector__pill"
-                    [class.lw-map-inspector__pill--active]="doorSidePostStyle() === 'quoin'"
-                    (click)="doorSidePostStyleChange.emit('quoin')"
-                  >
-                    Stacked Quoin Blocks
-                  </button>
-                  <button
-                    type="button"
-                    ngpButton
-                    class="lw-map-inspector__pill"
-                    [class.lw-map-inspector__pill--active]="doorSidePostStyle() === 'pillar'"
-                    (click)="doorSidePostStyleChange.emit('pillar')"
-                  >
-                    Full-Height Pier Posts
-                  </button>
-                  <button
-                    type="button"
-                    ngpButton
-                    class="lw-map-inspector__pill"
-                    [class.lw-map-inspector__pill--active]="doorSidePostStyle() === 'jamb'"
-                    (click)="doorSidePostStyleChange.emit('jamb')"
-                  >
-                    Cased Jamb Blocks
-                  </button>
-                </div>
-              </div>
-
-              <div class="lw-map-inspector__slider-block">
-                <div class="lw-map-inspector__slider-head">
-                  <span>Side Block Width &amp; Depth</span>
-                  <strong>{{ doorSidePostScale().toFixed(2) }}x</strong>
-                </div>
-                <input
-                  type="range"
-                  min="0.6"
-                  max="1.8"
-                  step="0.05"
-                  class="lw-map-inspector__range"
-                  [value]="doorSidePostScale()"
-                  (input)="onNumInput($event, doorSidePostScaleChange)"
-                />
-                <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
-                  <button
-                    type="button"
-                    ngpButton
-                    class="lw-map-inspector__pill"
-                    [class.lw-map-inspector__pill--active]="doorSidePostScale() === 0.8"
-                    (click)="doorSidePostScaleChange.emit(0.8)"
-                  >
-                    Slim (0.8x)
-                  </button>
-                  <button
-                    type="button"
-                    ngpButton
-                    class="lw-map-inspector__pill"
-                    [class.lw-map-inspector__pill--active]="doorSidePostScale() === 1"
-                    (click)="doorSidePostScaleChange.emit(1)"
-                  >
-                    Standard (1.0x)
-                  </button>
-                  <button
-                    type="button"
-                    ngpButton
-                    class="lw-map-inspector__pill"
-                    [class.lw-map-inspector__pill--active]="doorSidePostScale() === 1.35"
-                    (click)="doorSidePostScaleChange.emit(1.35)"
-                  >
-                    Heavy Bastion (1.35x)
-                  </button>
-                </div>
-              </div>
-            }
+          <div class="lw-map-inspector__row">
+            <span class="lw-map-inspector__label">Swing Direction</span>
+            <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="doorSwingDirection() === 'inward'"
+                (click)="doorSwingDirectionChange.emit('inward')"
+              >
+                Swing Inward
+              </button>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="doorSwingDirection() === 'outward'"
+                (click)="doorSwingDirectionChange.emit('outward')"
+              >
+                Swing Outward
+              </button>
+            </div>
           </div>
 
           @if (hasPlacedSelection()) {

@@ -496,11 +496,11 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   readonly doorIsOpen = signal<boolean>(false);
   readonly doorHingeSide = signal<DoorHingeSide>('left');
   readonly doorSwingDirection = signal<DoorSwingDirection>('inward');
-  readonly doorHasSidePosts = signal<boolean>(true);
+  readonly doorHasSidePosts = signal<boolean>(false);
   readonly doorSidePostStyle = signal<DoorSidePostStyle>('quoin');
   readonly doorSidePostScale = signal<number>(1.0);
 
-  readonly wallCornerPosts = signal<boolean>(true);
+  readonly wallCornerPosts = signal<boolean>(false);
   readonly wallCornerPostScale = signal<number>(1.0);
 
   readonly celestialMode = signal<LwCelestialBodyMode>('sun');
@@ -570,7 +570,16 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
             : 'objects'
         : rawTool;
 
-    const all3d = this.pngApi.pngAssets3d().filter((a) => !a.isFloor);
+    const all3d = this.pngApi
+      .pngAssets3d()
+      .filter(
+        (a) =>
+          !a.isFloor &&
+          !a.modelUrl?.startsWith('proc-wall://') &&
+          !a.modelUrl?.startsWith('proc-door://') &&
+          !a.id.startsWith('proc-wall-') &&
+          !a.id.startsWith('door-style-'),
+      );
     const all2d = this.pngApi.bumpHeightAssets2d();
 
     if (effectiveTool === 'floor-bump') {
@@ -969,14 +978,13 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     } else if (dockToolId === 'wall' || dockToolId === 'room') {
       const defaultStoneWall: LwMapPngAssetItem =
         this.userSelectedWallAsset ??
-        PROCEDURAL_WALL_ASSET_ITEMS[0] ??
         this.pngApi.pngAssets3d().find((a) => a.id === 'obj-4f9776736fb571f1') ??
-        this.pngApi.pngAssets3d().find((a) => this.isWallAsset(a)) ?? {
-          id: 'proc-wall-dungeon-stone',
-          name: 'Aged Dungeon Stone',
+        this.pngApi.pngAssets3d().find((a) => this.isWallAsset(a) && !a.modelUrl?.startsWith('proc-wall://')) ?? {
+          id: 'obj-4f9776736fb571f1',
+          name: 'A Wall Made Of Stone',
           category: 'Architecture',
           thumbnailUrl: '/assets/previews-png/obj-4f9776736fb571f1.png',
-          modelUrl: 'proc-wall://proc-wall-dungeon-stone',
+          modelUrl: '/assets/object-library/models/obj-4f9776736fb571f1.glb',
           isFloor: false,
           isWall: true,
           toolRole: 'wall-3d',
@@ -984,15 +992,21 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       this.userSelectedWallAsset = defaultStoneWall;
       this.equipAssetOnNode(defaultStoneWall);
     } else if (dockToolId === 'door') {
-      const doorAsset =
+      const doorAsset: LwMapPngAssetItem =
         this.userSelectedDoorAsset ??
-        PROCEDURAL_DOOR_ASSET_ITEMS[0] ??
-        this.pngApi.pngAssets3d().find((a) => a.isDoor || this.isDoorAsset(a)) ??
-        this.pngApi.pngAssets3d()[0];
-      if (doorAsset) {
-        this.userSelectedDoorAsset = doorAsset;
-        this.equipAssetOnNode(doorAsset);
-      }
+        this.pngApi
+          .pngAssets3d()
+          .find((a) => (a.isDoor || this.isDoorAsset(a)) && !a.modelUrl?.startsWith('proc-door://')) ?? {
+          id: 'obj-89c62a2b01238531',
+          name: 'Gothic Arch Door (3D GLB)',
+          category: 'Architecture',
+          isDoor: true,
+          toolRole: 'door-3d',
+          modelUrl: '/assets/object-library/models/obj-89c62a2b01238531.glb',
+          thumbnailUrl: '/assets/previews-png/obj-89c62a2b01238531.png',
+        };
+      this.userSelectedDoorAsset = doorAsset;
+      this.equipAssetOnNode(doorAsset);
     } else if (dockToolId === 'objects') {
       const objAsset =
         this.userSelectedObjectAsset ??
@@ -1637,17 +1651,17 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         this.doorIsOpen.set(op.isOpen);
         this.doorHingeSide.set(op.hingeSide ?? 'left');
         this.doorSwingDirection.set(op.swingDirection ?? 'inward');
-        this.doorHasSidePosts.set(op.hasSidePosts !== false);
+        this.doorHasSidePosts.set(Boolean(op.hasSidePosts));
         this.doorSidePostStyle.set(op.sidePostStyle ?? 'quoin');
         this.doorSidePostScale.set(op.sidePostScale ?? 1.0);
         this.selectedNode.update((cur) => ({
           ...cur,
           id: op.id,
-          name: op.name || 'Dungeon Iron-Bound Oak Door',
+          name: op.name || 'Gothic Arch Door (3D GLB)',
           kind: 'door',
           subtitle: `Wall Cutout Door · ${op.widthMeters.toFixed(1)}m`,
           thumbnailUrl: op.thumbnailUrl || '/assets/previews-png/obj-89c62a2b01238531.png',
-          modelUrl: op.modelUrl || 'proc-door://dungeon',
+          modelUrl: op.modelUrl || '/assets/object-library/models/obj-89c62a2b01238531.glb',
         }));
         this.stage.focusGizmoAt(fallbackX, 0.1, fallbackZ);
         return true;
@@ -1863,14 +1877,16 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       modelUrl: node.modelUrl,
     });
     const isExplicitGlb = Boolean(
-      node.modelUrl && !node.modelUrl.startsWith('proc-door://') && !node.id.startsWith('door-style-'),
+      node.modelUrl && !node.modelUrl.startsWith('proc-door://'),
     );
     const newOpening: WallOpeningNode = {
       id: doorId,
       type: resolvedDoor.style === 'archway' ? 'archway' : resolvedDoor.style === 'bars' ? 'bars' : 'door',
       doorStyle: isExplicitGlb ? undefined : resolvedDoor.style,
       name: node.name,
-      modelUrl: isExplicitGlb ? node.modelUrl : `proc-door://${resolvedDoor.style}`,
+      modelUrl: isExplicitGlb
+        ? node.modelUrl
+        : '/assets/object-library/models/obj-89c62a2b01238531.glb',
       thumbnailUrl: node.thumbnailUrl || '/assets/previews-png/obj-89c62a2b01238531.png',
       tintColorHex: node.colorHex !== '#ffffff' ? node.colorHex : undefined,
       t: hit.t,
@@ -1879,7 +1895,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       isOpen: this.doorIsOpen(),
       hingeSide: this.doorHingeSide(),
       swingDirection: this.doorSwingDirection(),
-      hasSidePosts: this.doorHasSidePosts(),
+      hasSidePosts: false,
       sidePostStyle: this.doorSidePostStyle(),
       sidePostScale: this.doorSidePostScale(),
       isSecret: false,

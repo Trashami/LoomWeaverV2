@@ -1,9 +1,5 @@
 import { LwMapPngAssetItem } from '../../../shared/ui/map-png-asset-browser/map-png-asset-browser.component';
 import { LwSelectedSceneNode } from '../../../shared/ui/map-properties-inspector/map-properties-inspector.component';
-import {
-  PROCEDURAL_DOOR_ASSET_ITEMS,
-  PROCEDURAL_WALL_ASSET_ITEMS,
-} from './walls/procedural-wall-catalog';
 
 export const FALLBACK_BUMP_HEIGHT_ITEMS: readonly LwMapPngAssetItem[] = [
   {
@@ -191,13 +187,24 @@ export const FALLBACK_BUMP_HEIGHT_ITEMS: readonly LwMapPngAssetItem[] = [
 ];
 
 export const FALLBACK_PNG_ASSET_ITEMS: readonly LwMapPngAssetItem[] = [
-  ...PROCEDURAL_WALL_ASSET_ITEMS,
-  ...PROCEDURAL_DOOR_ASSET_ITEMS,
+  {
+    id: 'obj-4f9776736fb571f1',
+    name: 'A Wall Made Of Stone',
+    category: 'Architecture',
+    isFloor: false,
+    isWall: true,
+    toolRole: 'wall-3d',
+    modelUrl: '/assets/object-library/models/obj-4f9776736fb571f1.glb',
+    thumbnailUrl: '/assets/previews-png/obj-4f9776736fb571f1.png',
+    tags: ['architecture', 'wall', 'stone', 'masonry'],
+  },
   ...FALLBACK_BUMP_HEIGHT_ITEMS.filter((x) => x.isFloor),
   {
     id: 'obj-89c62a2b01238531',
     name: 'Gothic Arch Door (3D GLB)',
     category: 'Architecture',
+    isDoor: true,
+    toolRole: 'door-3d',
     modelUrl: '/assets/object-library/models/obj-89c62a2b01238531.glb',
     thumbnailUrl: '/assets/previews-png/obj-89c62a2b01238531.png',
     tags: ['architecture', 'door', 'archway'],
@@ -206,6 +213,8 @@ export const FALLBACK_PNG_ASSET_ITEMS: readonly LwMapPngAssetItem[] = [
     id: 'obj-457997f179c51ae8',
     name: 'Medieval Gatehouse Door (3D GLB)',
     category: 'Architecture',
+    isDoor: true,
+    toolRole: 'door-3d',
     modelUrl: '/assets/object-library/models/obj-457997f179c51ae8.glb',
     thumbnailUrl: '/assets/previews-png/obj-457997f179c51ae8.png',
     tags: ['architecture', 'door', 'gate'],
@@ -214,6 +223,8 @@ export const FALLBACK_PNG_ASSET_ITEMS: readonly LwMapPngAssetItem[] = [
     id: 'obj-8b5bdf65136d9ba5',
     name: 'Archway Gate (3D GLB)',
     category: 'Architecture',
+    isDoor: true,
+    toolRole: 'door-3d',
     modelUrl: '/assets/object-library/models/obj-8b5bdf65136d9ba5.glb',
     thumbnailUrl: '/assets/previews-png/obj-8b5bdf65136d9ba5.png',
     tags: ['architecture', 'door', 'archway', 'gate'],
@@ -237,15 +248,15 @@ export const FALLBACK_PNG_ASSET_ITEMS: readonly LwMapPngAssetItem[] = [
 ];
 
 export const INITIAL_SELECTED_WALL_NODE: LwSelectedSceneNode = {
-  id: 'proc-wall-dungeon-stone',
-  name: 'Aged Dungeon Stone',
+  id: 'obj-4f9776736fb571f1',
+  name: 'A Wall Made Of Stone',
   kind: 'wall',
-  subtitle: 'Procedural 3D Relief Wall · 10 ft',
-  thumbnailUrl: '/assets/sewer-dungeon-wall-library-v1/512/worn-castle-flagstone.png',
-  modelUrl: '',
-  albedoUrl: 'proc://proc-wall-dungeon-stone',
-  normalUrl: 'proc://proc-wall-dungeon-stone_normal',
-  materialId: 'proc-wall-dungeon-stone',
+  subtitle: '3D Wall Stamp · Architecture',
+  thumbnailUrl: '/assets/previews-png/obj-4f9776736fb571f1.png',
+  modelUrl: '/assets/object-library/models/obj-4f9776736fb571f1.glb',
+  albedoUrl: undefined,
+  normalUrl: undefined,
+  materialId: 'obj-4f9776736fb571f1',
   heightSquares: 2,
   thickness: 1.0,
   connectionOverlap: 15,

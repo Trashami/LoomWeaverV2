@@ -38,6 +38,8 @@ subprocess.run(
 print("Creating client and server archives...")
 with tarfile.open(CLIENT_TAR, "w:gz") as tf:
     for item in os.listdir(CLIENT_DIST):
+        if item == "assets":
+            continue
         tf.add(os.path.join(CLIENT_DIST, item), arcname=item)
 
 with tarfile.open(SERVER_TAR, "w:gz") as tf:
@@ -45,11 +47,34 @@ with tarfile.open(SERVER_TAR, "w:gz") as tf:
         tf.add(os.path.join(SERVER_PUB, item), arcname=item)
 
 ssh = env.connect()
+if ssh.get_transport():
+    ssh.get_transport().set_keepalive(10)
 
 print("Uploading archives to the production server...")
+def _put_pipelined(sftp_client, local_file, remote_file):
+    local_sz = os.path.getsize(local_file)
+    print(f"  Uploading {os.path.basename(local_file)} ({local_sz / (1024*1024):.1f} MB)...")
+    with open(local_file, "rb") as fl:
+        with sftp_client.open(remote_file, "wb") as fr:
+            fr.set_pipelined(True)
+            chunk_size = 1024 * 1024
+            uploaded = 0
+            while True:
+                data = fl.read(chunk_size)
+                if not data:
+                    break
+                fr.write(data)
+                uploaded += len(data)
+                if uploaded % (15 * 1024 * 1024) < chunk_size:
+                    print(f"    ... {uploaded / (1024*1024):.1f} / {local_sz / (1024*1024):.1f} MB")
+    remote_sz = sftp_client.stat(remote_file).st_size
+    if remote_sz != local_sz:
+        raise RuntimeError(f"Upload mismatch for {remote_file}: {remote_sz} != {local_sz}")
+    print(f"  Verified {os.path.basename(remote_file)}: {remote_sz} bytes.")
+
 sftp = ssh.open_sftp()
-sftp.put(CLIENT_TAR, "/tmp/loomweaver_client.tar.gz")
-sftp.put(SERVER_TAR, "/tmp/loomweaver_server.tar.gz")
+_put_pipelined(sftp, CLIENT_TAR, "/tmp/loomweaver_client.tar.gz")
+_put_pipelined(sftp, SERVER_TAR, "/tmp/loomweaver_server.tar.gz")
 sftp.close()
 env.put_secret_file(ssh, "/tmp/.lw_api.env", API_ENV_CONTENT)
 
@@ -473,4 +498,7 @@ print(out)
 ssh.close()
 for f in (CLIENT_TAR, SERVER_TAR):
     if os.path.exists(f):
-        os.remove(f)
+        try:
+            os.remove(f)
+        except Exception:
+            pass

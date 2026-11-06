@@ -23,6 +23,11 @@
   font-size: 0.8rem;
   font-weight: 600;
   text-decoration: none;
+
+  &--primary {
+    border-color: var(--lw-border-emerald, #49e892);
+    color: var(--lw-accent-emerald, #49e892);
+  }
 }
 
 .lw-asset-grid {

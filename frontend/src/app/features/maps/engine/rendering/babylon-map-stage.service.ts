@@ -1,10 +1,12 @@
 import { MapCameraViews } from './map-camera-views';
+import { DioramaPostProcessingController } from './diorama-post-processing.controller';
 import { WaterChannelTerrain } from '../water/water-channel-terrain';
 import { WallBrushController } from '../walls/wall-brush-controller';
 import { Injectable, signal } from '@angular/core';
 import {
   ArcRotateCamera,
   ArcRotateCameraPointersInput,
+  Camera,
   Color3,
   Color4,
   Engine,
@@ -101,6 +103,7 @@ export class BabylonMapStageService {
   private selectedGizmoRadius = 1.1;
   readonly lightDrag = new LightDragController();
   readonly stampDrag = new StampDragController();
+  readonly dioramaPostProcessing = new DioramaPostProcessingController();
   private hideGmSecrets = false;
   private snapToGrid = true;
   private surfaceLockEnabled = false;
@@ -156,7 +159,7 @@ export class BabylonMapStageService {
         stencil: true,
       });
       this.scene = new Scene(this.engine);
-      this.scene.clearColor = new Color4(0.024, 0.027, 0.032, 1);
+      this.scene.clearColor = new Color4(0.012, 0.024, 0.02, 1);
       this.scene.shadowsEnabled = true;
       GlbModelCache.ensureScene(this.scene);
 
@@ -173,6 +176,7 @@ export class BabylonMapStageService {
       this.camera.wheelPrecision = 14;
       this.camera.attachControl(canvas, true);
       this.cameraViews = new MapCameraViews(this.scene, this.camera, canvas);
+      this.dioramaPostProcessing.attach(this.scene, this.camera);
       this.applyCameraPointerButtons();
       this.lightDrag.attach(this.scene, canvas, {
         pickLightId: () => {
@@ -872,6 +876,10 @@ export class BabylonMapStageService {
   setCameraMode(mode: MapRenderMode | string): void {
     this.cameraViews?.setMode(mode);
     this.applyCameraPointerButtons();
+    const activeCam = (this.scene?.cameraToUseForPointers ?? this.camera) as Camera | null;
+    if (activeCam) {
+      this.dioramaPostProcessing.updateCamera(activeCam);
+    }
   }
 
   setQualityPreset(preset: string): void {
@@ -1077,6 +1085,7 @@ export class BabylonMapStageService {
     this.wheelAbortController = null;
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    this.dioramaPostProcessing.dispose();
     this.scene?.dispose();
     this.engine?.dispose();
     this.scene = null;

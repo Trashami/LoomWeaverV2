@@ -1,0 +1,292 @@
+<div class="lw-page">
+  @if (playlist(); as pl) {
+    <lw-page-header
+      [title]="pl.name"
+      [subtitle]="pl.description"
+      icon="Music"
+    >
+      <div pageActions class="lw-playlist-actions">
+        <a class="lw-back-link" routerLink="/music">&larr; Back to Playlists</a>
+        <lw-badge [label]="pl.trackIds.length + ' Songs'" tone="neutral" />
+        <lw-badge [label]="playlistTriggers().length + ' Triggers'" [tone]="playlistTriggers().length > 0 ? 'gold' : 'neutral'" />
+        @if (audio.activePlaylistId() === pl.id) {
+          <lw-badge label="Active Queue" tone="emerald" />
+        }
+        <lw-button
+          [variant]="audio.activePlaylistId() === pl.id && audio.isPlaying() ? 'gold' : 'primary'"
+          size="sm"
+          (pressed)="onPlayPlaylist()"
+        >
+          {{ audio.activePlaylistId() === pl.id && audio.isPlaying() ? 'Playing' : 'Play Playlist' }}
+        </lw-button>
+        @if (!isDefaultPlaylist()) {
+          <lw-button
+            variant="secondary"
+            size="sm"
+            (pressed)="onDeletePlaylist()"
+          >
+            Delete Playlist
+          </lw-button>
+        }
+      </div>
+    </lw-page-header>
+
+    @if (statusBanner()) {
+      <div class="lw-status-banner">{{ statusBanner() }}</div>
+    }
+
+    <!-- Edit Playlist Details (Name & Description) -->
+    <lw-panel
+      eyebrow="Playlist Details"
+      title="Customize Playlist Name & GM Notes"
+      subtitle="Edit title, theme description, and atmosphere notes for this queue."
+      icon="Layers"
+    >
+      <div panelActions>
+        @if (!isEditing()) {
+          <lw-button variant="secondary" size="sm" (pressed)="onStartEdit()">
+            Edit Details
+          </lw-button>
+        }
+      </div>
+
+      @if (isEditing()) {
+        <div class="lw-edit-details-form">
+          <label class="lw-form-field">
+            <span>Playlist Name</span>
+            <input
+              type="text"
+              [ngModel]="editName()"
+              (ngModelChange)="editName.set($event)"
+            />
+          </label>
+          <label class="lw-form-field">
+            <span>Description / GM Notes</span>
+            <textarea
+              rows="2"
+              [ngModel]="editDesc()"
+              (ngModelChange)="editDesc.set($event)"
+            ></textarea>
+          </label>
+          <div class="lw-form-actions">
+            <lw-button variant="secondary" size="sm" (pressed)="isEditing.set(false)">
+              Cancel
+            </lw-button>
+            <lw-button variant="gold" size="sm" (pressed)="onSavePlaylistDetails()" [disabled]="!editName().trim()">
+              Save Changes
+            </lw-button>
+          </div>
+        </div>
+      } @else {
+        <div class="lw-details-display">
+          <strong>{{ pl.name }}</strong>
+          <p>{{ pl.description }}</p>
+        </div>
+      }
+    </lw-panel>
+
+    <!-- Playlist Tracks Management -->
+    <lw-panel
+      eyebrow="Queue Management"
+      title="Playlist Songs ({{ playlistTracks().length }} Tracks)"
+      subtitle="Songs currently assigned to this playlist. Add or remove tracks to craft your scene."
+      icon="Music"
+    >
+      <div class="lw-playlist-tracks-list">
+        @for (track of playlistTracks(); track track.id; let idx = $index) {
+          <div
+            class="lw-track-item"
+            [class.lw-track-item--active]="audio.activeTrackId() === track.id"
+          >
+            <div class="lw-track-item__index">{{ idx + 1 }}</div>
+            <div class="lw-track-item__meta">
+              <strong class="lw-track-item__title">{{ track.title }}</strong>
+              <span class="lw-track-item__artist">{{ track.artist }}</span>
+              <lw-badge [label]="track.category" tone="neutral" />
+              <span class="lw-track-item__dur">{{ formatTime(track.durationSeconds) }}</span>
+            </div>
+            <div class="lw-track-item__actions">
+              <lw-button
+                [variant]="audio.activeTrackId() === track.id && audio.isPlaying() ? 'gold' : 'secondary'"
+                size="sm"
+                (pressed)="onPlayTrack(track.id)"
+              >
+                {{ audio.activeTrackId() === track.id && audio.isPlaying() ? 'Pause' : 'Play' }}
+              </lw-button>
+              <button
+                type="button"
+                class="lw-track-del-btn"
+                (click)="onRemoveTrack(track.id)"
+                title="Remove song from this playlist"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        }
+        @if (playlistTracks().length === 0) {
+          <div class="lw-empty-tracks">
+            This playlist has no songs yet. Select tracks from the library below to add them.
+          </div>
+        }
+      </div>
+
+      <!-- Add More Songs From Library -->
+      @if (availableLibraryTracks().length > 0) {
+        <div class="lw-add-tracks-section">
+          <span class="lw-add-tracks-title">Add Songs from Library:</span>
+          <div class="lw-add-tracks-grid">
+            @for (track of availableLibraryTracks(); track track.id) {
+              <div class="lw-add-track-chip">
+                <div class="lw-add-track-chip__info">
+                  <strong>{{ track.title }}</strong>
+                  <span class="lw-dim">{{ track.artist }} ({{ formatTime(track.durationSeconds) }})</span>
+                </div>
+                <button
+                  type="button"
+                  class="lw-chip-add-btn"
+                  (click)="onAddTrack(track.id)"
+                  title="Add to playlist"
+                >
+                  + Add
+                </button>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    </lw-panel>
+
+    <!-- Automated Scene & Table Triggers for This Playlist -->
+    <lw-panel
+      eyebrow="Scene Triggers"
+      title="Automated Scene & Table Triggers for {{ pl.name }}"
+      subtitle="Configure rules that automatically trigger and crossfade this playlist when campaign events occur."
+      icon="Layers"
+    >
+      <div class="lw-trigger-builder">
+        <label class="lw-field">
+          <span>Trigger Event</span>
+          <select
+            class="lw-select"
+            [ngModel]="triggerScopeDraft()"
+            (ngModelChange)="triggerScopeDraft.set($event); triggerTargetKeyDraft.set('*')"
+          >
+            <option value="campaign">Campaign Start / Switch</option>
+            <option value="session">Session Starts / Goes Active</option>
+            <option value="battlemap">Battlemap Goes Live on VTT</option>
+          </select>
+        </label>
+
+        <label class="lw-field">
+          <span>Target Scope</span>
+          <select
+            class="lw-select"
+            [ngModel]="triggerTargetKeyDraft()"
+            (ngModelChange)="triggerTargetKeyDraft.set($event)"
+          >
+            @if (triggerScopeDraft() === 'campaign') {
+              <option value="*">{{ store.activeCampaign().name }} (Active Campaign)</option>
+            } @else if (triggerScopeDraft() === 'session') {
+              <option value="*">Any Session Start (Default)</option>
+              @for (sess of availableSessions(); track sess.id) {
+                <option [value]="sess.id">{{ sess.label }}</option>
+              }
+            } @else {
+              <option value="*">Any Battlemap Going Live (Default)</option>
+              @for (bm of availableBattlemaps(); track bm.id) {
+                <option [value]="bm.id">{{ bm.label }}</option>
+              }
+            }
+          </select>
+        </label>
+
+        <label class="lw-field">
+          <span>Opening Song</span>
+          <select
+            class="lw-select"
+            [ngModel]="triggerTrackIdDraft()"
+            (ngModelChange)="triggerTrackIdDraft.set($event)"
+          >
+            @for (tr of playlistTracks(); track tr.id) {
+              <option [value]="tr.id">{{ tr.title }} ({{ tr.artist }})</option>
+            }
+            @if (playlistTracks().length === 0) {
+              @for (tr of audio.tracks(); track tr.id) {
+                <option [value]="tr.id">{{ tr.title }} ({{ tr.artist }})</option>
+              }
+            }
+          </select>
+        </label>
+
+        <label class="lw-field lw-field--sm">
+          <span>Crossfade</span>
+          <select
+            class="lw-select"
+            [ngModel]="triggerCrossfadeDraft()"
+            (ngModelChange)="triggerCrossfadeDraft.set(+$event)"
+          >
+            <option [value]="1.0">1.0s</option>
+            <option [value]="1.5">1.5s</option>
+            <option [value]="2.0">2.0s</option>
+            <option [value]="3.0">3.0s</option>
+            <option [value]="4.0">4.0s</option>
+          </select>
+        </label>
+
+        <lw-button variant="gold" size="sm" (pressed)="onSaveTrigger()">
+          Save Trigger Rule
+        </lw-button>
+      </div>
+
+      <!-- Active triggers for this playlist -->
+      <div class="lw-triggers-list">
+        @for (trig of playlistTriggers(); track trig.id) {
+          <div class="lw-trigger-row">
+            <div class="lw-trigger-row__info">
+              <lw-badge
+                [label]="trig.scope.toUpperCase()"
+                [tone]="trig.scope === 'battlemap' ? 'gold' : 'emerald'"
+              />
+              <strong>{{ trig.targetLabel }}</strong>
+              <span class="lw-arrow">&rarr;</span>
+              <span>
+                Song: <strong>{{ getTrackTitle(trig.trackId) }}</strong>
+                ({{ trig.crossfadeSeconds }}s crossfade)
+              </span>
+            </div>
+            <div class="lw-trigger-row__actions">
+              <button
+                type="button"
+                class="lw-trigger-action-btn"
+                (click)="onTestTrigger(trig)"
+                title="Test trigger crossfade now"
+              >
+                Test Trigger
+              </button>
+              <button
+                type="button"
+                class="lw-trigger-action-btn lw-trigger-action-btn--danger"
+                (click)="onRemoveTrigger(trig.id)"
+                title="Remove trigger rule"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        }
+        @if (playlistTriggers().length === 0) {
+          <div class="lw-empty-tracks">
+            No automated triggers configured for this playlist yet. Use the builder above to bind one.
+          </div>
+        }
+      </div>
+    </lw-panel>
+  } @else {
+    <div class="lw-not-found">
+      <h3>Playlist Not Found</h3>
+      <p>The requested playlist could not be located in your campaign soundtracks.</p>
+      <a class="lw-back-link" routerLink="/music">&larr; Return to Music & Soundtracks</a>
+    </div>
+  }
+</div>

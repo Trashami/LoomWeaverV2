@@ -1,0 +1,276 @@
+<div class="lw-page">
+  <!-- Minimal Page Header -->
+  <lw-page-header
+    title="Music & Soundtracks"
+    subtitle="Soundtrack player, scene playlists, and table audio triggers."
+    icon="Music"
+  >
+    <div pageActions class="lw-music-top-actions">
+      @if (audio.activeTrack(); as track) {
+        <lw-badge [label]="'Playing: ' + track.title" tone="emerald" />
+      }
+      <a class="lw-action-link" routerLink="/arcane-screen">Open VTT</a>
+    </div>
+  </lw-page-header>
+
+  <!-- 1. Sleek Audio Player Bar -->
+  <div class="lw-player-card">
+    <div class="lw-player-main">
+      <!-- Left: Track Details -->
+      <div class="lw-player-track">
+        <div class="lw-player-art">
+          <lw-icon name="Music" [size]="20" />
+        </div>
+        <div class="lw-player-meta">
+          <strong class="lw-player-title">{{ audio.activeTrack().title || 'Select a Song' }}</strong>
+          <span class="lw-player-artist">{{ audio.activeTrack().artist || 'LoomWeaver Audio' }}</span>
+        </div>
+      </div>
+
+      <!-- Center: Transport & Progress -->
+      <div class="lw-player-center">
+        <div class="lw-player-controls">
+          <button type="button" class="lw-ctrl-btn" (click)="audio.previousTrack()" title="Previous Track">
+            <lw-icon name="SkipBack" [size]="16" />
+          </button>
+          <button
+            type="button"
+            class="lw-play-btn"
+            [class.lw-play-btn--playing]="audio.isPlaying()"
+            (click)="audio.togglePlayback()"
+            [title]="audio.isPlaying() ? 'Pause' : 'Play'"
+          >
+            <lw-icon [name]="audio.isPlaying() ? 'Square' : 'Music'" [size]="18" />
+            <span>{{ audio.isPlaying() ? 'Pause' : 'Play' }}</span>
+          </button>
+          <button type="button" class="lw-ctrl-btn" (click)="audio.nextTrack()" title="Next Track">
+            <lw-icon name="SkipForward" [size]="16" />
+          </button>
+          <button
+            type="button"
+            class="lw-ctrl-btn lw-ctrl-btn--loop"
+            [class.lw-ctrl-btn--active]="audio.loopMode() === 'track'"
+            (click)="audio.toggleLoopMode()"
+            [title]="audio.loopMode() === 'track' ? 'Looping Track' : 'Looping Playlist'"
+          >
+            <lw-icon name="Repeat" [size]="14" />
+            <span>{{ audio.loopMode() === 'track' ? 'Track' : 'All' }}</span>
+          </button>
+        </div>
+
+        <div class="lw-player-timeline">
+          <span class="lw-time">{{ formatTime(audio.currentTimeSeconds()) }}</span>
+          <input
+            type="range"
+            class="lw-seek-slider"
+            min="0"
+            [max]="audio.durationSeconds() || 100"
+            step="1"
+            [value]="audio.currentTimeSeconds()"
+            (input)="onSeekSliderInput($event)"
+            aria-label="Seek playback"
+          />
+          <span class="lw-time">{{ formatTime(audio.durationSeconds()) }}</span>
+        </div>
+      </div>
+
+      <!-- Right: Volume & Upload -->
+      <div class="lw-player-right">
+        <div class="lw-player-vol">
+          <lw-icon name="Volume2" [size]="16" />
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.02"
+            [value]="audio.masterVolume()"
+            (input)="onMasterSliderInput($event)"
+            aria-label="Master volume"
+          />
+        </div>
+        <label class="lw-upload-btn" title="Upload custom audio files">
+          <input
+            type="file"
+            accept=".mp3,.ogg,.wav,audio/*"
+            multiple
+            hidden
+            (change)="onFileUploadChange($event)"
+          />
+          <span>+ Upload</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Playlists Cards Grid -->
+  <lw-panel
+    eyebrow="Playlists"
+    title="Scene Playlists"
+    subtitle="Select a playlist to play or click customize to configure scene triggers and tracks."
+    icon="Layers"
+  >
+    <div panelActions>
+      <lw-button variant="gold" size="sm" (pressed)="showCreateModal.set(true)">
+        + New Playlist
+      </lw-button>
+    </div>
+
+    <div class="lw-playlists-grid">
+      @for (pl of playlistsWithMeta(); track pl.id) {
+        <div
+          class="lw-card-item"
+          [class.lw-card-item--active]="audio.activePlaylistId() === pl.id"
+          (click)="onNavigateToPlaylist(pl.id)"
+        >
+          <div class="lw-card-item__top">
+            <div class="lw-card-item__info">
+              <h5 class="lw-card-item__title">{{ pl.name }}</h5>
+              <div class="lw-card-item__pills">
+                <span class="lw-pill">{{ pl.trackIds.length }} songs</span>
+                @if (pl.triggerCount > 0) {
+                  <span class="lw-pill lw-pill--gold">{{ pl.triggerCount }} triggers</span>
+                }
+                @if (audio.activePlaylistId() === pl.id) {
+                  <span class="lw-pill lw-pill--emerald">Active</span>
+                }
+              </div>
+            </div>
+          </div>
+
+          <p class="lw-card-item__desc">{{ pl.description }}</p>
+
+          <div class="lw-card-item__foot" (click)="$event.stopPropagation()">
+            <button
+              type="button"
+              class="lw-card-play-btn"
+              [class.lw-card-play-btn--active]="audio.activePlaylistId() === pl.id && audio.isPlaying()"
+              (click)="onPlayPlaylist(pl.id)"
+            >
+              {{ audio.activePlaylistId() === pl.id && audio.isPlaying() ? 'Playing' : 'Play' }}
+            </button>
+            <a class="lw-card-edit-link" [routerLink]="['/music/playlists', pl.id]">
+              Customize & Triggers &rarr;
+            </a>
+          </div>
+        </div>
+      }
+    </div>
+  </lw-panel>
+
+  <!-- 3. Songs Library (Simplified) -->
+  <lw-panel
+    eyebrow="Library"
+    title="All Songs ({{ audio.tracks().length }})"
+    subtitle="Preview tracks and assign them to your playlists."
+    icon="Music"
+  >
+    <!-- Simple Search & Filter Bar -->
+    <div class="lw-filter-bar">
+      <div class="lw-search-input">
+        <lw-icon name="Search" [size]="14" />
+        <input
+          type="text"
+          placeholder="Search by title, artist, or mood..."
+          [ngModel]="searchQuery()"
+          (ngModelChange)="searchQuery.set($event)"
+        />
+      </div>
+
+      <div class="lw-filter-chips">
+        @for (cat of categories(); track cat) {
+          <button
+            type="button"
+            class="lw-chip"
+            [class.lw-chip--active]="selectedCategory() === cat"
+            (click)="selectedCategory.set(cat)"
+          >
+            {{ cat }}
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Clean Track List -->
+    <div class="lw-simple-track-list">
+      @for (track of filteredTracks(); track track.id) {
+        <div
+          class="lw-track-row"
+          [class.lw-track-row--active]="audio.activeTrackId() === track.id"
+        >
+          <div class="lw-track-left">
+            <button
+              type="button"
+              class="lw-row-play-btn"
+              [class.lw-row-play-btn--playing]="audio.activeTrackId() === track.id && audio.isPlaying()"
+              (click)="onPlayTrack(track.id)"
+              [title]="audio.activeTrackId() === track.id && audio.isPlaying() ? 'Pause' : 'Play song'"
+            >
+              <lw-icon [name]="audio.activeTrackId() === track.id && audio.isPlaying() ? 'Square' : 'Music'" [size]="14" />
+            </button>
+
+            <div class="lw-track-info">
+              <strong class="lw-track-title">{{ track.title }}</strong>
+              <span class="lw-track-sub">{{ track.artist }} &middot; {{ track.category }}</span>
+            </div>
+          </div>
+
+          <div class="lw-track-right">
+            <span class="lw-track-dur">{{ formatTime(track.durationSeconds) }}</span>
+
+            <div class="lw-track-add-menu">
+              @for (pl of audio.playlists(); track pl.id) {
+                <button
+                  type="button"
+                  class="lw-pl-chip"
+                  [class.lw-pl-chip--in]="isSongInPlaylist(pl.id, track.id)"
+                  (click)="handleToggleSongInPlaylist(pl.id, track.id)"
+                  [title]="isSongInPlaylist(pl.id, track.id) ? 'Remove from ' + pl.name : 'Add to ' + pl.name"
+                >
+                  {{ isSongInPlaylist(pl.id, track.id) ? 'In ' + pl.name : '+ ' + pl.name }}
+                </button>
+              }
+            </div>
+          </div>
+        </div>
+      }
+      @if (filteredTracks().length === 0) {
+        <div class="lw-empty-state">No songs match your search.</div>
+      }
+    </div>
+  </lw-panel>
+</div>
+
+<!-- Modal: Create Playlist -->
+@if (showCreateModal()) {
+  <lw-modal
+    [title]="'Create New Playlist'"
+    (closed)="showCreateModal.set(false)"
+  >
+    <div class="lw-modal-content">
+      <label class="lw-modal-label">
+        <span>Playlist Name</span>
+        <input
+          type="text"
+          placeholder="e.g. Boss Fight / Travel"
+          [ngModel]="newPlaylistName()"
+          (ngModelChange)="newPlaylistName.set($event)"
+        />
+      </label>
+      <label class="lw-modal-label">
+        <span>Description</span>
+        <input
+          type="text"
+          placeholder="Scene notes or atmosphere"
+          [ngModel]="newPlaylistDesc()"
+          (ngModelChange)="newPlaylistDesc.set($event)"
+        />
+      </label>
+      <div class="lw-modal-btns">
+        <lw-button variant="secondary" size="sm" (pressed)="showCreateModal.set(false)">Cancel</lw-button>
+        <lw-button variant="gold" size="sm" (pressed)="onCreatePlaylist()" [disabled]="!newPlaylistName().trim()">
+          Create Playlist
+        </lw-button>
+      </div>
+    </div>
+  </lw-modal>
+}

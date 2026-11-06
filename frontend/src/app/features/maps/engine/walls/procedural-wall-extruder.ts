@@ -1,5 +1,6 @@
 import * as BABYLON from '@babylonjs/core';
 import { DoorSidePostStyle, WallOpeningNode, WallSegmentNode } from '../map-scene-contract';
+import { CutawayWallEngine } from './cutaway-wall.engine';
 import { ProceduralWallStyleSpec } from './procedural-wall-catalog';
 import { getOrCreateProceduralWallMaterial, sampleProceduralWallRelief } from './procedural-wall-textures';
 
@@ -17,6 +18,24 @@ export interface ProceduralWallSpanOptions {
   style: ProceduralWallStyleSpec;
   includePlinth: boolean;
   includeCoping: boolean;
+}
+
+const cachedTimberSillCapMaterials = new Map<string, BABYLON.PBRMaterial>();
+
+export function getOrCreateTimberSillCapMaterial(scene: BABYLON.Scene): BABYLON.PBRMaterial {
+  const key = `${scene.uid}|timber-sillcap`;
+  const existing = cachedTimberSillCapMaterials.get(key);
+  if (existing && existing.getScene() === scene) return existing;
+
+  const mat = new BABYLON.PBRMaterial('lw-wall-timber-sillcap-mat', scene);
+  // Authentic dark aged oak timber sill beam
+  mat.albedoColor = BABYLON.Color3.FromHexString('#2c1c12');
+  mat.roughness = 0.65;
+  mat.metallic = 0.05;
+  mat.backFaceCulling = false;
+  mat.twoSidedLighting = true;
+  cachedTimberSillCapMaterials.set(key, mat);
+  return mat;
 }
 
 const cachedTrimMaterials = new Map<string, BABYLON.PBRMaterial>();
@@ -135,13 +154,15 @@ export function buildProceduralWallSpan(
   }
 
   if (includeCoping && spanHeight >= 0.4) {
-    const copingH = 0.12;
+    const isCutaway = CutawayWallEngine.isCutawayWall(wall.perspective, spanHeight);
+    const copingH = isCutaway ? 0.08 : 0.12;
+    const copingDepth = isCutaway ? thickness + 0.06 : thickness * 1.18;
     const coping = buildSubdividedReliefPostBox(
       `lw-wall-proc-coping-${wall.id}-${spanId}`,
       scene,
       spanLength + 0.03,
       copingH,
-      thickness * 1.18,
+      copingDepth,
       worldStartDistMeters,
       style,
       wall.wallDisplacementScale ?? 1.0,
@@ -151,7 +172,7 @@ export function buildProceduralWallSpan(
     coping.isPickable = true;
     coping.receiveShadows = true;
     coping.metadata = wallMeta;
-    coping.material = bodyMesh.material;
+    coping.material = isCutaway ? getOrCreateTimberSillCapMaterial(scene) : bodyMesh.material;
     created.push(coping);
   }
 
@@ -584,7 +605,9 @@ export function buildProceduralCornerPillar(
   cap.isPickable = true;
   cap.receiveShadows = true;
   cap.metadata = wallMeta;
-  cap.material = trimMat;
+  cap.material = CutawayWallEngine.isCutawayWall(wall.perspective, height)
+    ? getOrCreateTimberSillCapMaterial(scene)
+    : trimMat;
   meshes.push(cap);
 
   return meshes;

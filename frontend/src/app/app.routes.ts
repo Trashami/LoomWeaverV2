@@ -138,6 +138,22 @@ export const APP_ROUTES: Routes = [
       import('./features/handouts/handouts.page').then((m) => m.HandoutsPageComponent),
   },
   {
+    path: 'music',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/music/music.page').then((m) => m.MusicPageComponent),
+  },
+  {
+    path: 'music/playlists/:id',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/music/music-playlist.page').then(
+        (m) => m.MusicPlaylistPageComponent,
+      ),
+  },
+  { path: 'music/:id', redirectTo: 'music/playlists/:id' },
+  { path: 'music-player', redirectTo: 'music', pathMatch: 'full' },
+  {
     path: 'assets',
     canActivate: [authGuard],
     loadComponent: () =>

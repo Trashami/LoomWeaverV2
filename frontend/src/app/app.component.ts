@@ -170,7 +170,7 @@ const NAV_GROUPS: readonly StudioNavGroup[] = [
       {
         id: "music-studio",
         label: "Music & Soundtracks",
-        route: "/assets",
+        route: "/music",
         icon: "music",
       },
       {

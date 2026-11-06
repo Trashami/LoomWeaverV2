@@ -1,0 +1,395 @@
+:host {
+  display: block;
+}
+
+.lw-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.lw-playlist-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.lw-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--lw-radius-md, 8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--lw-accent-emerald, #49e892);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 150ms ease;
+
+  &:hover {
+    background: rgba(73, 232, 146, 0.1);
+    border-color: var(--lw-accent-emerald, #49e892);
+  }
+}
+
+.lw-status-banner {
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--lw-radius-md, 8px);
+  border: 1px solid rgba(73, 232, 146, 0.3);
+  background: rgba(73, 232, 146, 0.08);
+  color: var(--lw-accent-emerald, #49e892);
+  font-size: 0.85rem;
+}
+
+/* Edit Details */
+.lw-details-display {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+
+  strong {
+    font-size: 1.1rem;
+    color: var(--lw-text-primary, #eefaf3);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.88rem;
+    color: var(--lw-text-secondary, #a3c9b7);
+    line-height: 1.45;
+  }
+}
+
+.lw-edit-details-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.lw-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+
+  span {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--lw-text-secondary, #a3c9b7);
+  }
+
+  input, textarea {
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--lw-radius-md, 8px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.35);
+    color: var(--lw-text-primary, #eefaf3);
+    font-size: 0.85rem;
+    outline: none;
+
+    &:focus {
+      border-color: var(--lw-accent-gold, #d9b77a);
+    }
+  }
+}
+
+.lw-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* Playlist Tracks List */
+.lw-playlist-tracks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.lw-track-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--lw-radius-md, 8px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.2);
+  transition: all 150ms ease;
+
+  &:hover {
+    border-color: rgba(73, 232, 146, 0.25);
+    background: rgba(73, 232, 146, 0.04);
+  }
+
+  &--active {
+    border-color: rgba(73, 232, 146, 0.4);
+    background: rgba(73, 232, 146, 0.08);
+  }
+
+  &__index {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--lw-accent-gold, #d9b77a);
+    width: 24px;
+    text-align: center;
+  }
+
+  &__meta {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  &__title {
+    font-size: 0.92rem;
+    color: var(--lw-text-primary, #eefaf3);
+  }
+
+  &__artist {
+    font-size: 0.82rem;
+    color: var(--lw-text-secondary, #a3c9b7);
+  }
+
+  &__dur {
+    font-size: 0.72rem;
+    font-family: monospace;
+    color: var(--lw-text-muted, #7e9e8f);
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+}
+
+.lw-track-del-btn {
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.08);
+  color: #f87171;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 120ms ease;
+
+  &:hover {
+    background: rgba(239, 68, 68, 0.18);
+    border-color: #ef4444;
+  }
+}
+
+/* Add Songs Section */
+.lw-add-tracks-section {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.lw-add-tracks-title {
+  display: block;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--lw-text-muted, #7e9e8f);
+  font-weight: 600;
+  margin-bottom: 0.65rem;
+}
+
+.lw-add-tracks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.65rem;
+}
+
+.lw-add-track-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: var(--lw-radius-md, 8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.3);
+
+  &__info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+
+    strong {
+      font-size: 0.82rem;
+      color: var(--lw-text-primary, #eefaf3);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+}
+
+.lw-chip-add-btn {
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--lw-border-gold, #d9b77a);
+  background: rgba(217, 183, 122, 0.1);
+  color: var(--lw-accent-gold, #d9b77a);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 120ms ease;
+
+  &:hover {
+    background: rgba(217, 183, 122, 0.22);
+  }
+}
+
+/* Trigger Builder Form */
+.lw-trigger-builder {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.85rem;
+  border-radius: var(--lw-radius-md, 8px);
+  border: 1px solid rgba(217, 183, 122, 0.2);
+  background: rgba(0, 0, 0, 0.25);
+  margin-bottom: 1rem;
+}
+
+.lw-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1 1 180px;
+
+  &--sm {
+    flex: 0 1 90px;
+  }
+
+  span {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--lw-text-muted, #7e9e8f);
+    font-weight: 600;
+  }
+}
+
+.lw-select {
+  padding: 0.45rem 0.65rem;
+  border-radius: var(--lw-radius-md, 8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #06110d;
+  color: var(--lw-text-primary, #eefaf3);
+  font-size: 0.82rem;
+  outline: none;
+
+  &:focus {
+    border-color: var(--lw-accent-gold, #d9b77a);
+  }
+}
+
+/* Triggers List */
+.lw-triggers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lw-trigger-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--lw-radius-md, 8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.25);
+
+  &__info {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+    color: var(--lw-text-secondary, #a3c9b7);
+
+    strong {
+      color: var(--lw-text-primary, #eefaf3);
+    }
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+}
+
+.lw-arrow {
+  color: var(--lw-accent-gold, #d9b77a);
+  font-weight: bold;
+}
+
+.lw-trigger-action-btn {
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid rgba(73, 232, 146, 0.3);
+  background: rgba(73, 232, 146, 0.08);
+  color: var(--lw-accent-emerald, #49e892);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms ease;
+
+  &:hover {
+    background: rgba(73, 232, 146, 0.2);
+    border-color: var(--lw-accent-emerald, #49e892);
+  }
+
+  &--danger {
+    border-color: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.08);
+    color: #f87171;
+
+    &:hover {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: #ef4444;
+    }
+  }
+}
+
+.lw-dim {
+  color: var(--lw-text-muted, #7e9e8f);
+  font-size: 0.72rem;
+}
+
+.lw-empty-tracks {
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--lw-text-muted, #7e9e8f);
+  font-size: 0.85rem;
+}
+
+.lw-not-found {
+  padding: 3rem 1.5rem;
+  text-align: center;
+
+  h3 {
+    color: var(--lw-accent-gold, #d9b77a);
+    margin-bottom: 0.5rem;
+  }
+
+  p {
+    color: var(--lw-text-secondary, #a3c9b7);
+    margin-bottom: 1.5rem;
+  }
+}

@@ -10,6 +10,17 @@ import {
   LwUpsertMusicTriggerEvent,
 } from '../../../shared/ui/audio-stem-mixer/audio-stem-mixer.component';
 
+export type {
+  LwAudioScenePresetItem,
+  LwAudioStemItem,
+  LwCreatePlaylistEvent,
+  LwGmMusicTriggerItem,
+  LwGmPlaylistItem,
+  LwMusicTrackItem,
+  LwMusicTriggerScope,
+  LwUpsertMusicTriggerEvent,
+};
+
 const STORAGE_PLAYLISTS_KEY = 'lw_gm_music_playlists_v2';
 const STORAGE_TRIGGERS_KEY = 'lw_gm_music_triggers_v2';
 const STORAGE_CUSTOM_TRACKS_KEY = 'lw_gm_music_custom_tracks_v2';
@@ -517,6 +528,40 @@ export class WebAudioAmbienceService {
           ? pl.trackIds.filter((id) => id !== trackId)
           : [...pl.trackIds, trackId];
         return { ...pl, trackIds: updatedIds };
+      });
+      this.writeStorage(STORAGE_PLAYLISTS_KEY, next);
+      return next;
+    });
+  }
+
+  updatePlaylist(
+    playlistId: string,
+    updates: Partial<Pick<LwGmPlaylistItem, 'name' | 'description' | 'trackIds' | 'loop'>>,
+  ): void {
+    this.playlists.update((cur) => {
+      const next = cur.map((pl) => (pl.id === playlistId ? { ...pl, ...updates } : pl));
+      this.writeStorage(STORAGE_PLAYLISTS_KEY, next);
+      return next;
+    });
+  }
+
+  addTrackToPlaylist(playlistId: string, trackId: string): void {
+    this.playlists.update((cur) => {
+      const next = cur.map((pl) => {
+        if (pl.id !== playlistId) return pl;
+        if (pl.trackIds.includes(trackId)) return pl;
+        return { ...pl, trackIds: [...pl.trackIds, trackId] };
+      });
+      this.writeStorage(STORAGE_PLAYLISTS_KEY, next);
+      return next;
+    });
+  }
+
+  removeTrackFromPlaylist(playlistId: string, trackId: string): void {
+    this.playlists.update((cur) => {
+      const next = cur.map((pl) => {
+        if (pl.id !== playlistId) return pl;
+        return { ...pl, trackIds: pl.trackIds.filter((id) => id !== trackId) };
       });
       this.writeStorage(STORAGE_PLAYLISTS_KEY, next);
       return next;

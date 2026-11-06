@@ -642,6 +642,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
+    this.audio.pause();
     if (!this.showLandingHub()) {
       this.pngApi.ensureManifestLoaded();
       this.studio.ensureStudioResourcesLoaded();
@@ -3016,7 +3017,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.pngPipelineBanner.set(
       `Published '${this.mapTitle()}' (${this.dimensionMode().toUpperCase()}) -> ${campName} · ${sessLabel} · ${encLabel}`,
     );
-    this.audio.fireTrigger('battlemap', sceneKey, this.mapTitle(), true);
+    this.audio.fireTrigger('battlemap', sceneKey, this.mapTitle(), false);
   }
 
   private legacyPublishMapToCoreCampaignUnused(): void {
@@ -3055,6 +3056,6 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.pngPipelineBanner.set(
       `Published '${this.mapTitle()}' (${this.dimensionMode().toUpperCase()}) -> ${campName} · ${sessLabel} · ${encLabel}`,
     );
-    this.audio.fireTrigger('battlemap', this.selectedSceneKey(), this.mapTitle(), true);
+    this.audio.fireTrigger('battlemap', this.selectedSceneKey(), this.mapTitle(), false);
   }
 }

@@ -64,6 +64,13 @@ server {
         proxy_set_header Host $host;
     }
 
+    location ^~ /assets/music-library/ {
+        alias /var/www/loomweaver/client/assets/music-library/;
+        expires 7d;
+        add_header Cache-Control "public, max-age=604800";
+        add_header Access-Control-Allow-Origin "*";
+    }
+
     location ^~ /assets/ {
         alias /var/www/loomweaver/assets/;
         expires 7d;

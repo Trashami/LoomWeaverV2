@@ -106,12 +106,13 @@
       ngpButton
       type="button"
       class="lw-topbar__square-btn"
-      [class.lw-topbar__square-btn--active]="audioPlaying()"
-      (click)="audioToggled.emit()"
-      aria-label="Toggle Ambient Audio Engine"
-      title="Toggle Ambient Audio Engine"
+      [class.lw-topbar__square-btn--active]="isAudioPlaying()"
+      [attr.aria-pressed]="isAudioPlaying()"
+      (click)="onToggleAudio()"
+      [attr.aria-label]="isAudioPlaying() ? 'Pause or Stop Ambient Music' : 'Start Ambient Music'"
+      [title]="isAudioPlaying() ? 'Music Playing — Click to Pause / Stop' : 'Music Off — Click to Start'"
     >
-      <lw-icon name="music" [size]="18" />
+      <lw-icon [name]="isAudioPlaying() ? 'volume_up' : 'volume_off'" [size]="18" />
     </button>
 
     <lw-notification-bell />

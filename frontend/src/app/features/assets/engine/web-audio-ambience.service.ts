@@ -371,10 +371,24 @@ export class WebAudioAmbienceService {
     }
   }
 
+  isMappingAppSurface(): boolean {
+    if (typeof window === 'undefined' || !window.location) return false;
+    const host = (window.location.hostname || '').toLowerCase();
+    const path = (window.location.pathname || '').toLowerCase();
+    return host.startsWith('maps.') || path === '/maps' || path.startsWith('/maps/');
+  }
+
   togglePlayback(): void {
     if (this.isPlaying()) {
       this.pauseEngine();
     } else {
+      if (this.isMuted()) {
+        this.isMuted.set(false);
+        this.writeStorage(STORAGE_USER_MUTED_KEY, false);
+      }
+      if (this.masterVolume() <= 0.01) {
+        this.setMasterVolume(0.8);
+      }
       this.startOrResumeTrack(this.activeTrackId(), 0.8);
     }
   }
@@ -685,7 +699,12 @@ export class WebAudioAmbienceService {
       `${scope.toUpperCase()} Trigger (${contextText}) -> "${track.title}"`,
     );
 
-    if (forcePlay || this.isPlaying() || (matched.autoPlay && scope === 'battlemap')) {
+    const inMappingApp = this.isMappingAppSurface();
+    const shouldPlay = inMappingApp
+      ? this.isPlaying()
+      : forcePlay || this.isPlaying() || (matched.autoPlay && scope === 'battlemap');
+
+    if (shouldPlay) {
       if (previousTrackId !== track.id || !this.isPlaying()) {
         this.startOrResumeTrack(track.id, matched.crossfadeSeconds || 1.8);
       }
@@ -767,14 +786,22 @@ export class WebAudioAmbienceService {
       this.activeAudioEl.dataset['trackId'] === track.id &&
       !this.activeAudioEl.ended
     ) {
-      this.activeAudioEl.volume = this.effectiveVolume();
-      this.activeAudioEl
+      const targetEl = this.activeAudioEl;
+      targetEl.volume = this.effectiveVolume();
+      this.isPlaying.set(true);
+      targetEl
         .play()
         .then(() => {
-          this.isPlaying.set(true);
+          if (this.activeAudioEl === targetEl && !this.isPlaying()) {
+            try {
+              targetEl.pause();
+            } catch {}
+          }
         })
         .catch(() => {
-          this.isPlaying.set(false);
+          if (this.activeAudioEl === targetEl) {
+            this.isPlaying.set(false);
+          }
         });
       return;
     }
@@ -817,6 +844,7 @@ export class WebAudioAmbienceService {
     this.activeAudioEl = incoming;
     this.currentTimeSeconds.set(0);
     this.durationSeconds.set(track.durationSeconds || 180);
+    this.isPlaying.set(true);
 
     const targetVol = this.effectiveVolume();
     if (outgoing && !outgoing.paused && crossfadeSeconds > 0.2) {
@@ -825,7 +853,12 @@ export class WebAudioAmbienceService {
       incoming
         .play()
         .then(() => {
-          this.isPlaying.set(true);
+          if (this.activeAudioEl !== incoming || !this.isPlaying()) {
+            try {
+              incoming.pause();
+            } catch {}
+            return;
+          }
           const steps = Math.max(6, Math.round(crossfadeSeconds * 15));
           let step = 0;
           const outStartVol = outgoing.volume;
@@ -851,7 +884,9 @@ export class WebAudioAmbienceService {
             outgoing.pause();
           } catch {}
           this.fadingAudioEl = null;
-          this.isPlaying.set(false);
+          if (this.activeAudioEl === incoming) {
+            this.isPlaying.set(false);
+          }
         });
     } else {
       if (outgoing) {
@@ -863,10 +898,16 @@ export class WebAudioAmbienceService {
       incoming
         .play()
         .then(() => {
-          this.isPlaying.set(true);
+          if (this.activeAudioEl !== incoming || !this.isPlaying()) {
+            try {
+              incoming.pause();
+            } catch {}
+          }
         })
         .catch(() => {
-          this.isPlaying.set(false);
+          if (this.activeAudioEl === incoming) {
+            this.isPlaying.set(false);
+          }
         });
     }
   }

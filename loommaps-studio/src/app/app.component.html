@@ -5,6 +5,7 @@
     [activeCampaign]="store.activeCampaign()"
     [activeCampaignId]="store.activeCampaignId()"
     [viewerRole]="store.viewerRole()"
+    [audioPlaying]="audio.isPlaying()"
     [loomOpen]="loomDrawerOpen()"
     [userDisplayName]="auth.currentUserProfile()?.displayName ?? 'Dungeon Master'"
     [userEmail]="auth.currentUserProfile()?.email ?? 'gm@loom-weaver.com'"

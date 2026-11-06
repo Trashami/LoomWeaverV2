@@ -16,6 +16,7 @@ import { NgpButton } from 'ng-primitives/button';
 import { NgpToolbar } from 'ng-primitives/toolbar';
 import { CampaignSessionVm, CampaignVm, ViewerRole } from '../../../core/models/loomweaver.models';
 import { LoomWeaverStoreService, LwExperienceMode } from '../../../core/services/loomweaver-store.service';
+import { WebAudioAmbienceService } from '../../../features/assets/engine/web-audio-ambience.service';
 import {
   LwContextSwitcherAction,
   LwContextSwitcherComponent,
@@ -44,6 +45,7 @@ import { LwUserMenuComponent } from '../user-menu/user-menu.component';
 })
 export class LwAppHeaderBarComponent {
   readonly store = inject(LoomWeaverStoreService, { optional: true });
+  readonly audio = inject(WebAudioAmbienceService, { optional: true });
   private readonly router = inject(Router, { optional: true });
   private readonly elementRef = inject(ElementRef<HTMLElement>);
 
@@ -102,6 +104,18 @@ export class LwAppHeaderBarComponent {
 
   readonly campaignDropdownOpen = signal<boolean>(false);
   readonly sessionDropdownOpen = signal<boolean>(false);
+
+  readonly isAudioPlaying = computed<boolean>(() =>
+    this.audio ? this.audio.isPlaying() : this.audioPlaying(),
+  );
+
+  onToggleAudio(): void {
+    if (this.audio) {
+      this.audio.togglePlayback();
+    } else {
+      this.audioToggled.emit();
+    }
+  }
 
   readonly resolvedCampaigns = computed<readonly CampaignVm[]>(() => {
     const inputList = this.campaigns();

@@ -338,7 +338,7 @@ export class LoomWeaverStoreService {
     if (syncServer && cid > 0) {
       this.http.post(`/api/v2/campaigns/${cid}/active-session`, { sessionId }).subscribe({ error: () => {} });
       const sessLabel = this.sessions().find((s) => s.sessionId === sessionId)?.label || sessionId;
-      this.audio.fireTrigger('session', sessionId, sessLabel, true);
+      this.audio.fireTrigger('session', sessionId, sessLabel, !this.audio.isMappingAppSurface());
     }
   }
 

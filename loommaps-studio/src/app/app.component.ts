@@ -3,6 +3,7 @@ import { NgpButton } from 'ng-primitives/button';
 import { AtlasPageComponent } from '../../../frontend/src/app/features/maps/atlas/atlas.page';
 import { AuthSessionService } from '../../../frontend/src/app/core/services/auth-session.service';
 import { LoomWeaverStoreService } from '../../../frontend/src/app/core/services/loomweaver-store.service';
+import { WebAudioAmbienceService } from '../../../frontend/src/app/features/assets/engine/web-audio-ambience.service';
 import { MapsPageComponent } from '../../../frontend/src/app/features/maps/maps.page';
 import { LwAppHeaderBarComponent } from '../../../frontend/src/app/shared/ui/app-header-bar/app-header-bar.component';
 import { LwAdventureGuideModalComponent } from '../../../frontend/src/app/shared/ui/adventure-guide-modal/adventure-guide-modal.component';
@@ -31,6 +32,7 @@ export class LoomMapsStudioAppComponent {
   }
   readonly store = inject(LoomWeaverStoreService);
   readonly auth = inject(AuthSessionService);
+  readonly audio = inject(WebAudioAmbienceService);
   readonly loomDrawerOpen = signal<boolean>(false);
 
   onCampaignSelected(campaignId: number): void {

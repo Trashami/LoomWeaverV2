@@ -1,0 +1,488 @@
+@if (loot.isModalVisible()) {
+  @if (loot.recapState(); as st) {
+    <div
+      class="lw-recap-backdrop"
+      (click)="loot.closeModalLocal()"
+      aria-label="Encounter Recap and Shared Loot Modal"
+    >
+      <section
+        class="lw-recap-modal"
+        (click)="$event.stopPropagation()"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="lwRecapModalTitle"
+      >
+        <header class="lw-recap-modal__head">
+          <div class="lw-recap-modal__title-block">
+            <div class="lw-recap-modal__badges">
+              <span class="lw-recap-badge lw-recap-badge--gold">
+                Session {{ st.sessionNumber }} · {{ st.sessionTitle }}
+              </span>
+              <span class="lw-recap-badge lw-recap-badge--emerald">
+                Encounter Concluded · SignalR Live Sync
+              </span>
+              <span class="lw-recap-badge">
+                {{ st.roundsElapsed }} {{ st.roundsElapsed === 1 ? 'Round' : 'Rounds' }}
+              </span>
+            </div>
+            <h2 id="lwRecapModalTitle" class="lw-recap-modal__title">
+              {{ st.encounterTitle }} — Battle Recap &amp; Spoils
+            </h2>
+          </div>
+
+          <div class="lw-recap-modal__head-actions">
+            <button
+              type="button"
+              class="lw-recap-btn lw-recap-btn--ghost"
+              (click)="openLoomWithLootQuestion()"
+              title="Verify in The Loom Campaign Memory"
+            >
+              Verify in The Loom
+            </button>
+            <button
+              type="button"
+              class="lw-recap-close"
+              (click)="loot.closeModalLocal()"
+              aria-label="Close Encounter Recap Modal"
+            >
+              <lw-icon name="close" [size]="18"></lw-icon>
+            </button>
+          </div>
+        </header>
+
+        <div class="lw-recap-modal__body">
+          <!-- Battle Recap KPI Strip -->
+          <section class="lw-recap-kpis" aria-label="Encounter Battle Statistics">
+            <article class="lw-recap-kpi">
+              <span class="lw-recap-kpi__label">Defeated Enemies</span>
+              <strong class="lw-recap-kpi__value">{{ st.defeatedBodyCount }}</strong>
+              <small class="lw-recap-kpi__sub">{{ st.defeatedBodyNames.slice(0, 3).join(', ') || 'All Foes Cleared' }}</small>
+            </article>
+            <article class="lw-recap-kpi lw-recap-kpi--gold">
+              <span class="lw-recap-kpi__label">Party XP Awarded</span>
+              <strong class="lw-recap-kpi__value">+{{ st.totalXpAwarded | number }} XP</strong>
+              <small class="lw-recap-kpi__sub">+{{ st.perHeroXp | number }} XP per Adventurer</small>
+            </article>
+            <article class="lw-recap-kpi">
+              <span class="lw-recap-kpi__label">Total Damage Dealt</span>
+              <strong class="lw-recap-kpi__value">{{ st.totalDamageDealt }}</strong>
+              <small class="lw-recap-kpi__sub">{{ st.totalCriticalHits }} Critical Hits Landed</small>
+            </article>
+            <article class="lw-recap-kpi lw-recap-kpi--emerald">
+              <span class="lw-recap-kpi__label">Battlefield Vanguard</span>
+              <strong class="lw-recap-kpi__value">{{ st.mvpCombatantName }}</strong>
+              <small class="lw-recap-kpi__sub">Top Combat Contribution</small>
+            </article>
+          </section>
+
+          <!-- Collapsible Combatant Recap Table -->
+          <section class="lw-recap-card">
+            <div class="lw-recap-card__head">
+              <div>
+                <h3 class="lw-recap-card__title">Combatant Performance Recap</h3>
+                <p class="lw-recap-card__sub">Shared across all connected player and GM screens</p>
+              </div>
+              <button
+                type="button"
+                class="lw-recap-btn lw-recap-btn--sm"
+                (click)="showCombatStatsTable.set(!showCombatStatsTable())"
+              >
+                {{ showCombatStatsTable() ? 'Hide Table' : 'Show Table' }}
+              </button>
+            </div>
+
+            @if (showCombatStatsTable()) {
+              <div class="lw-recap-table-wrap">
+                <table class="lw-recap-table">
+                  <thead>
+                    <tr>
+                      <th>Combatant</th>
+                      <th>Side</th>
+                      <th>End HP</th>
+                      <th>Damage Dealt</th>
+                      <th>Hits</th>
+                      <th>Crits</th>
+                      <th>Final Blows</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (row of st.combatantStats; track row.name) {
+                      <tr [class.is-party]="row.faction === 'party'" [class.is-defeated]="row.currentHp <= 0">
+                        <td><strong>{{ row.name }}</strong></td>
+                        <td>{{ row.faction === 'party' ? 'Party' : 'Hostile' }}</td>
+                        <td>{{ row.currentHp }} / {{ row.maxHp }}</td>
+                        <td>{{ row.totalDamageDealt }}</td>
+                        <td>{{ row.hitsLanded }}</td>
+                        <td>{{ row.criticalHits }}</td>
+                        <td>{{ row.finalBlows }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </section>
+
+          <!-- DM Silent Multi-Table Per-Body Loot Roller -->
+          @if (store.viewerRole() === 'gm') {
+            <section class="lw-recap-card lw-recap-card--gm">
+              <div class="lw-recap-card__head">
+                <div>
+                  <h3 class="lw-recap-card__title">DM Silent Per-Body Loot Generator</h3>
+                  <p class="lw-recap-card__sub">
+                    Select one or multiple loot tables below. Clicking Roll Loot silently rolls each defeated enemy body ({{ st.defeatedBodyCount }}) plus any token-assigned loot, totals everything, and reveals it on all players' screens.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  class="lw-recap-btn lw-recap-btn--gold-cta"
+                  (click)="loot.rollLootForDefeatedBodies()"
+                >
+                  {{ st.lootRevealed ? 'Re-Roll Loot for Defeated Bodies' : 'Roll & Reveal Loot for Defeated Bodies' }}
+                </button>
+              </div>
+
+              <div class="lw-recap-table-chips">
+                @for (opt of loot.lootTableOptions; track opt.id) {
+                  @if (opt.id !== 'none') {
+                    <button
+                      type="button"
+                      class="lw-recap-table-chip"
+                      [class.is-active]="isTableSelected(opt.id)"
+                      (click)="loot.toggleRollTableSelection(opt.id)"
+                    >
+                      <strong>{{ opt.label }}</strong>
+                      <small>{{ opt.sublabel }}</small>
+                    </button>
+                  }
+                }
+              </div>
+
+              <div class="lw-recap-gm-bonus-bar">
+                <div class="lw-recap-gm-bonus-group">
+                  <span>Add Bonus Gold:</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10000"
+                    class="lw-recap-input lw-recap-input--xs"
+                    [ngModel]="bonusGoldInput()"
+                    (ngModelChange)="bonusGoldInput.set($event)"
+                  />
+                  <button type="button" class="lw-recap-btn lw-recap-btn--sm" (click)="addBonusGold()">
+                    + Add Gold to Pool
+                  </button>
+                </div>
+
+                <div class="lw-recap-gm-bonus-group">
+                  <span>Add Bonus Item:</span>
+                  <select
+                    class="lw-recap-select"
+                    [ngModel]="bonusPresetId()"
+                    (ngModelChange)="bonusPresetId.set($event)"
+                  >
+                    @for (preset of loot.assignablePresets; track preset.id) {
+                      <option [value]="preset.id">{{ preset.name }} ({{ preset.valueGp }} GP)</option>
+                    }
+                  </select>
+                  <button type="button" class="lw-recap-btn lw-recap-btn--sm" (click)="addBonusItem()">
+                    + Add Item to Pool
+                  </button>
+                </div>
+
+                @if (st.bodyBreakdowns.length > 0) {
+                  <button
+                    type="button"
+                    class="lw-recap-btn lw-recap-btn--sm"
+                    (click)="showPerBodyBreakdown.set(!showPerBodyBreakdown())"
+                  >
+                    {{ showPerBodyBreakdown() ? 'Hide Per-Body Roll Log' : 'View Per-Body Roll Log (' + st.bodyBreakdowns.length + ')' }}
+                  </button>
+                }
+              </div>
+
+              @if (showPerBodyBreakdown() && st.bodyBreakdowns.length > 0) {
+                <div class="lw-recap-body-breakdown">
+                  @for (b of st.bodyBreakdowns; track b.tokenKey) {
+                    <div class="lw-recap-body-pill">
+                      <strong>{{ b.tokenName }}</strong>
+                      <span>Table: {{ b.lootTableId | uppercase }} · {{ b.rolledGoldGp }} GP</span>
+                      <small>{{ b.droppedItems.length > 0 ? b.droppedItems.join(', ') : 'Coins only' }}</small>
+                    </div>
+                  }
+                </div>
+              }
+            </section>
+          }
+
+          <!-- Shared Party Loot Pool (Revealed to All Players & DM) -->
+          @if (st.lootRevealed) {
+            <section class="lw-recap-loot-grid">
+              <!-- Left Column: Available Gold & Items to Claim -->
+              <div class="lw-recap-card lw-recap-card--loot">
+                <div class="lw-recap-card__head">
+                  <div>
+                    <h3 class="lw-recap-card__title">Shared Encounter Spoils (Click to Claim)</h3>
+                    <p class="lw-recap-card__sub">
+                      Discuss with your party and claim your share. Claims sync instantly over SignalR and add directly to character sheets.
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Active Claiming Character Selector -->
+                <div class="lw-recap-char-picker">
+                  <span class="lw-recap-char-picker__label">Claiming For Character:</span>
+                  <div class="lw-recap-char-picker__pills">
+                    @for (hero of loot.partyCharacters(); track hero.characterKey) {
+                      <button
+                        type="button"
+                        class="lw-recap-char-pill"
+                        [class.is-active]="loot.activeClaimCharacter().characterKey === hero.characterKey"
+                        (click)="loot.selectedClaimCharacterKey.set(hero.characterKey)"
+                      >
+                        <strong>{{ hero.name }}</strong>
+                        <small>{{ hero.classLabel }}</small>
+                      </button>
+                    }
+                  </div>
+                </div>
+
+                <!-- Flexible Gold Pool Distribution Card -->
+                <div class="lw-recap-gold-box" [class.is-empty]="st.remainingGoldGp <= 0">
+                  <div class="lw-recap-gold-box__top">
+                    <div>
+                      <span class="lw-recap-gold-box__eyebrow">Totaled Coin &amp; Bullion Pool</span>
+                      <h4 class="lw-recap-gold-box__amount">
+                        {{ st.remainingGoldGp }} GP Remaining
+                        <small>of {{ st.totalGoldGp }} GP Total</small>
+                      </h4>
+                    </div>
+                    <span class="lw-recap-badge lw-recap-badge--gold">
+                      {{ st.totalGoldGp - st.remainingGoldGp }} GP Claimed
+                    </span>
+                  </div>
+
+                  @if (st.remainingGoldGp > 0) {
+                    <div class="lw-recap-gold-box__controls">
+                      <button
+                        type="button"
+                        class="lw-recap-btn lw-recap-btn--gold"
+                        (click)="loot.claimGold(1)"
+                      >
+                        Take 1 GP ({{ loot.activeClaimCharacter().name }})
+                      </button>
+                      @if (st.remainingGoldGp >= 5) {
+                        <button
+                          type="button"
+                          class="lw-recap-btn lw-recap-btn--gold"
+                          (click)="loot.claimGold(5)"
+                        >
+                          Take 5 GP
+                        </button>
+                      }
+                      @if (loot.equalGoldShareAmount() > 1) {
+                        <button
+                          type="button"
+                          class="lw-recap-btn lw-recap-btn--gold"
+                          (click)="loot.claimGold(loot.equalGoldShareAmount())"
+                        >
+                          Equal Share ({{ loot.equalGoldShareAmount() }} GP)
+                        </button>
+                      }
+                      <button
+                        type="button"
+                        class="lw-recap-btn lw-recap-btn--emerald"
+                        (click)="loot.splitRemainingGoldEvenly()"
+                      >
+                        Split Remaining Evenly Across Party
+                      </button>
+                      <button
+                        type="button"
+                        class="lw-recap-btn lw-recap-btn--ghost"
+                        (click)="loot.claimGold(st.remainingGoldGp)"
+                      >
+                        Take All ({{ st.remainingGoldGp }} GP)
+                      </button>
+
+                      <div class="lw-recap-gold-box__custom">
+                        <input
+                          type="number"
+                          min="1"
+                          [max]="st.remainingGoldGp"
+                          class="lw-recap-input lw-recap-input--xs"
+                          [ngModel]="loot.customGoldClaimInput()"
+                          (ngModelChange)="loot.customGoldClaimInput.set($event)"
+                        />
+                        <button
+                          type="button"
+                          class="lw-recap-btn lw-recap-btn--gold"
+                          (click)="loot.claimGold(loot.customGoldClaimInput())"
+                        >
+                          Claim Custom GP
+                        </button>
+                      </div>
+                    </div>
+                  } @else {
+                    <p class="lw-recap-gold-box__done">
+                      All {{ st.totalGoldGp }} GP from this encounter has been distributed to the party.
+                    </p>
+                  }
+                </div>
+
+                <!-- Totaled Equipment & Treasure Items List -->
+                <div class="lw-recap-items-list">
+                  @for (item of st.items; track item.id) {
+                    <article class="lw-recap-item-card" [class.is-claimed]="item.quantityRemaining <= 0">
+                      <div class="lw-recap-item-card__info">
+                        <div class="lw-recap-item-card__title-row">
+                          <strong>{{ item.name }}</strong>
+                          <span class="lw-recap-badge">{{ item.category }}</span>
+                          <span class="lw-recap-badge lw-recap-badge--gold">{{ item.rarity }}</span>
+                          <span class="lw-recap-badge lw-recap-badge--emerald">
+                            {{ item.quantityRemaining }} / {{ item.totalQuantity }} Left
+                          </span>
+                        </div>
+                        <p class="lw-recap-item-card__stats">
+                          {{ item.statsLabel }} · Est. {{ item.valueGp }} GP each
+                        </p>
+                        <small class="lw-recap-item-card__sources">
+                          Dropped by: {{ item.sourceBodyNames.join(', ') }}
+                        </small>
+                      </div>
+
+                      <div class="lw-recap-item-card__actions">
+                        @if (item.quantityRemaining <= 0) {
+                          <span class="lw-recap-claimed-tag">Claimed</span>
+                        } @else if (item.quantityRemaining === 1) {
+                          <button
+                            type="button"
+                            class="lw-recap-btn lw-recap-btn--emerald"
+                            (click)="loot.claimLootItem(item.id, 1)"
+                          >
+                            Claim for {{ loot.activeClaimCharacter().name }}
+                          </button>
+                        } @else {
+                          <div class="lw-recap-stack-controls">
+                            <button
+                              type="button"
+                              class="lw-recap-btn lw-recap-btn--emerald"
+                              (click)="loot.claimLootItem(item.id, 1)"
+                            >
+                              Take 1 ({{ loot.activeClaimCharacter().name }})
+                            </button>
+                            <input
+                              type="number"
+                              min="1"
+                              [max]="item.quantityRemaining"
+                              class="lw-recap-input lw-recap-input--xs"
+                              [ngModel]="loot.getItemClaimQuantity(item)"
+                              (ngModelChange)="loot.setItemClaimQuantity(item.id, $event, item.quantityRemaining)"
+                            />
+                            <button
+                              type="button"
+                              class="lw-recap-btn lw-recap-btn--gold"
+                              (click)="loot.claimLootItem(item.id, loot.getItemClaimQuantity(item))"
+                            >
+                              Claim Qty
+                            </button>
+                            <button
+                              type="button"
+                              class="lw-recap-btn lw-recap-btn--ghost"
+                              (click)="loot.claimLootItem(item.id, item.quantityRemaining)"
+                            >
+                              All ({{ item.quantityRemaining }})
+                            </button>
+                          </div>
+                        }
+                      </div>
+                    </article>
+                  }
+                </div>
+              </div>
+
+              <!-- Right Column: Live "Who Got What" Ledger & Loom Chronicle -->
+              <div class="lw-recap-card lw-recap-card--ledger">
+                <div class="lw-recap-card__head">
+                  <div>
+                    <h3 class="lw-recap-card__title">Who Got What · Party Distribution Ledger</h3>
+                    <p class="lw-recap-card__sub">
+                      Live inventory &amp; gold tally recorded in The Loom Campaign Memory
+                    </p>
+                  </div>
+                </div>
+
+                <div class="lw-recap-ledger-list">
+                  @for (entry of loot.ledgerByCharacter(); track entry.characterKey) {
+                    <div class="lw-recap-ledger-row">
+                      <div class="lw-recap-ledger-row__head">
+                        <strong>{{ entry.characterName }}</strong>
+                        <span class="lw-recap-badge lw-recap-badge--gold">
+                          +{{ entry.totalGoldGp }} GP Claimed
+                        </span>
+                      </div>
+                      @if (entry.items.length > 0) {
+                        <div class="lw-recap-ledger-row__items">
+                          @for (it of entry.items; track it.claimId) {
+                            <span class="lw-recap-ledger-chip">
+                              {{ it.quantity > 1 ? it.quantity + 'x ' : '' }}{{ it.itemName }}
+                              <button
+                                type="button"
+                                class="lw-recap-ledger-undo"
+                                title="Return item to shared loot pool"
+                                (click)="loot.undoClaim(it.claimId)"
+                              >
+                                Undo
+                              </button>
+                            </span>
+                          }
+                        </div>
+                      } @else if (entry.totalGoldGp === 0) {
+                        <small class="lw-recap-ledger-row__empty">No gold or items claimed yet</small>
+                      }
+                    </div>
+                  }
+                </div>
+
+                @if (st.claims.length > 0) {
+                  <div class="lw-recap-recent-claims">
+                    <span class="lw-recap-recent-claims__label">Recent Claims (Click Undo to Return to Pool)</span>
+                    <div class="lw-recap-recent-claims__list">
+                      @for (c of st.claims.slice(0, 6); track c.id) {
+                        <div class="lw-recap-recent-claim-line">
+                          <span>
+                            <strong>{{ c.characterName }}</strong> took
+                            {{ c.kind === 'gold' ? (c.goldGp + ' GP') : (c.quantity + 'x ' + c.itemName) }}
+                          </span>
+                          <button type="button" class="lw-recap-ledger-undo" (click)="loot.undoClaim(c.id)">
+                            Undo
+                          </button>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
+
+                <div class="lw-recap-loom-box">
+                  <div class="lw-recap-loom-box__head">
+                    <strong>The Loom · Indexed Session {{ st.sessionNumber }} Memory</strong>
+                    <button type="button" class="lw-recap-btn lw-recap-btn--sm" (click)="openLoomWithLootQuestion()">
+                      Ask The Loom
+                    </button>
+                  </div>
+                  <p class="lw-recap-loom-box__text">{{ st.loomSummaryText }}</p>
+                </div>
+              </div>
+            </section>
+          } @else if (store.viewerRole() !== 'gm') {
+            <section class="lw-recap-card lw-recap-waiting">
+              <h3>Awaiting DM Loot Roll</h3>
+              <p>
+                The encounter has concluded! Review the battle recap stats above while the Dungeon Master rolls the loot tables for the {{ st.defeatedBodyCount }} defeated enemies. The shared loot pool will appear here automatically.
+              </p>
+            </section>
+          }
+        </div>
+      </section>
+    </div>
+  }
+}

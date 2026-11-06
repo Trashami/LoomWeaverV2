@@ -36,33 +36,12 @@
     </header>
 
     <nav class="lw-token-ctx__tabs" role="tablist">
-      <button
-        type="button"
-        role="tab"
-        class="lw-token-ctx__tab"
-        [class.is-active]="activeTab() === 'quick'"
-        (click)="activeTab.set('quick')"
-      >
-        Quick Actions
-      </button>
-      <button
-        type="button"
-        role="tab"
-        class="lw-token-ctx__tab"
-        [class.is-active]="activeTab() === 'light'"
-        (click)="activeTab.set('light')"
-      >
-        Torch & Vision
-      </button>
-      <button
-        type="button"
-        role="tab"
-        class="lw-token-ctx__tab"
-        [class.is-active]="activeTab() === 'glow'"
-        (click)="activeTab.set('glow')"
-      >
-        Glow & Color
-      </button>
+      <button type="button" role="tab" class="lw-token-ctx__tab" [class.is-active]="activeTab() === 'quick'" (click)="activeTab.set('quick')">Quick</button>
+      <button type="button" role="tab" class="lw-token-ctx__tab" [class.is-active]="activeTab() === 'light'" (click)="activeTab.set('light')">Torch &amp; Vision</button>
+      <button type="button" role="tab" class="lw-token-ctx__tab" [class.is-active]="activeTab() === 'glow'" (click)="activeTab.set('glow')">Glow</button>
+      @if (store.viewerRole() === 'gm' || t.faction === 'hostile') {
+        <button type="button" role="tab" class="lw-token-ctx__tab" [class.is-active]="activeTab() === 'loot'" (click)="activeTab.set('loot')">Loot</button>
+      }
     </nav>
 
     @if (activeTab() === 'quick') {
@@ -148,6 +127,15 @@
 
         @if (store.viewerRole() === 'gm') {
           <div class="lw-token-ctx__footer">
+            @if (t.faction === 'hostile') {
+              <button
+                type="button"
+                class="lw-token-ctx__btn lw-token-ctx__btn--gold"
+                (click)="rollDefeatedLootNow()"
+              >
+                Roll &amp; Open Defeated Loot Modal
+              </button>
+            }
             <button type="button" class="lw-token-ctx__remove" (click)="removeToken(t)">
               Remove Token from Map
             </button>
@@ -350,6 +338,133 @@
             />
           </div>
         </div>
+      </div>
+    }
+
+    @if (activeTab() === 'loot') {
+      <div class="lw-token-ctx__body">
+        @if (store.viewerRole() === 'gm') {
+          <div class="lw-token-ctx__group">
+            <span class="lw-token-ctx__label">
+              Random Loot Table
+              <strong>{{ (t.lootTableId || 'auto-cr') | uppercase }}</strong>
+            </span>
+            <div class="lw-token-ctx__preset-list">
+              @for (opt of loot.lootTableOptions; track opt.id) {
+                <button
+                  type="button"
+                  class="lw-token-ctx__preset"
+                  [class.is-active]="(t.lootTableId || 'auto-cr') === opt.id"
+                  (click)="setTokenLootTable(t, opt.id)"
+                >
+                  <span class="lw-token-ctx__preset-copy">
+                    <strong>{{ opt.label }}</strong>
+                    <small>{{ opt.sublabel }}</small>
+                  </span>
+                </button>
+              }
+            </div>
+          </div>
+
+          <div class="lw-token-ctx__group">
+            <span class="lw-token-ctx__label">
+              Guaranteed Gold on Body
+              <strong>{{ t.assignedGoldGp ?? 0 }} GP</strong>
+            </span>
+            <div class="lw-token-ctx__chip-grid lw-token-ctx__chip-grid--5">
+              <button type="button" class="lw-token-ctx__chip is-danger" (click)="loot.setTokenAssignedGold(t.key, 0)">0</button>
+              <button type="button" class="lw-token-ctx__chip" (click)="loot.adjustTokenAssignedGold(t.key, 5)">+5</button>
+              <button type="button" class="lw-token-ctx__chip" (click)="loot.adjustTokenAssignedGold(t.key, 10)">+10</button>
+              <button type="button" class="lw-token-ctx__chip" (click)="loot.adjustTokenAssignedGold(t.key, 25)">+25</button>
+              <button type="button" class="lw-token-ctx__chip is-heal" (click)="loot.adjustTokenAssignedGold(t.key, 100)">+100</button>
+            </div>
+          </div>
+
+          <div class="lw-token-ctx__group">
+            <span class="lw-token-ctx__label">Assign Guaranteed Loot Item</span>
+            <div class="lw-token-ctx__loot-add-row">
+              <select
+                class="lw-token-ctx__select"
+                [ngModel]="selectedPresetLootId()"
+                (ngModelChange)="selectedPresetLootId.set($event)"
+              >
+                @for (item of loot.assignablePresets; track item.id) {
+                  <option [value]="item.id">{{ item.name }} ({{ item.valueGp }} GP)</option>
+                }
+              </select>
+              <button type="button" class="lw-token-ctx__btn" (click)="addPresetLootToToken(t)">
+                + Assign
+              </button>
+            </div>
+            <div class="lw-token-ctx__loot-custom-row">
+              <input
+                type="text"
+                class="lw-token-ctx__input"
+                placeholder="Custom item name..."
+                [ngModel]="customLootName()"
+                (ngModelChange)="customLootName.set($event)"
+              />
+              <input
+                type="number"
+                min="1"
+                max="99"
+                class="lw-token-ctx__input lw-token-ctx__input--sm"
+                title="Quantity"
+                [ngModel]="customLootQty()"
+                (ngModelChange)="customLootQty.set($event)"
+              />
+              <button type="button" class="lw-token-ctx__btn" (click)="addCustomLootToToken(t)">
+                Add
+              </button>
+            </div>
+          </div>
+
+          @if ((t.assignedLootItems ?? []).length > 0) {
+            <div class="lw-token-ctx__group">
+              <span class="lw-token-ctx__label">Assigned Items ({{ (t.assignedLootItems ?? []).length }})</span>
+              <div class="lw-token-ctx__assigned-list">
+                @for (item of (t.assignedLootItems ?? []); track item.id) {
+                  <div class="lw-token-ctx__assigned-pill">
+                    <span>{{ item.quantity }}x {{ item.name }} ({{ item.valueGp }} GP)</span>
+                    <button
+                      type="button"
+                      class="lw-token-ctx__assigned-del"
+                      (click)="loot.removeTokenAssignedItem(t.key, item.id)"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+
+          <div class="lw-token-ctx__footer">
+            <button
+              type="button"
+              class="lw-token-ctx__btn lw-token-ctx__btn--gold"
+              (click)="rollDefeatedLootNow()"
+            >
+              Roll Defeated Bodies &amp; Open Shared Loot Modal
+            </button>
+          </div>
+        } @else {
+          <div class="lw-token-ctx__group">
+            <span class="lw-token-ctx__label">Enemy Spoils</span>
+            <p class="lw-token-ctx__sub">
+              When the DM concludes the encounter or rolls defeated bodies, shared loot will open for the party to claim.
+            </p>
+            @if (loot.recapState()) {
+              <button
+                type="button"
+                class="lw-token-ctx__btn lw-token-ctx__btn--gold"
+                (click)="battle.closeTokenContextMenu(); loot.reopenModal()"
+              >
+                Open Shared Encounter Loot Modal
+              </button>
+            }
+          </div>
+        }
       </div>
     }
   </aside>

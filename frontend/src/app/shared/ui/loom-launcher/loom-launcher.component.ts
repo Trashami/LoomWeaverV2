@@ -248,28 +248,44 @@ export class LwLoomLauncherComponent {
     const tokens = q
       .split(/\s+/)
       .map((w) => w.replace(/[^a-z0-9]/g, ''))
-      .filter((w) => w.length >= 3 && !['what', 'who', 'where', 'when', 'how', 'the', 'and', 'are', 'for', 'our', 'summarize'].includes(w));
+      .filter((w) => (w.length >= 3 || /^\d+$/.test(w)) && !['what', 'who', 'where', 'when', 'how', 'much', 'did', 'get', 'got', 'after', 'the', 'and', 'are', 'for', 'our', 'summarize'].includes(w));
 
-    const results: LwLoomChatReference[] = [];
+    const isLootQuery = ['gold', 'gp', 'loot', 'treasure', 'defeating', 'dungeon', 'encounter', 'sword', 'claimed'].some((k) => q.includes(k));
+    const scored: { ref: LwLoomChatReference; score: number }[] = [];
     const seen = new Set<string>();
 
-    // 1. Sessions
-    for (const s of this.store.sessions()) {
-      const text = `${s.title} ${s.locationLabel} ${s.summary} session ${s.sessionNumber}`.toLowerCase();
-      if (!q || tokens.length === 0 || q.includes('session') || tokens.some((t) => text.includes(t))) {
-        const key = `session:${s.sessionId}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          results.push({
-            compositeKey: key,
-            title: `Session ${s.sessionNumber} — ${s.title}`,
-            entityType: 'Session',
-            visibility: 'players',
-            excerpt: s.summary || `${s.locationLabel} · ${s.statusLabel}`,
-            routeLink: '/sessions',
-            routeLabel: 'Sessions Planner',
-          });
-        }
+    const scoreText = (text: string, isLootRecord: boolean): number => {
+      if (!q || tokens.length === 0) return isLootRecord ? 5 : 1;
+      let s = text.includes(q) ? 12 : 0;
+      for (const t of tokens) {
+        if (text.includes(t)) s += 2;
+      }
+      const sessMatch = q.match(/session\s+(\d+)/i);
+      if (sessMatch && text.includes(`session ${sessMatch[1]}`)) s += 8;
+      if (isLootQuery && isLootRecord) s += 10;
+      return s;
+    };
+
+    // 1. Store Entities / Citations (including EncounterLoot Chronicles)
+    for (const cit of this.store.authorizedEntities()) {
+      const text = `${cit.name} ${cit.subtitle} ${cit.summary} ${cit.entityType}`.toLowerCase();
+      const isLoot = cit.compositeKey.includes('EncounterLoot') || cit.name.toLowerCase().includes('loot & battle ledger');
+      const sc = scoreText(text, isLoot);
+      if (sc > 0 && !seen.has(cit.compositeKey)) {
+        seen.add(cit.compositeKey);
+        const route = cit.routeLink || this.resolveRouteForKind(cit.entityType.toLowerCase());
+        scored.push({
+          score: sc,
+          ref: {
+            compositeKey: cit.compositeKey,
+            title: cit.name,
+            entityType: isLoot ? 'LOOT LEDGER' : cit.entityType.toUpperCase(),
+            visibility: cit.visibility === 'gm' ? 'gm' : 'players',
+            excerpt: cit.summary,
+            routeLink: route,
+            routeLabel: this.formatRouteLabel(route),
+          },
+        });
       }
     }
 
@@ -277,11 +293,14 @@ export class LwLoomLauncherComponent {
     for (const att of this.store.sessionAttachments()) {
       if (!isGm && att.visibility === 'gm') continue;
       const text = `${att.title} ${att.subtitle} ${att.summary} ${att.elementKind}`.toLowerCase();
-      if (!q || tokens.length === 0 || tokens.some((t) => text.includes(t))) {
-        const key = att.targetKey || att.id;
-        if (!seen.has(key)) {
-          seen.add(key);
-          results.push({
+      const isLoot = text.includes('loot & recap') || text.includes('gp looted');
+      const sc = scoreText(text, isLoot);
+      const key = att.targetKey || att.id;
+      if (sc > 0 && !seen.has(key)) {
+        seen.add(key);
+        scored.push({
+          score: sc,
+          ref: {
             compositeKey: key,
             title: att.title,
             entityType: att.elementKind,
@@ -289,32 +308,34 @@ export class LwLoomLauncherComponent {
             excerpt: att.summary || att.subtitle || `Attached to ${att.sessionId}`,
             routeLink: att.routeLink || '/sessions',
             routeLabel: this.formatRouteLabel(att.routeLink || '/sessions'),
-          });
-        }
+          },
+        });
       }
     }
 
-    // 3. Store Entities / Citations
-    for (const cit of this.store.authorizedEntities()) {
-      const text = `${cit.name} ${cit.subtitle} ${cit.summary} ${cit.entityType}`.toLowerCase();
-      if (!q || tokens.length === 0 || tokens.some((t) => text.includes(t))) {
-        if (!seen.has(cit.compositeKey)) {
-          seen.add(cit.compositeKey);
-          const route = cit.routeLink || this.resolveRouteForKind(cit.entityType.toLowerCase());
-          results.push({
-            compositeKey: cit.compositeKey,
-            title: cit.name,
-            entityType: cit.entityType.toUpperCase(),
-            visibility: cit.visibility === 'gm' ? 'gm' : 'players',
-            excerpt: cit.summary,
-            routeLink: route,
-            routeLabel: this.formatRouteLabel(route),
-          });
-        }
+    // 3. Sessions
+    for (const s of this.store.sessions()) {
+      const text = `${s.title} ${s.locationLabel} ${s.summary} session ${s.sessionNumber}`.toLowerCase();
+      const sc = scoreText(text, false);
+      const key = `session:${s.sessionId}`;
+      if (sc > 0 && !seen.has(key)) {
+        seen.add(key);
+        scored.push({
+          score: sc,
+          ref: {
+            compositeKey: key,
+            title: `Session ${s.sessionNumber} — ${s.title}`,
+            entityType: 'Session',
+            visibility: 'players',
+            excerpt: s.summary || `${s.locationLabel} · ${s.statusLabel}`,
+            routeLink: '/sessions',
+            routeLabel: 'Sessions Planner',
+          },
+        });
       }
     }
 
-    return results.slice(0, 6);
+    return scored.sort((a, b) => b.score - a.score).slice(0, 6).map((x) => x.ref);
   }
 
   private resolveRouteForKind(kind: string): string {

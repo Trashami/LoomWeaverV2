@@ -89,10 +89,7 @@ export class LoomWeaverStoreService {
 
   readonly subscriptionTiers = computed<readonly SubscriptionTierVm[]>(() => {
     const weaveOn = this.weaveEnabled();
-    return this.rawSubscriptionTiers().map((tier) => weaveOn ? tier : {
-      ...tier, includesWeave: false,
-      summary: tier.summary.replace(', The Weave AI draft companion, and Neo4j World Graph', ', and Connected World & Lore Atlas').replace('The Weave AI draft companion', 'Connected World & Lore Studio'),
-    });
+    return this.rawSubscriptionTiers().map((tier) => weaveOn ? tier : { ...tier, includesWeave: false, summary: tier.summary.replace(', The Weave AI draft companion, and Neo4j World Graph', ', and Connected World & Lore Atlas').replace('The Weave AI draft companion', 'Connected World & Lore Studio') });
   });
 
   constructor() {
@@ -110,19 +107,12 @@ export class LoomWeaverStoreService {
   readonly activeCampaign = computed<CampaignVm>(() => this.campaigns().find((c) => c.id === this.activeCampaignId()) ?? this.campaigns()[0]);
   readonly activeCampaignAbilityRule = computed<CampaignAbilityScoreRule>(() => this.campaignAbilityRules()[this.activeCampaignId() || 1] ?? 'point_buy');
   readonly activeCampaignPlayers = computed<readonly CampaignPlayerMemberVm[]>(() => this.campaignPlayersByCampaign()[this.activeCampaignId() || 1] ?? DEFAULT_PARTY_PLAYERS);
-  readonly activeCampaignInviteCode = computed<string>(() => {
-    const cid = this.activeCampaignId() || 1;
-    return this.campaignInviteCodes()[cid] ?? `lw-${cid}-${(this.activeCampaign().slug || 'sotm').slice(0, 18)}-party`;
-  });
+  readonly activeCampaignInviteCode = computed<string>(() => this.campaignInviteCodes()[this.activeCampaignId() || 1] ?? `lw-${this.activeCampaignId() || 1}-${(this.activeCampaign().slug || 'sotm').slice(0, 18)}-party`);
   readonly activeCampaignInviteUrl = computed<string>(() => {
-    const cid = this.activeCampaignId() || 1;
     const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://loom-weaver.com';
-    return `${origin}/home?joinCampaign=${cid}&invite=${encodeURIComponent(this.activeCampaignInviteCode())}`;
+    return `${origin}/home?joinCampaign=${this.activeCampaignId() || 1}&invite=${encodeURIComponent(this.activeCampaignInviteCode())}`;
   });
-  readonly activeSession = computed<CampaignSessionVm | null>(() => {
-    const list = this.sessions();
-    return list.find((s) => s.sessionId === this.activeSessionId()) ?? list[0] ?? null;
-  });
+  readonly activeSession = computed<CampaignSessionVm | null>(() => this.sessions().find((s) => s.sessionId === this.activeSessionId()) ?? this.sessions()[0] ?? null);
   readonly activeSessionAttachments = computed<readonly SessionAttachmentVm[]>(() => {
     const sid = this.activeSessionId();
     const isGm = this.viewerRole() === 'gm';
@@ -134,9 +124,7 @@ export class LoomWeaverStoreService {
   readonly authorizedEntities = computed<readonly EntityCardVm[]>(() => {
     const isGm = this.viewerRole() === 'gm';
     const weaveOn = this.weaveEnabled();
-    return this.rawEntities()
-      .filter((e) => (isGm || e.visibility === 'public' || e.visibility === 'players') && (weaveOn || e.canonStatus !== 'draft'))
-      .map((e) => (!weaveOn && e.routeLink.startsWith('/weave') ? { ...e, routeLink: e.routeLink.replace(/^\/weave/, '/world-lore') } : e));
+    return this.rawEntities().filter((e) => (isGm || e.visibility === 'public' || e.visibility === 'players') && (weaveOn || e.canonStatus !== 'draft')).map((e) => (!weaveOn && e.routeLink.startsWith('/weave') ? { ...e, routeLink: e.routeLink.replace(/^\/weave/, '/world-lore') } : e));
   });
   readonly authorizedScenes = computed<readonly SceneVm[]>(() => this.rawScenes().filter((s) => this.viewerRole() === 'gm' || s.visibility === 'public' || s.visibility === 'players'));
   readonly authorizedGraphEdges = computed<readonly GraphEdgeVm[]>(() => this.rawEdges().filter((edge) => this.viewerRole() === 'gm' || edge.visibility === 'public' || edge.visibility === 'players'));
@@ -159,9 +147,14 @@ export class LoomWeaverStoreService {
   });
   readonly loomCitations = computed<readonly LoomCitationVm[]>(() => {
     const q = this.loomQuery().trim().toLowerCase();
+    const tokens = q.split(/\s+/).map((w) => w.replace(/[^a-z0-9]/g, '')).filter((w) => (w.length >= 3 || /^\d+$/.test(w)) && !['what', 'who', 'where', 'when', 'how', 'much', 'did', 'get', 'got', 'after', 'the', 'and', 'are', 'for', 'our', 'from'].includes(w));
     const pool = this.authorizedEntities();
-    const matched = pool.filter((e) => !q || e.name.toLowerCase().includes(q) || e.summary.toLowerCase().includes(q) || e.subtitle.toLowerCase().includes(q) || e.entityType.toLowerCase().includes(q));
-    return (matched.length > 0 ? matched.slice(0, 5) : pool.slice(0, 4)).map((e) => ({ compositeKey: e.compositeKey, title: e.name, entityType: e.entityType, excerpt: e.summary, routeLink: e.routeLink, visibility: e.visibility }));
+    const scored = pool.map((e) => {
+      const text = `${e.name} ${e.subtitle} ${e.summary} ${e.entityType}`.toLowerCase();
+      const score = !q ? 1 : (text.includes(q) ? 10 : 0) + tokens.filter((t) => text.includes(t)).length + (e.compositeKey.includes('EncounterLoot') && tokens.some((t) => ['gold', 'gp', 'loot', 'defeating', 'dungeon', 'session', 'sword', 'claimed'].includes(t)) ? 6 : 0);
+      return { e, score };
+    }).filter((x) => x.score > 0).sort((a, b) => b.score - a.score).map((x) => x.e);
+    return (scored.length > 0 ? scored.slice(0, 5) : pool.slice(0, 4)).map((e) => ({ compositeKey: e.compositeKey, title: e.name, entityType: e.entityType, excerpt: e.summary, routeLink: e.routeLink, visibility: e.visibility }));
   });
   syncUserIdentity(accountId: string, username: string): void { this.activeUserAccountId.set(accountId); this.activeUsername.set(username); this.loadMyCampaigns(); }
   loadMyCampaigns(preferredId?: number): void {

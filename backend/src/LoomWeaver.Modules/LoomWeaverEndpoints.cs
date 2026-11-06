@@ -36,6 +36,7 @@ public static class LoomWeaverEndpoints
             api.MapCharacterStudioEndpoints();
             api.MapLoomMapsEndpoints();
             api.MapCombatEncounterEndpoints();
+            api.MapEncounterLootEndpoints();
             api.MapActionAndEffectEndpoints();
             api.MapActionStudioEndpoints();
             api.MapEffectStudioEndpoints();

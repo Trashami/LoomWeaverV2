@@ -139,6 +139,8 @@ export interface LightSourceNode extends LightExtras {
 }
 
 export type DoorSidePostStyle = 'quoin' | 'pillar' | 'jamb';
+export type DoorHingeSide = 'left' | 'right' | 'double';
+export type DoorSwingDirection = 'inward' | 'outward';
 
 export interface WallOpeningNode {
   readonly id: string;
@@ -158,6 +160,8 @@ export interface WallOpeningNode {
   readonly hasSidePosts?: boolean;
   readonly sidePostStyle?: DoorSidePostStyle;
   readonly sidePostScale?: number;
+  readonly hingeSide?: DoorHingeSide;
+  readonly swingDirection?: DoorSwingDirection;
 }
 
 export interface MapWallSegmentNode {
@@ -169,6 +173,8 @@ export interface MapWallSegmentNode {
   readonly material: string;
   readonly colorHex?: string;
   readonly tintColorHex?: string;
+  readonly surfaceFinish?: MapObjectSurfaceFinish;
+  readonly opacity?: number;
   readonly modelUrl?: string;
   readonly albedoUrl?: string;
   readonly normalUrl?: string;

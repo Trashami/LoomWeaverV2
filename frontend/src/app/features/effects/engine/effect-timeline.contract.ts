@@ -131,6 +131,28 @@ export interface VttTokenVm {
   readonly ambientGlowColorHex?: string;
   readonly ambientGlowIntensity?: number;
   readonly ambientGlowRadiusFeet?: number;
+  readonly lootTableId?: VttLootTableId;
+  readonly assignedGoldGp?: number;
+  readonly assignedLootItems?: readonly VttAssignedLootItemVm[];
+  readonly lootRolled?: boolean;
+}
+
+export type VttLootTableId =
+  | 'auto-cr'
+  | 'coin-pouch'
+  | 'martial-arms'
+  | 'arcane-curios'
+  | 'boss-hoard'
+  | 'none';
+
+export interface VttAssignedLootItemVm {
+  readonly id: string;
+  readonly name: string;
+  readonly category: 'Weapon' | 'Armor' | 'Shield' | 'Wondrous' | 'Consumable' | 'Gear' | 'Treasure';
+  readonly rarity: 'Common' | 'Uncommon' | 'Rare' | 'Very Rare' | 'Legendary';
+  readonly quantity: number;
+  readonly valueGp: number;
+  readonly statsLabel: string;
 }
 
 const LEGACY_NEON_DEFAULTS = new Set([

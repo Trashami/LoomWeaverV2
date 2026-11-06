@@ -22,16 +22,19 @@
         <button ngpButton type="button" class="btn-top-action" (click)="store.openAdventureGuideModal('session')" title="Open Adventure Guide (Current Session or Whole Guide)"><lw-icon name="book-open" [size]="12" /> <span>Adventure Guide</span></button>
         <button ngpButton type="button" class="btn-top-action" (click)="toggleMapMode()" title="Toggle 2D / 3D View"><lw-icon [name]="battle.mapMode3D() ? 'layers' : 'view_in_ar'" [size]="12" /> <span>{{ battle.mapMode3D() ? '3D View' : '2D Map' }}</span></button>
         @if (store.viewerRole() === 'gm') {
-          <button
-            ngpButton
-            type="button"
-            class="btn-top-action"
-            [class.active]="battle.gmHideFogForSelfOnly()"
-            (click)="battle.gmHideFogForSelfOnly.set(!battle.gmHideFogForSelfOnly())"
-            title="Toggle Fog of War off for DM only without affecting players' view"
-          >
+          <button ngpButton type="button" class="btn-top-action" [class.active]="battle.gmHideFogForSelfOnly()" (click)="battle.gmHideFogForSelfOnly.set(!battle.gmHideFogForSelfOnly())" title="Toggle Fog of War off for DM only without affecting players' view">
             <lw-icon [name]="battle.gmHideFogForSelfOnly() ? 'eye' : 'eye-off'" [size]="12" />
             <span>{{ battle.gmHideFogForSelfOnly() ? 'DM Fog: Off' : 'DM Fog: On' }}</span>
+          </button>
+          <button ngpButton type="button" class="btn-top-action" (click)="loot.endEncounterAndOpenRecap(false)" title="Conclude Encounter and open Battle Recap Modal on all players' screens">
+            <span>End Encounter</span>
+          </button>
+          <button ngpButton type="button" class="btn-top-action active" (click)="loot.endEncounterAndOpenRecap(true)" title="Silently roll loot tables for defeated bodies and open Shared Loot Modal for all players">
+            <span>Roll Loot</span>
+          </button>
+        } @else if (loot.recapState()) {
+          <button ngpButton type="button" class="btn-top-action active" (click)="loot.reopenModal()" title="Open Encounter Recap & Shared Party Loot Pool">
+            <span>Recap &amp; Loot ({{ loot.recapState()?.remainingGoldGp ?? 0 }} GP)</span>
           </button>
         }
         <button ngpButton type="button" class="btn-top-action" (click)="store.toggleLoomDrawer()" title="The Loom Campaign Memory"><lw-icon name="history_edu" [size]="12" /> <span>The Loom</span></button>
@@ -39,17 +42,101 @@
     </div>
 
     <div class="top-bar-right">
+      @if (store.viewerRole() === 'gm') {
+        <div class="top-audio-dm-deck" aria-label="DM Soundtrack Transport Controls">
+          <button
+            ngpButton
+            type="button"
+            class="btn-top-action top-audio-btn"
+            (click)="dmPrevTrack()"
+            title="Previous Track"
+          >
+            <span>&laquo;</span>
+          </button>
+          <button
+            ngpButton
+            type="button"
+            class="btn-top-action top-audio-btn"
+            [class.active]="audio.isPlaying()"
+            (click)="dmTogglePlayPause()"
+            [title]="audio.isPlaying() ? 'Pause Music for Table' : 'Play Music for Table'"
+          >
+            <lw-icon [name]="audio.isPlaying() ? 'pause' : 'play'" [size]="12" />
+            <span>{{ audio.isPlaying() ? 'Pause' : 'Play' }}</span>
+          </button>
+          <button
+            ngpButton
+            type="button"
+            class="btn-top-action top-audio-btn"
+            (click)="dmRestartTrack()"
+            title="Start / Restart Track from Beginning (0:00)"
+          >
+            <span>Start</span>
+          </button>
+          <button
+            ngpButton
+            type="button"
+            class="btn-top-action top-audio-btn"
+            (click)="dmNextTrack()"
+            title="Next Track"
+          >
+            <span>&raquo;</span>
+          </button>
+          <button
+            ngpButton
+            type="button"
+            class="btn-top-action top-audio-btn"
+            [class.active]="audio.loopMode() === 'track'"
+            (click)="dmToggleLoop()"
+            [title]="audio.loopMode() === 'track' ? 'Looping Single Track (Click for Playlist Loop)' : 'Looping Playlist (Click for Single Track Loop)'"
+          >
+            <span>{{ audio.loopMode() === 'track' ? 'Loop: Track' : 'Loop: List' }}</span>
+          </button>
+          <select
+            class="top-audio-track-select"
+            aria-label="Select Active Soundtrack"
+            title="Change Battlemap Music Track"
+            [ngModel]="audio.activeTrackId()"
+            (ngModelChange)="dmSelectTrack($event)"
+          >
+            @for (trk of audio.tracks(); track trk.id) {
+              <option [value]="trk.id">{{ trk.title }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      <div class="top-audio-user-volume" title="Your Personal Audio Volume (Saved to your account/browser)">
+        <button
+          ngpButton
+          type="button"
+          class="btn-top-action top-audio-mute-btn"
+          [class.active]="audio.isMuted()"
+          (click)="audio.toggleMute()"
+          [title]="audio.isMuted() ? 'Unmute Your Audio' : 'Mute Your Audio'"
+        >
+          <lw-icon [name]="audio.isMuted() ? 'volume-x' : 'volume-2'" [size]="12" />
+          <span>{{ audio.isMuted() ? 'Muted' : 'Vol' }}</span>
+        </button>
+        <input
+          type="range"
+          class="top-audio-volume-slider"
+          min="0"
+          max="100"
+          step="1"
+          aria-label="Personal Audio Volume"
+          [value]="userVolumePercent()"
+          (input)="onUserVolumeInput($event)"
+        />
+        <span class="top-audio-volume-pct">{{ userVolumePercent() }}%</span>
+      </div>
+
       <button ngpButton type="button" class="top-menu-btn" (click)="showShortcuts.set(!showShortcuts())" title="Tabletop Hotkeys & Controls" aria-label="Tabletop Hotkeys and Controls"><lw-icon name="note" [size]="16" /></button>
       <button ngpButton type="button" class="top-menu-btn" (click)="battle.rightPanelCollapsed.set(!battle.rightPanelCollapsed())" [title]="battle.rightPanelCollapsed() ? 'Open Right Sidebar' : 'Collapse Right Sidebar'" [attr.aria-label]="battle.rightPanelCollapsed() ? 'Open Right Sidebar' : 'Collapse Right Sidebar'"><lw-icon [name]="battle.rightPanelCollapsed() ? 'panel-right-open' : 'panel-right-close'" [size]="16" /></button>
     </div>
   </header>
 
-  <lw-vtt-map-tools
-    [(gridEnabled)]="gridEnabled"
-    [(railOpen)]="gmRailOpen"
-    (rollDice)="rollSelectedDice()"
-    (openShortcuts)="showShortcuts.set(true)"
-  />
+  <lw-vtt-map-tools [(gridEnabled)]="gridEnabled" [(railOpen)]="gmRailOpen" (rollDice)="rollSelectedDice()" (openShortcuts)="showShortcuts.set(true)" />
 
   <div class="lw-vtt-body" [class.lw-vtt-body--rail]="gmRailOpen()">
     @if (gmRailOpen()) {
@@ -485,4 +572,5 @@
       </div>
     </div>
   }
+  <lw-vtt-encounter-recap-modal />
 </div>

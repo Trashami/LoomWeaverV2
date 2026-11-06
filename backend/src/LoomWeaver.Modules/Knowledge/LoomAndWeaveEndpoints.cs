@@ -3,6 +3,7 @@ using LoomWeaver.Infrastructure.MySql;
 using LoomWeaver.Infrastructure.Neo4j;
 using LoomWeaver.Modules.Adventures;
 using LoomWeaver.Modules.Auth;
+using LoomWeaver.Modules.Encounters;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -11,10 +12,44 @@ namespace LoomWeaver.Modules.Knowledge;
 
 public static class LoomAndWeaveEndpoints
 {
-    // Campaign notes and Weave drafts start empty and are created per campaign by the GM.
     private static readonly List<ScopedCampaignNoteContract> CampaignNotes = new();
-
+    private static readonly object NotesLock = new();
     private static readonly List<WeaveDraftContract> WeaveDrafts = new();
+
+    private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "what", "who", "where", "when", "how", "much", "many", "did", "we", "get",
+        "got", "after", "the", "and", "are", "for", "our", "from", "was", "were", "in"
+    };
+
+    public static void UpsertCanonicalNote(
+        int campaignId,
+        string noteId,
+        string title,
+        string content,
+        int sessionNumber,
+        string authorName,
+        string deepLinkRoute)
+    {
+        var note = new ScopedCampaignNoteContract(
+            noteId,
+            campaignId,
+            title,
+            content,
+            "party_shared",
+            string.IsNullOrWhiteSpace(authorName) ? "Table Ledger" : authorName.Trim(),
+            "All Party",
+            Math.Max(1, sessionNumber),
+            string.IsNullOrWhiteSpace(deepLinkRoute) ? "/arcane-screen" : deepLinkRoute.Trim(),
+            Array.Empty<string>(),
+            DateTimeOffset.UtcNow);
+        lock (NotesLock)
+        {
+            var idx = CampaignNotes.FindIndex(n => n.Id == noteId && n.CampaignId == campaignId);
+            if (idx >= 0) CampaignNotes[idx] = note;
+            else CampaignNotes.Insert(0, note);
+        }
+    }
 
     public static RouteGroupBuilder MapLoomAndWeaveEndpoints(this RouteGroupBuilder api)
     {
@@ -26,16 +61,20 @@ public static class LoomAndWeaveEndpoints
         {
             var access = CampaignAccessResolver.Resolve(httpContext, campaignId, role);
             var isGm = access.IsEffectiveGm;
-            var filtered = CampaignNotes
-                .Where(n => n.CampaignId == campaignId)
-                .Where(n =>
-                    isGm ||
-                    n.Scope == "party_shared" ||
-                    (n.Scope == "private_player" &&
-                     (string.IsNullOrWhiteSpace(witness) ||
-                      string.Equals(n.WitnessCharacter, witness, StringComparison.OrdinalIgnoreCase))))
-                .OrderByDescending(n => n.SessionNumber)
-                .ToList();
+            List<ScopedCampaignNoteContract> filtered;
+            lock (NotesLock)
+            {
+                filtered = CampaignNotes
+                    .Where(n => n.CampaignId == campaignId)
+                    .Where(n =>
+                        isGm ||
+                        n.Scope == "party_shared" ||
+                        (n.Scope == "private_player" &&
+                         (string.IsNullOrWhiteSpace(witness) ||
+                          string.Equals(n.WitnessCharacter, witness, StringComparison.OrdinalIgnoreCase))))
+                    .OrderByDescending(n => n.CreatedAt)
+                    .ToList();
+            }
 
             return Results.Ok(filtered);
         });
@@ -58,7 +97,10 @@ public static class LoomAndWeaveEndpoints
                 req.LinkedEntityKeys ?? Array.Empty<string>(),
                 DateTimeOffset.UtcNow
             );
-            CampaignNotes.Insert(0, note);
+            lock (NotesLock)
+            {
+                CampaignNotes.Insert(0, note);
+            }
             return Results.Ok(note);
         });
 
@@ -75,13 +117,11 @@ public static class LoomAndWeaveEndpoints
             var viewerRole = access.EffectiveViewerRole;
             var witness = string.IsNullOrWhiteSpace(req.WitnessCharacter) ? "All Party" : req.WitnessCharacter.Trim();
             var q = string.IsNullOrWhiteSpace(req.Query) ? "" : req.Query.Trim();
+            var keywords = ExtractKeywords(q);
 
             var entities = await repo.GetAuthorizedEntitiesAsync(campaignId, viewerRole, null, ct);
             var matchedEntities = entities
-                .Where(e =>
-                    e.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                    e.Summary.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                    e.Subtitle.Contains(q, StringComparison.OrdinalIgnoreCase))
+                .Where(e => MatchesQuery(q, keywords, $"{e.Name} {e.Summary} {e.Subtitle}"))
                 .Take(5)
                 .ToList();
 
@@ -90,51 +130,60 @@ public static class LoomAndWeaveEndpoints
                 matchedEntities = entities.Take(4).ToList();
             }
 
-            var citations = matchedEntities
-                .Select(m => new LoomCitationDto(
-                    m.CompositeKey,
-                    m.Name,
-                    m.EntityType,
-                    m.Summary,
-                    m.RouteLink,
-                    m.Visibility))
-                .ToList();
+            var citations = new List<LoomCitationDto>();
 
-            // Bestiary canon: when/where the party met a creature and what happened, filtered per player character.
-            var (_, monsterAccess) = await LoomWeaver.Modules.Bestiary.BestiaryCampaignEndpoints.ResolveAsync(
+            // Include Encounter & Loot Chronicle records first when matched
+            var lootCitations = EncounterLootEndpoints.GetMatchingLoomCitations(campaignId, q);
+            citations.AddRange(lootCitations);
+
+            citations.AddRange(matchedEntities.Select(m => new LoomCitationDto(
+                m.CompositeKey,
+                m.Name,
+                m.EntityType,
+                m.Summary,
+                m.RouteLink,
+                m.Visibility)));
+
+            var (_, monsterAccess) = await Bestiary.BestiaryCampaignEndpoints.ResolveAsync(
                 httpContext, campaignId, req.Role, repo, ct);
             if (monsterAccess.UserId != 0)
             {
-                await LoomWeaver.Modules.Bestiary.BestiaryPersistence.EnsureReadyAsync(repo, ct);
-                citations.AddRange(LoomWeaver.Modules.Bestiary.BestiaryCampaignStore.LoomCitations(
+                await Bestiary.BestiaryPersistence.EnsureReadyAsync(repo, ct);
+                citations.AddRange(Bestiary.BestiaryCampaignStore.LoomCitations(
                     campaignId, monsterAccess.IsEffectiveGm, monsterAccess.BoundCharacterKey, q));
             }
 
-            var matchingNotes = CampaignNotes
-                .Where(n => n.CampaignId == campaignId)
-                .Where(n =>
-                    isGm ||
-                    n.Scope == "party_shared" ||
-                    (req.IncludePrivateNotes &&
-                     n.Scope == "private_player" &&
-                     (witness == "All Party" || string.Equals(n.WitnessCharacter, witness, StringComparison.OrdinalIgnoreCase))))
-                .Where(n =>
-                    n.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                    n.Content.Contains(q, StringComparison.OrdinalIgnoreCase))
-                .Take(4)
-                .ToList();
+            List<ScopedCampaignNoteContract> matchingNotes;
+            lock (NotesLock)
+            {
+                matchingNotes = CampaignNotes
+                    .Where(n => n.CampaignId == campaignId)
+                    .Where(n =>
+                        isGm ||
+                        n.Scope == "party_shared" ||
+                        (req.IncludePrivateNotes &&
+                         n.Scope == "private_player" &&
+                         (witness == "All Party" || string.Equals(n.WitnessCharacter, witness, StringComparison.OrdinalIgnoreCase))))
+                    .Where(n => MatchesQuery(q, keywords, $"{n.Title} {n.Content} session {n.SessionNumber}"))
+                    .Take(4)
+                    .ToList();
+            }
 
             var graphPaths = await ConnectedStoryEngine.QueryAuthorizedLoomPathsAsync(campaignId, access, q, graph, ct);
             var activeClaims = ConnectedStorySeedStore.Claims
                 .Where(c => c.CampaignId == campaignId && (isGm || c.Visibility != "gm"))
                 .ToList();
             var claimSummary = activeClaims.Count > 0
-                ? $" Separated Truth vs. Testimony across {activeClaims.Count} claim(s) ({string.Join(", ", activeClaims.Select(c => $"{c.Title}: {c.TruthAssessment.ToUpperInvariant()}"))})."
+                ? $" Separated Truth vs. Testimony across {activeClaims.Count} claim(s)."
                 : "";
+
+            var lootHighlight = lootCitations.Count > 0
+                ? $" Direct Encounter & Loot Recall: {lootCitations[0].Excerpt}"
+                : (matchingNotes.Count > 0 ? $" Note Recall: {matchingNotes[0].Content}" : "");
 
             var synthesis =
                 $"[The Loom · Zero-Generation GraphRAG · Role={viewerRole.ToUpperInvariant()} · Witness={witness}]: " +
-                $"Synthesized {citations.Count} canonical record(s), {graphPaths.Count} Neo4j+SQL relationship path(s), and {matchingNotes.Count} scoped note(s) for \"{q}\".{claimSummary} Zero unverified lore generated.";
+                $"Synthesized {citations.Count} canonical record(s), {graphPaths.Count} Neo4j+SQL relationship path(s), and {matchingNotes.Count} scoped note(s) for \"{q}\".{lootHighlight}{claimSummary} Zero unverified lore generated.";
 
             return Results.Ok(new LoomGraphRagResponse(
                 campaignId,
@@ -233,6 +282,21 @@ public static class LoomAndWeaveEndpoints
         });
 
         return api;
+    }
+
+    private static IReadOnlyList<string> ExtractKeywords(string query) =>
+        query
+            .Split([' ', '?', '!', ',', '.', ';', ':'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(w => w.Trim().ToLowerInvariant())
+            .Where(w => (w.Length >= 3 || char.IsDigit(w[0])) && !StopWords.Contains(w))
+            .Distinct()
+            .ToArray();
+
+    private static bool MatchesQuery(string rawQuery, IReadOnlyList<string> keywords, string targetText)
+    {
+        if (string.IsNullOrWhiteSpace(rawQuery)) return true;
+        if (targetText.Contains(rawQuery, StringComparison.OrdinalIgnoreCase)) return true;
+        return keywords.Count > 0 && keywords.Any(k => targetText.Contains(k, StringComparison.OrdinalIgnoreCase));
     }
 
     private static string NormalizeScope(string? scope) =>

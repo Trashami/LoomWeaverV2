@@ -14,8 +14,21 @@ public static class MapSceneDocumentEndpoints
 {
     public static void MapMapSceneDocumentEndpoints(this IEndpointRouteBuilder group)
     {
+        group.MapGet("/campaigns/{campaignId:int}/maps", ListAsync);
         group.MapGet("/campaigns/{campaignId:int}/maps/{sceneKey}/document", LoadAsync);
         group.MapPut("/campaigns/{campaignId:int}/maps/{sceneKey}/document", SaveAsync);
+    }
+
+    private static async Task<IResult> ListAsync(
+        int campaignId,
+        HttpContext context,
+        LoomWeaverMySqlRepository mysql,
+        CancellationToken ct)
+    {
+        var access = await CampaignAccessResolver.ResolveAsync(context, campaignId, null, ct);
+        if (!access.IsMember) return Results.Forbid();
+        var items = await MapSceneDocumentRepository.ListByCampaignAsync(mysql, campaignId, ct);
+        return Results.Ok(items);
     }
 
     private static async Task<IResult> LoadAsync(

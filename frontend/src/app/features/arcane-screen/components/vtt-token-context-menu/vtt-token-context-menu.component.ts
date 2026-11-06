@@ -1,19 +1,22 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, output, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { LoomWeaverStoreService } from '../../../../core/services/loomweaver-store.service';
 import { LwIconComponent } from '../../../../shared/ui/icon/icon.component';
 import {
   DND_TOKEN_SIZE_CATEGORIES,
   DndTokenSizeCategory,
   VttConditionKey,
+  VttLootTableId,
   VttTokenLightPreset,
   VttTokenVm,
   getTokenRimColorHex,
 } from '../../../effects/engine/effect-timeline.contract';
 import { VttBattleStateService } from '../../services/vtt-battle-state.service';
 import { VttCombatService } from '../../services/vtt-combat.service';
+import { VttLootAndRecapService } from '../../services/vtt-loot-and-recap.service';
 
-export type TokenContextTab = 'quick' | 'light' | 'glow';
+export type TokenContextTab = 'quick' | 'light' | 'glow' | 'loot';
 
 export interface LightPresetOption {
   readonly id: VttTokenLightPreset;
@@ -25,7 +28,7 @@ export interface LightPresetOption {
 @Component({
   selector: 'lw-vtt-token-context-menu',
   standalone: true,
-  imports: [CommonModule, LwIconComponent],
+  imports: [CommonModule, FormsModule, LwIconComponent],
   templateUrl: './vtt-token-context-menu.component.html',
   styleUrl: './vtt-token-context-menu.component.scss',
 })
@@ -33,10 +36,15 @@ export class VttTokenContextMenuComponent {
   readonly store = inject(LoomWeaverStoreService);
   readonly vtt = inject(VttCombatService);
   readonly battle = inject(VttBattleStateService);
+  readonly loot = inject(VttLootAndRecapService);
 
   readonly openCharacterSheet = output<string>();
 
   readonly activeTab = signal<TokenContextTab>('quick');
+  readonly selectedPresetLootId = signal<string>('loot-potion-healing');
+  readonly customLootName = signal<string>('');
+  readonly customLootQty = signal<number>(1);
+  readonly customLootGp = signal<number>(25);
   readonly sizeCategories = DND_TOKEN_SIZE_CATEGORIES;
 
   readonly lightPresets: readonly LightPresetOption[] = [
@@ -205,5 +213,28 @@ export class VttTokenContextMenuComponent {
     if (this.store.viewerRole() !== 'gm') return;
     this.vtt.removeTokenFromVtt(token.key);
     this.battle.closeTokenContextMenu();
+  }
+
+  setTokenLootTable(token: VttTokenVm, tableId: VttLootTableId): void {
+    if (this.store.viewerRole() !== 'gm') return;
+    this.loot.setTokenLootTable(token.key, tableId);
+  }
+
+  addPresetLootToToken(token: VttTokenVm): void {
+    if (this.store.viewerRole() !== 'gm') return;
+    this.loot.addTokenAssignedPresetItem(token.key, this.selectedPresetLootId());
+  }
+
+  addCustomLootToToken(token: VttTokenVm): void {
+    if (this.store.viewerRole() !== 'gm') return;
+    const name = this.customLootName().trim();
+    if (!name) return;
+    this.loot.addTokenCustomLootItem(token.key, name, this.customLootQty(), this.customLootGp());
+    this.customLootName.set('');
+  }
+
+  rollDefeatedLootNow(): void {
+    this.battle.closeTokenContextMenu();
+    this.loot.endEncounterAndOpenRecap(true);
   }
 }

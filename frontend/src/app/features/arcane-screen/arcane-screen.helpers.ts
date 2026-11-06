@@ -24,14 +24,8 @@ import { VttSettingsModalComponent } from './components/vtt-settings-modal/vtt-s
 import { VttSettingsPanelComponent } from './components/vtt-settings-panel/vtt-settings-panel.component';
 import { VttTokenContextMenuComponent } from './components/vtt-token-context-menu/vtt-token-context-menu.component';
 import { VttCombatOrderModalComponent } from './components/vtt-combat-order-modal/vtt-combat-order-modal.component';
-import {
-  BASE_GRID_CELL_SVG_PX,
-  clampLineToRangeAndWalls,
-  getActiveCellStepWorld,
-  svgToWorldPoint,
-  worldToSvgX,
-  worldToSvgY,
-} from './engine/vtt-los-and-grid.engine';
+import { VttEncounterRecapModalComponent } from './components/vtt-encounter-recap-modal/vtt-encounter-recap-modal.component';
+import { BASE_GRID_CELL_SVG_PX, clampLineToRangeAndWalls, getActiveCellStepWorld, svgToWorldPoint, worldToSvgX, worldToSvgY } from './engine/vtt-los-and-grid.engine';
 import { getEffectiveTokenVisionFeet } from './engine/vtt-fog-of-war.engine';
 import { extractSceneOccludersFromMapState } from './engine/vtt-scene-occluders.helper';
 import { VttBattleStateService } from './services/vtt-battle-state.service';
@@ -41,31 +35,13 @@ import { VttDisplaySettingsService } from './services/vtt-display-settings.servi
 import { VttMapView2dService } from './services/vtt-map-view-2d.service';
 
 export const ARCANE_SCREEN_PAGE_IMPORTS = [
-  FormsModule,
-  RouterLink,
-  NgpButton,
-  LwButtonComponent,
-  LwContextSwitcherComponent,
-  LwIconComponent,
-  VttActionDockComponent,
-  VttGmRailComponent,
-  VttGmGuidePanelComponent,
-  VttGmTrackersPanelComponent,
-  VttSettingsModalComponent,
-  VttDmDrawersComponent,
-  VttMapToolsComponent,
-  VttSettingsPanelComponent,
-  VttHandoutModalComponent,
-  VttTokenContextMenuComponent,
-  VttCombatOrderModalComponent,
+  FormsModule, RouterLink, NgpButton, LwButtonComponent, LwContextSwitcherComponent, LwIconComponent,
+  VttActionDockComponent, VttGmRailComponent, VttGmGuidePanelComponent, VttGmTrackersPanelComponent,
+  VttSettingsModalComponent, VttDmDrawersComponent, VttMapToolsComponent, VttSettingsPanelComponent,
+  VttHandoutModalComponent, VttTokenContextMenuComponent, VttCombatOrderModalComponent, VttEncounterRecapModalComponent,
 ] as const;
 
-export interface CalibStartPoint {
-  x: number;
-  y: number;
-  localX: number;
-  localY: number;
-}
+export interface CalibStartPoint { x: number; y: number; localX: number; localY: number; }
 
 export const VTT_RIGHT_TAB_TITLES: Record<string, string> = {
   'combat-log': 'Combat Roll Log',
@@ -480,13 +456,13 @@ export function registerArcaneScreenStageEffects(
     }
   });
   stage.tokenDragged.pipe(takeUntilDestroyed()).subscribe((p) => {
-    vtt.applyRemoteTokenMove(p.key, p.x, p.z);
+    vtt.applyRemoteTokenMove(p.key, p.x, p.z, p.facingY);
   });
   stage.tokenDropped.pipe(takeUntilDestroyed()).subscribe((p) => {
     const tok = vtt.tokens().find((t) => t.key === p.key);
     const rFt = tok ? getEffectiveTokenVisionFeet(tok, battle.playerSightDistanceFeet(), battle.applyTokenVision()) : battle.playerSightDistanceFeet();
     if (tok) battle.exploredTrailPoints.update((pts) => [...pts, { x: tok.x, z: tok.z, radiusFeet: rFt }, { x: p.x, z: p.z, radiusFeet: rFt }]);
-    vtt.applyRemoteTokenMove(p.key, p.x, p.z);
+    vtt.applyRemoteTokenMove(p.key, p.x, p.z, p.facingY);
     host.sync3dStage();
     void serverSync.publishMove(p.key, p.x, p.z);
   });

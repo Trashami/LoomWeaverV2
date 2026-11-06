@@ -21,6 +21,7 @@ import {
 } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { AdventureGuideService } from '../../core/services/adventure-guide.service';
 import { LwAlertifyService } from '../../core/services/lw-alertify.service';
 import { LoomWeaverStoreService } from '../../core/services/loomweaver-store.service';
@@ -63,7 +64,9 @@ import { MapPngAssetApiService } from './application/map-png-asset-api.service';
 import { MapStudioStoreService } from './application/map-studio-store.service';
 import { MapStudioSnapshot } from './application/map-studio.models';
 import {
+  DoorHingeSide,
   DoorSidePostStyle,
+  DoorSwingDirection,
   MapFloorBlendMode,
   MapSceneGraphState,
   MapWallSegmentNode,
@@ -110,6 +113,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
 
   private readonly pngApi = inject(MapPngAssetApiService);
   private readonly http = inject(HttpClient);
+  private readonly route = inject(ActivatedRoute, { optional: true });
   private readonly alertify = inject(LwAlertifyService);
   readonly store = inject(LoomWeaverStoreService);
   readonly adventureGuide = inject(AdventureGuideService);
@@ -155,9 +159,72 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
 
   private readonly campaignAssignments = effect((onCleanup) => {
     const campaignId = this.store.activeCampaignId();
+    const campName = this.store.activeCampaign().name || 'Active Campaign';
+    const sessAttachments = this.store.sessionAttachments();
+    const assignedMap = this.adventureGuide.guide().assignedBattlemap;
     this.encounters.set([]);
     this.assignEncounterId.set('');
-    if (campaignId <= 0 || !this.store.isGmForActiveCampaign()) return;
+    if (campaignId <= 0) return;
+
+    this.syncLocalAndAttachmentMaps(campaignId, campName, sessAttachments, assignedMap);
+
+    const mapsSub = this.http
+      .get<
+        readonly {
+          sceneKey: string;
+          name: string;
+          campaignId: number;
+          revision: number;
+          gridCols: number;
+          gridRows: number;
+          floorAlbedoUrl?: string | null;
+          updatedBy: string;
+          updatedAt: string;
+        }[]
+      >(`/api/v2/campaigns/${campaignId}/maps`)
+      .subscribe({
+        next: (rows) => {
+          const sessLabel =
+            this.sessions().find((s) => s.id === this.assignSessionId())?.label ??
+            'Current Session';
+          const mapped: LwExistingMapSummary[] = (rows ?? []).map((r) => {
+            const att = sessAttachments.find(
+              (a) => a.elementKind === 'Map' && a.elementId === r.sceneKey,
+            );
+            const sessObj = att
+              ? this.sessions().find((s) => s.id === att.sessionId)
+              : undefined;
+            return {
+              sceneKey: r.sceneKey,
+              name: r.name || att?.title || r.sceneKey,
+              dimensionMode: '3d',
+              campaignId: r.campaignId || campaignId,
+              campaignName: campName,
+              sessionLabel: sessObj?.label || att?.summary || sessLabel,
+              encounterLabel: 'Campaign Battlemap',
+              gridSummary: `${r.gridCols || 50}x${r.gridRows || 50} (5ft sq)`,
+              floorBumpName: 'Saved Studio Scene',
+              previewUrl: r.floorAlbedoUrl || att?.artworkUrl || '/battlemap-showcase.jpg',
+              updatedLabel: `Saved Rev ${r.revision || 1}`,
+              revision: r.revision || 1,
+              creatorAccount: r.updatedBy || 'GM Studio',
+              popularityRating: 'Saved Campaign Map',
+              priceLabel: 'Campaign Map',
+              accessKind: 'owned',
+            };
+          });
+          this.mergeIntoExistingMaps(mapped);
+          this.checkQuerySceneAutoOpen(campaignId);
+        },
+        error: () => {
+          this.checkQuerySceneAutoOpen(campaignId);
+        },
+      });
+
+    if (!this.store.isGmForActiveCampaign()) {
+      onCleanup(() => mapsSub.unsubscribe());
+      return;
+    }
 
     const encounters = this.http
       .get<readonly { id: string; name: string }[]>(`/api/v2/campaigns/${campaignId}/encounters`)
@@ -172,8 +239,140 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         },
         error: () => this.alertify.notifyStatus('Map assignment', 'Encounters unavailable', 'Campaign encounters could not be loaded.', 'crimson'),
       });
-    onCleanup(() => encounters.unsubscribe());
+    onCleanup(() => {
+      mapsSub.unsubscribe();
+      encounters.unsubscribe();
+    });
   });
+
+  private autoOpenedQueryScene = false;
+
+  private syncLocalAndAttachmentMaps(
+    campaignId: number,
+    campName: string,
+    sessAttachments: ReturnType<LoomWeaverStoreService['sessionAttachments']>,
+    assignedMap: ReturnType<AdventureGuideService['guide']>['assignedBattlemap'],
+  ): void {
+    const sessLabel =
+      this.sessions().find((s) => s.id === this.assignSessionId())?.label ?? 'Current Session';
+    const localCached = this.studio.listLocalCachedScenes(campaignId).map(
+      (c): LwExistingMapSummary => ({
+        sceneKey: c.sceneKey,
+        name: c.name,
+        dimensionMode: '3d',
+        campaignId,
+        campaignName: campName,
+        sessionLabel: sessLabel,
+        encounterLabel: 'Campaign Battlemap',
+        gridSummary: `${c.gridCols}x${c.gridRows} (5ft sq)`,
+        floorBumpName: 'Saved Studio Scene',
+        previewUrl: c.floorAlbedoUrl || '/battlemap-showcase.jpg',
+        updatedLabel: `Saved Rev ${c.revision}`,
+        revision: c.revision,
+        creatorAccount: 'GM Studio',
+        popularityRating: 'Saved Campaign Map',
+        priceLabel: 'Campaign Map',
+        accessKind: 'owned',
+      }),
+    );
+
+    const attachmentMaps: LwExistingMapSummary[] = sessAttachments
+      .filter((a) => a.elementKind === 'Map' && Boolean(a.elementId))
+      .map((a) => {
+        const sessObj = this.sessions().find((s) => s.id === a.sessionId);
+        return {
+          sceneKey: a.elementId,
+          name: a.title || a.elementId,
+          dimensionMode: '3d',
+          campaignId,
+          campaignName: campName,
+          sessionLabel: sessObj?.label || a.summary || sessLabel,
+          encounterLabel: a.subtitle || 'Session Battlemap',
+          gridSummary: '50x50 (5ft sq)',
+          floorBumpName: 'Session Map',
+          previewUrl: a.artworkUrl || '/battlemap-showcase.jpg',
+          updatedLabel: `Assigned to ${sessObj?.label || 'Session'}`,
+          revision: 1,
+          creatorAccount: 'GM Studio',
+          popularityRating: 'Active Session Map',
+          priceLabel: 'Campaign Map',
+          accessKind: 'owned',
+        };
+      });
+
+    const guideMaps: LwExistingMapSummary[] =
+      assignedMap && assignedMap.sceneKey && assignedMap.sceneKey !== 'scene-ruined-chapel'
+        ? [
+            {
+              sceneKey: assignedMap.sceneKey,
+              name: assignedMap.title || assignedMap.sceneKey,
+              dimensionMode: '3d',
+              campaignId,
+              campaignName: campName,
+              sessionLabel: assignedMap.sessionTitle || sessLabel,
+              encounterLabel: assignedMap.locationTitle || 'Session Battlemap',
+              gridSummary: '50x50 (5ft sq)',
+              floorBumpName: 'Assigned Battlemap',
+              previewUrl: assignedMap.artworkUrl || '/battlemap-showcase.jpg',
+              updatedLabel: `Assigned to ${assignedMap.sessionTitle || 'Session'}`,
+              revision: 1,
+              creatorAccount: 'GM Studio',
+              popularityRating: 'Active Session Map',
+              priceLabel: 'Campaign Map',
+              accessKind: 'owned',
+            },
+          ]
+        : [];
+
+    this.mergeIntoExistingMaps([...localCached, ...attachmentMaps, ...guideMaps]);
+  }
+
+  private mergeIntoExistingMaps(incoming: readonly LwExistingMapSummary[]): void {
+    if (!incoming.length) return;
+    this.existingMaps.update((cur) => {
+      const byKey = new Map<string, LwExistingMapSummary>();
+      for (const m of cur) {
+        byKey.set(m.sceneKey, m);
+      }
+      for (const item of incoming) {
+        const prev = byKey.get(item.sceneKey);
+        if (!prev || item.revision >= prev.revision) {
+          byKey.set(item.sceneKey, prev ? { ...prev, ...item } : item);
+        }
+      }
+      return Array.from(byKey.values());
+    });
+  }
+
+  private checkQuerySceneAutoOpen(campaignId: number): void {
+    if (this.autoOpenedQueryScene) return;
+    const requestedScene = this.route?.snapshot?.queryParamMap?.get('scene')?.trim();
+    if (!requestedScene) return;
+    this.autoOpenedQueryScene = true;
+    const existing = this.existingMaps().find((m) => m.sceneKey === requestedScene);
+    if (existing) {
+      this.onOpenExistingMapFromLanding(existing);
+    } else {
+      this.onOpenExistingMapFromLanding({
+        sceneKey: requestedScene,
+        name: requestedScene,
+        dimensionMode: '3d',
+        campaignId,
+        campaignName: this.store.activeCampaign().name || 'Active Campaign',
+        sessionLabel: 'Current Session',
+        encounterLabel: 'Session Battlemap',
+        gridSummary: '50x50 (5ft sq)',
+        floorBumpName: 'Saved Studio Scene',
+        previewUrl: '/battlemap-showcase.jpg',
+        updatedLabel: 'Saved Scene',
+        revision: 1,
+        creatorAccount: 'GM Studio',
+        popularityRating: 'Saved Campaign Map',
+        priceLabel: 'Campaign Map',
+        accessKind: 'owned',
+      });
+    }
+  }
 
   readonly pngPipelineBanner = this.pngApi.pngPipelineBanner;
   readonly selectedPngAssetId = signal<string>('obj-4f9776736fb571f1');
@@ -257,6 +456,8 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   readonly doorWidthMeters = signal<number>(2.4);
   readonly doorHeightMeters = signal<number>(2.6);
   readonly doorIsOpen = signal<boolean>(false);
+  readonly doorHingeSide = signal<DoorHingeSide>('left');
+  readonly doorSwingDirection = signal<DoorSwingDirection>('inward');
   readonly doorHasSidePosts = signal<boolean>(true);
   readonly doorSidePostStyle = signal<DoorSidePostStyle>('quoin');
   readonly doorSidePostScale = signal<number>(1.0);
@@ -1390,6 +1591,8 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         this.doorWidthMeters.set(op.widthMeters);
         this.doorHeightMeters.set(op.heightMeters ?? 2.6);
         this.doorIsOpen.set(op.isOpen);
+        this.doorHingeSide.set(op.hingeSide ?? 'left');
+        this.doorSwingDirection.set(op.swingDirection ?? 'inward');
         this.doorHasSidePosts.set(op.hasSidePosts !== false);
         this.doorSidePostStyle.set(op.sidePostStyle ?? 'quoin');
         this.doorSidePostScale.set(op.sidePostScale ?? 1.0);
@@ -1627,6 +1830,8 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       widthMeters: this.doorWidthMeters(),
       heightMeters: this.doorHeightMeters(),
       isOpen: this.doorIsOpen(),
+      hingeSide: this.doorHingeSide(),
+      swingDirection: this.doorSwingDirection(),
       hasSidePosts: this.doorHasSidePosts(),
       sidePostStyle: this.doorSidePostStyle(),
       sidePostScale: this.doorSidePostScale(),
@@ -2148,6 +2353,8 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
                 widthMeters: this.doorWidthMeters(),
                 heightMeters: this.doorHeightMeters(),
                 isOpen: this.doorIsOpen(),
+                hingeSide: this.doorHingeSide(),
+                swingDirection: this.doorSwingDirection(),
                 hasSidePosts: this.doorHasSidePosts(),
                 sidePostStyle: this.doorSidePostStyle(),
                 sidePostScale: this.doorSidePostScale(),
@@ -2605,6 +2812,32 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       key,
       updatedGraph,
     );
+    const campName = this.store.activeCampaign().name || 'Active Campaign';
+    const sessLabel =
+      this.sessions().find((s) => s.id === this.assignSessionId())?.label ?? 'Current Session';
+    this.mergeIntoExistingMaps([
+      {
+        sceneKey: key,
+        name: updatedGraph.name,
+        dimensionMode: this.dimensionMode(),
+        campaignId: this.store.activeCampaignId(),
+        campaignName: campName,
+        sessionLabel: sessLabel,
+        encounterLabel: 'Campaign Battlemap',
+        gridSummary: `${this.gridCols()}x${this.gridRows()} (5ft sq)`,
+        floorBumpName: this.activeTheme(),
+        previewUrl:
+          this.stage.captureViewportDataUrl() ??
+          updatedGraph.floorAlbedoUrl ??
+          '/battlemap-showcase.jpg',
+        updatedLabel: `Saved Rev ${updatedGraph.revision}`,
+        revision: updatedGraph.revision,
+        creatorAccount: 'GM Studio',
+        popularityRating: 'Saved Campaign Map',
+        priceLabel: 'Campaign Map',
+        accessKind: 'owned',
+      },
+    ]);
   }
 
   private legacySaveSceneRevisionUnused(): void {

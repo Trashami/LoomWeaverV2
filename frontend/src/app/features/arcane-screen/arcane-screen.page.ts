@@ -22,6 +22,7 @@ import { VttDisplaySettingsService } from './services/vtt-display-settings.servi
 import { VttEncounterTimerService } from './services/vtt-encounter-timer.service';
 import { VttFogService } from './services/vtt-fog.service';
 import { VttHandoutService } from './services/vtt-handout.service';
+import { VttLootAndRecapService } from './services/vtt-loot-and-recap.service';
 import { VttMapView2dService } from './services/vtt-map-view-2d.service';
 import { VttServerSyncService } from './services/vtt-server-sync.service';
 import {
@@ -61,6 +62,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   readonly vttDisplay = inject(VttDisplaySettingsService);
   readonly timer = inject(VttEncounterTimerService);
   readonly handouts = inject(VttHandoutService);
+  readonly loot = inject(VttLootAndRecapService);
   readonly showShortcuts = signal<boolean>(false);
 
   private stageMounted = false;
@@ -156,7 +158,67 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  openMapStudio(): void { void this.router.navigate(['/maps']); }
+  openMapStudio(): void {
+    const sceneKey = this.serverSync.activeSceneKey() || this.getAssignedSceneKey();
+    void this.router.navigate(['/maps'], sceneKey ? { queryParams: { scene: sceneKey } } : undefined);
+  }
+
+  readonly userVolumePercent = computed(() => Math.round(this.audio.effectiveVolume() * 100));
+
+  onUserVolumeInput(event: Event): void {
+    const val = parseFloat((event.target as HTMLInputElement).value);
+    if (!Number.isNaN(val)) {
+      this.audio.setMasterVolume(val / 100);
+    }
+  }
+
+  dmTogglePlayPause(): void {
+    this.audio.togglePlayback();
+    this.serverSync.publishAudioControl(this.audio.isPlaying() ? 'play' : 'pause', {
+      trackId: this.audio.activeTrackId(),
+      playlistId: this.audio.activePlaylistId(),
+    });
+  }
+
+  dmRestartTrack(): void {
+    this.audio.restartTrack();
+    this.serverSync.publishAudioControl('restart', {
+      trackId: this.audio.activeTrackId(),
+      playlistId: this.audio.activePlaylistId(),
+    });
+  }
+
+  dmPrevTrack(): void {
+    this.audio.previousTrack();
+    this.serverSync.publishAudioControl('track', {
+      trackId: this.audio.activeTrackId(),
+      playlistId: this.audio.activePlaylistId(),
+    });
+  }
+
+  dmNextTrack(): void {
+    this.audio.nextTrack();
+    this.serverSync.publishAudioControl('track', {
+      trackId: this.audio.activeTrackId(),
+      playlistId: this.audio.activePlaylistId(),
+    });
+  }
+
+  dmToggleLoop(): void {
+    this.audio.toggleLoopMode();
+    this.serverSync.publishAudioControl('loop', {
+      loopMode: this.audio.loopMode(),
+    });
+  }
+
+  dmSelectTrack(trackId: string): void {
+    if (!trackId) return;
+    this.audio.playTrack(trackId, this.audio.activePlaylistId(), 1.0);
+    this.serverSync.publishAudioControl('track', {
+      trackId,
+      playlistId: this.audio.activePlaylistId(),
+    });
+  }
   openCharactersPage(): void { void this.router.navigate(['/characters']); }
   onMapWheel(event: WheelEvent): void { event.preventDefault(); if (!this.isHighPerformance2d()) this.stage.zoomCamera(event.deltaY * 0.05); else this.view2d.wheel(event.deltaY); }
   onMapMouseDown(event: MouseEvent): void {
@@ -215,17 +277,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       },
       (ev) => this.battle.openTokenContextMenu(ev.key, ev.clientX, ev.clientY),
       (k, evt) => {
-        if (
-          this.workflow.state() !== null ||
-          this.battle.fogBrushMode() !== 'none' ||
-          this.battle.pendingAbility() ||
-          this.battle.targetSelectionMode() ||
-          evt.shiftKey ||
-          evt.ctrlKey ||
-          evt.metaKey
-        ) {
-          return false;
-        }
+        if (this.workflow.state() !== null || this.battle.fogBrushMode() !== 'none' || this.battle.pendingAbility() || this.battle.targetSelectionMode() || evt.shiftKey || evt.ctrlKey || evt.metaKey) return false;
         const tok = this.vtt.tokens().find((t) => t.key === k);
         return tok ? this.battle.canMoveToken(tok).allowed : false;
       },
@@ -329,17 +381,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onWindowKeydown(event: KeyboardEvent): void {
-    handleVttWindowKeydown(
-      event,
-      this.battle,
-      this.vtt,
-      this.vttDisplay,
-      this.view2d,
-      this.stage,
-      this.serverSync,
-      () => this.gridEnabled.update((v) => !v),
-      (cast) => (cast ? void this.executePendingAbilityCast() : this.sync3dStage()),
-    );
+    handleVttWindowKeydown(event, this.battle, this.vtt, this.vttDisplay, this.view2d, this.stage, this.serverSync, () => this.gridEnabled.update((v) => !v), (cast) => (cast ? void this.executePendingAbilityCast() : this.sync3dStage()));
   }
 
   onBattleMapPointerMove(event: MouseEvent): void {

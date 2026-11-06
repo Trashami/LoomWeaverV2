@@ -63,6 +63,7 @@ import { MapPngAssetApiService } from './application/map-png-asset-api.service';
 import { MapStudioStoreService } from './application/map-studio-store.service';
 import { MapStudioSnapshot } from './application/map-studio.models';
 import {
+  DoorSidePostStyle,
   MapFloorBlendMode,
   MapSceneGraphState,
   MapWallSegmentNode,
@@ -256,6 +257,12 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   readonly doorWidthMeters = signal<number>(2.4);
   readonly doorHeightMeters = signal<number>(2.6);
   readonly doorIsOpen = signal<boolean>(false);
+  readonly doorHasSidePosts = signal<boolean>(true);
+  readonly doorSidePostStyle = signal<DoorSidePostStyle>('quoin');
+  readonly doorSidePostScale = signal<number>(1.0);
+
+  readonly wallCornerPosts = signal<boolean>(true);
+  readonly wallCornerPostScale = signal<number>(1.0);
 
   readonly celestialMode = signal<LwCelestialBodyMode>('sun');
   readonly celestialAzimuthDeg = signal<number>(135);
@@ -723,13 +730,14 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     } else if (dockToolId === 'wall' || dockToolId === 'room') {
       const defaultStoneWall: LwMapPngAssetItem =
         this.userSelectedWallAsset ??
+        PROCEDURAL_WALL_ASSET_ITEMS[0] ??
         this.pngApi.pngAssets3d().find((a) => a.id === 'obj-4f9776736fb571f1') ??
         this.pngApi.pngAssets3d().find((a) => this.isWallAsset(a)) ?? {
-          id: 'obj-4f9776736fb571f1',
-          name: 'A Wall Made Of Stone',
+          id: 'proc-wall-dungeon-stone',
+          name: 'Aged Dungeon Stone',
           category: 'Architecture',
           thumbnailUrl: '/assets/previews-png/obj-4f9776736fb571f1.png',
-          modelUrl: '/assets/object-library/models/obj-4f9776736fb571f1.glb',
+          modelUrl: 'proc-wall://proc-wall-dungeon-stone',
           isFloor: false,
           isWall: true,
           toolRole: 'wall-3d',
@@ -739,6 +747,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     } else if (dockToolId === 'door') {
       const doorAsset =
         this.userSelectedDoorAsset ??
+        PROCEDURAL_DOOR_ASSET_ITEMS[0] ??
         this.pngApi.pngAssets3d().find((a) => a.isDoor || this.isDoorAsset(a)) ??
         this.pngApi.pngAssets3d()[0];
       if (doorAsset) {
@@ -1306,7 +1315,8 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
           rotationOffsetDeg: node.rotationDeg || 0,
           perspective: 'auto',
           projection: 'inward',
-          hasCornerPosts: true,
+          hasCornerPosts: this.wallCornerPosts(),
+          cornerPostScale: this.wallCornerPostScale(),
           levelIndex: 0,
           points: pts,
           openings: [],
@@ -1342,12 +1352,14 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       const wall = (state.walls ?? []).find((w) => w.id === id);
       if (wall) {
         const p0 = wall.points[0] ?? [fallbackX, fallbackZ];
+        this.wallCornerPosts.set(wall.hasCornerPosts !== false);
+        this.wallCornerPostScale.set(wall.cornerPostScale ?? 1.0);
         this.selectedNode.update((cur) => ({
           ...cur,
           id: wall.id,
           name: wall.name,
           kind: 'wall',
-          subtitle: `3D Wall Stamp · ${Math.round(wall.heightMeters / 0.3048)} ft`,
+          subtitle: `3D Wall · ${Math.round(wall.heightMeters / 0.3048)} ft`,
           thumbnailUrl: wall.thumbnailUrl || cur.thumbnailUrl,
           modelUrl: wall.modelUrl,
           albedoUrl: wall.albedoUrl,
@@ -1378,14 +1390,17 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         this.doorWidthMeters.set(op.widthMeters);
         this.doorHeightMeters.set(op.heightMeters ?? 2.6);
         this.doorIsOpen.set(op.isOpen);
+        this.doorHasSidePosts.set(op.hasSidePosts !== false);
+        this.doorSidePostStyle.set(op.sidePostStyle ?? 'quoin');
+        this.doorSidePostScale.set(op.sidePostScale ?? 1.0);
         this.selectedNode.update((cur) => ({
           ...cur,
           id: op.id,
-          name: op.name || 'Gothic Arch Door',
+          name: op.name || 'Dungeon Iron-Bound Oak Door',
           kind: 'door',
           subtitle: `Wall Cutout Door · ${op.widthMeters.toFixed(1)}m`,
           thumbnailUrl: op.thumbnailUrl || '/assets/previews-png/obj-89c62a2b01238531.png',
-          modelUrl: op.modelUrl || '/assets/object-library/models/obj-89c62a2b01238531.glb',
+          modelUrl: op.modelUrl || 'proc-door://dungeon',
         }));
         this.stage.focusGizmoAt(fallbackX, 0.1, fallbackZ);
         return true;
@@ -1546,7 +1561,8 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         rotationOffsetDeg: node.rotationDeg || 0,
         perspective: 'auto',
         projection: 'inward',
-        hasCornerPosts: true,
+        hasCornerPosts: this.wallCornerPosts(),
+        cornerPostScale: this.wallCornerPostScale(),
         levelIndex: 0,
         points: pts,
         openings: [],
@@ -1611,6 +1627,9 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       widthMeters: this.doorWidthMeters(),
       heightMeters: this.doorHeightMeters(),
       isOpen: this.doorIsOpen(),
+      hasSidePosts: this.doorHasSidePosts(),
+      sidePostStyle: this.doorSidePostStyle(),
+      sidePostScale: this.doorSidePostScale(),
       isSecret: false,
       isRevealedToPlayers: true,
     };
@@ -2129,11 +2148,27 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
                 widthMeters: this.doorWidthMeters(),
                 heightMeters: this.doorHeightMeters(),
                 isOpen: this.doorIsOpen(),
+                hasSidePosts: this.doorHasSidePosts(),
+                sidePostStyle: this.doorSidePostStyle(),
+                sidePostScale: this.doorSidePostScale(),
               }
             : op,
         ),
       })),
     }));
+  }
+
+  onWallCornerPostsToggle(): void {
+    const next = !this.wallCornerPosts();
+    this.wallCornerPosts.set(next);
+    this.syncGhostCursorToStage();
+    this.updateTargetWall((w) => ({ ...w, hasCornerPosts: next }));
+  }
+
+  onWallCornerPostScaleChange(scale: number): void {
+    this.wallCornerPostScale.set(scale);
+    this.syncGhostCursorToStage();
+    this.updateTargetWall((w) => ({ ...w, cornerPostScale: scale }));
   }
 
   pushCelestialLightToStage(): void {

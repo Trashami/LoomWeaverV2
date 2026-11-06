@@ -100,12 +100,12 @@ export class WallMeshBuilder {
           const hasDoorTpl = isGlbDoor
             ? Boolean(GlbModelCache.getOrLoadTemplate(scene, doorUrl, onGlbLoaded))
             : true;
-          return `${op.id}:${op.t}:${op.type}:${op.doorStyle ?? ''}:${op.widthMeters}:${op.heightMeters ?? 0}:${op.isOpen ? 1 : 0}:${op.isSecret ? 1 : 0}:${op.isRevealedToPlayers ? 1 : 0}:${doorUrl}:${hasDoorTpl ? 1 : 0}`;
+          return `${op.id}:${op.t}:${op.type}:${op.doorStyle ?? ''}:${op.widthMeters}:${op.heightMeters ?? 0}:${op.isOpen ? 1 : 0}:${op.isSecret ? 1 : 0}:${op.isRevealedToPlayers ? 1 : 0}:${op.hasSidePosts !== false ? 1 : 0}:${op.sidePostStyle ?? 'quoin'}:${op.sidePostScale ?? 1}:${doorUrl}:${hasDoorTpl ? 1 : 0}`;
         })
         .join(',');
       const paintSig = `${w.paintDabs?.length ?? 0}`;
       parts.push(
-        `${w.id}|${w.drawMode}|${w.heightMeters}|${w.thicknessMeters}|${w.perspective}|${w.material}|${w.albedoUrl ?? ''}|${w.normalUrl ?? ''}|${w.colorHex ?? ''}|${w.wallNormalStrength ?? 1.35}|${w.wallDisplacementScale ?? 1}|${w.hasCornerPosts ? 1 : 0}|${w.connectionOverlap ?? 15}|${w.offsetY ?? -0.06}|${w.stampScale ?? 1}|${w.rotationOffsetDeg ?? 0}|${ptsSig}|${opsSig}|${paintSig}`,
+        `${w.id}|${w.drawMode}|${w.heightMeters}|${w.thicknessMeters}|${w.perspective}|${w.material}|${w.albedoUrl ?? ''}|${w.normalUrl ?? ''}|${w.colorHex ?? ''}|${w.wallNormalStrength ?? 1.35}|${w.wallDisplacementScale ?? 1}|${w.hasCornerPosts ? 1 : 0}|${w.cornerPostScale ?? 1}|${w.connectionOverlap ?? 15}|${w.offsetY ?? -0.06}|${w.stampScale ?? 1}|${w.rotationOffsetDeg ?? 0}|${ptsSig}|${opsSig}|${paintSig}`,
       );
     }
     return parts.join('||');
@@ -276,10 +276,8 @@ export class WallMeshBuilder {
             effectiveThickness,
             vAngleY,
             wallStyle,
+            customBitmapMat,
           );
-          if (customBitmapMat && cornerMeshes[0]) {
-            cornerMeshes[0].material = customBitmapMat;
-          }
           meshCount += cornerMeshes.length;
         }
       }
@@ -325,8 +323,8 @@ export class WallMeshBuilder {
             const doorX = a[0] + dx * localCenter;
             const doorZ = a[1] + dz * localCenter;
             const groundY = TerrainMeshBuilder.sampleElevationAt(scene, doorX, doorZ);
-            // Cut span inside the cased door jamb pillars so the wall embeds flush into the jambs
-            const halfSpan = Math.min(0.46, (doorWidth * 0.44) / totalLen);
+            // Cut span so the solid wall ends inside the left & right Door Side Post Blocks
+            const halfSpan = Math.min(0.47, (doorWidth * 0.46) / totalLen);
             localCutouts.push({
               startLocal: Math.max(0, localCenter - halfSpan),
               endLocal: Math.min(1, localCenter + halfSpan),
@@ -458,6 +456,7 @@ export class WallMeshBuilder {
             endDist: cut.endLocal * totalLen,
             width: doorWidth,
             height: doorH,
+            wallHeight: wallTopH,
             sillY: 0,
             doorX,
             doorZ,
@@ -467,8 +466,7 @@ export class WallMeshBuilder {
             angleY,
           };
 
-          // Always build the full-depth wall-wrapping door jambs & threshold;
-          // build the procedural hinged leaf unless an explicit GLB door template is loaded.
+          // Build the 3D Door Side Post Blocks, cased jambs, lintel/arch, and hinged leaf
           const doorMeshes = buildProceduralDoorAssembly(
             scene,
             wall,
@@ -476,6 +474,7 @@ export class WallMeshBuilder {
             effectiveThickness,
             wallStyle,
             !doorTpl,
+            customBitmapMat,
           );
           meshCount += doorMeshes.length;
 

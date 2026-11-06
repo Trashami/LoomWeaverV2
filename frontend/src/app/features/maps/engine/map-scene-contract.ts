@@ -138,6 +138,8 @@ export interface LightSourceNode extends LightExtras {
   readonly wallRotationYRad?: number;
 }
 
+export type DoorSidePostStyle = 'quoin' | 'pillar' | 'jamb';
+
 export interface WallOpeningNode {
   readonly id: string;
   readonly type: WallOpeningType;
@@ -153,6 +155,9 @@ export interface WallOpeningNode {
   readonly isOpen: boolean;
   readonly isSecret: boolean;
   readonly isRevealedToPlayers: boolean;
+  readonly hasSidePosts?: boolean;
+  readonly sidePostStyle?: DoorSidePostStyle;
+  readonly sidePostScale?: number;
 }
 
 export interface MapWallSegmentNode {
@@ -179,6 +184,7 @@ export interface MapWallSegmentNode {
   readonly perspective: CutawayPerspectiveMode;
   readonly projection: CutawayProjectionMode;
   readonly hasCornerPosts: boolean;
+  readonly cornerPostScale?: number;
   readonly levelIndex: number;
   readonly points: readonly (readonly [number, number])[];
   readonly openings: readonly WallOpeningNode[];

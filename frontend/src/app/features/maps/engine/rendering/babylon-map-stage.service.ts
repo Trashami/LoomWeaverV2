@@ -11,6 +11,7 @@ import {
   MeshBuilder,
   PointerEventTypes,
   Scene,
+  TransformNode,
   Vector3,
 } from '@babylonjs/core';
 import {
@@ -653,44 +654,58 @@ export class BabylonMapStageService {
     // Lights place as pure emitters: no ghost preview and no radius outline.
     if (this.ghostConfig.kind === 'light') return;
 
-    // Door ghost: snap to closest wall segment if near a wall
+    // Door ghost: snap to closest wall segment if near a wall and preview the door leaf + left/right Door Side Post Blocks
     if (this.ghostConfig.kind === 'door') {
       const hit = WallMeshBuilder.findClosestWallAttachment(this.lastState?.walls, gx, gz, 4.5);
       const dx = hit ? hit.x : gx;
       const dz = hit ? hit.z : gz;
       const rotY = hit ? hit.angleY : this.ghostConfig.rotationRad;
       const dy = TerrainMeshBuilder.sampleElevationAt(this.scene, dx, dz);
-      const doorUrl = this.ghostConfig.modelUrl || '';
-      if (doorUrl && !doorUrl.startsWith('proc-door://')) {
-        const tpl = GlbModelCache.getOrLoadTemplate(this.scene, doorUrl);
-        if (tpl) {
-          const inst = GlbModelCache.instantiateClone(
-            this.scene,
-            tpl,
-            'lw-ghost-cursor-door',
-            this.ghostConfig.scale,
-            this.ghostConfig.heightMeters,
-            this.ghostConfig.thicknessMeters * 1.35,
-            false,
-            true,
-          );
-          inst.position.set(dx, dy, dz);
-          inst.rotation.y = rotY;
-          return;
-        }
+      const doorW = Math.max(0.8, this.ghostConfig.scale);
+      const doorH = this.ghostConfig.heightMeters;
+      const wallThick = hit ? hit.wallThickness : this.ghostConfig.thicknessMeters;
+      const postW = Math.max(0.28, wallThick * 0.92);
+      const postD = Math.max(0.36, wallThick * 1.38);
+      const ghostMat = GlbModelCache.getSharedGhostMaterial(this.scene);
+
+      const ghostRoot = new TransformNode('lw-ghost-cursor-door-root', this.scene);
+      ghostRoot.position.set(dx, dy, dz);
+      ghostRoot.rotation.y = rotY;
+
+      for (const side of [-1, 1] as const) {
+        const sidePost = MeshBuilder.CreateBox(
+          `lw-ghost-cursor-door-post-${side}`,
+          { width: postW, height: doorH + 0.16, depth: postD },
+          this.scene,
+        );
+        sidePost.parent = ghostRoot;
+        sidePost.position.set(side * (doorW * 0.5 - postW * 0.12), (doorH + 0.16) * 0.5, 0);
+        sidePost.material = ghostMat;
+        sidePost.isPickable = false;
       }
+
+      const ghostHeader = MeshBuilder.CreateBox(
+        'lw-ghost-cursor-door-header',
+        { width: doorW + postW * 0.65, height: 0.22, depth: postD * 0.96 },
+        this.scene,
+      );
+      ghostHeader.parent = ghostRoot;
+      ghostHeader.position.set(0, doorH - 0.08, 0);
+      ghostHeader.material = ghostMat;
+      ghostHeader.isPickable = false;
+
       const ghostDoorBox = MeshBuilder.CreateBox(
         'lw-ghost-cursor-door-box',
         {
-          width: Math.max(0.8, this.ghostConfig.scale),
-          height: this.ghostConfig.heightMeters,
-          depth: this.ghostConfig.thicknessMeters * 1.32,
+          width: Math.max(0.5, doorW - postW * 0.72),
+          height: Math.max(0.6, doorH - 0.22),
+          depth: wallThick * 0.42,
         },
         this.scene,
       );
-      ghostDoorBox.position.set(dx, dy + this.ghostConfig.heightMeters * 0.5, dz);
-      ghostDoorBox.rotation.y = rotY;
-      ghostDoorBox.material = GlbModelCache.getSharedGhostMaterial(this.scene);
+      ghostDoorBox.parent = ghostRoot;
+      ghostDoorBox.position.set(0, (doorH - 0.22) * 0.5, 0);
+      ghostDoorBox.material = ghostMat;
       ghostDoorBox.isPickable = false;
       return;
     }

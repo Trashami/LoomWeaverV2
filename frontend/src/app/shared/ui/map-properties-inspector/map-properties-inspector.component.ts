@@ -19,6 +19,7 @@ import {
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { NgpButton } from 'ng-primitives/button';
 import {
+  DoorSidePostStyle,
   MapFloorBlendMode,
   MapLightFixtureKind,
   MapObjectPlacementMode,
@@ -192,6 +193,11 @@ export class LwMapPropertiesInspectorComponent {
   readonly doorWidthMeters = input<number>(2.4);
   readonly doorHeightMeters = input<number>(2.6);
   readonly doorIsOpen = input<boolean>(false);
+  readonly doorHasSidePosts = input<boolean>(true);
+  readonly doorSidePostStyle = input<DoorSidePostStyle>('quoin');
+  readonly doorSidePostScale = input<number>(1.0);
+  readonly wallCornerPosts = input<boolean>(true);
+  readonly wallCornerPostScale = input<number>(1.0);
 
   readonly celestialMode = input<LwCelestialBodyMode>('sun');
   readonly celestialAzimuthDeg = input<number>(135);
@@ -268,6 +274,11 @@ export class LwMapPropertiesInspectorComponent {
   readonly doorWidthChange = output<number>();
   readonly doorHeightChange = output<number>();
   readonly doorOpenToggle = output<void>();
+  readonly doorSidePostsToggle = output<void>();
+  readonly doorSidePostStyleChange = output<DoorSidePostStyle>();
+  readonly doorSidePostScaleChange = output<number>();
+  readonly wallCornerPostsToggle = output<void>();
+  readonly wallCornerPostScaleChange = output<number>();
 
   readonly celestialModeChange = output<LwCelestialBodyMode>();
   readonly celestialAzimuthChange = output<number>();

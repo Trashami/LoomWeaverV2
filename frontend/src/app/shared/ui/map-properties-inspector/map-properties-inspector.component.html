@@ -711,6 +711,37 @@
               />
             </div>
 
+            <div class="lw-map-inspector__toggle-row">
+              <span>3D Corner Post Blocks</span>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__switch"
+                [class.lw-map-inspector__switch--on]="wallCornerPosts()"
+                (click)="wallCornerPostsToggle.emit()"
+              >
+                {{ wallCornerPosts() ? 'On (Quoin Posts)' : 'Off' }}
+              </button>
+            </div>
+
+            @if (wallCornerPosts()) {
+              <div class="lw-map-inspector__slider-block">
+                <div class="lw-map-inspector__slider-head">
+                  <span>Corner Post Block Scale</span>
+                  <strong>{{ wallCornerPostScale().toFixed(2) }}x</strong>
+                </div>
+                <input
+                  type="range"
+                  min="0.6"
+                  max="1.8"
+                  step="0.05"
+                  class="lw-map-inspector__range"
+                  [value]="wallCornerPostScale()"
+                  (input)="onNumInput($event, wallCornerPostScaleChange)"
+                />
+              </div>
+            }
+
             <div class="lw-map-inspector__slider-block">
               <div class="lw-map-inspector__slider-head">
                 <span>Move Up / Down (Floor Blend Offset)</span>
@@ -956,6 +987,106 @@
             >
               {{ doorIsOpen() ? 'Open (85°)' : 'Closed' }}
             </button>
+          </div>
+
+          <div class="lw-map-inspector__group-box">
+            <span class="lw-map-inspector__subhead">Door Side Post Blocks (Wall-Matched Jambs)</span>
+            <p class="lw-map-inspector__hint">
+              Interlocks 3D stone/brick/timber quoin blocks onto both sides of the door cutout so the cut wall ends blend naturally into the doorway.
+            </p>
+
+            <div class="lw-map-inspector__toggle-row">
+              <span>Door Side Blocks</span>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__switch"
+                [class.lw-map-inspector__switch--on]="doorHasSidePosts()"
+                (click)="doorSidePostsToggle.emit()"
+              >
+                {{ doorHasSidePosts() ? 'On (Side Blocks)' : 'Off' }}
+              </button>
+            </div>
+
+            @if (doorHasSidePosts()) {
+              <div class="lw-map-inspector__row">
+                <span class="lw-map-inspector__label">Side Block Style</span>
+                <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
+                  <button
+                    type="button"
+                    ngpButton
+                    class="lw-map-inspector__pill"
+                    [class.lw-map-inspector__pill--active]="doorSidePostStyle() === 'quoin'"
+                    (click)="doorSidePostStyleChange.emit('quoin')"
+                  >
+                    Stacked Quoin Blocks
+                  </button>
+                  <button
+                    type="button"
+                    ngpButton
+                    class="lw-map-inspector__pill"
+                    [class.lw-map-inspector__pill--active]="doorSidePostStyle() === 'pillar'"
+                    (click)="doorSidePostStyleChange.emit('pillar')"
+                  >
+                    Full-Height Pier Posts
+                  </button>
+                  <button
+                    type="button"
+                    ngpButton
+                    class="lw-map-inspector__pill"
+                    [class.lw-map-inspector__pill--active]="doorSidePostStyle() === 'jamb'"
+                    (click)="doorSidePostStyleChange.emit('jamb')"
+                  >
+                    Cased Jamb Blocks
+                  </button>
+                </div>
+              </div>
+
+              <div class="lw-map-inspector__slider-block">
+                <div class="lw-map-inspector__slider-head">
+                  <span>Side Block Width &amp; Depth</span>
+                  <strong>{{ doorSidePostScale().toFixed(2) }}x</strong>
+                </div>
+                <input
+                  type="range"
+                  min="0.6"
+                  max="1.8"
+                  step="0.05"
+                  class="lw-map-inspector__range"
+                  [value]="doorSidePostScale()"
+                  (input)="onNumInput($event, doorSidePostScaleChange)"
+                />
+                <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
+                  <button
+                    type="button"
+                    ngpButton
+                    class="lw-map-inspector__pill"
+                    [class.lw-map-inspector__pill--active]="doorSidePostScale() === 0.8"
+                    (click)="doorSidePostScaleChange.emit(0.8)"
+                  >
+                    Slim (0.8x)
+                  </button>
+                  <button
+                    type="button"
+                    ngpButton
+                    class="lw-map-inspector__pill"
+                    [class.lw-map-inspector__pill--active]="doorSidePostScale() === 1"
+                    (click)="doorSidePostScaleChange.emit(1)"
+                  >
+                    Standard (1.0x)
+                  </button>
+                  <button
+                    type="button"
+                    ngpButton
+                    class="lw-map-inspector__pill"
+                    [class.lw-map-inspector__pill--active]="doorSidePostScale() === 1.35"
+                    (click)="doorSidePostScaleChange.emit(1.35)"
+                  >
+                    Heavy Bastion (1.35x)
+                  </button>
+                </div>
+              </div>
+            }
           </div>
 
           @if (hasPlacedSelection()) {

@@ -88,6 +88,8 @@ const MATERIAL_ICON_MAP: Readonly<Record<string, string>> = {
   grid: 'grid_on',
   ruler: 'straighten',
   maximize: 'open_in_full',
+  'open-in-full': 'open_in_full',
+  send: 'send',
   cursor: 'near_me',
   pen: 'edit',
   target: 'my_location',

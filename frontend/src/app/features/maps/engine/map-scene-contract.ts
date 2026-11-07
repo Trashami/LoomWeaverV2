@@ -215,6 +215,8 @@ export interface MapPathRibbonNode {
 
 export interface MapScatterClusterNode {
   readonly id: string;
+  /** Group ID shared by all scatter dabs painted during a single click-and-drag stroke. */
+  readonly strokeId?: string;
   readonly x: number;
   readonly z: number;
   readonly radius: number;

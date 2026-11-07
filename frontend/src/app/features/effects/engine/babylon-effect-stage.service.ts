@@ -19,6 +19,7 @@ import { WallMeshBuilder } from '../../maps/engine/walls/wall-mesh.builder';
 import { lodTierForQualityPreset } from '../../maps/engine/rendering/glb-lod';
 import { GlbModelCache } from '../../maps/engine/rendering/glb-model-cache';
 import { StampSceneBuilder } from '../../maps/engine/rendering/stamp-scene.builder';
+import { SeededScatterEngine } from '../../maps/engine/scatter/seeded-scatter.engine';
 import { setActiveBaseCellWorld } from '../../arcane-screen/engine/vtt-los-and-grid.engine';
 import {
   animateBabylonSpellAndTetherPulse, BabylonSpellTemplateState,
@@ -217,6 +218,7 @@ export class BabylonEffectStageService {
     if (this.scene && this.last3dSceneState && prevTier !== tier) {
       StampSceneBuilder.evictScene(this.scene);
       WallMeshBuilder.evictScene(this.scene);
+      SeededScatterEngine.evictScene(this.scene);
       this.sync3dSceneGraph(this.last3dSceneState);
     }
   }
@@ -532,7 +534,7 @@ export class BabylonEffectStageService {
     this.fogPlane?.dispose();
     this.fogPlane = null;
     this.tokenBuilder.clearCache();
-    if (this.scene) { this.mapSceneBuilder.clear(this.scene); StampSceneBuilder.evictScene(this.scene); WallMeshBuilder.evictScene(this.scene); }
+    if (this.scene) { this.mapSceneBuilder.clear(this.scene); StampSceneBuilder.evictScene(this.scene); WallMeshBuilder.evictScene(this.scene); SeededScatterEngine.evictScene(this.scene); }
     this.last3dSceneState = null;
     this.has3dSceneLoaded.set(false);
     this.scene?.dispose();

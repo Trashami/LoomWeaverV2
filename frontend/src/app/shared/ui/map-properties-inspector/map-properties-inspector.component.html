@@ -1772,6 +1772,55 @@
       <!-- 9. SURFACE SCATTER BRUSH TOOL -->
       @if (effectiveMode() === 'scatter') {
         <div class="lw-map-inspector__section">
+          @if (scatterStrokes().length > 0) {
+            <div class="lw-map-inspector__group-box">
+              <div class="lw-map-inspector__slider-head">
+                <span class="lw-map-inspector__subhead">Painted Scatter Strokes ({{ scatterStrokes().length }})</span>
+              </div>
+              <p class="lw-map-inspector__hint">
+                Each click-and-drag stroke keeps its own independent asset, size, density, and rotation. Select a painted stroke below to adjust or delete only that stroke, or choose "New Brush Stroke" to configure your next stroke without changing existing ones.
+              </p>
+              <div class="lw-map-inspector__row">
+                <span class="lw-map-inspector__label">Target Stroke</span>
+                <select
+                  class="lw-map-inspector__select"
+                  aria-label="Target scatter stroke"
+                  [value]="selectedScatterStrokeId() ?? ''"
+                  (change)="onStrInput($event, scatterStrokeSelected)"
+                >
+                  <option value="" [selected]="!selectedScatterStrokeId()">
+                    New Brush Stroke (Next Click &amp; Drag Only)
+                  </option>
+                  @for (s of scatterStrokes(); track s.strokeId) {
+                    <option [value]="s.strokeId" [selected]="s.strokeId === selectedScatterStrokeId()">
+                      Stroke {{ $index + 1 }} · {{ s.label }} ({{ s.scale.toFixed(1) }}x · {{ s.dabCount }} dabs)
+                    </option>
+                  }
+                </select>
+              </div>
+              @if (selectedScatterStrokeId(); as activeStrokeId) {
+                <div class="lw-map-inspector__dual-range">
+                  <button
+                    type="button"
+                    ngpButton
+                    class="lw-map-inspector__apply-btn"
+                    (click)="scatterStrokeSelected.emit('')"
+                  >
+                    Switch to New Brush Stroke
+                  </button>
+                  <button
+                    type="button"
+                    ngpButton
+                    class="lw-map-inspector__cancel-btn"
+                    (click)="scatterStrokeRemoved.emit(activeStrokeId)"
+                  >
+                    Delete Selected Stroke
+                  </button>
+                </div>
+              }
+            </div>
+          }
+
           <div class="lw-map-inspector__group-box">
             <div class="lw-map-inspector__slider-block">
               <div class="lw-map-inspector__slider-head">
@@ -1780,7 +1829,7 @@
               </div>
               <input
                 type="range"
-                min="0.4"
+                min="0.2"
                 max="8.0"
                 step="0.1"
                 class="lw-map-inspector__range"
@@ -1789,6 +1838,15 @@
                 (input)="onNumInput($event, scatterScaleChange)"
               />
               <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="scatterScale() === 0.5"
+                  (click)="scatterScaleChange.emit(0.5)"
+                >
+                  0.5x (2.5ft)
+                </button>
                 <button
                   type="button"
                   ngpButton

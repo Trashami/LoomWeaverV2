@@ -35,6 +35,7 @@
           <ng-content select="[modalHeader]" />
         </div>
         <div class="lw-modal__header-controls">
+          <ng-content select="[modalHeaderActions]" />
           @if (draggable() && (dragOffsetX() !== 0 || dragOffsetY() !== 0)) {
             <button
               ngpButton

@@ -127,6 +127,20 @@ export interface LwSelectedSceneNode {
   readonly blocksVision: boolean;
 }
 
+export interface LwScatterStrokeSummary {
+  readonly strokeId: string;
+  readonly label: string;
+  readonly modelUrl?: string;
+  readonly thumbnailUrl?: string;
+  readonly dabCount: number;
+  readonly scale: number;
+  readonly scaleJitterPct: number;
+  readonly radius: number;
+  readonly density: number;
+  readonly rotationDeg: number;
+  readonly rotationJitterDeg: number;
+}
+
 @Component({
   selector: 'lw-map-properties-inspector',
   standalone: true,
@@ -224,6 +238,8 @@ export class LwMapPropertiesInspectorComponent {
   readonly scatterScaleJitterPct = input<number>(20);
   readonly scatterRotationDeg = input<number>(0);
   readonly scatterRotationJitterDeg = input<number>(360);
+  readonly scatterStrokes = input<readonly LwScatterStrokeSummary[]>([]);
+  readonly selectedScatterStrokeId = input<string | null>(null);
   readonly objectRandomRotationDeg = input<number>(0);
   readonly objectRandomScalePct = input<number>(0);
 
@@ -317,6 +333,8 @@ export class LwMapPropertiesInspectorComponent {
   readonly scatterScaleJitterPctChange = output<number>();
   readonly scatterRotationDegChange = output<number>();
   readonly scatterRotationJitterDegChange = output<number>();
+  readonly scatterStrokeSelected = output<string>();
+  readonly scatterStrokeRemoved = output<string>();
   readonly objectRandomRotationDegChange = output<number>();
   readonly objectRandomScalePctChange = output<number>();
   readonly clearScatter = output<void>();

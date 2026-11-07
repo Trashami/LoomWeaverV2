@@ -1,52 +1,37 @@
-import { HttpClient } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
   HostListener,
   computed,
+  effect,
   inject,
   input,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { NgpButton } from 'ng-primitives/button';
 import { NgpInput } from 'ng-primitives/input';
+import { LoomCitationVm } from '../../../core/models/loomweaver.models';
 import { LoomWeaverStoreService } from '../../../core/services/loomweaver-store.service';
 import { LwBadgeComponent } from '../badge/badge.component';
-import { LwButtonComponent } from '../button/button.component';
+import { LwIconComponent } from '../icon/icon.component';
 import { LwModalComponent } from '../modal/modal.component';
-import { LwScrollAreaComponent } from '../scroll-area/scroll-area.component';
 
-export interface LwLoomChatReference {
-  readonly compositeKey: string;
-  readonly title: string;
-  readonly entityType: string;
-  readonly visibility: 'gm' | 'players' | 'public';
-  readonly excerpt: string;
-  readonly routeLink: string;
-  readonly routeLabel: string;
+export interface LoomQuickPromptCard {
+  readonly id: string;
+  readonly label: string;
+  readonly icon: string;
+  readonly query: string;
 }
 
-export interface LwLoomChatTurn {
+export interface LoomConversationTurnVm {
   readonly id: string;
   readonly question: string;
-  readonly answer: string;
-  readonly timestampLabel: string;
-  readonly scopeLabel: string;
-  readonly references: readonly LwLoomChatReference[];
-  readonly loading?: boolean;
-}
-
-interface ServerLoomQueryResponse {
-  readonly synthesis?: string;
-  readonly graphPaths?: readonly {
-    readonly pathSummary: string;
-    readonly sourceKey: string;
-    readonly relationshipType: string;
-    readonly targetKey: string;
-    readonly visibility: string;
-  }[];
+  readonly paragraphs: readonly string[];
+  readonly sourceTags: readonly string[];
+  readonly references: readonly LoomCitationVm[];
+  readonly isExample?: boolean;
 }
 
 @Component({
@@ -54,327 +39,467 @@ interface ServerLoomQueryResponse {
   standalone: true,
   imports: [
     FormsModule,
-    RouterLink,
     NgpButton,
     NgpInput,
     LwBadgeComponent,
-    LwButtonComponent,
+    LwIconComponent,
     LwModalComponent,
-    LwScrollAreaComponent,
   ],
   templateUrl: './loom-launcher.component.html',
   styleUrl: './loom-launcher.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LwLoomLauncherComponent {
-  private readonly http = inject(HttpClient);
-  private readonly router = inject(Router);
   readonly store = inject(LoomWeaverStoreService);
+  private readonly router = inject(Router);
   readonly generativeAiEnabled = input<boolean>(false);
 
-  readonly draftQuestion = signal<string>('');
+  readonly promptDraft = signal<string>('');
+  readonly conversationTurns = signal<readonly LoomConversationTurnVm[]>([]);
+  readonly expandedSourceTurnIds = signal<ReadonlySet<string>>(new Set());
+  private lastHandledStoreQuery = '';
 
-  readonly quickPrompts: readonly string[] = [
-    'What is happening in our current session?',
-    'Summarize recent session recaps',
-    'What quests and clues are active?',
-    'Who are the key NPCs & factions in Cinth?',
+  readonly quickPrompts: readonly LoomQuickPromptCard[] = [
+    {
+      id: 'catch-up',
+      label: 'Catch me up',
+      icon: 'scroll',
+      query: 'What happened in our most recent session?',
+    },
+    {
+      id: 'active-quests',
+      label: 'Active quests',
+      icon: 'swords',
+      query: 'What quests and clues are currently active?',
+    },
+    {
+      id: 'npcs-factions',
+      label: 'NPCs & factions',
+      icon: 'users',
+      query: 'Who are the key NPCs and factions in our campaign?',
+    },
+    {
+      id: 'unresolved-mysteries',
+      label: 'Unresolved mysteries',
+      icon: 'book-open',
+      query: 'What unresolved mysteries or clues are still open?',
+    },
   ];
 
-  readonly chatTurns = signal<readonly LwLoomChatTurn[]>([]);
+  readonly activeCampaignTitle = computed(
+    () => this.store.activeCampaign().name || 'Shadow of the Mountain',
+  );
 
-  readonly effectiveTurns = computed<readonly LwLoomChatTurn[]>(() => {
-    const existing = this.chatTurns();
-    if (existing.length > 0) return existing;
-    return [this.buildInitialWelcomeTurn()];
+  readonly viewerRoleBadgeLabel = computed(() =>
+    this.store.viewerRole() === 'gm' ? 'GM View' : 'Player View',
+  );
+
+  readonly footerSessionStatus = computed(() => {
+    const sessions = this.store.sessions();
+    const active = this.store.activeSession() ?? sessions[0];
+    const num = active?.sessionNumber ?? 5;
+    const perm =
+      this.store.viewerRole() === 'gm' ? 'GM permissions' : 'Player permissions';
+    return `Session ${num} · ${perm}`;
   });
 
-  @HostListener('document:keydown', ['$event'])
-  onGlobalShortcut(event: KeyboardEvent): void {
+  readonly isShowingExample = computed(() => {
+    const turns = this.conversationTurns();
+    return turns.length === 1 && !!turns[0]?.isExample;
+  });
+
+  constructor() {
+    effect(() => {
+      const isOpen = this.store.loomDrawerOpen();
+      const currentQuery = this.store.loomQuery().trim();
+      if (isOpen && this.conversationTurns().length === 0) {
+        this.seedExampleTurn();
+      }
+      if (isOpen && currentQuery && currentQuery !== this.lastHandledStoreQuery) {
+        this.lastHandledStoreQuery = currentQuery;
+        this.askLoom(currentQuery);
+      }
+    });
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  onGlobalKeydown(event: KeyboardEvent): void {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
       event.preventDefault();
       this.store.toggleLoomDrawer();
+    } else if (event.key === 'Escape' && this.store.loomDrawerOpen()) {
+      this.store.toggleLoomDrawer(false);
     }
   }
 
-  askQuickPrompt(prompt: string): void {
-    this.draftQuestion.set(prompt);
-    this.submitQuestion(prompt);
+  onModalOpenChange(open: boolean): void {
+    this.store.toggleLoomDrawer(open);
   }
 
-  clearHistory(): void {
-    this.chatTurns.set([]);
-  }
-
-  submitQuestion(explicitQuestion?: string): void {
-    const q = (explicitQuestion ?? this.draftQuestion()).trim();
+  submitDraft(): void {
+    const q = this.promptDraft().trim();
     if (!q) return;
-
-    this.draftQuestion.set('');
-    this.store.setLoomSearchQuery(q);
-
-    const turnId = `loom-turn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const isGm = this.store.viewerRole() === 'gm';
-    const scopeLabel = isGm ? 'GM Canon + Secrets' : 'Player-Safe Canon';
-    const nowLabel = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    const localResult = this.synthesizeLocalCanon(q, isGm);
-
-    const pendingTurn: LwLoomChatTurn = {
-      id: turnId,
-      question: q,
-      answer: localResult.answer,
-      timestampLabel: nowLabel,
-      scopeLabel,
-      references: localResult.references,
-      loading: true,
-    };
-
-    this.chatTurns.update((prev) => [...prev, pendingTurn]);
-
-    const campaignId = this.store.activeCampaignId();
-    if (campaignId <= 0) {
-      this.chatTurns.update((prev) =>
-        prev.map((t) => (t.id === turnId ? { ...t, loading: false } : t)),
-      );
-      return;
-    }
-
-    this.http
-      .post<ServerLoomQueryResponse>(`/api/v2/campaigns/${campaignId}/loom/query`, {
-        query: q,
-        role: this.store.viewerRole(),
-        witnessCharacter: 'All Party',
-        includePrivateNotes: true,
-      })
-      .subscribe({
-        next: (res) => {
-          const serverSynthesis = res?.synthesis?.trim();
-          const combinedAnswer =
-            serverSynthesis &&
-            !serverSynthesis.toLowerCase().includes('no lore synthesis') &&
-            !serverSynthesis.toLowerCase().includes('select a campaign')
-              ? `${serverSynthesis}\n\n${localResult.answer}`
-              : localResult.answer;
-          this.chatTurns.update((prev) =>
-            prev.map((t) =>
-              t.id === turnId
-                ? {
-                    ...t,
-                    answer: combinedAnswer,
-                    loading: false,
-                  }
-                : t,
-            ),
-          );
-        },
-        error: () => {
-          this.chatTurns.update((prev) =>
-            prev.map((t) => (t.id === turnId ? { ...t, loading: false } : t)),
-          );
-        },
-      });
+    this.promptDraft.set('');
+    this.askLoom(q);
   }
 
-  inspectReference(ref: LwLoomChatReference): void {
+  askLoom(question: string): void {
+    const trimmed = question.trim();
+    if (!trimmed) return;
+    this.lastHandledStoreQuery = trimmed;
+    this.store.setLoomSearchQuery(trimmed);
+
+    const turn = this.synthesizeTurn(trimmed);
+    this.conversationTurns.update((prev) => {
+      const nonExample = prev.filter((item) => !item.isExample);
+      return [...nonExample, turn];
+    });
+  }
+
+  isSourcesExpanded(turnId: string): boolean {
+    return this.expandedSourceTurnIds().has(turnId);
+  }
+
+  toggleSources(turnId: string): void {
+    this.expandedSourceTurnIds.update((set) => {
+      const next = new Set(set);
+      if (next.has(turnId)) {
+        next.delete(turnId);
+      } else {
+        next.add(turnId);
+      }
+      return next;
+    });
+  }
+
+  openReference(ref: LoomCitationVm): void {
+    const rawRoute = ref.routeLink || '/sessions';
+    const [pathPart, queryPart] = rawRoute.split('?');
+    const queryParams: Record<string, string> = {};
+    if (queryPart) {
+      const searchParams = new URLSearchParams(queryPart);
+      searchParams.forEach((val, key) => {
+        queryParams[key] = val;
+      });
+    }
+    this.store.inspectEntity(ref.compositeKey);
+    this.store.toggleLoomDrawer(false);
+    void this.router.navigate([pathPart], { queryParams });
+  }
+
+  inspectReferenceInDrawer(ref: LoomCitationVm): void {
     this.store.inspectEntity(ref.compositeKey);
     this.store.toggleLoomDrawer(false);
   }
 
-  openReferenceLink(ref: LwLoomChatReference): void {
+  openFullLoomWorkspace(): void {
     this.store.toggleLoomDrawer(false);
-    void this.router.navigateByUrl(ref.routeLink);
+    void this.router.navigate(['/loom']);
   }
 
-  private buildInitialWelcomeTurn(): LwLoomChatTurn {
-    const activeSess = this.store.activeSession();
-    const campName = this.store.activeCampaign()?.name || 'Shadow of the Mountain';
-    const isGm = this.store.viewerRole() === 'gm';
-    const refs = this.collectMatchingReferences('', isGm).slice(0, 4);
-    const sessLine = activeSess
-      ? `Active Planning / Play Session: Session ${activeSess.sessionNumber} — ${activeSess.title} (${activeSess.locationLabel}).`
-      : 'All chronicled sessions and world dossiers are indexed.';
-
-    return {
-      id: 'loom-welcome',
-      question: 'What campaign canon and session memory do you have ready?',
-      answer: `I am The Loom, your zero-generation campaign memory for ${campName}. I only recall established canon, session chronicles, quests, NPCs, and role-authorized notes. ${sessLine} Ask me any question below and I will synthesize the answer alongside direct links to the source references.`,
-      timestampLabel: 'Ready',
-      scopeLabel: isGm ? 'GM Canon + Secrets' : 'Player-Safe Canon',
-      references: refs,
-    };
-  }
-
-  private synthesizeLocalCanon(
-    query: string,
-    isGm: boolean,
-  ): { answer: string; references: readonly LwLoomChatReference[] } {
-    const refs = this.collectMatchingReferences(query, isGm);
-    const activeSess = this.store.activeSession();
-    const lower = query.toLowerCase();
-
-    if (lower.includes('current session') || lower.includes('happening') || lower.includes('upcoming')) {
-      if (activeSess) {
-        const summaryText =
-          activeSess.summary ||
-          `Session ${activeSess.sessionNumber} (${activeSess.title}) is set at ${activeSess.locationLabel}.`;
-        return {
-          answer: `Current Selected Session: Session ${activeSess.sessionNumber} — ${activeSess.title} (${activeSess.statusLabel}, Location: ${activeSess.locationLabel}). ${summaryText}`,
-          references: refs,
-        };
-      }
+  formatRouteLabel(routeLink: string): string {
+    const clean = (routeLink || '').split('?')[0];
+    switch (clean) {
+      case '/sessions':
+        return 'Open in Sessions';
+      case '/campaigns':
+        return 'Open in Quests & Story';
+      case '/world-lore':
+        return 'Open in World & Lore';
+      case '/characters':
+        return 'Open in Characters';
+      case '/maps':
+        return 'Open in Maps';
+      case '/arcane-screen':
+        return 'Open in Arcane Screen';
+      case '/encounters':
+        return 'Open in Encounters';
+      case '/handouts':
+        return 'Open in Handouts';
+      default:
+        return `Open ${clean || 'Record'}`;
     }
+  }
 
-    if (refs.length === 0) {
+  private seedExampleTurn(): void {
+    const sessions = this.store.sessions();
+    const sessionFive =
+      sessions.find((s) => s.sessionNumber === 5) ?? sessions[0];
+    const loreCit =
+      this.store
+        .loomCitations()
+        .find((c) =>
+          `${c.title} ${c.excerpt}`.toLowerCase().includes('lineage') ||
+          `${c.title} ${c.excerpt}`.toLowerCase().includes('dal'),
+        ) ?? this.store.loomCitations()[0];
+
+    const refs: LoomCitationVm[] = [
+      {
+        compositeKey: `Session:${sessionFive?.sessionId ?? 'session-5'}`,
+        title: sessionFive
+          ? `Session ${sessionFive.sessionNumber} — ${sessionFive.title}`
+          : 'Session 5 — The Grand Illusion',
+        entityType: 'Session',
+        excerpt:
+          sessionFive?.summary ||
+          'The sacred grove assignment. The lineage book. The party is discovered and escapes.',
+        routeLink: '/sessions',
+        visibility: 'players',
+      },
+      loreCit ?? {
+        compositeKey: '1:Lore:dal-lineage-book',
+        title: "Dal Riata's Royal Lineage Ledger",
+        entityType: 'Lore',
+        excerpt:
+          'Recovered museum ledger indicating Dal Riata belongs to the true Edhellainian royal bloodline.',
+        routeLink: '/world-lore',
+        visibility: 'players',
+      },
+    ];
+
+    this.conversationTurns.set([
+      {
+        id: 'example-turn-1',
+        question: "What happened with Dal Riata's lineage book?",
+        paragraphs: [
+          "The party discovered that Dal Riata's family may be the true royal bloodline. The book was taken from the museum, and the group escaped after being discovered.",
+          'The connection to the sacred grove assignment remains unresolved.',
+        ],
+        sourceTags: ['Session 5', 'Lore'],
+        references: refs,
+        isExample: true,
+      },
+    ]);
+  }
+
+  private synthesizeTurn(question: string): LoomConversationTurnVm {
+    const q = question.toLowerCase();
+    const sessions = this.store.sessions();
+    const activeSess = this.store.activeSession() ?? sessions[0];
+    const attachments = this.store.activeSessionAttachments();
+    const entities = this.store.authorizedEntities();
+    const citations = this.store.loomCitations();
+
+    const sessionRefs: LoomCitationVm[] = sessions.slice(0, 3).map((s) => ({
+      compositeKey: `Session:${s.sessionId}`,
+      title: `Session ${s.sessionNumber} — ${s.title}`,
+      entityType: 'Session',
+      excerpt: s.summary || `Location: ${s.locationLabel}`,
+      routeLink: '/sessions',
+      visibility: 'players',
+    }));
+
+    if (
+      q.includes('recent session') ||
+      q.includes('catch me up') ||
+      q.includes('current session') ||
+      q.includes('last session') ||
+      q.includes('recap')
+    ) {
+      const latest = activeSess ?? sessions[0];
+      const prior = sessions[1];
+      const paragraphs: string[] = [];
+      if (latest) {
+        paragraphs.push(
+          `In Session ${latest.sessionNumber} (${latest.title}) at ${latest.locationLabel}, ${latest.summary || 'the party advanced into the next stage of the investigation.'}`,
+        );
+      }
+      if (prior) {
+        paragraphs.push(
+          `Previously in Session ${prior.sessionNumber} (${prior.title}), ${prior.summary}`,
+        );
+      }
+      const refs = [
+        ...sessionRefs.slice(0, 2),
+        ...attachments.slice(0, 2).map((a) => ({
+          compositeKey: a.targetKey || a.id,
+          title: a.title,
+          entityType: a.elementKind,
+          excerpt: a.subtitle || a.summary,
+          routeLink: a.routeLink || '/sessions',
+          visibility: a.visibility,
+        })),
+      ];
       return {
-        answer: `No established canon records matched "${query}" within your current ${isGm ? 'GM' : 'Player'} visibility scope. The Loom never invents fiction—try asking about a session, location, NPC, quest, or lore entry.`,
-        references: this.collectMatchingReferences('', isGm).slice(0, 3),
+        id: `turn-${Date.now()}`,
+        question,
+        paragraphs:
+          paragraphs.length > 0
+            ? paragraphs
+            : ['No session recaps have been recorded for this campaign yet.'],
+        sourceTags: this.buildSourceTags(refs, latest?.sessionNumber),
+        references: refs,
       };
     }
 
-    const topSummaries = refs
-      .slice(0, 3)
-      .map((r) => `${r.title} (${r.entityType}): ${r.excerpt}`)
-      .join(' ');
+    if (q.includes('quest') || q.includes('active')) {
+      const questAttachments = attachments.filter(
+        (a) => a.elementKind === 'Quest' || a.elementKind === 'SideQuest',
+      );
+      const questEntities = entities.filter((e) =>
+        ['quest', 'plot', 'clue'].includes(e.entityType.toLowerCase()),
+      );
+      const refs: LoomCitationVm[] = [
+        ...questAttachments.map((qItem) => ({
+          compositeKey: qItem.targetKey,
+          title: qItem.title,
+          entityType: qItem.elementKind === 'SideQuest' ? 'Side Quest' : 'Quest',
+          excerpt: qItem.subtitle || qItem.summary,
+          routeLink: qItem.routeLink || '/campaigns',
+          visibility: qItem.visibility,
+        })),
+        ...questEntities.slice(0, 3).map((e) => ({
+          compositeKey: e.compositeKey,
+          title: e.name,
+          entityType: e.entityType,
+          excerpt: e.summary,
+          routeLink: e.routeLink,
+          visibility: e.visibility,
+        })),
+      ].slice(0, 4);
+
+      const finalRefs = refs.length > 0 ? refs : citations.slice(0, 3);
+      const topTwo = finalRefs.slice(0, 2);
+      const paragraphs = topTwo.map((r) => `${r.title}: ${r.excerpt}`);
+      return {
+        id: `turn-${Date.now()}`,
+        question,
+        paragraphs:
+          paragraphs.length > 0
+            ? paragraphs
+            : ['No active quests are currently logged in the campaign records.'],
+        sourceTags: this.buildSourceTags(finalRefs, activeSess?.sessionNumber),
+        references: finalRefs,
+      };
+    }
+
+    if (q.includes('npc') || q.includes('faction') || q.includes('who')) {
+      const npcEntities = entities.filter((e) =>
+        ['npc', 'character', 'faction', 'deity', 'person'].includes(
+          e.entityType.toLowerCase(),
+        ),
+      );
+      const refs: LoomCitationVm[] = (
+        npcEntities.length > 0 ? npcEntities.slice(0, 4) : entities.slice(0, 4)
+      ).map((e) => ({
+        compositeKey: e.compositeKey,
+        title: e.name,
+        entityType: e.entityType,
+        excerpt: e.summary,
+        routeLink: e.routeLink,
+        visibility: e.visibility,
+      }));
+      const paragraphs: string[] = [];
+      if (refs.length > 0) {
+        paragraphs.push(
+          refs
+            .slice(0, 2)
+            .map((r) => `${r.title} (${r.entityType}) — ${r.excerpt}`)
+            .join(' '),
+        );
+      }
+      if (refs.length > 2) {
+        paragraphs.push(
+          refs
+            .slice(2, 4)
+            .map((r) => `${r.title} — ${r.excerpt}`)
+            .join(' '),
+        );
+      }
+      return {
+        id: `turn-${Date.now()}`,
+        question,
+        paragraphs:
+          paragraphs.length > 0
+            ? paragraphs
+            : ['No NPCs or factions match that query in your campaign records.'],
+        sourceTags: this.buildSourceTags(refs, activeSess?.sessionNumber),
+        references: refs,
+      };
+    }
+
+    if (
+      q.includes('myster') ||
+      q.includes('unresolved') ||
+      q.includes('clue') ||
+      q.includes('open')
+    ) {
+      const mysteryEntities = entities.filter((e) =>
+        ['lore', 'clue', 'artifact', 'quest', 'location'].includes(
+          e.entityType.toLowerCase(),
+        ),
+      );
+      const refs: LoomCitationVm[] = [
+        ...sessionRefs.slice(0, 1),
+        ...(mysteryEntities.length > 0 ? mysteryEntities : entities)
+          .slice(0, 3)
+          .map((e) => ({
+            compositeKey: e.compositeKey,
+            title: e.name,
+            entityType: e.entityType,
+            excerpt: e.summary,
+            routeLink: e.routeLink,
+            visibility: e.visibility,
+          })),
+      ].slice(0, 4);
+
+      const paragraphs: string[] = [
+        refs[1]
+          ? `${refs[1].title}: ${refs[1].excerpt}`
+          : "Dal Riata's royal lineage ledger and its connection to the sacred grove assignment remain open threads.",
+      ];
+      if (refs[2]) {
+        paragraphs.push(`${refs[2].title}: ${refs[2].excerpt}`);
+      }
+      return {
+        id: `turn-${Date.now()}`,
+        question,
+        paragraphs,
+        sourceTags: this.buildSourceTags(refs, activeSess?.sessionNumber),
+        references: refs,
+      };
+    }
+
+    const refs =
+      citations.length > 0
+        ? [...citations.slice(0, 3)]
+        : [...sessionRefs.slice(0, 2)];
+    const paragraphs = refs
+      .slice(0, 2)
+      .map((r) => `${r.title}: ${r.excerpt}`);
 
     return {
-      answer: `Synthesized from ${refs.length} canon reference${refs.length === 1 ? '' : 's'}: ${topSummaries}`,
+      id: `turn-${Date.now()}`,
+      question,
+      paragraphs:
+        paragraphs.length > 0
+          ? paragraphs
+          : ['No matching records were found in this campaign.'],
+      sourceTags: this.buildSourceTags(refs, activeSess?.sessionNumber),
       references: refs,
     };
   }
 
-  private collectMatchingReferences(query: string, isGm: boolean): LwLoomChatReference[] {
-    const q = query.trim().toLowerCase();
-    const tokens = q
-      .split(/\s+/)
-      .map((w) => w.replace(/[^a-z0-9]/g, ''))
-      .filter((w) => (w.length >= 3 || /^\d+$/.test(w)) && !['what', 'who', 'where', 'when', 'how', 'much', 'did', 'get', 'got', 'after', 'the', 'and', 'are', 'for', 'our', 'summarize'].includes(w));
-
-    const isLootQuery = ['gold', 'gp', 'loot', 'treasure', 'defeating', 'dungeon', 'encounter', 'sword', 'claimed'].some((k) => q.includes(k));
-    const scored: { ref: LwLoomChatReference; score: number }[] = [];
-    const seen = new Set<string>();
-
-    const scoreText = (text: string, isLootRecord: boolean): number => {
-      if (!q || tokens.length === 0) return isLootRecord ? 5 : 1;
-      let s = text.includes(q) ? 12 : 0;
-      for (const t of tokens) {
-        if (text.includes(t)) s += 2;
+  private buildSourceTags(
+    refs: readonly LoomCitationVm[],
+    sessionNumber?: number,
+  ): readonly string[] {
+    const tags: string[] = [];
+    for (const ref of refs) {
+      const sessionMatch = ref.title.match(/^Session\s+\d+/i);
+      const label = sessionMatch
+        ? sessionMatch[0]
+        : ref.entityType === 'SideQuest'
+          ? 'Quest'
+          : ref.entityType;
+      if (label && !tags.includes(label)) {
+        tags.push(label);
       }
-      const sessMatch = q.match(/session\s+(\d+)/i);
-      if (sessMatch && text.includes(`session ${sessMatch[1]}`)) s += 8;
-      if (isLootQuery && isLootRecord) s += 10;
-      return s;
-    };
-
-    // 1. Store Entities / Citations (including EncounterLoot Chronicles)
-    for (const cit of this.store.authorizedEntities()) {
-      const text = `${cit.name} ${cit.subtitle} ${cit.summary} ${cit.entityType}`.toLowerCase();
-      const isLoot = cit.compositeKey.includes('EncounterLoot') || cit.name.toLowerCase().includes('loot & battle ledger');
-      const sc = scoreText(text, isLoot);
-      if (sc > 0 && !seen.has(cit.compositeKey)) {
-        seen.add(cit.compositeKey);
-        const route = cit.routeLink || this.resolveRouteForKind(cit.entityType.toLowerCase());
-        scored.push({
-          score: sc,
-          ref: {
-            compositeKey: cit.compositeKey,
-            title: cit.name,
-            entityType: isLoot ? 'LOOT LEDGER' : cit.entityType.toUpperCase(),
-            visibility: cit.visibility === 'gm' ? 'gm' : 'players',
-            excerpt: cit.summary,
-            routeLink: route,
-            routeLabel: this.formatRouteLabel(route),
-          },
-        });
-      }
+      if (tags.length >= 3) break;
     }
-
-    // 2. Session Attachments (Lore, Quests, NPCs, Encounters, Maps)
-    for (const att of this.store.sessionAttachments()) {
-      if (!isGm && att.visibility === 'gm') continue;
-      const text = `${att.title} ${att.subtitle} ${att.summary} ${att.elementKind}`.toLowerCase();
-      const isLoot = text.includes('loot & recap') || text.includes('gp looted');
-      const sc = scoreText(text, isLoot);
-      const key = att.targetKey || att.id;
-      if (sc > 0 && !seen.has(key)) {
-        seen.add(key);
-        scored.push({
-          score: sc,
-          ref: {
-            compositeKey: key,
-            title: att.title,
-            entityType: att.elementKind,
-            visibility: (att.visibility as 'gm' | 'players') || 'players',
-            excerpt: att.summary || att.subtitle || `Attached to ${att.sessionId}`,
-            routeLink: att.routeLink || '/sessions',
-            routeLabel: this.formatRouteLabel(att.routeLink || '/sessions'),
-          },
-        });
-      }
+    if (tags.length === 0 && sessionNumber) {
+      tags.push(`Session ${sessionNumber}`);
     }
-
-    // 3. Sessions
-    for (const s of this.store.sessions()) {
-      const text = `${s.title} ${s.locationLabel} ${s.summary} session ${s.sessionNumber}`.toLowerCase();
-      const sc = scoreText(text, false);
-      const key = `session:${s.sessionId}`;
-      if (sc > 0 && !seen.has(key)) {
-        seen.add(key);
-        scored.push({
-          score: sc,
-          ref: {
-            compositeKey: key,
-            title: `Session ${s.sessionNumber} — ${s.title}`,
-            entityType: 'Session',
-            visibility: 'players',
-            excerpt: s.summary || `${s.locationLabel} · ${s.statusLabel}`,
-            routeLink: '/sessions',
-            routeLabel: 'Sessions Planner',
-          },
-        });
-      }
-    }
-
-    return scored.sort((a, b) => b.score - a.score).slice(0, 6).map((x) => x.ref);
-  }
-
-  private resolveRouteForKind(kind: string): string {
-    switch (kind) {
-      case 'npc':
-      case 'pc':
-        return '/characters';
-      case 'location':
-        return '/maps';
-      case 'quest':
-      case 'faction':
-        return '/campaigns';
-      case 'session':
-        return '/sessions';
-      case 'item':
-        return '/items';
-      default:
-        return '/world-lore';
-    }
-  }
-
-  private formatRouteLabel(route: string): string {
-    switch (route) {
-      case '/sessions':
-        return 'Sessions';
-      case '/world-lore':
-        return 'World & Lore';
-      case '/campaigns':
-        return 'Quests & Story';
-      case '/characters':
-        return 'Characters';
-      case '/maps':
-        return 'Maps & Scenes';
-      case '/items':
-        return 'Items';
-      case '/encounters':
-        return 'Encounters';
-      default:
-        return route.replace(/^\//, '') || 'Studio';
-    }
+    return tags;
   }
 }

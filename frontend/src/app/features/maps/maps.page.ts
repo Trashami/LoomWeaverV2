@@ -37,6 +37,7 @@ import {
   LwMapPropertiesInspectorComponent,
   LwObjectPlacementMode,
   LwObjectSurfaceFinish,
+  LwScatterStrokeSummary,
   LwSelectedSceneNode,
   LwTerrainSculptOp,
 } from '../../shared/ui/map-properties-inspector/map-properties-inspector.component';
@@ -549,6 +550,58 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   readonly scatterScaleJitterPct = signal<number>(20);
   readonly scatterRotationDeg = signal<number>(0);
   readonly scatterRotationJitterDeg = signal<number>(360);
+  readonly selectedScatterStrokeId = signal<string | null>(null);
+  private activeScatterStrokeId: string | null = null;
+  readonly scatterStrokes = computed<readonly LwScatterStrokeSummary[]>(() => {
+    const clusters = this.sceneGraph().scatterClusters ?? [];
+    if (clusters.length === 0) return [];
+    const groups = new Map<string, LwScatterStrokeSummary>();
+    let legacyGroupIndex = 0;
+    let lastLegacyModel = '';
+    let lastLegacyScale = -1;
+    let currentLegacyId = '';
+    for (const c of clusters) {
+      let sid = c.strokeId;
+      if (!sid) {
+        const mod = c.modelUrl ?? '';
+        const sc = c.scale ?? 2.8;
+        if (mod !== lastLegacyModel || Math.abs(sc - lastLegacyScale) > 0.01 || !currentLegacyId) {
+          legacyGroupIndex++;
+          currentLegacyId = `legacy-stroke-${legacyGroupIndex}`;
+          lastLegacyModel = mod;
+          lastLegacyScale = sc;
+        }
+        sid = currentLegacyId;
+      }
+      const prev = groups.get(sid);
+      if (prev) {
+        groups.set(sid, {
+          ...prev,
+          dabCount: prev.dabCount + 1,
+          scale: c.scale ?? prev.scale,
+          scaleJitterPct: c.scaleJitterPct ?? prev.scaleJitterPct,
+          radius: c.radius ?? prev.radius,
+          density: c.density ?? prev.density,
+          rotationDeg: c.rotationDeg ?? prev.rotationDeg,
+          rotationJitterDeg: c.rotationJitterDeg ?? prev.rotationJitterDeg,
+        });
+      } else {
+        groups.set(sid, {
+          strokeId: sid,
+          label: c.label || 'Scattered Foliage',
+          modelUrl: c.modelUrl,
+          dabCount: 1,
+          scale: c.scale ?? 2.8,
+          scaleJitterPct: c.scaleJitterPct ?? 20,
+          radius: c.radius ?? 4.5,
+          density: c.density ?? 65,
+          rotationDeg: c.rotationDeg ?? 0,
+          rotationJitterDeg: c.rotationJitterDeg ?? 360,
+        });
+      }
+    }
+    return Array.from(groups.values());
+  });
   readonly objectRandomRotationDeg = signal<number>(0);
   readonly objectRandomScalePct = signal<number>(0);
   private previewedObjectRotationDeg: number | null = null;
@@ -712,6 +765,13 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.stage.focusGizmoAt(null);
     this.activeDockToolId.set('select');
     this.syncSurfaceLock();
+    if (activeTool === 'scatter') {
+      // Selecting a new asset in Scatter mode starts a fresh brush configuration so existing painted strokes keep their own asset & size.
+      this.selectedScatterStrokeId.set(null);
+      this.syncGhostCursorToStage();
+      return;
+    }
+
     this.syncGhostCursorToStage();
   }
 
@@ -734,7 +794,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
           (hx, hz) => this.onCanvasHoverAt(hx, hz),
           (dx, dz, holdTicks) => this.onSurfaceDragAt(dx, dz, holdTicks),
           (rx, rz) => this.onSurfaceReleaseAt(rx, rz),
-          () => { if(this.activeDockToolId() === 'water') this.waterEditor.beginStroke(); },
+          () => this.onSurfaceStart(),
         );
         this.stage.setQualityPreset(this.activeQuality());
         this.stage.setCameraMode(this.cameraView());
@@ -1114,6 +1174,13 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
 
     this.syncSurfaceLock();
     this.pushCelestialLightToStage();
+    if (activeTool === 'scatter') {
+      // Selecting a new asset in Scatter mode starts a fresh brush configuration so existing painted strokes keep their own asset & size.
+      this.selectedScatterStrokeId.set(null);
+      this.syncGhostCursorToStage();
+      return;
+    }
+
     this.syncGhostCursorToStage();
   }
 
@@ -1321,6 +1388,13 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
+    if (activeTool === 'scatter') {
+      // Selecting a new asset in Scatter mode starts a fresh brush configuration so existing painted strokes keep their own asset & size.
+      this.selectedScatterStrokeId.set(null);
+      this.syncGhostCursorToStage();
+      return;
+    }
+
     this.syncGhostCursorToStage();
   }
 
@@ -1360,6 +1434,13 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       floorTilingScale: this.floorTilingScale(),
     }));
     this.pngPipelineBanner.set(`Applied Seamless Flooring: ${name}`);
+    if (activeTool === 'scatter') {
+      // Selecting a new asset in Scatter mode starts a fresh brush configuration so existing painted strokes keep their own asset & size.
+      this.selectedScatterStrokeId.set(null);
+      this.syncGhostCursorToStage();
+      return;
+    }
+
     this.syncGhostCursorToStage();
   }
 
@@ -1464,16 +1545,37 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   onFloorBrushActiveChange(active: boolean): void {
     this.floorBrushActive.set(active);
     this.syncSurfaceLock();
+    if (activeTool === 'scatter') {
+      // Selecting a new asset in Scatter mode starts a fresh brush configuration so existing painted strokes keep their own asset & size.
+      this.selectedScatterStrokeId.set(null);
+      this.syncGhostCursorToStage();
+      return;
+    }
+
     this.syncGhostCursorToStage();
   }
 
   onFloorBrushColorHexChange(hex: string): void {
     this.floorBrushColorHex.set(hex);
+    if (activeTool === 'scatter') {
+      // Selecting a new asset in Scatter mode starts a fresh brush configuration so existing painted strokes keep their own asset & size.
+      this.selectedScatterStrokeId.set(null);
+      this.syncGhostCursorToStage();
+      return;
+    }
+
     this.syncGhostCursorToStage();
   }
 
   onFloorBrushBlendModeChange(mode: MapFloorBlendMode): void {
     this.floorBrushBlendMode.set(mode);
+    if (activeTool === 'scatter') {
+      // Selecting a new asset in Scatter mode starts a fresh brush configuration so existing painted strokes keep their own asset & size.
+      this.selectedScatterStrokeId.set(null);
+      this.syncGhostCursorToStage();
+      return;
+    }
+
     this.syncGhostCursorToStage();
   }
 
@@ -1595,6 +1697,20 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     if (this.show2dCanvas()) this.render2dViewport(hx, hz);
   }
 
+  private onSurfaceStart(): void {
+    const tool = this.activeDockToolId();
+    if (tool === 'water') {
+      this.waterEditor.beginStroke();
+      return;
+    }
+    if (tool === 'scatter') {
+      const node = this.selectedNode();
+      this.recordHistoryBeforeEdit(`Scatter -> ${node.name}`);
+      this.activeScatterStrokeId = `stroke-${Date.now()}-${Math.round(Math.random() * 1000)}`;
+      this.selectedScatterStrokeId.set(this.activeScatterStrokeId);
+    }
+  }
+
   onSurfaceDragAt(x: number, z: number, holdTicks: number): void {
     const tool = this.activeDockToolId();
     if (tool === 'floor-bump' && this.floorBrushActive()) {
@@ -1641,6 +1757,13 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       }
       this.lastScatterPaintPos = { x, z };
       const node = this.selectedNode();
+      const strokeId =
+        this.activeScatterStrokeId ??
+        `stroke-${Date.now()}-${Math.round(Math.random() * 1000)}`;
+      this.activeScatterStrokeId = strokeId;
+      if (this.selectedScatterStrokeId() !== strokeId) {
+        this.selectedScatterStrokeId.set(strokeId);
+      }
       this.sceneGraph.update((cur) => {
         const updated: MapSceneGraphState = {
           ...cur,
@@ -1649,6 +1772,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
             ...(cur.scatterClusters ?? []),
             {
               id: `scat-${Date.now()}-${(cur.scatterClusters ?? []).length}`,
+              strokeId,
               x,
               z,
               radius: this.terrainBrushRadius(),
@@ -1701,6 +1825,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   onSurfaceReleaseAt(x: number, z: number): void {
     this.waterEditor.finish();
     this.lastScatterPaintPos = null;
+    this.activeScatterStrokeId = null;
     this.lastFloorPaintPos = null;
     const tool = this.activeDockToolId();
     if (tool === 'terrain' || tool === 'water') {
@@ -2869,6 +2994,13 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     const clamped = Math.max(0, Math.min(360, Math.round(spreadDeg)));
     this.objectRandomRotationDeg.set(clamped);
     this.rollNextObjectGhostVariation();
+    if (activeTool === 'scatter') {
+      // Selecting a new asset in Scatter mode starts a fresh brush configuration so existing painted strokes keep their own asset & size.
+      this.selectedScatterStrokeId.set(null);
+      this.syncGhostCursorToStage();
+      return;
+    }
+
     this.syncGhostCursorToStage();
   }
 
@@ -2876,6 +3008,13 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     const clamped = Math.max(0, Math.min(50, Math.round(jitterPct)));
     this.objectRandomScalePct.set(clamped);
     this.rollNextObjectGhostVariation();
+    if (activeTool === 'scatter') {
+      // Selecting a new asset in Scatter mode starts a fresh brush configuration so existing painted strokes keep their own asset & size.
+      this.selectedScatterStrokeId.set(null);
+      this.syncGhostCursorToStage();
+      return;
+    }
+
     this.syncGhostCursorToStage();
   }
 

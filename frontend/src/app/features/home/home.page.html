@@ -333,7 +333,7 @@
   >
     <div class="lw-home__container-head-links">
       <a routerLink="/sessions" class="lw-home__container-link lw-link-reset">All Sessions</a>
-      <a routerLink="/loom" class="lw-home__container-link lw-link-reset">Open in The Loom</a>
+      <button type="button" class="lw-home__container-link lw-link-reset" style="background: transparent; border: none; cursor: pointer;" (click)="store.toggleLoomDrawer(true)">Open in The Loom</button>
     </div>
     <ul class="lw-home__container-list">
       @for (session of campaignSessions(); track session.sessionId) {
@@ -356,13 +356,14 @@
             >
               Open Session
             </a>
-            <a
-              routerLink="/loom"
+            <button
+              type="button"
               class="lw-home__mini-link lw-link-reset"
-              (click)="store.setActiveSession(session.sessionId)"
+              style="cursor: pointer;"
+              (click)="store.setActiveSession(session.sessionId); store.toggleLoomDrawer(true)"
             >
               Session Memory
-            </a>
+            </button>
           </div>
         </li>
       }

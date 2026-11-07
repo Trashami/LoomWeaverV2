@@ -1,19 +1,19 @@
 <div class="lw-page">
   <lw-page-header
-    title="The Loom · Living Campaign Memory & Scoped Note Vault"
-    subtitle="100% free for GMs and Players. Searches only established canon and role-isolated session notes—never invents lore."
+    title="The Loom"
+    [subtitle]="store.activeCampaign().name || 'Shadow of the Mountain'"
     icon="BookOpen"
   >
     <div pageActions class="lw-loom-top-actions">
       <lw-badge
-        [label]="store.viewerRole() === 'gm' ? 'Scope: GM Canon + Secrets' : 'Scope: Player-Safe Canon'"
+        [label]="store.viewerRole() === 'gm' ? 'GM View' : 'Player View'"
         [tone]="store.viewerRole() === 'gm' ? 'gm' : 'emerald'"
       />
-      <lw-badge [label]="'Witness Filter: ' + activeWitness()" tone="gold" />
+      <lw-badge [label]="'Witness: ' + activeWitness()" tone="gold" />
       @if (isWeaveEnabled()) {
-        <a class="lw-action-link" routerLink="/weave">Open Neo4j World Graph</a>
+        <a class="lw-action-link" routerLink="/weave">Open World Graph</a>
       } @else {
-        <a class="lw-action-link" routerLink="/world-lore">Open World &amp; Lore Atlas</a>
+        <a class="lw-action-link" routerLink="/world-lore">Open World &amp; Lore</a>
       }
     </div>
   </lw-page-header>
@@ -113,9 +113,8 @@
 
   <div class="lw-loom-notes-layout">
     <lw-panel
-      eyebrow="Shared lw-scoped-note-card Primitive"
-      title="Role & Player-Scoped Session Notes"
-      subtitle="Enforces privacy boundaries: Private to Adventurer, Shared with GM Only, or Shared with Party."
+      title="Session Notes"
+      subtitle="Scoped to your campaign role and character permissions."
     >
       <div class="lw-notes-grid">
         @for (note of visibleNotes(); track note.id) {
@@ -128,9 +127,8 @@
     </lw-panel>
 
     <lw-panel
-      eyebrow="Note Privacy Composer"
-      title="Record Scoped Session Note"
-      subtitle="Attach deep links and choose whether this memory is private to your character, GM-only, or party-wide."
+      title="Add Session Note"
+      subtitle="Choose whether this note is private, GM-only, or shared with the party."
     >
       <div class="lw-note-form">
         <label>

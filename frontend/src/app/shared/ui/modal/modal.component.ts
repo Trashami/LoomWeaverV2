@@ -17,9 +17,10 @@ export type LwModalSize = 'sm' | 'md' | 'lg' | 'xl';
 /**
  * Shared LoomWeaver dialog shell (backdrop, frame, movable/draggable header, scrollable body, footer).
  * Content projection slots:
- *  - `[modalHeader]`  identity / title block rendered left of the close button
- *  - default          scrollable body
- *  - `[modalFooter]`  action row
+ *  - `[modalHeader]`        identity / title block rendered left of the close button
+ *  - `[modalHeaderActions]` optional controls rendered on the right side of the header before the close button
+ *  - default                scrollable body
+ *  - `[modalFooter]`        action row
  */
 @Component({
   selector: 'lw-modal',

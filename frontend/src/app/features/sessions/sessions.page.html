@@ -50,7 +50,7 @@
         <div class="lw-active-session-banner__quick-links">
           <a routerLink="/maps" class="lw-sessions-link-pill">Publish Map from Map Studio</a>
           <a routerLink="/world-lore" class="lw-sessions-link-pill">Assign Lore & Quests</a>
-          <a routerLink="/loom" class="lw-sessions-link-pill">Session Notes (The Loom)</a>
+          <button type="button" class="lw-sessions-link-pill" style="cursor: pointer;" (click)="store.toggleLoomDrawer(true)">The Loom</button>
         </div>
       </div>
     </section>

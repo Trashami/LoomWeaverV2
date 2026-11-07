@@ -409,7 +409,8 @@ export function registerArcaneScreenStageEffects(
     const reticleKeys = isGmUnselected ? [] : battle.allReticleTargetKeys();
     const opacities = fog.opacityByKey();
     const scale = vttDisplay.gridScale();
-    untracked(() => stage.syncTokens(tokens, attackerKey, targetKey, reticleKeys, opacities, scale));
+    const hpBarMode = vttDisplay.tokenHealthBarMode();
+    untracked(() => stage.syncTokens(tokens, attackerKey, targetKey, reticleKeys, opacities, scale, hpBarMode));
   });
   effect(() => {
     if (!host.hasConfiguredMap()) return;

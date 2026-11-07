@@ -215,7 +215,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     const el = event.target as HTMLElement | null;
     if (
       el?.closest(
-        'lw-vtt-action-dock, .bottom-action-console, .console-category-popover, .dock-flyout-drawer, lw-vtt-dm-drawers, lw-vtt-settings-modal, lw-vtt-handout-modal, lw-vtt-token-context-menu, lw-vtt-combat-order-modal, .lw-vtt-floating-drawer',
+        'lw-vtt-action-dock, .bottom-action-console, .console-category-popover, .dock-flyout-drawer, lw-vtt-map-tools, .floating-left-tools, .tool-flyout-popover, lw-vtt-dm-drawers, lw-vtt-settings-modal, lw-vtt-handout-modal, lw-vtt-token-context-menu, lw-vtt-combat-order-modal, .lw-vtt-floating-drawer',
       )
     ) {
       return;
@@ -350,7 +350,15 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     const attackerKey = isGmUnselected ? undefined : (obs?.key ?? this.vtt.selectedAttackerKey());
     const targetKey = isGmUnselected ? undefined : (this.vtt.selectedTargetKey() || undefined);
     const reticleKeys = isGmUnselected ? [] : this.battle.allReticleTargetKeys();
-    this.stage.syncTokens(this.vtt.tokens(), attackerKey, targetKey, reticleKeys, this.fog.opacityByKey(), this.vttDisplay.gridScale());
+    this.stage.syncTokens(
+      this.vtt.tokens(),
+      attackerKey,
+      targetKey,
+      reticleKeys,
+      this.fog.opacityByKey(),
+      this.vttDisplay.gridScale(),
+      this.vttDisplay.tokenHealthBarMode(),
+    );
     this.stage.syncFog(this.fog.layer());
   }
 

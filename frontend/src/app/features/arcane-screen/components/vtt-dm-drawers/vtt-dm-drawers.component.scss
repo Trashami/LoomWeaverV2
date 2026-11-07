@@ -1,6 +1,7 @@
 .lw-vtt-floating-drawer {
   position: absolute; top: 3.4rem; right: 0.85rem;
-  width: min(460px, calc(100% - 1.7rem)); z-index: 15;
+  width: min(460px, calc(100% - 1.7rem)); z-index: 390;
+  max-height: calc(100% - 6.2rem); overflow-y: auto; overscroll-behavior: contain;
   padding: 0.75rem 0.85rem; border-radius: 10px;
   background: rgba(5, 16, 12, 0.96); border: 1px solid rgba(217, 183, 122, 0.42);
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.65);

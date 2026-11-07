@@ -2,7 +2,13 @@ import { ChangeDetectionStrategy, Component, computed, inject, output } from '@a
 import { LoomWeaverStoreService } from '../../../../core/services/loomweaver-store.service';
 import { WebAudioAmbienceService } from '../../../assets/engine/web-audio-ambience.service';
 import { VttBattleStateService } from '../../services/vtt-battle-state.service';
-import { VTT_MAP_QUALITY_OPTIONS, VttDisplaySettingsService, VttMapQuality } from '../../services/vtt-display-settings.service';
+import {
+  VTT_MAP_QUALITY_OPTIONS,
+  VTT_TOKEN_HEALTH_BAR_OPTIONS,
+  VttDisplaySettingsService,
+  VttMapQuality,
+  VttTokenHealthBarMode,
+} from '../../services/vtt-display-settings.service';
 
 @Component({
   selector: 'lw-vtt-settings-panel',
@@ -19,6 +25,7 @@ export class VttSettingsPanelComponent {
   readonly enableGrid = output<void>();
 
   readonly qualityOptions = VTT_MAP_QUALITY_OPTIONS;
+  readonly healthBarOptions = VTT_TOKEN_HEALTH_BAR_OPTIONS;
   readonly isGm = computed(() => this.store.viewerRole() === 'gm');
   readonly gridScalePercent = computed(() => Math.round(this.display.gridScale() * 100));
   readonly userVolumePercent = computed(() => Math.round(this.audio.effectiveVolume() * 100));
@@ -32,6 +39,10 @@ export class VttSettingsPanelComponent {
 
   select(value: VttMapQuality): void {
     this.display.setMapQuality(value);
+  }
+
+  selectHealthBarMode(mode: VttTokenHealthBarMode): void {
+    this.display.setTokenHealthBarMode(mode);
   }
 
   onScaleInput(event: Event): void {

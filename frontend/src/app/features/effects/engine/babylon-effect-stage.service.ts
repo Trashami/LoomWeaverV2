@@ -72,6 +72,7 @@ export class BabylonEffectStageService {
   private latestTargetedKeys: readonly string[] = [];
   private latestOpacityByKey: ReadonlyMap<string, number> = new Map();
   private latestGridScale = 1.0;
+  private latestHealthBarMode: 'all' | 'party' | 'damaged' | 'off' = 'all';
   private latestGridOffsetX = 0.0;
   private latestGridOffsetY = 0.0;
   private latestAttackerPos: { x: number; z: number } | null = null;
@@ -486,13 +487,22 @@ export class BabylonEffectStageService {
 
   syncFog(layer: HTMLCanvasElement | null): void { this.fogPlane?.setLayer(layer); }
 
-  syncTokens(tokens: readonly VttTokenVm[], attackerKey?: string, targetKey?: string, targetedKeys: readonly string[] = [], opacityByKey: ReadonlyMap<string, number> = new Map(), gridScale = 1.0): void {
+  syncTokens(
+    tokens: readonly VttTokenVm[],
+    attackerKey?: string,
+    targetKey?: string,
+    targetedKeys: readonly string[] = [],
+    opacityByKey: ReadonlyMap<string, number> = new Map(),
+    gridScale = 1.0,
+    healthBarMode: 'all' | 'party' | 'damaged' | 'off' = 'all',
+  ): void {
     this.latestTokens = tokens;
     this.latestAttackerKey = attackerKey;
     this.latestTargetKey = targetKey;
     this.latestTargetedKeys = targetedKeys;
     this.latestOpacityByKey = opacityByKey;
     this.latestGridScale = gridScale;
+    this.latestHealthBarMode = healthBarMode;
     this.refreshTokens();
   }
 
@@ -505,7 +515,18 @@ export class BabylonEffectStageService {
 
   private refreshTokens(): void {
     if (!this.scene) return;
-    this.tokenBuilder.syncTokens(this.scene, this.latestTokens, this.isForcedTopDown, this.latestAttackerKey, this.latestTargetKey, this.latestTargetedKeys, this.latestOpacityByKey, this.latestGridScale, () => this.refreshTokens());
+    this.tokenBuilder.syncTokens(
+      this.scene,
+      this.latestTokens,
+      this.isForcedTopDown,
+      this.latestAttackerKey,
+      this.latestTargetKey,
+      this.latestTargetedKeys,
+      this.latestOpacityByKey,
+      this.latestGridScale,
+      () => this.refreshTokens(),
+      this.latestHealthBarMode,
+    );
     const src = this.latestTokens.find((t) => t.key === this.latestAttackerKey);
     const startPos = src ? { x: src.x, z: src.z } : this.latestAttackerPos;
     syncBabylonSpellAndTetherMeshes(this.scene, startPos, this.latestTetherTargets, this.latestSpellTemplate);

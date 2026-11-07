@@ -5,9 +5,16 @@ import { GlbModelCache } from '../../maps/engine/rendering/glb-model-cache';
 import { BASE_GRID_CELL_SVG_PX, setActiveGridCalibration } from '../engine/vtt-los-and-grid.engine';
 
 export type VttMapQuality = 'performance' | 'balanced' | 'visual';
+export type VttTokenHealthBarMode = 'all' | 'party' | 'damaged' | 'off';
 
 export interface VttMapQualityOption {
   readonly id: VttMapQuality;
+  readonly label: string;
+  readonly hint: string;
+}
+
+export interface VttTokenHealthBarOption {
+  readonly id: VttTokenHealthBarMode;
   readonly label: string;
   readonly hint: string;
 }
@@ -16,6 +23,13 @@ export const VTT_MAP_QUALITY_OPTIONS: readonly VttMapQualityOption[] = [
   { id: 'performance', label: 'Performance', hint: 'Low-resolution map art. Best for older hardware and slow connections.' },
   { id: 'balanced', label: 'Balanced', hint: 'Medium-resolution map art. A good default for most devices.' },
   { id: 'visual', label: 'Visual', hint: 'Full-resolution map art for the best look.' },
+];
+
+export const VTT_TOKEN_HEALTH_BAR_OPTIONS: readonly VttTokenHealthBarOption[] = [
+  { id: 'all', label: 'All Combatants', hint: 'Show floating overhead life bars above all visible characters, NPCs, and monsters.' },
+  { id: 'party', label: 'Party & Allies Only', hint: 'Show floating overhead life bars above party characters and friendly NPCs.' },
+  { id: 'damaged', label: 'Damaged Only', hint: 'Show floating overhead life bars only when a combatant is wounded.' },
+  { id: 'off', label: 'Hidden', hint: 'Hide floating overhead life bars on the battle map.' },
 ];
 
 const QUALITY_SUFFIX: Readonly<Record<VttMapQuality, string>> = {
@@ -28,6 +42,7 @@ const STORAGE_KEY = 'lw.vtt.mapQuality';
 const GRID_SCALE_STORAGE_KEY = 'lw.vtt.gridScale';
 const GRID_OFFSET_X_STORAGE_KEY = 'lw.vtt.gridOffsetX';
 const GRID_OFFSET_Y_STORAGE_KEY = 'lw.vtt.gridOffsetY';
+const TOKEN_HP_BAR_STORAGE_KEY = 'lw.vtt.tokenHealthBarMode';
 
 export interface UserVttPreferencesDto {
   readonly mapQuality?: string | null;
@@ -57,6 +72,7 @@ export class VttDisplaySettingsService {
   readonly gridOffsetX = signal<number>(readStoredNumber(GRID_OFFSET_X_STORAGE_KEY, 0.0, -200, 200));
   readonly gridOffsetY = signal<number>(readStoredNumber(GRID_OFFSET_Y_STORAGE_KEY, 0.0, -200, 200));
   readonly calibratingGrid = signal<boolean>(false);
+  readonly tokenHealthBarMode = signal<VttTokenHealthBarMode>(readStoredHealthBarMode());
 
   private readonly failedVariants = signal<ReadonlySet<string>>(new Set());
   private readonly probed = new Set<string>();
@@ -103,6 +119,24 @@ export class VttDisplaySettingsService {
     GlbModelCache.setLodTier(lodTierForQualityPreset(quality));
     writeStorage(STORAGE_KEY, quality);
     this.persistAccountPreferences();
+  }
+
+  setTokenHealthBarMode(mode: VttTokenHealthBarMode): void {
+    this.tokenHealthBarMode.set(mode);
+    writeStorage(TOKEN_HP_BAR_STORAGE_KEY, mode);
+  }
+
+  toggleTokenHealthBars(): void {
+    const next: VttTokenHealthBarMode = this.tokenHealthBarMode() === 'off' ? 'all' : 'off';
+    this.setTokenHealthBarMode(next);
+  }
+
+  shouldShowTokenHealthBar(token: { currentHp: number; maxHp: number; faction?: string }): boolean {
+    const mode = this.tokenHealthBarMode();
+    if (mode === 'off' || token.maxHp <= 0) return false;
+    if (mode === 'party') return token.faction === 'party' || token.faction === 'ally' || token.faction === 'neutral';
+    if (mode === 'damaged') return token.currentHp < token.maxHp && token.currentHp > 0;
+    return true;
   }
 
   setGridScale(scale: number): void {
@@ -263,5 +297,14 @@ function readStoredNumber(key: string, fallback: number, min: number, max: numbe
     return isFinite(raw) && raw >= min && raw <= max ? raw : fallback;
   } catch {
     return fallback;
+  }
+}
+
+function readStoredHealthBarMode(): VttTokenHealthBarMode {
+  try {
+    const raw = (localStorage.getItem(TOKEN_HP_BAR_STORAGE_KEY) || 'all').toLowerCase();
+    return VTT_TOKEN_HEALTH_BAR_OPTIONS.some((o) => o.id === raw) ? (raw as VttTokenHealthBarMode) : 'all';
+  } catch {
+    return 'all';
   }
 }

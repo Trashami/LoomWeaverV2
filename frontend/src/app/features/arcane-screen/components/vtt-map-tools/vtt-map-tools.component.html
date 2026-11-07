@@ -406,6 +406,16 @@
             <lw-icon [name]="battle.mapMode3D() ? 'layers' : 'view_in_ar'" [size]="14" />
             <span class="flyout-item-text">{{ battle.mapMode3D() ? 'Switch to 2D Top-Down' : 'Switch to 3D View' }}</span>
           </button>
+          <button ngpButton type="button" class="flyout-item-btn" [class.active]="vttDisplay.tokenHealthBarMode() !== 'off'" (click)="vttDisplay.toggleTokenHealthBars()">
+            <lw-icon name="heart" [size]="14" />
+            <span class="flyout-item-text">{{ vttDisplay.tokenHealthBarMode() === 'off' ? 'Show Overhead Life Bars' : 'Hide Overhead Life Bars' }}</span>
+          </button>
+          <div class="flyout-chip-grid-2">
+            <button ngpButton type="button" class="flyout-mode-chip" [class.active]="vttDisplay.tokenHealthBarMode() === 'all'" (click)="vttDisplay.setTokenHealthBarMode('all')">HP: All</button>
+            <button ngpButton type="button" class="flyout-mode-chip" [class.active]="vttDisplay.tokenHealthBarMode() === 'party'" (click)="vttDisplay.setTokenHealthBarMode('party')">HP: Party</button>
+            <button ngpButton type="button" class="flyout-mode-chip" [class.active]="vttDisplay.tokenHealthBarMode() === 'damaged'" (click)="vttDisplay.setTokenHealthBarMode('damaged')">HP: Wounded</button>
+            <button ngpButton type="button" class="flyout-mode-chip" [class.active]="vttDisplay.tokenHealthBarMode() === 'off'" (click)="vttDisplay.setTokenHealthBarMode('off')">HP: Off</button>
+          </div>
           @if (serverSync.scenes().length > 0) {
             <div class="flyout-scene-select">
               <label>Scene:</label>

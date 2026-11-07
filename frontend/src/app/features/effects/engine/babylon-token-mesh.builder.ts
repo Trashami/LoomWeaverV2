@@ -20,7 +20,8 @@ import {
   attachTokenLightAndGlowMeshes,
   createSpinningBaseTargetReticleMesh,
   isTokenAmbientGlowActive,
-  resolveTokenAmbientGlowColorHex,
+  syncTokenFloatingHealthBarMesh,
+  syncTokenPointLightExcludedMeshes,
 } from './babylon-token-light-aura.helper';
 import { attachVolumetricFogToMaterial } from './babylon-volumetric-fog.plugin';
 import {
@@ -48,7 +49,8 @@ export class BabylonTokenMeshBuilder {
       .filter(
         (m) =>
           m.metadata?.tokenKey === tokenKey ||
-          m.name.startsWith(`lw-token-glow-`) && m.name.endsWith(tokenKey) ||
+          m.name === `lw-token-hpbar-${tokenKey}` ||
+          (m.name.startsWith(`lw-token-glow-`) && m.name.endsWith(tokenKey)) ||
           (m.name.startsWith(`lw-target-reticle-`) && m.name.endsWith(tokenKey)),
       )
       .forEach((m) => m.dispose());
@@ -71,6 +73,7 @@ export class BabylonTokenMeshBuilder {
     opacityByKey: ReadonlyMap<string, number>,
     gridScale: number,
     onGlbLoaded: () => void,
+    healthBarMode: 'all' | 'party' | 'damaged' | 'off' = 'all',
   ): void {
     const activeTargetSet = new Set<string>(
       targetedKeys.length > 0 ? targetedKeys : targetKey ? [targetKey] : [],
@@ -128,7 +131,13 @@ export class BabylonTokenMeshBuilder {
 
       const glbReady = Boolean(!isTopDown2D && t.glbUrl && this.glbContainerCache.has(t.glbUrl));
       const glowActive = isTokenAmbientGlowActive(t);
-      const renderSig = `${isTopDown2D ? '2d' : '3d-grass-rocks-glow-v4'}|${t.glbUrl ?? ''}|${glbReady ? 1 : 0}|${t.avatarUrl ?? ''}|${t.sizeCategory ?? 'medium'}|${isDead ? 1 : 0}|${t.faction}|${t.roleLabel ?? ''}|${t.colorOverride ?? ''}|${t.emitsLight ? 1 : 0}|${t.lightColorHex ?? ''}|${t.lightDimFeet ?? 0}|${glowActive ? 1 : 0}|${t.ambientGlowColorHex ?? ''}|${t.ambientGlowRadiusFeet ?? 0}|${t.ambientGlowIntensity ?? 0}|${gridScale.toFixed(2)}`;
+      const showHealthBar =
+        healthBarMode !== 'off' &&
+        t.maxHp > 0 &&
+        (healthBarMode === 'all' ||
+          (healthBarMode === 'party' && (t.faction === 'party' || t.faction === 'ally')) ||
+          (healthBarMode === 'damaged' && t.currentHp < t.maxHp && t.currentHp > 0));
+      const renderSig = `${isTopDown2D ? '2d' : '3d-grass-rocks-glow-v5'}|${t.glbUrl ?? ''}|${glbReady ? 1 : 0}|${t.avatarUrl ?? ''}|${t.sizeCategory ?? 'medium'}|${isDead ? 1 : 0}|${t.faction}|${t.roleLabel ?? ''}|${t.colorOverride ?? ''}|${t.emitsLight ? 1 : 0}|${t.lightColorHex ?? ''}|${t.lightDimFeet ?? 0}|${glowActive ? 1 : 0}|${t.ambientGlowColorHex ?? ''}|${t.ambientGlowRadiusFeet ?? 0}|${t.ambientGlowIntensity ?? 0}|${gridScale.toFixed(2)}`;
 
       if (existingBase && existingBase.metadata?.renderSig === renderSig) {
         existingBase.setEnabled(true);
@@ -147,16 +156,27 @@ export class BabylonTokenMeshBuilder {
           existingDisc.rotation.z = facingY;
         }
         updateTokenRimMaterialHighlight(scene, t, isAttacker, isTargeted);
+        syncTokenFloatingHealthBarMesh(
+          scene,
+          t,
+          existingBase,
+          effectiveScale,
+          baseHeight,
+          isTopDown2D,
+          showHealthBar,
+          tokenOpacity,
+        );
 
         const pickable = tokenOpacity > 0.05;
         existingBase.visibility = tokenOpacity;
         existingBase.isPickable = pickable;
         for (const child of existingBase.getChildMeshes()) {
-          const isGlowMesh = child.name.startsWith('lw-token-glow-');
+          const isNonPickableOverlay =
+            child.name.startsWith('lw-token-glow-') || child.name.startsWith('lw-token-hpbar-');
           if (!child.name.startsWith('lw-token-hitbox-')) {
             child.visibility = tokenOpacity;
           }
-          child.isPickable = isGlowMesh ? false : pickable;
+          child.isPickable = isNonPickableOverlay ? false : pickable;
         }
         const existingReticle = scene.getMeshByName(`lw-target-reticle-root-${t.key}`) as Mesh | null;
         if (isTargeted && pickable) {
@@ -235,19 +255,31 @@ export class BabylonTokenMeshBuilder {
         attachTokenLightAndGlowMeshes(scene, t, baseMesh, effectiveScale, baseHeight, tokenOpacity);
       }
 
+      syncTokenFloatingHealthBarMesh(
+        scene,
+        t,
+        baseMesh,
+        effectiveScale,
+        baseHeight,
+        isTopDown2D,
+        showHealthBar,
+        tokenOpacity,
+      );
+
       const pickable = tokenOpacity > 0.05;
       baseMesh.visibility = tokenOpacity;
       baseMesh.isPickable = pickable;
       for (const child of baseMesh.getChildMeshes()) {
-        const isGlowMesh = child.name.startsWith('lw-token-glow-');
+        const isNonPickableOverlay =
+          child.name.startsWith('lw-token-glow-') || child.name.startsWith('lw-token-hpbar-');
         child.renderingGroupId = 0;
-        if (!isGlowMesh) {
+        if (!isNonPickableOverlay) {
           child.alphaIndex = 10;
         }
         if (!child.name.startsWith('lw-token-hitbox-')) {
           child.visibility = tokenOpacity;
         }
-        child.isPickable = isGlowMesh ? false : pickable;
+        child.isPickable = isNonPickableOverlay ? false : pickable;
       }
 
       if (isTargeted && pickable) {
@@ -386,6 +418,7 @@ export class BabylonTokenMeshBuilder {
         rootNode.rotation.z = Math.PI / 2.2;
         rootNode.position.y = baseHeight / 2 + 0.03 * effectiveScale;
       }
+      syncTokenPointLightExcludedMeshes(scene, token.key);
     } catch {
       attachGrassPuckFace(
         scene,
@@ -405,14 +438,6 @@ export class BabylonTokenMeshBuilder {
     if (!mat) return;
     mesh.material = mat;
     attachVolumetricFogToMaterial(mat);
-    const glowActive = isTokenAmbientGlowActive(token);
-    const glowColor = glowActive
-      ? Color3.FromHexString(resolveTokenAmbientGlowColorHex(token))
-      : Color3.Black();
-    const rawIntensity = token.ambientGlowEnabled
-      ? (token.ambientGlowIntensity ?? 0.72)
-      : (token.ambientGlowIntensity ?? 0.52);
-    const emissiveBoost = glowActive ? Math.max(0.12, Math.min(0.48, rawIntensity * 0.36)) : 0;
 
     if (mat instanceof PBRMaterial) {
       mat.maxSimultaneousLights = 8;
@@ -427,7 +452,7 @@ export class BabylonTokenMeshBuilder {
       ) {
         mat.albedoColor = Color3.FromHexString('#7d8581');
       }
-      mat.emissiveColor = glowActive ? glowColor.scale(emissiveBoost) : Color3.Black();
+      mat.emissiveColor = Color3.Black();
     } else if (mat instanceof StandardMaterial) {
       mat.maxSimultaneousLights = 8;
       mat.specularColor = new Color3(0.03, 0.03, 0.03);
@@ -440,7 +465,7 @@ export class BabylonTokenMeshBuilder {
       ) {
         mat.diffuseColor = Color3.FromHexString('#7d8581');
       }
-      mat.emissiveColor = glowActive ? glowColor.scale(emissiveBoost) : Color3.Black();
+      mat.emissiveColor = Color3.Black();
     }
   }
 }

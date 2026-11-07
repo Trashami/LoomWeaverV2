@@ -1,15 +1,15 @@
 .lw-token-ctx-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 84;
+  z-index: 440;
   background: transparent;
 }
 
 .lw-token-ctx {
   position: fixed;
-  z-index: 85;
+  z-index: 450;
   width: 328px;
-  max-height: calc(100vh - 96px);
+  max-height: calc(100vh - 110px);
   display: flex;
   flex-direction: column;
   background: rgba(5, 16, 12, 0.96);

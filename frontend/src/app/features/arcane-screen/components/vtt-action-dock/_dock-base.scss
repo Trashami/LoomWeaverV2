@@ -21,12 +21,12 @@
 .bottom-action-console {
   position: absolute;
   bottom: 0.75rem;
-  left: 0.85rem;
-  z-index: 350;
+  left: 5.75rem;
+  z-index: 160;
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  max-width: calc(100vw - 22rem);
+  max-width: calc(100% - 6.6rem);
   padding: 0.35rem 0.6rem;
   border-radius: 1rem;
   border: 1px solid rgba(73, 232, 146, 0.35);
@@ -37,11 +37,16 @@
   font-size: 0.8rem;
 
   &.chat-station-open {
-    max-width: calc(100vw - 25rem);
+    max-width: calc(100% - 6.6rem);
   }
 
   &.is-collapsed {
     padding: 0.35rem;
+  }
+
+  @media (max-width: 900px) {
+    left: 0.85rem;
+    max-width: calc(100% - 1.7rem);
   }
 }
 

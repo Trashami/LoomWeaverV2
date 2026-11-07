@@ -35,6 +35,26 @@
     }
   </fieldset>
 
+  <fieldset class="lw-vtt-settings__group">
+    <legend>Character Overhead Life Bars</legend>
+    <p class="lw-vtt-settings__hint">Display floating HP bars above characters, NPCs, and monsters on the battle map.</p>
+    @for (hpOpt of healthBarOptions; track hpOpt.id) {
+      <label class="lw-vtt-settings__option" [class.active]="display.tokenHealthBarMode() === hpOpt.id">
+        <input
+          type="radio"
+          name="lw-vtt-health-bar-mode"
+          [value]="hpOpt.id"
+          [checked]="display.tokenHealthBarMode() === hpOpt.id"
+          (change)="selectHealthBarMode(hpOpt.id)"
+        />
+        <span class="lw-vtt-settings__option-text">
+          <strong>{{ hpOpt.label }}</strong>
+          <small>{{ hpOpt.hint }}</small>
+        </span>
+      </label>
+    }
+  </fieldset>
+
   @if (isGm()) {
     <fieldset class="lw-vtt-settings__group">
       <legend>Table Grid Calibration</legend>

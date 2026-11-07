@@ -98,7 +98,7 @@ export class VttTokenContextMenuComponent {
     const maxW = typeof window !== 'undefined' ? window.innerWidth : 1440;
     const maxH = typeof window !== 'undefined' ? window.innerHeight : 900;
     const x = Math.max(16, Math.min(maxW - 350, state.clientX + 8));
-    const y = Math.max(56, Math.min(maxH - 470, state.clientY - 20));
+    const y = Math.max(56, Math.min(maxH - 510, state.clientY - 20));
     return { left: `${x}px`, top: `${y}px` };
   });
 

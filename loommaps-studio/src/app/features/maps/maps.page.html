@@ -1,0 +1,377 @@
+@if (showLandingHub()) {
+  <lw-map-studio-landing
+    [existingMaps]="existingMaps()"
+    [marketplaceMaps]="marketplaceMaps()"
+    [campaigns]="campaigns()"
+    [sessions]="sessions()"
+    [encounters]="encounters()"
+    [activeCampaignId]="store.activeCampaignId()"
+    [selectedSessionId]="assignSessionId()"
+    [selectedEncounterId]="assignEncounterId()"
+    (campaignChange)="store.setCampaign($event)"
+    (createNewMap)="onCreateMapFromLanding($event)"
+    (openExistingMap)="onOpenExistingMapFromLanding($event)"
+    (applyMarketplaceMap)="onApplyMarketplaceMap($event)"
+    (purchaseMarketplaceMap)="onPurchaseMarketplaceMap($event)"
+    (assignMapToSession)="onAssignExistingMapToSession($event)"
+  />
+} @else {
+  <div class="lw-maps-studio">
+    <lw-map-studio-subbar
+      [mapTitle]="mapTitle()"
+      [dimensionMode]="dimensionMode()"
+      [gridCols]="gridCols()"
+      [gridRows]="gridRows()"
+      [gridCellFeet]="5"
+      [revision]="sceneGraph().revision"
+      [activeMode]="studioMode()"
+      [canUndo]="history.canUndo()"
+      [canRedo]="history.canRedo()"
+      [viewerRole]="store.viewerRole()"
+      [leftCollapsed]="leftDockCollapsed()"
+      [rightCollapsed]="rightDockCollapsed()"
+      [campaigns]="campaigns()"
+      [activeCampaignId]="store.activeCampaignId()"
+      [sessions]="sessions()"
+      [selectedSessionId]="assignSessionId()"
+      [encounters]="encounters()"
+      [selectedEncounterId]="assignEncounterId()"
+      (backRequested)="showLandingHub.set(true)"
+      (titleChanged)="mapTitle.set($event)"
+      (dimensionModeChanged)="onDimensionModeSwitch($event)"
+      (modeChanged)="studioMode.set($event)"
+      (campaignChanged)="store.setCampaign($event)"
+      (sessionChanged)="store.setActiveSession($event)"
+      (encounterChanged)="assignEncounterId.set($event)"
+      (toggleLeftDock)="leftDockCollapsed.set(!leftDockCollapsed())"
+      (toggleRightDock)="rightDockCollapsed.set(!rightDockCollapsed())"
+      (undoRequested)="undoLastCommand()"
+      (redoRequested)="redoLastCommand()"
+      (saveRequested)="saveSceneRevision()"
+      (publishRequested)="publishMapToCoreCampaign()"
+      (exportRequested)="onExportScenePng($event)"
+    />
+
+    <div
+      class="lw-maps-studio__workbench"
+      [class.lw-maps-studio__workbench--left-collapsed]="leftDockCollapsed()"
+      [class.lw-maps-studio__workbench--right-collapsed]="rightDockCollapsed()"
+    >
+      @if (!leftDockCollapsed()) {
+        <lw-map-tool-dock
+          [activeToolId]="activeDockToolId()"
+          (toolSelected)="onDockToolSelected($event)"
+          (collapseRequested)="leftDockCollapsed.set(true)"
+        />
+      }
+
+      <section class="lw-maps-studio__stage-column" aria-label="Interactive 2D/3D Map Viewport">
+        <div
+          class="lw-maps-studio__viewport-wrap"
+
+        >
+          <div
+            class="lw-maps-studio__canvas-pane"
+            [class.lw-maps-studio__canvas-pane--hidden]="!show3dCanvas()"
+          >
+            <canvas
+              #babylonCanvas
+              class="lw-maps-studio__canvas"
+              aria-label="Live tactical scene: overhead or 3D view"
+            ></canvas>
+            <div class="lw-maps-studio__pane-tag">
+              <span>
+                {{ cameraView() === 'real-2d' || cameraView() === 'top-down' ? 'Locked Top Down' : cameraView() === 'split-2d-3d' ? '3D + Locked Top Down' : '3D Scene View' }} · {{ celestialMode() === 'sun' ? 'Sunlight' : 'Moonlight' }} ({{
+                  celestialAzimuthDeg()
+                }}° / {{ celestialAltitudeDeg() }}°) · Rev {{ sceneGraph().revision }}
+              </span>
+            </div>
+          </div>
+
+          @if (leftDockCollapsed()) {
+            <button
+              type="button"
+              class="lw-maps-studio__edge-drawer lw-maps-studio__edge-drawer--left"
+              title="Expand Tools Menu"
+              aria-label="Expand Tools Menu"
+              (click)="leftDockCollapsed.set(false)"
+            >
+              <lw-icon name="double-arrow-right" [size]="20" />
+            </button>
+          }
+
+          @if (rightDockCollapsed()) {
+            <button
+              type="button"
+              class="lw-maps-studio__edge-drawer lw-maps-studio__edge-drawer--right"
+              title="Expand Right Tool Settings & Asset Selector"
+              (click)="rightDockCollapsed.set(false)"
+            >
+              <lw-icon name="chevron_left" />
+              <span>Tool Settings</span>
+            </button>
+          }
+
+          <div class="lw-maps-studio__hud-top-left">
+            <span class="lw-maps-studio__hud-pill">
+              Mode: <strong>{{ dimensionMode().toUpperCase() }}</strong>
+            </span>
+            <span class="lw-maps-studio__hud-pill">
+              Tool: <strong>{{ activeDockToolId().toUpperCase() }}</strong>
+            </span>
+            <span class="lw-maps-studio__hud-pill">
+              Cursor: <strong>({{ stage.hoverCoords().x }}, {{ stage.hoverCoords().z }})</strong>
+            </span>
+            @if (wallStartAnchor()) {
+              <span class="lw-maps-studio__hud-pill lw-maps-studio__hud-pill--gold">
+                Wall Start: ({{ wallStartAnchor()?.x }}, {{ wallStartAnchor()?.z }}) — Click End Point or ESC to Cancel
+              </span>
+            }
+          </div>
+
+          <lw-toast-notification
+            [message]="pngPipelineBanner()"
+            title="LoomMaps Studio"
+            variant="emerald"
+            position="bottom-right"
+            [durationMs]="3200"
+            [autoHide]="true"
+            [showProgress]="true"
+            [dismissible]="true"
+            maxWidth="440px"
+            (dismissed)="pngPipelineBanner.set('')"
+          />
+
+          <div class="lw-maps-studio__compass" aria-label="Scene Compass">
+            <span class="lw-maps-studio__compass-dir lw-maps-studio__compass-dir--n">N</span>
+            <span class="lw-maps-studio__compass-dir lw-maps-studio__compass-dir--e">E</span>
+            <span class="lw-maps-studio__compass-dir lw-maps-studio__compass-dir--s">S</span>
+            <span class="lw-maps-studio__compass-dir lw-maps-studio__compass-dir--w">W</span>
+            <div class="lw-maps-studio__compass-needle"></div>
+          </div>
+        </div>
+
+        <lw-map-viewport-bar
+          [activeView]="cameraView()"
+          [activeTheme]="activeTheme()"
+          [activeQuality]="activeQuality()"
+          [gridSize]="gridSizeLabel()"
+          [gridScalePct]="gridScalePct()"
+          [gridSquaresAcross]="gridCols()"
+          [snapEnabled]="snapEnabled()"
+          [hasRefTokens]="hasRefTokens()"
+          [showPlayerSafeOnly]="showPlayerSafeOnly()"
+          [fps]="stage.fps()"
+          (viewChange)="onCameraViewChange($event)"
+          (themeChange)="onThemeChange($event)"
+          (qualityChange)="onQualityChange($event)"
+          (gridSizeChange)="onGridModeChange($event)"
+          (gridScaleChange)="onGridScalePctChange($event)"
+          (gridSquaresAcrossChange)="onGridSquaresAcrossChange($event)"
+          (snapToggle)="snapEnabled.set(!snapEnabled()); stage.setSnapToGrid(snapEnabled())"
+          (spawnTokensToggle)="onToggleRefTokensFromBar()"
+          (playerSafeToggle)="onTogglePlayerSafeView()"
+        />
+      </section>
+
+      @if (!rightDockCollapsed()) {
+        <aside class="lw-maps-studio__right-dock" aria-label="Tool Settings & Selected Asset">
+          <lw-map-properties-inspector
+            [wallBrush]="wallBrush()"
+            [wallSmoothing]="selectedWallSmoothing()"
+            [wallTextureScale]="wallTextureScale()"
+            [wallStretchX]="wallStretchX()"
+            [wallStretchY]="wallStretchY()"
+            (wallBrushChange)="wallBrush.set($event)"
+            (wallSmoothingChange)="onWallSmoothingChange($event)"
+            (wallTextureScaleChange)="onWallTextureScaleChange($event)"
+            (wallStretchXChange)="onWallStretchXChange($event)"
+            (wallStretchYChange)="onWallStretchYChange($event)"
+            (clearWallPaint)="onClearSelectedWallPaint()"
+            [activeToolId]="activeDockToolId()"
+            [selectedPlacedKind]="selectedPlacedKind()"
+            [selectedNode]="selectedNode()"
+            [hasPlacedSelection]="selectedPlacedId() !== null"
+            [wallInProgress]="wallStartAnchor() !== null || freehandWallPoints().length > 0"
+            [materials]="materials()"
+            [wallDrawMode]="wallDrawMode()"
+            [floorTilingScale]="floorTilingScale()"
+            [floorBumpIntensity]="floorBumpIntensity()"
+            [floorHeightScale]="floorHeightScale()"
+            [floorSurfaceFinish]="floorSurfaceFinish()"
+            [floorRoughness]="floorRoughness()"
+            [floorSpecularIntensity]="floorSpecularIntensity()"
+            [floorAmbientOcclusion]="floorAmbientOcclusion()"
+            [floorColorHex]="floorColorHex()"
+            [floorColorStrength]="floorColorStrength()"
+            [floorColorBlendMode]="floorColorBlendMode()"
+            [gridScalePct]="gridScalePct()"
+            [gridSquaresAcross]="gridCols()"
+            [gridOffsetX]="gridOffsetX()"
+            [gridOffsetZ]="gridOffsetZ()"
+            [gridOpacityPct]="gridOpacityPct()"
+            [activeTokenPreset]="activeTokenPreset()"
+            [hasRefTokens]="hasRefTokens()"
+            [floorBrushActive]="floorBrushActive()"
+            [floorBrushColorHex]="floorBrushColorHex()"
+            [floorBrushBlendMode]="floorBrushBlendMode()"
+            [floorBrushOpacity]="floorBrushOpacity()"
+            [floorBrushRadius]="floorBrushRadius()"
+            [floorBrushSharpness]="floorBrushSharpness()"
+            [terrainSculptOp]="terrainSculptOp()"
+            [terrainBrushRadius]="terrainBrushRadius()"
+            [terrainBrushDelta]="terrainBrushDelta()"
+            [terrainGradualRate]="terrainGradualRate()"
+            [terrainFeathering]="terrainFeathering()"
+            [terrainPlateauLimit]="terrainPlateauLimit()"
+            [doorWallPositionPct]="doorWallPositionPct()"
+            [doorWidthMeters]="doorWidthMeters()"
+            [doorHeightMeters]="doorHeightMeters()"
+            [doorMaxHeightMeters]="doorMaxHeightMeters()"
+            [doorIsOpen]="doorIsOpen()"
+            [doorHingeSide]="doorHingeSide()"
+            [doorSwingDirection]="doorSwingDirection()"
+            [doorHasSidePosts]="doorHasSidePosts()"
+            [doorSidePostStyle]="doorSidePostStyle()"
+            [doorSidePostScale]="doorSidePostScale()"
+            [wallCornerPosts]="wallCornerPosts()"
+            [wallCornerPostScale]="wallCornerPostScale()"
+            [celestialMode]="celestialMode()"
+            [celestialAzimuthDeg]="celestialAzimuthDeg()"
+            [celestialAltitudeDeg]="celestialAltitudeDeg()"
+            [shadowDarkness]="shadowDarkness()"
+            [lightSettings]="lightDraft()"
+            [snapToGrid]="snapEnabled()"
+            [scatterDensity]="scatterDensity()"
+            [scatterScale]="scatterScale()"
+            [scatterScaleJitterPct]="scatterScaleJitterPct()"
+            [scatterRotationDeg]="scatterRotationDeg()"
+            [scatterRotationJitterDeg]="scatterRotationJitterDeg()"
+            [scatterStrokes]="scatterStrokes()"
+            [selectedScatterStrokeId]="selectedScatterStrokeId()"
+            [objectRandomRotationDeg]="objectRandomRotationDeg()"
+            [objectRandomScalePct]="objectRandomScalePct()"
+            [objectStampDrawMode]="objectStampDrawMode()"
+            [stampFillInProgress]="stampFillStartAnchor() !== null"
+            [objectRandomCollectionEnabled]="objectRandomCollectionEnabled()"
+            [scatterRandomCollectionEnabled]="scatterRandomCollectionEnabled()"
+            [objectRandomGroupId]="objectRandomGroupId()"
+            [randomGroupOptions]="randomGroupOptions()"
+            [biomeFoliagePreset]="biomeFoliagePreset()"
+            [biomeFoliageDensityPct]="biomeFoliageDensityPct()"
+            [biomeFoliageBladeScale]="biomeFoliageBladeScale()"
+            [waterSettings]="waterEditor.settings()"
+            [waterBodies]="sceneGraph().waterSplines"
+            [selectedWaterId]="waterEditor.selectedId()"
+            (waterSettingsChange)="waterEditor.change($event); syncGhostCursorToStage()"
+            (waterSelected)="waterEditor.select($event); syncGhostCursorToStage()"
+            (waterRemoved)="waterEditor.removeSelected()"
+            (openAssetModal)="assetModalOpen.set(true)"
+            (cancelPlacement)="cancelActivePlacement()"
+            (resetTerrain)="stage.resetTerrainElevations()"
+            (floorTilingChange)="onFloorTilingChange($event)"
+            (floorBumpIntensityChange)="onFloorBumpIntensityChange($event)"
+            (floorHeightScaleChange)="onFloorHeightScaleChange($event)"
+            (floorSurfaceFinishChange)="onFloorSurfaceFinishChange($event)"
+            (floorRoughnessChange)="onFloorRoughnessChange($event)"
+            (floorSpecularIntensityChange)="onFloorSpecularIntensityChange($event)"
+            (floorAmbientOcclusionChange)="onFloorAmbientOcclusionChange($event)"
+            (floorColorHexChange)="onFloorColorHexChange($event)"
+            (floorColorStrengthChange)="onFloorColorStrengthChange($event)"
+            (floorColorBlendModeChange)="onFloorColorBlendModeChange($event)"
+            (gridScalePctChange)="onGridScalePctChange($event)"
+            (gridSquaresAcrossChange)="onGridSquaresAcrossChange($event)"
+            (gridOffsetXChange)="onGridOffsetXChange($event)"
+            (gridOffsetZChange)="onGridOffsetZChange($event)"
+            (gridOpacityPctChange)="onGridOpacityPctChange($event)"
+            (tokenPresetChange)="activeTokenPreset.set($event)"
+            (spawnSampleParty)="onSpawnSampleParty()"
+            (clearRefTokens)="onClearRefTokens()"
+            (floorBrushActiveChange)="onFloorBrushActiveChange($event)"
+            (floorBrushColorHexChange)="onFloorBrushColorHexChange($event)"
+            (floorBrushBlendModeChange)="onFloorBrushBlendModeChange($event)"
+            (floorBrushOpacityChange)="floorBrushOpacity.set($event)"
+            (floorBrushRadiusChange)="floorBrushRadius.set($event); syncGhostCursorToStage()"
+            (floorBrushSharpnessChange)="floorBrushSharpness.set($event); syncGhostCursorToStage()"
+            (clearFloorPaint)="onClearFloorPaint()"
+            (materialChange)="onInspectorMaterialChange($event)"
+            (heightSquaresChange)="onInspectorHeightChange($event)"
+            (thicknessChange)="onInspectorThicknessChange($event)"
+            (positionXChange)="onInspectorPositionChange('x', $event)"
+            (positionZChange)="onInspectorPositionChange('z', $event)"
+            (elevationChange)="onInspectorElevationChange($event)"
+            (placementModeChange)="onInspectorPlacementModeChange($event)"
+            (gridSizePresetChange)="onInspectorGridSizePreset($event)"
+            (rotationChange)="onInspectorRotationChange($event)"
+            (tiltChange)="onInspectorTiltChange($event)"
+            (scaleChange)="onInspectorScaleChange($event)"
+            (scaleXChange)="onInspectorAxisScaleChange('x', $event)"
+            (scaleYChange)="onInspectorAxisScaleChange('y', $event)"
+            (scaleZChange)="onInspectorAxisScaleChange('z', $event)"
+            (colorHexChange)="onInspectorColorHexChange($event)"
+            (surfaceFinishChange)="onInspectorSurfaceFinishChange($event)"
+            (opacityChange)="onInspectorOpacityChange($event)"
+            (blocksVisionToggle)="onInspectorBlocksVisionToggle()"
+            (blocksMovementToggle)="onInspectorBlocksMovementToggle()"
+            (duplicateNode)="onDuplicateSelectedPlacedNode()"
+            (wallConnectionOverlapChange)="onWallConnectionOverlapChange($event)"
+            (wallDrawModeChange)="wallDrawMode.set($event); syncSurfaceLock(); syncGhostCursorToStage()"
+            (terrainSculptOpChange)="terrainSculptOp.set($event)"
+            (terrainRadiusChange)="onScatterRadiusChange($event)"
+            (terrainDeltaChange)="terrainBrushDelta.set($event)"
+            (terrainGradualRateChange)="terrainGradualRate.set($event)"
+            (terrainFeatheringChange)="terrainFeathering.set($event); syncGhostCursorToStage()"
+            (terrainPlateauLimitChange)="terrainPlateauLimit.set($event)"
+            (doorPositionPctChange)="doorWallPositionPct.set($event); onDoorPropertyChanged()"
+            (doorWidthChange)="doorWidthMeters.set($event); onDoorPropertyChanged()"
+            (doorHeightChange)="doorHeightMeters.set($event); onDoorPropertyChanged()"
+            (doorOpenToggle)="doorIsOpen.set(!doorIsOpen()); onDoorPropertyChanged()"
+            (doorHingeSideChange)="doorHingeSide.set($event); onDoorPropertyChanged()"
+            (doorSwingDirectionChange)="doorSwingDirection.set($event); onDoorPropertyChanged()"
+            (doorSidePostsToggle)="doorHasSidePosts.set(!doorHasSidePosts()); onDoorPropertyChanged()"
+            (doorSidePostStyleChange)="doorSidePostStyle.set($event); onDoorPropertyChanged()"
+            (doorSidePostScaleChange)="doorSidePostScale.set($event); onDoorPropertyChanged()"
+            (wallCornerPostsToggle)="onWallCornerPostsToggle()"
+            (wallCornerPostScaleChange)="onWallCornerPostScaleChange($event)"
+            (celestialModeChange)="celestialMode.set($event); pushCelestialLightToStage()"
+            (celestialAzimuthChange)="celestialAzimuthDeg.set($event); pushCelestialLightToStage()"
+            (celestialAltitudeChange)="celestialAltitudeDeg.set($event); pushCelestialLightToStage()"
+            (shadowDarknessChange)="shadowDarkness.set($event); pushCelestialLightToStage()"
+            (lightSettingsChange)="onLightSettingsChanged($event)"            (secretToggle)="onInspectorSecretToggle()"
+            (deleteNode)="onDeleteSelectedPlacedNode()"
+            (scatterDensityChange)="onScatterDensityChange($event)"
+            (scatterScaleChange)="onScatterScaleChange($event)"
+            (scatterScaleJitterPctChange)="onScatterScaleJitterChange($event)"
+            (scatterRotationDegChange)="onScatterRotationChange($event)"
+            (scatterRotationJitterDegChange)="onScatterRotationJitterChange($event)"
+            (scatterStrokeSelected)="onSelectScatterStroke($event)"
+            (scatterStrokeRemoved)="onRemoveScatterStroke($event)"
+            (objectRandomRotationDegChange)="onObjectRandomRotationChange($event)"
+            (objectRandomScalePctChange)="onObjectRandomScaleChange($event)"
+            (objectStampDrawModeChange)="onObjectStampDrawModeChange($event)"
+            (objectRandomCollectionEnabledChange)="onObjectRandomCollectionEnabledChange($event)"
+            (scatterRandomCollectionEnabledChange)="onScatterRandomCollectionEnabledChange($event)"
+            (objectRandomGroupIdChange)="onObjectRandomGroupIdChange($event)"
+            (applyRandomGroupDefaults)="onApplyRandomGroupDefaults()"
+            (applyGrassFieldPreset)="onApplyGrassFieldPreset($event)"
+            (biomeFoliagePresetChange)="onBiomeFoliagePresetChange($event)"
+            (biomeFoliageDensityPctChange)="onBiomeFoliageDensityPctChange($event)"
+            (biomeFoliageBladeScaleChange)="onBiomeFoliageBladeScaleChange($event)"
+            (clearScatter)="onClearScatterClusters()"
+            (clearWater)="onClearWaterSplines()"
+          />
+        </aside>
+      }
+    </div>
+
+    <lw-map-asset-picker-modal
+      [open]="assetModalOpen()"
+      [assets]="displayedAssets()"
+      [categories]="displayedCategories()"
+      [selectedAssetId]="selectedPngAssetId()"
+      (assetPicked)="onSelectPngAsset($event)"
+      (uploadSingleGlb)="onUploadSingleGlb($event)"
+      (closed)="assetModalOpen.set(false)"
+    />
+  </div>
+}

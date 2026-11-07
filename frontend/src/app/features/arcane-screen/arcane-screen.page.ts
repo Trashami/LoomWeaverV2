@@ -106,9 +106,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     buildVttSessionSwitcherOptions(this.store),
   );
 
-  onSwitchVttSession(sessionId: string): void {
-    this.store.setActiveSession(sessionId);
-  }
+  onSwitchVttSession(sessionId: string): void { this.store.setActiveSession(sessionId); }
 
   readonly activeBattlemapTitle = computed(
     () => this.adventureGuide.guide().assignedBattlemap?.title || this.vtt.activeLiveEncounter()?.name || 'Battlefield',
@@ -146,9 +144,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     return tok ? this.battle.getDockActionsForToken(tok, category) : [];
   }
 
-  constructor() {
-    registerArcaneScreenStageEffects(this);
-  }
+  constructor() { registerArcaneScreenStageEffects(this); }
   getSceneQueryParam(): string | null { return this.route.snapshot.queryParamMap.get('scene'); }
   getAssignedSceneKey(): string | undefined { return this.adventureGuide.guide().assignedBattlemap?.sceneKey; }
   disposeStageIfMounted(): void {
@@ -167,9 +163,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
 
   onUserVolumeInput(event: Event): void {
     const val = parseFloat((event.target as HTMLInputElement).value);
-    if (!Number.isNaN(val)) {
-      this.audio.setMasterVolume(val / 100);
-    }
+    if (!Number.isNaN(val)) this.audio.setMasterVolume(val / 100);
   }
 
   dmTogglePlayPause(): void {
@@ -206,21 +200,31 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
 
   dmToggleLoop(): void {
     this.audio.toggleLoopMode();
-    this.serverSync.publishAudioControl('loop', {
-      loopMode: this.audio.loopMode(),
-    });
+    this.serverSync.publishAudioControl('loop', { loopMode: this.audio.loopMode() });
   }
 
   dmSelectTrack(trackId: string): void {
     if (!trackId) return;
     this.audio.playTrack(trackId, this.audio.activePlaylistId(), 1.0);
-    this.serverSync.publishAudioControl('track', {
-      trackId,
-      playlistId: this.audio.activePlaylistId(),
-    });
+    this.serverSync.publishAudioControl('track', { trackId, playlistId: this.audio.activePlaylistId() });
   }
+
   openCharactersPage(): void { void this.router.navigate(['/characters']); }
-  onMapWheel(event: WheelEvent): void { event.preventDefault(); if (!this.isHighPerformance2d()) this.stage.zoomCamera(event.deltaY * 0.05); else this.view2d.wheel(event.deltaY); }
+
+  onMapWheel(event: WheelEvent): void {
+    const el = event.target as HTMLElement | null;
+    if (
+      el?.closest(
+        'lw-vtt-action-dock, .bottom-action-console, .console-category-popover, .dock-flyout-drawer, lw-vtt-dm-drawers, lw-vtt-settings-modal, lw-vtt-handout-modal, lw-vtt-token-context-menu, lw-vtt-combat-order-modal, .lw-vtt-floating-drawer',
+      )
+    ) {
+      return;
+    }
+    event.preventDefault();
+    if (!this.isHighPerformance2d()) this.stage.zoomCamera(event.deltaY * 0.05);
+    else this.view2d.wheel(event.deltaY);
+  }
+
   onMapMouseDown(event: MouseEvent): void {
     if (this.workflow.state() !== null) return;
     this.mapDownClient = { x: event.clientX, y: event.clientY };
@@ -256,9 +260,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   changeZoom(amount: number): void { if (!this.isHighPerformance2d()) this.stage.zoomCamera(-amount * 0.4); else this.view2d.zoomBy(amount); }
   resetZoom(): void { if (!this.isHighPerformance2d()) this.stage.resetCamera(); else this.view2d.reset(); }
   getTokenBaseFill(token: VttTokenVm): string { return getTokenBaseColorHex(token); }
-  getTokenBaseStroke(token: VttTokenVm): string {
-    return getTokenRimColorHex(token);
-  }
+  getTokenBaseStroke(token: VttTokenVm): string { return getTokenRimColorHex(token); }
   getTokenRadius2D(token: VttTokenVm): number { return Math.max(8, Math.round(20 * this.vttDisplay.gridScale() * getDndSizeScale(token.sizeCategory))); }
   getTokenAvatarRadius2D(token: VttTokenVm): number { return Math.max(6, Math.round(18 * this.vttDisplay.gridScale() * getDndSizeScale(token.sizeCategory))); }
 
@@ -328,9 +330,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       this.sync3dStage();
     }, 50);
   }
-  toggleMapMode(): void {
-    this.setMapMode(!this.battle.mapMode3D());
-  }
+  toggleMapMode(): void { this.setMapMode(!this.battle.mapMode3D()); }
 
   sync3dStage(): void {
     const obs = this.battle.activeObserverToken();
@@ -369,9 +369,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   }
 
   @HostListener('window:keyup', ['$event'])
-  onWindowKeyup(event: KeyboardEvent): void {
-    if (event.code === 'Space') this.releaseSpace();
-  }
+  onWindowKeyup(event: KeyboardEvent): void { if (event.code === 'Space') this.releaseSpace(); }
 
   @HostListener('window:blur')
   releaseSpace(): void {
@@ -386,9 +384,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
 
   onBattleMapPointerMove(event: MouseEvent): void {
     if (this.workflow.state() !== null) return;
-    if (update2dMapPointerPosition(event, this.battleSvgRef?.nativeElement, this.battle)) {
-      this.dragMoved = true;
-    }
+    if (update2dMapPointerPosition(event, this.battleSvgRef?.nativeElement, this.battle)) this.dragMoved = true;
   }
 
   onTokenMouseDown(event: MouseEvent, token: VttTokenVm): void {
@@ -405,9 +401,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     this.battle.openTokenContextMenu(token.key, event.clientX, event.clientY);
   }
 
-  openTokenContextFromDock(dockToken: DockToken): void {
-    openDockTokenContextMenu(dockToken.sheetRef, this.battle);
-  }
+  openTokenContextFromDock(dockToken: DockToken): void { openDockTokenContextMenu(dockToken.sheetRef, this.battle); }
 
   onBattleMapMouseUp(): void {
     if (!this.battle.draggingTokenKey()) return;
@@ -419,14 +413,8 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   }
 
   onBattleMapClick(_event: MouseEvent): void {
-    if (this.view2d.consumeDragClick() || this.dragMoved) {
-      this.dragMoved = false;
-      return;
-    }
-    if (this.battle.measureEnabled() && this.battle.measureSubMode() === 'movement') {
-      this.commitMovePreview();
-      return;
-    }
+    if (this.view2d.consumeDragClick() || this.dragMoved) { this.dragMoved = false; return; }
+    if (this.battle.measureEnabled() && this.battle.measureSubMode() === 'movement') { this.commitMovePreview(); return; }
     if (this.battle.pendingAbility()) {
       const step = this.battle.recordPendingAbilityTargetClick();
       this.sync3dStage();
@@ -436,10 +424,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
 
   onTokenClicked(event: MouseEvent, token: VttTokenVm): void {
     event.stopPropagation();
-    if (this.dragMoved) {
-      this.dragMoved = false;
-      return;
-    }
+    if (this.dragMoved) { this.dragMoved = false; return; }
     this.handleTokenSelectionOrCast(token, event.shiftKey, event.ctrlKey || event.metaKey);
   }
 
@@ -479,9 +464,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   }
   private tryOpenWorkflowWithPreselectedTargets(ability: VttTacticalAbilityVm | null): boolean {
     this.sync3dStage();
-    if (!ability || !this.battle.isSingleOrMultiTargetAbility(ability) || !this.battle.hasActiveTargetTether()) {
-      return false;
-    }
+    if (!ability || !this.battle.isSingleOrMultiTargetAbility(ability) || !this.battle.hasActiveTargetTether()) return false;
     const obs = this.battle.activeObserverToken();
     const keys = this.battle.queuedTargetSequence().length > 0 ? this.battle.queuedTargetSequence() : this.battle.multiTargetKeys();
     const baseTargets = keys
@@ -491,9 +474,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     if (!obs || baseTargets.length === 0) return false;
     const requiredCount = Math.max(1, ability.maxTargets || 1);
     const targets: VttTokenVm[] = [...baseTargets];
-    while (targets.length < requiredCount) {
-      targets.push(baseTargets[baseTargets.length - 1]);
-    }
+    while (targets.length < requiredCount) targets.push(baseTargets[baseTargets.length - 1]);
     this.workflow.openWorkflow(obs, ability, targets, () => this.sync3dStage());
     return true;
   }

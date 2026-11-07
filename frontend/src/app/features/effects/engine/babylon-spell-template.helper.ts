@@ -8,7 +8,17 @@ import {
   VertexData,
 } from '@babylonjs/core';
 import { TerrainMeshBuilder } from '../../maps/engine/terrain/terrain-mesh.builder';
+import { WaterChannelTerrain } from '../../maps/engine/water/water-channel-terrain';
 import { getActiveCellStepWorld } from '../../arcane-screen/engine/vtt-los-and-grid.engine';
+
+function sampleGroundOrWaterY(scene: Scene, x: number, z: number): number {
+  return WaterChannelTerrain.sampleWaterOrGroundLevelAt(
+    scene,
+    x,
+    z,
+    TerrainMeshBuilder.sampleElevationAt(scene, x, z),
+  );
+}
 
 export interface BabylonSpellTemplateState {
   readonly active: boolean;
@@ -54,12 +64,12 @@ export function syncBabylonSpellAndTetherMeshes(
 
   // 1. Straight, thicker, pulsing LoomWeaver-green target lines from caster to each selected target
   if (attackerPos && tetherTargets.length > 0) {
-    const srcY = TerrainMeshBuilder.sampleElevationAt(scene, attackerPos.x, attackerPos.z) + 0.24;
+    const srcY = sampleGroundOrWaterY(scene, attackerPos.x, attackerPos.z) + 0.34;
     const startVec = new Vector3(attackerPos.x, srcY, attackerPos.z);
 
     tetherTargets.forEach((dst, idx) => {
       if (Math.hypot(dst.x - attackerPos.x, dst.z - attackerPos.z) < 0.05) return;
-      const dstY = TerrainMeshBuilder.sampleElevationAt(scene, dst.x, dst.z) + 0.24;
+      const dstY = sampleGroundOrWaterY(scene, dst.x, dst.z) + 0.34;
       const endVec = new Vector3(dst.x, dstY, dst.z);
 
       buildStraightPulsingTube(scene, `lw-target-tether-${idx}`, startVec, endVec, LOOM_GREEN_HEX, 0.048);
@@ -71,8 +81,8 @@ export function syncBabylonSpellAndTetherMeshes(
 
   const { casterPos, endPos, isSingleOrMulti, aoeRadiusFeet, blockedByWall } = templateState;
   const colorHex = blockedByWall ? BLOCKED_RED_HEX : LOOM_GREEN_HEX;
-  const srcY = TerrainMeshBuilder.sampleElevationAt(scene, casterPos.x, casterPos.z) + 0.22;
-  const dstY = TerrainMeshBuilder.sampleElevationAt(scene, endPos.x, endPos.z) + 0.16;
+  const srcY = sampleGroundOrWaterY(scene, casterPos.x, casterPos.z) + 0.32;
+  const dstY = sampleGroundOrWaterY(scene, endPos.x, endPos.z) + 0.24;
 
   // Range connection line from caster to template center
   if (Math.hypot(endPos.x - casterPos.x, endPos.z - casterPos.z) > 0.08) {
@@ -169,7 +179,7 @@ function buildTerrainConformingRing(
     const angle = (i / segments) * Math.PI * 2;
     const px = cx + Math.cos(angle) * radiusWorld;
     const pz = cz + Math.sin(angle) * radiusWorld;
-    const py = TerrainMeshBuilder.sampleElevationAt(scene, px, pz) + 0.08;
+    const py = sampleGroundOrWaterY(scene, px, pz) + 0.08;
     path.push(new Vector3(px, py, pz));
   }
   const ringTube = MeshBuilder.CreateTube(
@@ -199,7 +209,7 @@ function buildTerrainConformingDisc(
   const slices = 40;
   const positions: number[] = [];
   const indices: number[] = [];
-  const centerY = TerrainMeshBuilder.sampleElevationAt(scene, cx, cz) + 0.055;
+  const centerY = sampleGroundOrWaterY(scene, cx, cz) + 0.055;
   positions.push(cx, centerY, cz);
 
   for (let r = 1; r <= rings; r++) {
@@ -208,7 +218,7 @@ function buildTerrainConformingDisc(
       const angle = (s / slices) * Math.PI * 2;
       const px = cx + Math.cos(angle) * rad;
       const pz = cz + Math.sin(angle) * rad;
-      const py = TerrainMeshBuilder.sampleElevationAt(scene, px, pz) + 0.055;
+      const py = sampleGroundOrWaterY(scene, px, pz) + 0.055;
       positions.push(px, py, pz);
     }
   }

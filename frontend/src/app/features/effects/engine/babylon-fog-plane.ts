@@ -12,15 +12,15 @@ import {
 import { TerrainMeshBuilder } from '../../maps/engine/terrain/terrain-mesh.builder';
 import { syncSceneVolumetricFogMaterials } from './babylon-volumetric-fog.plugin';
 
-/** World extents covered by the fog canvas: x in [-18, 18], z in [-13.5, 13.5]. */
-const FOG_HALF_X = 18;
-const FOG_HALF_Z = 13.5;
+/** World extents covered by the fog canvas: x in [-37.5, 37.5], z in [-37.5, 37.5] (75m x 75m). */
+const FOG_HALF_X = 37.5;
+const FOG_HALF_Z = 37.5;
 const FOG_HEIGHT_OFFSET = 0.055;
 const FOG_SUBDIV = 48;
-const FOG_TEXTURE_WIDTH = 360;
-const FOG_TEXTURE_HEIGHT = 270;
-const FOG_ALPHA_GRID_W = 144;
-const FOG_ALPHA_GRID_H = 108;
+const FOG_TEXTURE_WIDTH = 512;
+const FOG_TEXTURE_HEIGHT = 512;
+const FOG_ALPHA_GRID_W = 150;
+const FOG_ALPHA_GRID_H = 150;
 
 /**
  * Volumetric, view-angle-independent 3D Fog of War system.
@@ -208,80 +208,6 @@ export class BabylonFogPlane {
         anyLight._lwFogDisabled = false;
       }
     }
-
-    // Whole-object visibility for 3D stamps, walls, doors, and scatter:
-    // Any 3D object touched by Line of Sight is revealed completely (never sliced in half),
-    // while 3D objects completely inside unrevealed fog remain hidden.
-    const checkWholeObjectNode = (
-      node: {
-        name: string;
-        isEnabled: (checkAncestors?: boolean) => boolean;
-        setEnabled: (v: boolean) => void;
-        getHierarchyBoundingVectors: (includeDescendants?: boolean) => {
-          min: { x: number; z: number };
-          max: { x: number; z: number };
-        };
-      } & { _lwFogHidden?: boolean },
-    ) => {
-      const bounds = node.getHierarchyBoundingVectors(true);
-      if (!Number.isFinite(bounds.min.x) || !Number.isFinite(bounds.max.x)) return;
-      const cx = (bounds.min.x + bounds.max.x) * 0.5;
-      const cz = (bounds.min.z + bounds.max.z) * 0.5;
-      const rx = Math.max(0.35, (bounds.max.x - bounds.min.x) * 0.5 + 0.18);
-      const rz = Math.max(0.35, (bounds.max.z - bounds.min.z) * 0.5 + 0.18);
-      const bestAlpha = this.sampleRectBestVisibilityFogAlpha(cx, cz, rx, rz);
-      const shouldHide = bestAlpha >= 0.88;
-      if (shouldHide && node.isEnabled(false)) {
-        node.setEnabled(false);
-        node._lwFogHidden = true;
-      } else if (!shouldHide && node._lwFogHidden) {
-        node.setEnabled(true);
-        node._lwFogHidden = false;
-      }
-    };
-
-    for (const tn of this.scene.transformNodes) {
-      if (
-        tn.name.startsWith('lw-stamp-node-') ||
-        tn.name.startsWith('lw-wall-glb-') ||
-        tn.name.startsWith('lw-door-node-')
-      ) {
-        checkWholeObjectNode(tn as unknown as Parameters<typeof checkWholeObjectNode>[0]);
-      }
-    }
-
-    for (const mesh of this.scene.meshes) {
-      if (mesh.parent) continue;
-      if (
-        mesh.name.startsWith('lw-wall-seg-') ||
-        mesh.name.startsWith('lw-portal-') ||
-        mesh.name.startsWith('lw-scatter-') ||
-        mesh.name.startsWith('lw-stamp-')
-      ) {
-        checkWholeObjectNode(mesh as unknown as Parameters<typeof checkWholeObjectNode>[0]);
-      }
-    }
-  }
-
-  private sampleRectBestVisibilityFogAlpha(
-    cx: number,
-    cz: number,
-    rx: number,
-    rz: number,
-  ): number {
-    const c = this.sampleFogAlphaAtWorld(cx, cz);
-    if (c < 0.5) return c;
-    return Math.min(
-      c,
-      this.sampleFogAlphaAtWorld(cx - rx, cz),
-      this.sampleFogAlphaAtWorld(cx + rx, cz),
-      this.sampleFogAlphaAtWorld(cx, cz - rz),
-      this.sampleFogAlphaAtWorld(cx, cz + rz),
-      this.sampleFogAlphaAtWorld(cx - rx * 0.7, cz - rz * 0.7),
-      this.sampleFogAlphaAtWorld(cx + rx * 0.7, cz - rz * 0.7),
-      this.sampleFogAlphaAtWorld(cx - rx * 0.7, cz + rz * 0.7),
-      this.sampleFogAlphaAtWorld(cx + rx * 0.7, cz + rz * 0.7),
-    );
   }
 
   private sampleNodeBestVisibilityFogAlpha(x: number, z: number, radius: number): number {
@@ -310,20 +236,6 @@ export class BabylonFogPlane {
       if (anyLight._lwFogDisabled) {
         light.setEnabled(true);
         anyLight._lwFogDisabled = false;
-      }
-    }
-    for (const tn of this.scene.transformNodes) {
-      const anyTn = tn as typeof tn & { _lwFogHidden?: boolean };
-      if (anyTn._lwFogHidden) {
-        tn.setEnabled(true);
-        anyTn._lwFogHidden = false;
-      }
-    }
-    for (const mesh of this.scene.meshes) {
-      const anyMesh = mesh as typeof mesh & { _lwFogHidden?: boolean };
-      if (anyMesh._lwFogHidden) {
-        mesh.setEnabled(true);
-        anyMesh._lwFogHidden = false;
       }
     }
   }

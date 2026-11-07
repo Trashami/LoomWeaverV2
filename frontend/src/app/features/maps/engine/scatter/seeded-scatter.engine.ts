@@ -1,4 +1,5 @@
 import {
+  Color3,
   Material,
   Matrix,
   Mesh,
@@ -156,7 +157,7 @@ export class SeededScatterEngine {
               scatterMat.realTimeFiltering = false;
               scatterMat.forceIrradianceInFragment = false;
               scatterMat.needDepthPrePass = false;
-              scatterMat.freeze();
+              scatterMat.emissiveColor = Color3.Black();
               m.material = scatterMat;
             }
           } else if (m.material instanceof StandardMaterial) {
@@ -164,7 +165,7 @@ export class SeededScatterEngine {
             if (scatterMat) {
               scatterMat.maxSimultaneousLights = 2;
               scatterMat.needDepthPrePass = false;
-              scatterMat.freeze();
+              scatterMat.emissiveColor = Color3.Black();
               m.material = scatterMat;
             }
           }

@@ -175,26 +175,55 @@ function extractWallPolylineSegments(
   }
 }
 
+const LOW_GROUND_COVER_PATTERN =
+  /grass|fern|bush|shrub|plant|flower|weed|moss|turf|clover|reed|lily|ivy|vine|mushroom|fung|pebble|rubble|debris|campfire|brazier|torch|lantern|candle|chest|crate|barrel|sack|table|chair|bench|stool|bed|rug|carpet|corpse|bones|skull|sign|cart|wagon|well|fountain|statue-small|stump|log/i;
+
+const TALL_LOS_BLOCKER_PATTERN =
+  /wall|tower|building|house|cottage|cabin|ruin|keep|castle|gate|arch|pillar|column|obelisk|monolith|spire|cliff|bluff|boulder-giant|rock-spire|tree|pine|oak|fir|spruce|cypress|willow/i;
+
+function isStampTallEnoughToBlockVision(st: MapStampNode): boolean {
+  if (st.blocksVision === true) return true;
+  if (st.blocksVision === false) return false;
+  if (st.category === 'Token' || st.category === 'DecalStamp') return false;
+
+  const text = `${st.label || ''} ${st.modelUrl || ''} ${st.albedoUrl || ''}`;
+  if (LOW_GROUND_COVER_PATTERN.test(text)) {
+    return false;
+  }
+
+  const baseScale = Math.max(0.25, st.scale || 1);
+  const sy = Math.max(0.25, (st.scaleY ?? 1) * baseScale);
+  const estimatedHeightMeters = DEFAULT_CELL_METERS * sy;
+
+  if (st.category === 'Architecture') {
+    return estimatedHeightMeters >= 1.25;
+  }
+
+  if (TALL_LOS_BLOCKER_PATTERN.test(text)) {
+    return estimatedHeightMeters >= 1.35;
+  }
+
+  // Only treat generic 3D props as vision blockers if scaled taller than a character (~2.1m+)
+  return Boolean(st.modelUrl) && estimatedHeightMeters >= 2.25;
+}
+
 function extractStampOccluderSegments(
   st: MapStampNode,
   out: VttWallSegmentVm[],
 ): void {
-  if (st.category === 'Token' || st.category === 'DecalStamp') return;
-  if (st.blocksVision === false) return;
-  const is3dObject = Boolean(st.modelUrl) || st.category === 'Architecture' || st.category === 'Prop';
-  if (!is3dObject && !st.blocksVision) return;
+  if (!isStampTallEnoughToBlockVision(st)) return;
 
   const baseScale = Math.max(0.35, st.scale || 1);
   const sx = Math.max(0.35, (st.scaleX ?? 1) * baseScale);
   const sz = Math.max(0.35, (st.scaleZ ?? 1) * baseScale);
 
   // Full visual footprint radii for complete object reveal when in Line of Sight
-  const fullRx = Math.max(0.55, DEFAULT_CELL_METERS * sx * 0.62);
-  const fullRz = Math.max(0.55, DEFAULT_CELL_METERS * sz * 0.62);
+  const fullRx = Math.max(0.45, DEFAULT_CELL_METERS * sx * 0.48);
+  const fullRz = Math.max(0.45, DEFAULT_CELL_METERS * sz * 0.48);
 
-  // Core occluder silhouette (~24% of footprint) so the shadow starts behind the core
-  const rx = Math.max(0.24, DEFAULT_CELL_METERS * sx * 0.24);
-  const rz = Math.max(0.24, DEFAULT_CELL_METERS * sz * 0.24);
+  // Core occluder silhouette (~22% of footprint) so the shadow starts behind the core
+  const rx = Math.max(0.22, DEFAULT_CELL_METERS * sx * 0.22);
+  const rz = Math.max(0.22, DEFAULT_CELL_METERS * sz * 0.22);
   const rot = st.rotationY || 0;
   const cos = Math.cos(rot);
   const sin = Math.sin(rot);
@@ -237,6 +266,12 @@ function extractScatterClusterOccluders(
   cluster: MapScatterClusterNode,
   out: VttWallSegmentVm[],
 ): void {
+  const text = `${cluster.label || ''} ${cluster.modelUrl || ''}`;
+  // Only tall trees or monolith scatter clusters block Line of Sight; grass/fern/bush/rock scatter never blocks LoS
+  if (LOW_GROUND_COVER_PATTERN.test(text) || !/tree|pine|oak|fir|spruce|woods|forest|pillar|monolith/i.test(text)) {
+    return;
+  }
+
   const makePrng = (initialSeed: number) => {
     let state = initialSeed || 1042;
     return (): number => {
@@ -249,8 +284,8 @@ function extractScatterClusterOccluders(
 
   const nextRand = makePrng(cluster.seed);
   const itemCount = Math.min(
-    96,
-    Math.max(0, Math.round(Math.PI * cluster.radius ** 2 * (cluster.density / 100) * 0.4)),
+    36,
+    Math.max(0, Math.round(Math.PI * cluster.radius ** 2 * (cluster.density / 100) * 0.25)),
   );
 
   for (let j = 0; j < itemCount; j++) {

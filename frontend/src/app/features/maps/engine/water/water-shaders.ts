@@ -117,7 +117,7 @@ void main() {
   float edge = smoothstep(0., .12, depth);
   gl_FragColor = vec4(color, edge * clamp(vShallow.a + fresnel * .14 + whitewater * .15, .0, 1.));
   if (lwFogActive > 0.5) {
-    vec2 lwFogUv = vec2((vWorld.x + 18.0) / 36.0, 1.0 - (vWorld.z + 13.5) / 27.0);
+    vec2 lwFogUv = vec2((vWorld.x + 37.5) / 75.0, 1.0 - (vWorld.z + 37.5) / 75.0);
     float lwFogOut = step(lwFogUv.x, 0.0) + step(1.0, lwFogUv.x) + step(lwFogUv.y, 0.0) + step(1.0, lwFogUv.y);
     float lwFogAlpha = lwFogOut > 0.0 ? 1.0 : texture2D(lwFogTex, clamp(lwFogUv, vec2(0.001, 0.001), vec2(0.999, 0.999))).a;
     if (lwFogAlpha > 0.96) {

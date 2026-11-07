@@ -80,10 +80,13 @@
 
 .popover-list-body {
   display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
   flex-direction: column;
   gap: 0.4rem;
   padding: 0.5rem;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .category-item-card {

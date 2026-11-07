@@ -11,6 +11,7 @@ import {
 } from '@babylonjs/core';
 import { MapSceneGraphState } from '../../maps/engine/map-scene-contract';
 import { GlbModelCache } from '../../maps/engine/rendering/glb-model-cache';
+import { BiomeFoliageEngine } from '../../maps/engine/terrain/biome-foliage.engine';
 import { TerrainMeshBuilder } from '../../maps/engine/terrain/terrain-mesh.builder';
 import { WaterChannelTerrain } from '../../maps/engine/water/water-channel-terrain';
 import { WaterSplineBuilder } from '../../maps/engine/water/water-spline.builder';
@@ -20,7 +21,15 @@ import { SeededScatterEngine } from '../../maps/engine/scatter/seeded-scatter.en
 import { WallMeshBuilder } from '../../maps/engine/walls/wall-mesh.builder';
 import { PathRibbonEngine } from '../../maps/engine/paths/path-ribbon.engine';
 import { StampSceneBuilder } from '../../maps/engine/rendering/stamp-scene.builder';
-import { TokenDragController } from './token-drag-controller';
+import { resolveTokenKeyFromMesh, TokenDragController } from './token-drag-controller';
+
+function disableNonTokenMapPicking(scene: Scene): void {
+  for (const m of scene.meshes) {
+    if (m.name === 'lw-terrain-ground' || m.name === 'lw-vtt-ground') continue;
+    if (resolveTokenKeyFromMesh(m) !== null) continue;
+    m.isPickable = false;
+  }
+}
 
 export function isMapSceneGraphStatePayload(obj: unknown): obj is MapSceneGraphState {
   if (!obj || typeof obj !== 'object') return false;
@@ -125,7 +134,22 @@ export function sync3dMapSceneGraph(
   WallMeshBuilder.rebuildWallMeshes(scene, state.walls, false, onScheduleResync);
   PathRibbonEngine.rebuildPathRibbonMeshes(scene, state.pathRibbons);
   StampSceneBuilder.rebuild(scene, state.stamps ?? [], false, onScheduleResync);
-  SceneLightingController.refreshShadowCasters(scene);
+  if (
+    state.biomeFoliagePreset !== undefined ||
+    state.biomeFoliageDensityPct !== undefined ||
+    state.biomeFoliageBladeScale !== undefined
+  ) {
+    BiomeFoliageEngine.configure(scene, {
+      preset: state.biomeFoliagePreset ?? 'none',
+      densityPct: state.biomeFoliageDensityPct ?? 70,
+      bladeScale: state.biomeFoliageBladeScale ?? 1.0,
+    });
+  }
+  BiomeFoliageEngine.syncFoliage(scene, state);
+  disableNonTokenMapPicking(scene);
+  if (scene.shadowsEnabled !== false) {
+    SceneLightingController.refreshShadowCasters(scene);
+  }
 }
 
 export function resync3dMapAsyncAssets(
@@ -143,7 +167,10 @@ export function resync3dMapAsyncAssets(
   );
   WallMeshBuilder.rebuildWallMeshes(scene, state.walls, false, onScheduleResync);
   StampSceneBuilder.rebuild(scene, state.stamps ?? [], false, onScheduleResync);
-  SceneLightingController.refreshShadowCasters(scene);
+  disableNonTokenMapPicking(scene);
+  if (scene.shadowsEnabled !== false) {
+    SceneLightingController.refreshShadowCasters(scene);
+  }
 }
 
 export function clear3dMapSceneGraph(scene: Scene | null, ground: Mesh | null): void {
@@ -279,19 +306,10 @@ export function pickTokenOrNearbyAtScreenPoint(
   const rect = canvas.getBoundingClientRect();
   const cx = clientX - rect.left;
   const cy = clientY - rect.top;
-  const hit = scene.pick(cx, cy, (m) => m.isPickable && typeof m.metadata?.tokenKey === 'string');
-  if (hit?.hit && typeof hit.pickedMesh?.metadata?.tokenKey === 'string') {
-    return hit.pickedMesh.metadata.tokenKey as string;
-  }
-  const anyHit = scene.pick(cx, cy, (m) => m.isPickable);
-  if (anyHit?.hit && anyHit.pickedMesh) {
-    let cur: { metadata?: { tokenKey?: unknown }; parent?: unknown } | null | undefined = anyHit.pickedMesh;
-    while (cur) {
-      if (typeof cur.metadata?.tokenKey === 'string' && cur.metadata.tokenKey.length > 0) {
-        return cur.metadata.tokenKey;
-      }
-      cur = cur.parent as typeof cur;
-    }
+  const hit = scene.pick(cx, cy, (m) => m.isPickable && resolveTokenKeyFromMesh(m) !== null);
+  const hitKey = resolveTokenKeyFromMesh(hit?.pickedMesh);
+  if (hit?.hit && hitKey) {
+    return hitKey;
   }
   const gPick = scene.pick(cx, cy, (m) => m === ground || m.name === 'lw-terrain-ground');
   if (!gPick?.hit || !gPick.pickedPoint) return null;

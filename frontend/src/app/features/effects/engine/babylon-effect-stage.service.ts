@@ -7,7 +7,12 @@ import {
 } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
 import { EffectTimelinePresetVm, VttTokenVm } from './effect-timeline.contract';
-import { TokenDragController, TokenPlacement, TokenRightClickEvent } from './token-drag-controller';
+import {
+  resolveTokenKeyFromMesh,
+  TokenDragController,
+  TokenPlacement,
+  TokenRightClickEvent,
+} from './token-drag-controller';
 import { BabylonFogPlane } from './babylon-fog-plane';
 import { BabylonVttMapSceneBuilder, VttMapSceneDataPayload } from './babylon-vtt-map-scene.builder';
 import { BabylonTokenMeshBuilder } from './babylon-token-mesh.builder';
@@ -157,7 +162,7 @@ export class BabylonEffectStageService {
       if (!this.scene) return;
       if (this.last3dSceneState) {
         resync3dMapAsyncAssets(this.scene, this.last3dSceneState, () => this.schedule3dSceneResync());
-      } else {
+      } else if (this.scene.shadowsEnabled !== false) {
         SceneLightingController.refreshShadowCasters(this.scene);
       }
       this.fogPlane?.refreshVolumetricMasking();
@@ -205,7 +210,7 @@ export class BabylonEffectStageService {
     if (parsed) this.mapSceneBuilder.buildScene(this.scene, parsed as VttMapSceneDataPayload);
     else this.mapSceneBuilder.clear(this.scene);
     SceneLightingController.syncCelestialDirectionalLight(this.scene, { mode: 'sun', azimuthDeg: 135, altitudeDeg: 42, shadowDarkness: 72, showSkyOrb: false });
-    SceneLightingController.refreshShadowCasters(this.scene);
+    if (this.scene.shadowsEnabled !== false) SceneLightingController.refreshShadowCasters(this.scene);
   }
 
   setMapQuality(qualityOrPreset: string): void {
@@ -213,7 +218,10 @@ export class BabylonEffectStageService {
     const prevTier = GlbModelCache.getLodTier();
     GlbModelCache.setLodTier(tier);
     if (this.engine) {
-      this.engine.setHardwareScalingLevel(tier === 'high' ? 0.85 : tier === 'low' ? 1.35 : 1.0);
+      this.engine.setHardwareScalingLevel(tier === 'high' ? 0.9 : tier === 'low' ? 1.5 : 1.1);
+    }
+    if (this.scene) {
+      this.scene.shadowsEnabled = tier !== 'low';
     }
     if (this.scene && this.last3dSceneState && prevTier !== tier) {
       StampSceneBuilder.evictScene(this.scene);
@@ -280,18 +288,11 @@ export class BabylonEffectStageService {
 
   setRotateHeld(_held: boolean): void {}
 
-  /**
-   * When the GM is actively drawing with the Fog of War Reveal / Cover brush,
-   * disable left-mouse camera panning / 3D orbit so dragging across the map paints
-   * fog cleanly instead of moving the camera.
-   */
   setFogBrushActive(active: boolean): void {
     this.isFogBrushActive = active;
     if (!this.camera) return;
     const pointers = this.camera.inputs.attached['pointers'] as ArcRotateCameraPointersInput | undefined;
-    if (pointers) {
-      pointers.buttons = active ? [1, 2] : [0, 1, 2];
-    }
+    if (pointers) pointers.buttons = active ? [1, 2] : [0, 1, 2];
   }
 
   pickGroundPoint(clientX: number, clientY: number): { x: number; z: number } | null {
@@ -301,16 +302,8 @@ export class BabylonEffectStageService {
     const rect = canvas.getBoundingClientRect();
     const localX = clientX - rect.left;
     const localY = clientY - rect.top;
-    const pick = this.scene.pick(
-      localX,
-      localY,
-      (m) => m === this.ground || m.name === 'lw-terrain-ground',
-    );
-    if (pick?.hit && pick.pickedPoint) {
-      return { x: pick.pickedPoint.x, z: pick.pickedPoint.z };
-    }
-    // Fallback ray intersection with horizontal plane y = 0 so fog brush & calibration
-    // work across the entire 36x27 map extent even over water, 3D objects, or map edges.
+    const pick = this.scene.pick(localX, localY, (m) => m === this.ground || m.name === 'lw-terrain-ground');
+    if (pick?.hit && pick.pickedPoint) return { x: pick.pickedPoint.x, z: pick.pickedPoint.z };
     const ray = this.scene.createPickingRay(localX, localY, null, this.camera);
     if (Math.abs(ray.direction.y) > 1e-5) {
       const t = -ray.origin.y / ray.direction.y;
@@ -343,12 +336,13 @@ export class BabylonEffectStageService {
     this.dispose();
     this.zone.runOutsideAngular(() => {
     try {
+      const tier = GlbModelCache.getLodTier();
       this.engine = new Engine(canvas, true, { preserveDrawingBuffer: false, stencil: true, powerPreference: 'high-performance' });
-      this.engine.setHardwareScalingLevel(1 / Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 1.35));
+      this.engine.setHardwareScalingLevel(tier === 'low' ? 1.5 : 1 / Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 1.25));
       this.scene = new Scene(this.engine);
       this.scene.skipPointerMovePicking = true;
       this.scene.clearColor = new Color4(0, 0, 0, 1);
-      this.scene.shadowsEnabled = true;
+      this.scene.shadowsEnabled = tier !== 'low';
 
       const onResize = () => { if (canvas.clientWidth > 0 && canvas.clientHeight > 0) this.engine?.resize(); };
       if (typeof window !== 'undefined') {
@@ -407,6 +401,11 @@ export class BabylonEffectStageService {
       this.ground = ground;
       this.groundMat = gMat;
 
+      const fastVttPickPredicate = (m: import('@babylonjs/core').AbstractMesh): boolean =>
+        m.isPickable && (m === ground || m.name === 'lw-terrain-ground' || resolveTokenKeyFromMesh(m) !== null);
+      this.scene.pointerDownPredicate = fastVttPickPredicate;
+      this.scene.pointerUpPredicate = fastVttPickPredicate;
+
       this.backdropUrl = '';
       this.fogPlane = new BabylonFogPlane(this.scene);
       this.fxPlayer.prewarmStage(this.scene);
@@ -460,8 +459,8 @@ export class BabylonEffectStageService {
       this.scene.registerBeforeRender(() => {
         if (!this.scene) return;
         if (this.camera) {
-          const maxX = this.has3dSceneLoaded() ? 24 : 16;
-          const maxZ = this.has3dSceneLoaded() ? 18 : 11;
+          const maxX = this.has3dSceneLoaded() ? 35 : 16;
+          const maxZ = this.has3dSceneLoaded() ? 35 : 11;
           this.camera.target.x = Math.max(-maxX, Math.min(maxX, this.camera.target.x));
           this.camera.target.z = Math.max(-maxZ, Math.min(maxZ, this.camera.target.z));
           this.camera.target.y = 0;
@@ -510,7 +509,6 @@ export class BabylonEffectStageService {
     const src = this.latestTokens.find((t) => t.key === this.latestAttackerKey);
     const startPos = src ? { x: src.x, z: src.z } : this.latestAttackerPos;
     syncBabylonSpellAndTetherMeshes(this.scene, startPos, this.latestTetherTargets, this.latestSpellTemplate);
-    this.fogPlane?.refreshVolumetricMasking();
   }
 
   playTrajectoryEffect(preset: EffectTimelinePresetVm, startPos: { x: number; z: number } = { x: -5, z: 0 }, endPos: { x: number; z: number } = { x: 5, z: 0 }, options?: PlayVttSpellEffectOptions): void {

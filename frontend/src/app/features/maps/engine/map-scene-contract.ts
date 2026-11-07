@@ -252,6 +252,9 @@ export interface MapSceneGraphState {
   readonly floorColorStrength?: number;
   readonly floorColorBlendMode?: MapFloorBlendMode;
   readonly floorPaintDabs?: readonly MapFloorPaintDab[];
+  readonly biomeFoliagePreset?: 'none' | 'lush-meadow' | 'forest-moss' | 'wildflower-meadow';
+  readonly biomeFoliageDensityPct?: number;
+  readonly biomeFoliageBladeScale?: number;
   readonly scatterSeed: number;
   readonly scatterDensity: number;
   readonly scatterClusters?: readonly MapScatterClusterNode[];

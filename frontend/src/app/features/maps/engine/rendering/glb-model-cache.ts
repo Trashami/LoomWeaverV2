@@ -577,10 +577,13 @@ export class GlbModelCache {
         m.computeWorldMatrix(true);
         if (m.material instanceof PBRMaterial) {
           m.material.maxSimultaneousLights = effectiveTier === 'low' ? 3 : 5;
-          m.material.directIntensity = 1.5;
-          m.material.environmentIntensity = 0.72;
+          m.material.directIntensity = 1.18;
+          m.material.environmentIntensity = 0.58;
+          m.material.emissiveColor = Color3.Black();
+          m.material.emissiveIntensity = 0;
         } else if (m.material instanceof StandardMaterial) {
           m.material.maxSimultaneousLights = effectiveTier === 'low' ? 3 : 5;
+          m.material.emissiveColor = Color3.Black();
         }
       }
 

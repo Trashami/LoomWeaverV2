@@ -33,6 +33,7 @@ import {
   LwMapPngAssetItem,
 } from '../../shared/ui/map-png-asset-browser/map-png-asset-browser.component';
 import {
+  LwBiomeFoliagePresetId,
   LwCelestialBodyMode,
   LwGrassFieldPresetId,
   LwMapPropertiesInspectorComponent,
@@ -558,24 +559,10 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   readonly scatterStrokes = computed<readonly LwScatterStrokeSummary[]>(() => {
     const clusters = this.sceneGraph().scatterClusters ?? [];
     if (clusters.length === 0) return [];
+    const resolvedIds = this.resolveClusterStrokeIds(clusters);
     const groups = new Map<string, LwScatterStrokeSummary>();
-    let legacyGroupIndex = 0;
-    let lastLegacyModel = '';
-    let lastLegacyScale = -1;
-    let currentLegacyId = '';
     for (const c of clusters) {
-      let sid = c.strokeId;
-      if (!sid) {
-        const mod = c.modelUrl ?? '';
-        const sc = c.scale ?? 2.8;
-        if (mod !== lastLegacyModel || Math.abs(sc - lastLegacyScale) > 0.01 || !currentLegacyId) {
-          legacyGroupIndex++;
-          currentLegacyId = `legacy-stroke-${legacyGroupIndex}`;
-          lastLegacyModel = mod;
-          lastLegacyScale = sc;
-        }
-        sid = currentLegacyId;
-      }
+      const sid = c.strokeId ?? resolvedIds.get(c.id) ?? 'legacy-stroke-1';
       const prev = groups.get(sid);
       if (prev) {
         groups.set(sid, {
@@ -612,6 +599,9 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   readonly objectRandomCollectionEnabled = signal<boolean>(false);
   readonly scatterRandomCollectionEnabled = signal<boolean>(false);
   readonly objectRandomGroupId = signal<string>('grass_ground_cover');
+  readonly biomeFoliagePreset = signal<LwBiomeFoliagePresetId>('none');
+  readonly biomeFoliageDensityPct = signal<number>(75);
+  readonly biomeFoliageBladeScale = signal<number>(1.0);
   private readonly randomCollectionShuffleBags = new Map<string, LwMapPngAssetItem[]>();
   readonly randomGroupOptions = computed<readonly LwRandomCollectionOption[]>(() => {
     const fallbackLabels: Record<string, string> = {
@@ -925,6 +915,17 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       .bumpHeightAssets2d()
       .find((f) => f.id === intent.starterFloorBumpId && f.isFloor);
 
+    const starterFoliagePreset: LwBiomeFoliagePresetId =
+      intent.starterFloorBumpId === 'bump-lush-meadow-grass'
+        ? 'lush-meadow'
+        : intent.starterFloorBumpId === 'bump-wildflower-grass-field'
+          ? 'wildflower-meadow'
+          : intent.starterFloorBumpId === 'bump-forest-moss-turf' ||
+              intent.starterFloorBumpId === 'bump-forest-pine-needles'
+            ? 'forest-moss'
+            : 'none';
+    this.biomeFoliagePreset.set(starterFoliagePreset);
+
     this.stage.resetTerrainElevations();
     const blank = createBlankSceneGraph(intent.name);
     this.selectedSceneKey.set(blank.sceneKey);
@@ -938,6 +939,9 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       floorNormalUrl: starterFloor?.normalUrl,
       floorHeightUrl: starterFloor?.heightUrl,
       floorTilingScale: this.floorTilingScale(),
+      biomeFoliagePreset: starterFoliagePreset,
+      biomeFoliageDensityPct: this.biomeFoliageDensityPct(),
+      biomeFoliageBladeScale: this.biomeFoliageBladeScale(),
     });
     this.selectedPlacedId.set(null);
     this.selectedPlacedKind.set(null);
@@ -1120,6 +1124,13 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       }
       if (document.gridOpacityPct !== undefined) {
         this.gridOpacityPct.set(document.gridOpacityPct);
+      }
+      this.biomeFoliagePreset.set(document.biomeFoliagePreset ?? 'none');
+      if (document.biomeFoliageDensityPct !== undefined) {
+        this.biomeFoliageDensityPct.set(document.biomeFoliageDensityPct);
+      }
+      if (document.biomeFoliageBladeScale !== undefined) {
+        this.biomeFoliageBladeScale.set(document.biomeFoliageBladeScale);
       }
       this.stage.configureGrid(
         {
@@ -3320,11 +3331,11 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         randomGroup: 'wildflowers_meadow_flora',
       },
       'forest-moss': {
-        floorId: 'bump-forest-moss-turf',
-        floorName: 'Deep Forest Moss & Pine Turf (PBR)',
-        albedoUrl: '/assets/terrain-textures/meadow-grass-v1/forest-moss-turf.png',
-        normalUrl: '/assets/terrain-textures/meadow-grass-v1/forest-moss-turf_normal.png',
-        heightUrl: '/assets/terrain-textures/meadow-grass-v1/forest-moss-turf_height.png',
+        floorId: 'bump-forest-pine-needles',
+        floorName: 'Forest Pine Needles & Moss Floor (PBR)',
+        albedoUrl: '/assets/terrain-textures/meadow-grass-v1/forest-pine-needles.png',
+        normalUrl: '/assets/terrain-textures/meadow-grass-v1/forest-pine-needles_normal.png',
+        heightUrl: '/assets/terrain-textures/meadow-grass-v1/forest-pine-needles_height.png',
         tiling: 14,
         randomGroup: 'forest_ferns_undergrowth',
       },
@@ -3355,6 +3366,24 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       spec.heightUrl,
     );
 
+    // Enable GPU-instanced 3D grass / clover / forest ferns ground cover biome
+    this.biomeFoliagePreset.set(presetId);
+    this.commitSceneUpdate((cur) => ({
+      ...cur,
+      revision: cur.revision + 1,
+      biomeFoliagePreset: presetId,
+      biomeFoliageDensityPct: this.biomeFoliageDensityPct(),
+      biomeFoliageBladeScale: this.biomeFoliageBladeScale(),
+    }));
+    this.stage.configureBiomeFoliage(
+      {
+        preset: presetId,
+        densityPct: this.biomeFoliageDensityPct(),
+        bladeScale: this.biomeFoliageBladeScale(),
+      },
+      this.sceneGraph(),
+    );
+
     // Also prime the random collection for 3D ground cover stamping/scattering
     this.objectRandomGroupId.set(spec.randomGroup);
     if (this.activeDockToolId() === 'scatter') {
@@ -3365,8 +3394,47 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       this.onApplyRandomGroupDefaults();
     }
     this.pngPipelineBanner.set(
-      `Applied '${spec.floorName}' terrain field and primed randomized 3D ground cover collection.`,
+      `Applied '${spec.floorName}' with real 3D instanced ground cover (${this.biomeFoliageDensityPct()}% density).`,
     );
+  }
+
+  onBiomeFoliagePresetChange(preset: LwBiomeFoliagePresetId): void {
+    this.biomeFoliagePreset.set(preset);
+    this.commitSceneUpdate((cur) => ({
+      ...cur,
+      revision: cur.revision + 1,
+      biomeFoliagePreset: preset,
+      biomeFoliageDensityPct: this.biomeFoliageDensityPct(),
+      biomeFoliageBladeScale: this.biomeFoliageBladeScale(),
+    }));
+    this.stage.configureBiomeFoliage(
+      {
+        preset,
+        densityPct: this.biomeFoliageDensityPct(),
+        bladeScale: this.biomeFoliageBladeScale(),
+      },
+      this.sceneGraph(),
+    );
+  }
+
+  onBiomeFoliageDensityPctChange(pct: number): void {
+    const clamped = Math.max(15, Math.min(100, Math.round(pct)));
+    this.biomeFoliageDensityPct.set(clamped);
+    this.sceneGraph.update((cur) => ({
+      ...cur,
+      biomeFoliageDensityPct: clamped,
+    }));
+    this.stage.configureBiomeFoliage({ densityPct: clamped }, this.sceneGraph());
+  }
+
+  onBiomeFoliageBladeScaleChange(scale: number): void {
+    const clamped = Math.max(0.4, Math.min(2.2, Math.round(scale * 100) / 100));
+    this.biomeFoliageBladeScale.set(clamped);
+    this.sceneGraph.update((cur) => ({
+      ...cur,
+      biomeFoliageBladeScale: clamped,
+    }));
+    this.stage.configureBiomeFoliage({ bladeScale: clamped }, this.sceneGraph());
   }
 
   private inferFallbackRandomGroup(asset: LwMapPngAssetItem): string {
@@ -3871,14 +3939,6 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     ]);
   }
 
-  private legacySaveSceneRevisionUnused(): void {
-    this.studio.saveAuthoritativeRevision(
-      this.store.activeCampaignId(),
-      this.selectedSceneKey(),
-      this.sceneGraph(),
-    );
-  }
-
   publishMapToCoreCampaign(): void {
     const sessList = this.sessions();
     const sessionObj =
@@ -3953,44 +4013,5 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       `Published '${this.mapTitle()}' (${this.dimensionMode().toUpperCase()}) -> ${campName} · ${sessLabel} · ${encLabel}`,
     );
     this.audio.fireTrigger('battlemap', sceneKey, this.mapTitle(), false);
-  }
-
-  private legacyPublishMapToCoreCampaignUnused(): void {
-    const sessionId = this.assignSessionId() || this.sessions()[0]?.id || 'session-1';
-    this.store.setActiveSession(sessionId);
-    this.saveSceneRevision();
-    const campName = this.store.activeCampaign().name;
-    const sessLabel =
-      this.sessions().find((s) => s.id === sessionId)?.label ?? 'Selected session';
-    const encLabel =
-      this.encounters().find((e) => e.id === this.assignEncounterId())?.label ??
-      'Unassigned encounter';
-    const previewArt =
-      this.stage.captureViewportDataUrl() ??
-      this.sceneGraph().floorAlbedoUrl ??
-      '/battlemap-showcase.jpg';
-    this.adventureGuide.assignBattlemapToSessionAndPlace({
-      sceneKey: this.selectedSceneKey(),
-      sceneTitle: this.mapTitle(),
-      sessionId,
-      locationNodeId: this.assignLocationNodeId(),
-      artworkUrl: previewArt,
-      biome: this.activeTheme(),
-    });
-    this.store.attachElementToSession({
-      sessionId,
-      elementKind: 'Map',
-      targetKey: this.selectedSceneKey(),
-      title: this.mapTitle(),
-      subtitle: `${this.dimensionMode().toUpperCase()} Battlemap · ${this.activeTheme()}`,
-      summary: `Published to ${sessLabel} (${encLabel})`,
-      routeLink: `/arcane-screen?scene=${this.selectedSceneKey()}`,
-      visibility: 'players',
-      artworkUrl: previewArt,
-    });
-    this.pngPipelineBanner.set(
-      `Published '${this.mapTitle()}' (${this.dimensionMode().toUpperCase()}) -> ${campName} · ${sessLabel} · ${encLabel}`,
-    );
-    this.audio.fireTrigger('battlemap', this.selectedSceneKey(), this.mapTitle(), false);
   }
 }

@@ -5,17 +5,17 @@ import {
   VttPoint2D,
   VttWallSegmentVm,
 } from '../models/vtt-battle.models';
-import { FEET_PER_WORLD_UNIT, getActiveCellStepWorld } from './vtt-los-and-grid.engine';
+import { getActiveCellStepWorld } from './vtt-los-and-grid.engine';
 
-export const FOG_WORLD_MIN_X = -18;
-export const FOG_WORLD_MAX_X = 18;
-export const FOG_WORLD_MIN_Z = -13.5;
-export const FOG_WORLD_MAX_Z = 13.5;
-export const FOG_WORLD_WIDTH = FOG_WORLD_MAX_X - FOG_WORLD_MIN_X; // 36
-export const FOG_WORLD_HEIGHT = FOG_WORLD_MAX_Z - FOG_WORLD_MIN_Z; // 27
+export const FOG_WORLD_MIN_X = -37.5;
+export const FOG_WORLD_MAX_X = 37.5;
+export const FOG_WORLD_MIN_Z = -37.5;
+export const FOG_WORLD_MAX_Z = 37.5;
+export const FOG_WORLD_WIDTH = FOG_WORLD_MAX_X - FOG_WORLD_MIN_X; // 75
+export const FOG_WORLD_HEIGHT = FOG_WORLD_MAX_Z - FOG_WORLD_MIN_Z; // 75
 
-const CANVAS_W = 360;
-const CANVAS_H = 270;
+const CANVAS_W = 512;
+const CANVAS_H = 512;
 
 export interface VttFogRenderInput {
   readonly encounterId: string;
@@ -51,9 +51,9 @@ export function getEffectiveTokenVisionFeet(
 }
 
 /**
- * MythWeaver-style smooth raycasted Fog of War engine.
- * Combines per-token line-of-sight visibility polygons against walls and 3D objects,
- * DM-adjustable radial vision falloff feathering, DM-adjustable soft shadow penumbra edges,
+ * Smooth raycasted Fog of War engine covering the full 75m x 75m Map Studio & VTT world.
+ * Combines per-token line-of-sight visibility polygons against tall walls and structures,
+ * DM-adjustable radial vision falloff feathering, soft shadow penumbra edges,
  * continuous traveled path memory, and manual GM Reveal/Cover brush strokes.
  */
 export class VttFogOfWarEngine {
@@ -86,8 +86,7 @@ export class VttFogOfWarEngine {
 
   revealEntireEncounter(encounterId: string): void {
     const exp = this.getOrCreateExploredCanvas(encounterId);
-    if (!exp) return;
-    const ctx = exp.getContext('2d');
+    const ctx = exp?.getContext('2d');
     if (!ctx) return;
     ctx.fillStyle = 'rgba(255, 255, 255, 1)';
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
@@ -111,7 +110,8 @@ export class VttFogOfWarEngine {
     const liveCtx = liveMask.getContext('2d');
     if (!outCtx || !liveCtx) return null;
 
-    const blockingWalls = input.losWallShadowsEnabled !== false ? input.walls.filter((w) => w.blocksVision) : [];
+    const blockingWalls =
+      input.losWallShadowsEnabled !== false ? input.walls.filter((w) => w.blocksVision) : [];
     const curvePct = input.visionFalloffCurvePct ?? 50;
     const scopeKey = `${input.encounterId}:${input.observers.map((o) => o.key).join('|') || 'all'}`;
     const exploredCanvas = this.getOrCreateExploredCanvas(scopeKey);
@@ -122,7 +122,11 @@ export class VttFogOfWarEngine {
     const cellStepWorld = getActiveCellStepWorld();
     if (input.mode !== 'manual-only' && input.losVisionEnabled !== false) {
       for (const observer of input.observers) {
-        const sightFeet = getEffectiveTokenVisionFeet(observer, input.defaultSightFeet, input.applyTokenVision);
+        const sightFeet = getEffectiveTokenVisionFeet(
+          observer,
+          input.defaultSightFeet,
+          input.applyTokenVision,
+        );
         const radiusWorld = Math.max(cellStepWorld * 2, (sightFeet / 5) * cellStepWorld);
 
         if (input.mode === 'explored-los' && exploredCtx) {
@@ -130,15 +134,24 @@ export class VttFogOfWarEngine {
           const prev = this.lastObserverPosByKey.get(posKey);
           if (prev) {
             const moveDist = Math.hypot(observer.x - prev.x, observer.z - prev.z);
-            if (moveDist > 0.35 && moveDist < 18) {
-              const steps = Math.min(4, Math.max(1, Math.ceil(moveDist / 0.9)));
+            if (moveDist > 0.45 && moveDist < 18) {
+              const steps = Math.min(2, Math.max(1, Math.ceil(moveDist / 1.5)));
               for (let s = 0; s < steps; s++) {
                 const ratio = s / steps;
                 const ix = prev.x + (observer.x - prev.x) * ratio;
                 const iz = prev.z + (observer.z - prev.z) * ratio;
                 const stepPoly = this.computeVisibilityPolygon(ix, iz, radiusWorld, blockingWalls);
-                this.stampVisibilityPolygon(exploredCtx, ix, iz, radiusWorld, stepPoly, input.visionFalloffPct, curvePct, 0, blockingWalls.length > 0);
-                this.revealVisibleObstacleFootprints(exploredCtx, ix, iz, radiusWorld, blockingWalls);
+                this.stampVisibilityPolygon(
+                  exploredCtx,
+                  ix,
+                  iz,
+                  radiusWorld,
+                  stepPoly,
+                  input.visionFalloffPct,
+                  curvePct,
+                  0,
+                  blockingWalls,
+                );
               }
               this.lastObserverPosByKey.set(posKey, { x: observer.x, z: observer.z });
             }
@@ -147,12 +160,35 @@ export class VttFogOfWarEngine {
           }
         }
 
-        const poly = this.computeVisibilityPolygon(observer.x, observer.z, radiusWorld, blockingWalls);
-        this.stampVisibilityPolygon(liveCtx, observer.x, observer.z, radiusWorld, poly, input.visionFalloffPct, curvePct, input.shadowSoftnessPx, blockingWalls.length > 0);
-        this.revealVisibleObstacleFootprints(liveCtx, observer.x, observer.z, radiusWorld, blockingWalls);
+        const poly = this.computeVisibilityPolygon(
+          observer.x,
+          observer.z,
+          radiusWorld,
+          blockingWalls,
+        );
+        this.stampVisibilityPolygon(
+          liveCtx,
+          observer.x,
+          observer.z,
+          radiusWorld,
+          poly,
+          input.visionFalloffPct,
+          curvePct,
+          input.shadowSoftnessPx,
+          blockingWalls,
+        );
         if (input.mode === 'explored-los' && exploredCtx) {
-          this.stampVisibilityPolygon(exploredCtx, observer.x, observer.z, radiusWorld, poly, input.visionFalloffPct, curvePct, 0, blockingWalls.length > 0);
-          this.revealVisibleObstacleFootprints(exploredCtx, observer.x, observer.z, radiusWorld, blockingWalls);
+          this.stampVisibilityPolygon(
+            exploredCtx,
+            observer.x,
+            observer.z,
+            radiusWorld,
+            poly,
+            input.visionFalloffPct,
+            curvePct,
+            0,
+            blockingWalls,
+          );
         }
       }
     }
@@ -174,7 +210,6 @@ export class VttFogOfWarEngine {
     outCtx.fillStyle = `rgba(0, 0, 0, ${unexploredAlpha})`;
     outCtx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-    // If keeping traveled areas cleared (and token sight is active), reduce alpha in explored regions down to traveledAlpha
     if (
       input.mode === 'explored-los' &&
       input.losVisionEnabled !== false &&
@@ -192,21 +227,18 @@ export class VttFogOfWarEngine {
       outCtx.restore();
     }
 
-    // Punch out currently visible areas completely (alpha -> 0) so active LoS is crystal clear
     outCtx.save();
     outCtx.globalCompositeOperation = 'destination-out';
     outCtx.globalAlpha = 1.0;
     outCtx.drawImage(liveMask, 0, 0);
     outCtx.restore();
 
-    // Re-apply any 'cover' manual strokes that came after 'reveal' so GM cover brush forces fog
     for (const stroke of input.manualStrokes) {
       if (stroke.mode === 'cover') {
         this.paintCoverFogOnOutput(outCtx, stroke, unexploredAlpha);
       }
     }
 
-    // Keep a 2px black perimeter rim so clamped UVs outside map bounds remain black
     outCtx.save();
     outCtx.globalCompositeOperation = 'source-over';
     outCtx.strokeStyle = `rgba(0, 0, 0, ${unexploredAlpha})`;
@@ -315,9 +347,10 @@ export class VttFogOfWarEngine {
     visionFalloffPct: number,
     visionFalloffCurvePct: number,
     shadowSoftnessPx: number,
-    hasBlockingWalls = false,
+    blockingWalls: readonly VttWallSegmentVm[],
   ): void {
     if (polygon.length < 3) return;
+    const hasBlockingWalls = blockingWalls.length > 0;
     const center = this.worldToPixel(ox, oz);
     const radiusPx = Math.max(8, (radiusWorld / FOG_WORLD_WIDTH) * CANVAS_W);
     const featherFrac = Math.max(0.0, Math.min(1.0, (visionFalloffPct ?? 45) / 100));
@@ -325,7 +358,14 @@ export class VttFogOfWarEngine {
     const curveNorm = Math.max(5, Math.min(95, visionFalloffCurvePct ?? 50));
     const gamma = Math.pow(3.6, (curveNorm - 50) / 40);
 
-    const grad = ctx.createRadialGradient(center.x, center.y, radiusPx * 0.02, center.x, center.y, radiusPx);
+    const grad = ctx.createRadialGradient(
+      center.x,
+      center.y,
+      radiusPx * 0.02,
+      center.x,
+      center.y,
+      radiusPx,
+    );
     grad.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
     grad.addColorStop(coreStop, 'rgba(255, 255, 255, 1.0)');
     const steps = 8;
@@ -339,7 +379,9 @@ export class VttFogOfWarEngine {
     }
     grad.addColorStop(1.0, 'rgba(255, 255, 255, 0.0)');
 
-    const blurPx = hasBlockingWalls ? Math.max(0, Math.min(16, Math.round((shadowSoftnessPx ?? 10) * 0.45))) : 0;
+    const blurPx = hasBlockingWalls
+      ? Math.max(0, Math.min(16, Math.round((shadowSoftnessPx ?? 10) * 0.45)))
+      : 0;
     const scratch = blurPx > 0 ? this.ensureCanvas('scratch') : null;
     const scratchCtx = scratch?.getContext('2d') ?? null;
 
@@ -390,135 +432,6 @@ export class VttFogOfWarEngine {
     ctx.restore();
   }
 
-  /**
-   * Ensures that any obstacle (3D stamp, column, ruin, tree, or wall segment) whose front face
-   * is reached by an observer's Line of Sight has its entire footprint revealed on the ground
-   * so objects in LoS are revealed completely and cast shadows strictly behind themselves.
-   */
-  private revealVisibleObstacleFootprints(
-    ctx: CanvasRenderingContext2D,
-    ox: number,
-    oz: number,
-    radiusWorld: number,
-    walls: readonly VttWallSegmentVm[],
-  ): void {
-    if (walls.length === 0) return;
-
-    const groups = new Map<string, VttWallSegmentVm[]>();
-    for (const w of walls) {
-      if (this.distToSegment(ox, oz, w.x1, w.z1, w.x2, w.z2) > radiusWorld + 0.5) continue;
-      const gid = w.obstacleGroupId ?? w.id;
-      let list = groups.get(gid);
-      if (!list) {
-        list = [];
-        groups.set(gid, list);
-      }
-      list.push(w);
-    }
-
-    ctx.save();
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = 'rgba(255, 255, 255, 1.0)';
-    ctx.strokeStyle = 'rgba(255, 255, 255, 1.0)';
-
-    for (const [gid, segs] of groups.entries()) {
-      let groupVisible = false;
-      for (const seg of segs) {
-        const samplePts: Array<[number, number]> = [
-          [(seg.x1 + seg.x2) * 0.5, (seg.z1 + seg.z2) * 0.5],
-          [seg.x1 * 0.75 + seg.x2 * 0.25, seg.z1 * 0.75 + seg.z2 * 0.25],
-          [seg.x1 * 0.25 + seg.x2 * 0.75, seg.z1 * 0.25 + seg.z2 * 0.75],
-        ];
-        for (const [tx, tz] of samplePts) {
-          const dist = Math.hypot(tx - ox, tz - oz);
-          if (dist > radiusWorld || dist < 0.05) continue;
-          if (!this.isRayBlockedBeforeTarget(ox, oz, tx, tz, walls, gid)) {
-            groupVisible = true;
-            break;
-          }
-        }
-        if (groupVisible) break;
-      }
-
-      if (!groupVisible) continue;
-
-      const first = segs[0];
-      if (
-        first.obstacleCenterX !== undefined &&
-        first.obstacleCenterZ !== undefined &&
-        first.obstacleRadiusX !== undefined &&
-        first.obstacleRadiusZ !== undefined
-      ) {
-        const cx = first.obstacleCenterX;
-        const cz = first.obstacleCenterZ;
-        const rx = first.obstacleRadiusX;
-        const rz = first.obstacleRadiusZ;
-        const rot = first.obstacleRotationY ?? 0;
-        const cos = Math.cos(rot);
-        const sin = Math.sin(rot);
-        const corners = [
-          { x: cx + (-rx * cos - -rz * sin), z: cz + (-rx * sin + -rz * cos) },
-          { x: cx + (rx * cos - -rz * sin), z: cz + (rx * sin + -rz * cos) },
-          { x: cx + (rx * cos - rz * sin), z: cz + (rx * sin + rz * cos) },
-          { x: cx + (-rx * cos - rz * sin), z: cz + (-rx * sin + rz * cos) },
-        ];
-        ctx.beginPath();
-        corners.forEach((pt, idx) => {
-          const p = this.worldToPixel(pt.x, pt.z);
-          if (idx === 0) ctx.moveTo(p.x, p.y);
-          else ctx.lineTo(p.x, p.y);
-        });
-        ctx.closePath();
-        ctx.fill();
-      } else {
-        ctx.lineWidth = Math.max(4, ((first.obstacleRadiusZ ?? 0.24) * 2 / FOG_WORLD_WIDTH) * CANVAS_W);
-        ctx.lineCap = 'round';
-        for (const seg of segs) {
-          const p1 = this.worldToPixel(seg.x1, seg.z1);
-          const p2 = this.worldToPixel(seg.x2, seg.z2);
-          ctx.beginPath();
-          ctx.moveTo(p1.x, p1.y);
-          ctx.lineTo(p2.x, p2.y);
-          ctx.stroke();
-        }
-      }
-    }
-
-    ctx.restore();
-  }
-
-  private isRayBlockedBeforeTarget(
-    ox: number,
-    oz: number,
-    tx: number,
-    tz: number,
-    walls: readonly VttWallSegmentVm[],
-    targetGroupId: string,
-  ): boolean {
-    const dx = tx - ox;
-    const dz = tz - oz;
-    const dist = Math.hypot(dx, dz);
-    if (dist < 1e-4) return false;
-    const rdx = dx / dist;
-    const rdz = dz / dist;
-
-    for (const w of walls) {
-      if ((w.obstacleGroupId ?? w.id) === targetGroupId) continue;
-      const sx = w.x2 - w.x1;
-      const sz = w.z2 - w.z1;
-      const cross = rdx * sz - rdz * sx;
-      if (Math.abs(cross) <= 1e-6) continue;
-      const qx = w.x1 - ox;
-      const qz = w.z1 - oz;
-      const t1 = (qx * sz - qz * sx) / cross;
-      const t2 = (qx * rdz - qz * rdx) / cross;
-      if (t1 >= 0.14 && t1 < dist - 0.08 && t2 >= -0.001 && t2 <= 1.001) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   private applyBrushStroke(ctx: CanvasRenderingContext2D, stroke: VttFogBrushStrokeVm): void {
     const center = this.worldToPixel(stroke.x, stroke.z);
     const radiusWorld = Math.max(0.5, (stroke.radiusFeet / 5) * getActiveCellStepWorld());
@@ -564,7 +477,14 @@ export class VttFogOfWarEngine {
       outCtx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
       outCtx.fillRect(center.x - radiusPx, center.y - radiusPx, radiusPx * 2, radiusPx * 2);
     } else {
-      const grad = outCtx.createRadialGradient(center.x, center.y, radiusPx * 0.3, center.x, center.y, radiusPx);
+      const grad = outCtx.createRadialGradient(
+        center.x,
+        center.y,
+        radiusPx * 0.3,
+        center.x,
+        center.y,
+        radiusPx,
+      );
       grad.addColorStop(0.0, `rgba(0, 0, 0, ${alpha})`);
       grad.addColorStop(0.8, `rgba(0, 0, 0, ${alpha * 0.85})`);
       grad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
@@ -577,10 +497,20 @@ export class VttFogOfWarEngine {
   }
 
   private worldToPixel(x: number, z: number): { x: number; y: number } {
-    return { x: ((x - FOG_WORLD_MIN_X) / FOG_WORLD_WIDTH) * CANVAS_W, y: ((z - FOG_WORLD_MIN_Z) / FOG_WORLD_HEIGHT) * CANVAS_H };
+    return {
+      x: ((x - FOG_WORLD_MIN_X) / FOG_WORLD_WIDTH) * CANVAS_W,
+      y: ((z - FOG_WORLD_MIN_Z) / FOG_WORLD_HEIGHT) * CANVAS_H,
+    };
   }
 
-  private distToSegment(px: number, pz: number, x1: number, z1: number, x2: number, z2: number): number {
+  private distToSegment(
+    px: number,
+    pz: number,
+    x1: number,
+    z1: number,
+    x2: number,
+    z2: number,
+  ): number {
     const dx = x2 - x1;
     const dz = z2 - z1;
     const l2 = dx * dx + dz * dz;

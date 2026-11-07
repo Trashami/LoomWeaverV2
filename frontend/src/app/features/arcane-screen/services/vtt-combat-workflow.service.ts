@@ -74,6 +74,48 @@ export interface VttCombatWorkflowStateVm {
   readonly canRollDamage: boolean;
 }
 
+function computeSafeMissTrajectoryPoint(
+  attacker: { x: number; z: number },
+  target: { x: number; z: number },
+  allTokens: readonly VttTokenVm[],
+  seedIndex = 0,
+): { x: number; z: number } {
+  const dx = target.x - attacker.x;
+  const dz = target.z - attacker.z;
+  const dist = Math.hypot(dx, dz) || 1;
+  const dirX = dx / dist;
+  const dirZ = dz / dist;
+  const perpX = -dirZ;
+  const perpZ = dirX;
+  const sideSign = seedIndex % 2 === 0 ? 1 : -1;
+
+  const candidates: Array<{ along: number; lateral: number }> = [
+    { along: 0.85, lateral: 1.55 * sideSign },
+    { along: 0.85, lateral: -1.55 * sideSign },
+    { along: 1.45, lateral: 1.85 * sideSign },
+    { along: 1.45, lateral: -1.85 * sideSign },
+    { along: -0.65, lateral: 1.75 * sideSign },
+    { along: -0.65, lateral: -1.75 * sideSign },
+    { along: 2.1, lateral: 2.25 * sideSign },
+    { along: 2.1, lateral: -2.25 * sideSign },
+  ];
+
+  for (const c of candidates) {
+    const px = target.x + dirX * c.along + perpX * c.lateral;
+    const pz = target.z + dirZ * c.along + perpZ * c.lateral;
+    const hitsAnyToken = allTokens.some(
+      (tok) => tok.currentHp > 0 && Math.hypot(tok.x - px, tok.z - pz) < 1.32,
+    );
+    if (!hitsAnyToken) {
+      return { x: Number(px.toFixed(2)), z: Number(pz.toFixed(2)) };
+    }
+  }
+  return {
+    x: Number((target.x + perpX * 2.4 * sideSign).toFixed(2)),
+    z: Number((target.z + perpZ * 2.4 * sideSign).toFixed(2)),
+  };
+}
+
 @Injectable({ providedIn: 'root' })
 export class VttCombatWorkflowService {
   private readonly http = inject(HttpClient);
@@ -87,9 +129,6 @@ export class VttCombatWorkflowService {
   readonly state = signal<VttCombatWorkflowStateVm | null>(null);
   private onStageSyncCallback: (() => void) | null = null;
 
-  /**
-   * Opens the D&D 5e Order-of-Operations modal (`Choose -> Check -> Roll Attack -> Outcome -> Roll Damage -> FX & Persist`).
-   */
   openWorkflow(attacker: VttTokenVm, ability: VttTacticalAbilityVm, targets: readonly VttTokenVm[], onStageSync?: () => void): void {
     if (targets.length === 0) return;
     this.onStageSyncCallback = onStageSync ?? null;
@@ -100,9 +139,7 @@ export class VttCombatWorkflowService {
     this.battle.multiTargetKeys.set(targetKeys);
     this.battle.queuedTargetSequence.set(targets.map((t) => t.key));
     this.battle.hasActiveTargetTether.set(targetKeys.length > 0);
-    if (targetKeys[0]) {
-      this.vtt.selectedTargetKey.set(targetKeys[0]);
-    }
+    if (targetKeys[0]) this.vtt.selectedTargetKey.set(targetKeys[0]);
     this.stage.prefetchCampaignEffects(this.store.activeCampaignId());
     const requiresSave = ability.saveDc > 0 && ability.targetMode === 'aoe';
     this.state.set({
@@ -167,11 +204,7 @@ export class VttCombatWorkflowService {
     const r1 = Math.floor(Math.random() * 20) + 1;
     const r2 = Math.floor(Math.random() * 20) + 1;
     const useTwoDice = s.advantageMode !== 'normal' && !s.requiresSave;
-    const chosenD20 = !useTwoDice
-      ? r1
-      : s.advantageMode === 'advantage'
-        ? Math.max(r1, r2)
-        : Math.min(r1, r2);
+    const chosenD20 = !useTwoDice ? r1 : s.advantageMode === 'advantage' ? Math.max(r1, r2) : Math.min(r1, r2);
 
     const isCrit = !s.requiresSave && chosenD20 === 20;
     const isCritFail = !s.requiresSave && chosenD20 === 1;
@@ -179,18 +212,12 @@ export class VttCombatWorkflowService {
     const total = chosenD20 + modifier;
 
     const primaryTarget = s.targets[0];
-    const reactionAcBonus =
-      chosenReaction && chosenReaction.defenderKey === primaryTarget.key ? chosenReaction.acBonus : 0;
+    const reactionAcBonus = chosenReaction && chosenReaction.defenderKey === primaryTarget.key ? chosenReaction.acBonus : 0;
     const targetAc = primaryTarget.armorClass + reactionAcBonus;
-    const primaryHit = s.requiresSave
-      ? total < s.ability.saveDc
-      : isCrit || (!isCritFail && total >= targetAc);
+    const primaryHit = s.requiresSave ? total < s.ability.saveDc : isCrit || (!isCritFail && total >= targetAc);
 
     const diceEntries: FullscreenDieEntry[] = useTwoDice
-      ? [
-          { dieType: 'd20', value: r1 },
-          { dieType: 'd20', value: r2 },
-        ]
+      ? [{ dieType: 'd20', value: r1 }, { dieType: 'd20', value: r2 }]
       : [{ dieType: 'd20', value: chosenD20 }];
 
     const rollLabel = s.requiresSave
@@ -198,100 +225,47 @@ export class VttCombatWorkflowService {
       : `${s.ability.name} Attack (${s.advantageMode.toUpperCase()})`;
 
     const badge = s.requiresSave
-      ? primaryHit
-        ? `SAVE FAILED (${total} vs DC ${s.ability.saveDc})`
-        : `SAVED (${total} vs DC ${s.ability.saveDc})`
-      : isCrit
-        ? `CRITICAL HIT! (AC ${targetAc})`
-        : isCritFail
-          ? 'CRITICAL MISS (NAT 1)'
-          : primaryHit
-            ? `HIT! (${total} vs AC ${targetAc})`
-            : `MISS (${total} vs AC ${targetAc})`;
+      ? primaryHit ? `SAVE FAILED (${total} vs DC ${s.ability.saveDc})` : `SAVED (${total} vs DC ${s.ability.saveDc})`
+      : isCrit ? `CRITICAL HIT! (AC ${targetAc})` : isCritFail ? 'CRITICAL MISS (NAT 1)' : primaryHit ? `HIT! (${total} vs AC ${targetAc})` : `MISS (${total} vs AC ${targetAc})`;
 
     await this.fullscreenDice.triggerFullScreenRollAndWait({
       label: rollLabel,
       actorName: s.requiresSave ? primaryTarget.name : s.attacker.name,
-      expression: useTwoDice
-        ? `2d20 (${s.advantageMode === 'advantage' ? 'kh1' : 'kl1'}) + ${modifier}`
-        : `1d20 + ${modifier}`,
+      expression: useTwoDice ? `2d20 (${s.advantageMode === 'advantage' ? 'kh1' : 'kl1'}) + ${modifier}` : `1d20 + ${modifier}`,
       diceValues: useTwoDice ? [r1, r2] : [chosenD20],
-      diceEntries,
-      modifier,
-      total,
-      outcomeBadge: badge,
-      isNat20: isCrit,
-      isCritFail,
+      diceEntries, modifier, total, outcomeBadge: badge, isNat20: isCrit, isCritFail,
     });
 
     const outcomes: VttTargetResolutionVm[] = s.targets.map((t, idx) => {
       const dist = distanceInFeet({ x: s.attacker.x, z: s.attacker.z }, { x: t.x, z: t.z });
       const inRange = dist <= Math.max(5, s.ability.rangeFeet);
-      const los = hasLineOfSight(
-        { x: s.attacker.x, z: s.attacker.z },
-        { x: t.x, z: t.z },
-        Math.max(120, s.ability.rangeFeet),
-        this.battle.walls(),
-      );
+      const los = hasLineOfSight({ x: s.attacker.x, z: s.attacker.z }, { x: t.x, z: t.z }, Math.max(120, s.ability.rangeFeet), this.battle.walls());
       const tD20 = idx === 0 ? chosenD20 : s.requiresSave ? Math.floor(Math.random() * 20) + 1 : chosenD20;
       const tTotal = tD20 + modifier;
       const rBonus = chosenReaction && chosenReaction.defenderKey === t.key ? chosenReaction.acBonus : 0;
       const effAc = t.armorClass + rBonus;
-      const hit = s.requiresSave
-        ? inRange && tTotal < s.ability.saveDc
-        : inRange && (isCrit || (!isCritFail && tTotal >= effAc));
+      const hit = s.requiresSave ? inRange && tTotal < s.ability.saveDc : inRange && (isCrit || (!isCritFail && tTotal >= effAc));
       const savedHalf = s.requiresSave && inRange && !hit;
 
       return {
-        target: t,
-        distanceFeet: dist,
-        inRange,
-        hasLoS: los,
-        coverBonusAc: 0,
-        effectiveAc: effAc,
-        saveDc: s.ability.saveDc,
-        saveBonus: 2,
-        rawD20: tD20,
+        target: t, distanceFeet: dist, inRange, hasLoS: los, coverBonusAc: 0, effectiveAc: effAc,
+        saveDc: s.ability.saveDc, saveBonus: 2, rawD20: tD20,
         secondD20: useTwoDice && idx === 0 ? (chosenD20 === r1 ? r2 : r1) : undefined,
-        totalRoll: tTotal,
-        hit,
-        isCritical: isCrit,
-        isCritFail,
-        savedHalf,
-        damageDealt: 0,
-        remainingHp: t.currentHp,
-        reactionAppliedLabel:
-          chosenReaction && chosenReaction.defenderKey === t.key
-            ? `${chosenReaction.name} (${rBonus > 0 ? `+${rBonus} AC` : 'Half Damage'})`
-            : undefined,
+        totalRoll: tTotal, hit, isCritical: isCrit, isCritFail, savedHalf, damageDealt: 0, remainingHp: t.currentHp,
+        reactionAppliedLabel: chosenReaction && chosenReaction.defenderKey === t.key ? `${chosenReaction.name} (${rBonus > 0 ? `+${rBonus} AC` : 'Half Damage'})` : undefined,
       };
     });
 
     const anyHitOrHalf = outcomes.some((o) => o.hit || o.savedHalf);
     const summary = s.requiresSave
       ? `${outcomes.filter((o) => o.hit).length} failed save, ${outcomes.filter((o) => o.savedHalf).length} succeeded (half damage).`
-      : `${s.attacker.name} rolled ${chosenD20} + ${modifier} = ${total} — ${
-          isCrit ? 'CRITICAL HIT!' : anyHitOrHalf ? 'HIT!' : 'MISS'
-        }`;
+      : `${s.attacker.name} rolled ${chosenD20} + ${modifier} = ${total} — ${isCrit ? 'CRITICAL HIT!' : anyHitOrHalf ? 'HIT!' : 'MISS'}`;
 
     this.state.update((curr) =>
-      curr
-        ? {
-            ...curr,
-            phase: 'attack-outcome',
-            targetOutcomes: outcomes,
-            attackRollSummary: summary,
-            canRollDamage: anyHitOrHalf,
-          }
-        : null,
+      curr ? { ...curr, phase: 'attack-outcome', targetOutcomes: outcomes, attackRollSummary: summary, canRollDamage: anyHitOrHalf } : null,
     );
   }
 
-  /**
-   * Step 4 -> Step 5: Caster clicks "Roll Damage" (or "Complete Action" on a miss).
-   * Rolls the 3D damage dice, waits for the dice overlay to fade out, then plays the EffectBuilder 3D animation,
-   * clears the green target line & reticles, logs to Combat Roll Log, and persists to SQL & The Loom.
-   */
   async rollDamageAndComplete(): Promise<void> {
     const s = this.state();
     if (!s) return;
@@ -311,7 +285,6 @@ export class VttCombatWorkflowService {
     const dmgRolls = Array.from({ length: diceCount }, () => Math.floor(Math.random() * sides) + 1);
     const dmgMod = s.ability.damageBonus || 0;
     const rawDamageTotal = Math.max(1, dmgRolls.reduce((a, b) => a + b, 0) + dmgMod);
-
     const expr = `${diceCount}${dieType}${dmgMod > 0 ? `+${dmgMod}` : dmgMod < 0 ? `${dmgMod}` : ''}`;
 
     await this.fullscreenDice.triggerFullScreenRollAndWait({
@@ -335,7 +308,6 @@ export class VttCombatWorkflowService {
   ): Promise<void> {
     const chosenReaction = s.qualifyingReactions.find((r) => r.id === s.selectedReactionId) ?? null;
 
-    // Close modal & clear target selection + green line immediately before playing the 3D spell FX
     this.state.set(null);
     this.battle.clearTargetSelectionAfterCast();
     this.onStageSyncCallback?.();
@@ -345,31 +317,18 @@ export class VttCombatWorkflowService {
       this.vtt.effectPresets()[0];
 
     const slotKey =
-      s.ability.actionCost === '1 Bonus Action'
-        ? 'bonusUsed'
-        : s.ability.actionCost === '1 Reaction'
-          ? 'reactionUsed'
-          : 'actionUsed';
+      s.ability.actionCost === '1 Bonus Action' ? 'bonusUsed' : s.ability.actionCost === '1 Reaction' ? 'reactionUsed' : 'actionUsed';
 
     const updatedOutcomes: VttTargetResolutionVm[] = s.targetOutcomes.map((out) => {
-      let dmg = 0;
-      if (out.hit) {
-        dmg = rolledDamageTotal;
-      } else if (out.savedHalf) {
-        dmg = Math.max(1, Math.floor(rolledDamageTotal / 2));
-      }
+      let dmg = out.hit ? rolledDamageTotal : out.savedHalf ? Math.max(1, Math.floor(rolledDamageTotal / 2)) : 0;
       if (chosenReaction?.halvesDamage && chosenReaction.defenderKey === out.target.key && dmg > 0) {
         dmg = Math.max(1, Math.floor(dmg / 2));
       }
-      const rem = Math.max(0, out.target.currentHp - dmg);
-      return { ...out, damageDealt: dmg, remainingHp: rem };
+      return { ...out, damageDealt: dmg, remainingHp: Math.max(0, out.target.currentHp - dmg) };
     });
 
-    // Apply HP changes and spend attacker action slot
     const hpByTargetKey = new Map<string, number>();
-    for (const o of updatedOutcomes) {
-      hpByTargetKey.set(o.target.key, o.remainingHp);
-    }
+    for (const o of updatedOutcomes) hpByTargetKey.set(o.target.key, o.remainingHp);
 
     this.vtt.tokens.update((list) =>
       list.map((t) => {
@@ -381,73 +340,63 @@ export class VttCombatWorkflowService {
 
     this.onStageSyncCallback?.();
 
-    // Play EffectBuilder 3D animation from caster to all targets
-    if (preset && updatedOutcomes.length > 0) {
-      const targetPts = updatedOutcomes.map((out) => ({ x: out.target.x, z: out.target.z }));
-      this.stage.playTrajectoryEffect(preset, { x: s.attacker.x, z: s.attacker.z }, targetPts[0], {
-        abilityName: s.ability.name,
-        campaignId: this.store.activeCampaignId(),
-        targets: targetPts,
+    // Play EffectBuilder 3D animation: hits land on the target; ranged/spell misses veer off-target safely without hitting nearby tokens
+    if (preset && updatedOutcomes.length > 0 && !chosenReaction?.countersSpell) {
+      const allTokens = this.vtt.tokens();
+      const isRangedOrSpell = s.ability.rangeFeet > 10 || s.ability.turnCategory === 'spell';
+      const fxTargets: { x: number; z: number }[] = [];
+      updatedOutcomes.forEach((out, idx) => {
+        if (out.hit || out.savedHalf) {
+          fxTargets.push({ x: out.target.x, z: out.target.z });
+        } else if (isRangedOrSpell) {
+          fxTargets.push(
+            computeSafeMissTrajectoryPoint(
+              { x: s.attacker.x, z: s.attacker.z },
+              { x: out.target.x, z: out.target.z },
+              allTokens,
+              idx + out.rawD20,
+            ),
+          );
+        }
       });
+      if (fxTargets.length > 0) {
+        this.stage.playTrajectoryEffect(preset, { x: s.attacker.x, z: s.attacker.z }, fxTargets[0], {
+          abilityName: s.ability.name,
+          campaignId: this.store.activeCampaignId(),
+          targets: fxTargets,
+        });
+      }
     }
 
-    // Add concise, unified entries to the Combat Roll Log & persist to SQL + The Loom
     const round = this.vtt.activeRound();
     for (const out of updatedOutcomes) {
       const hitOrSaved = out.hit || out.savedHalf;
       const msg = out.hit
         ? `${s.attacker.name} -> ${out.target.name} [${s.ability.name}]: ${
-            s.requiresSave
-              ? `Save ${out.totalRoll} vs DC ${out.saveDc} (FAILED)`
-              : `Roll ${out.rawD20}+${s.ability.attackBonus}=${out.totalRoll} vs AC ${out.effectiveAc}`
-          }${out.reactionAppliedLabel ? ` [${out.reactionAppliedLabel}]` : ''} -> ${
-            out.isCritical ? 'CRITICAL HIT' : 'HIT'
-          } for ${out.damageDealt} dmg (${out.remainingHp}/${out.target.maxHp} HP).`
+            s.requiresSave ? `Save ${out.totalRoll} vs DC ${out.saveDc} (FAILED)` : `Roll ${out.rawD20}+${s.ability.attackBonus}=${out.totalRoll} vs AC ${out.effectiveAc}`
+          }${out.reactionAppliedLabel ? ` [${out.reactionAppliedLabel}]` : ''} -> ${out.isCritical ? 'CRITICAL HIT' : 'HIT'} for ${out.damageDealt} dmg (${out.remainingHp}/${out.target.maxHp} HP).`
         : out.savedHalf
           ? `${s.attacker.name} -> ${out.target.name} [${s.ability.name}]: Save ${out.totalRoll} vs DC ${out.saveDc} (SAVED) -> ${out.damageDealt} half dmg (${out.remainingHp}/${out.target.maxHp} HP).`
-          : `${s.attacker.name} -> ${out.target.name} [${s.ability.name}]: ${
-              out.reactionAppliedLabel || `Roll ${out.totalRoll} vs AC ${out.effectiveAc}`
-            } -> MISS.`;
+          : `${s.attacker.name} -> ${out.target.name} [${s.ability.name}]: ${out.reactionAppliedLabel || `Roll ${out.totalRoll} vs AC ${out.effectiveAc}`} -> MISS.`;
 
       this.vtt.combatLogs.update((logs) => [
         {
           id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          round,
-          attackerName: s.attacker.name,
-          targetName: out.target.name,
-          actionName: s.ability.name,
-          distanceFeet: out.distanceFeet,
-          hit: hitOrSaved,
-          isCritical: out.isCritical,
-          damageDealt: out.damageDealt,
-          message: msg,
+          round, attackerName: s.attacker.name, targetName: out.target.name, actionName: s.ability.name,
+          distanceFeet: out.distanceFeet, hit: hitOrSaved, isCritical: out.isCritical, damageDealt: out.damageDealt, message: msg,
         },
         ...logs.slice(0, 24),
       ]);
 
-      // Persist to SQL database & The Loom session memory
-      const slot =
-        s.ability.actionCost === '1 Bonus Action'
-          ? 'bonus'
-          : s.ability.actionCost === '1 Reaction'
-            ? 'reaction'
-            : 'action';
+      const slot = s.ability.actionCost === '1 Bonus Action' ? 'bonus' : s.ability.actionCost === '1 Reaction' ? 'reaction' : 'action';
       void firstValueFrom(
         this.http.post<CombatResolutionResult>(
           `/api/v2/campaigns/${this.store.activeCampaignId()}/combat/resolve`,
           {
-            attackerKey: s.attacker.key,
-            targetKey: out.target.key,
-            actionName: s.ability.name,
-            actionSlot: slot,
-            rangeFeet: s.ability.rangeFeet,
-            attackBonus: s.ability.attackBonus,
-            saveDc: s.ability.saveDc,
-            damageDiceCount: s.ability.damageDiceCount,
-            damageDiceSides: s.ability.damageDiceSides,
-            damageBonus: s.ability.damageBonus,
-            particlePresetId: s.ability.linkedEffectPresetId,
-            viewerRole: this.store.viewerRole(),
+            attackerKey: s.attacker.key, targetKey: out.target.key, actionName: s.ability.name, actionSlot: slot,
+            rangeFeet: s.ability.rangeFeet, attackBonus: s.ability.attackBonus, saveDc: s.ability.saveDc,
+            damageDiceCount: s.ability.damageDiceCount, damageDiceSides: s.ability.damageDiceSides,
+            damageBonus: s.ability.damageBonus, particlePresetId: s.ability.linkedEffectPresetId, viewerRole: this.store.viewerRole(),
           },
         ),
       ).catch(() => {});
@@ -457,29 +406,18 @@ export class VttCombatWorkflowService {
   private inferSaveAbilityLabel(ability: VttTacticalAbilityVm): string {
     const text = `${ability.name} ${ability.executeThen} ${ability.conditionIf}`.toLowerCase();
     if (text.includes('wis') || text.includes('fear') || text.includes('charm')) return 'Wisdom';
-    if (text.includes('con') || text.includes('poison') || text.includes('thunder') || text.includes('cold'))
-      return 'Constitution';
+    if (text.includes('con') || text.includes('poison') || text.includes('thunder') || text.includes('cold')) return 'Constitution';
     if (text.includes('str') || text.includes('push') || text.includes('prone')) return 'Strength';
     return 'Dexterity';
   }
 
-  /**
-   * Inspects targeted tokens' D&D 5e reactions (`turnCategory === 'reaction'`) and class features
-   * to see if any defender has an unused Reaction that qualifies for this specific trigger.
-   */
-  private detectQualifyingReactions(
-    ability: VttTacticalAbilityVm,
-    targets: readonly VttTokenVm[],
-  ): VttQualifyingReactionOption[] {
+  private detectQualifyingReactions(ability: VttTacticalAbilityVm, targets: readonly VttTokenVm[]): VttQualifyingReactionOption[] {
     const options: VttQualifyingReactionOption[] = [];
     const isSpell = ability.turnCategory === 'spell';
 
     for (const defender of targets) {
       if (defender.reactionUsed || defender.currentHp <= 0) continue;
-      const abilities = this.partyAndActions.resolveTacticalAbilitiesForToken(
-        defender,
-        this.vtt.creatures(),
-      );
+      const abilities = this.partyAndActions.resolveTacticalAbilitiesForToken(defender, this.vtt.creatures());
       const reactions = abilities.filter((a) => a.turnCategory === 'reaction');
 
       for (const r of reactions) {

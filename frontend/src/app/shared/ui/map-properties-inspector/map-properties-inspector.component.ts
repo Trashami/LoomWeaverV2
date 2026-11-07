@@ -40,6 +40,7 @@ export type LwObjectSurfaceFinish = MapObjectSurfaceFinish;
 export type LwFloorBlendMode = MapFloorBlendMode;
 export type LwObjectStampDrawMode = 'single' | 'area-fill';
 export type LwGrassFieldPresetId = 'lush-meadow' | 'wildflower-meadow' | 'forest-moss';
+export type LwBiomeFoliagePresetId = 'none' | 'lush-meadow' | 'wildflower-meadow' | 'forest-moss';
 
 export interface LwRandomCollectionOption {
   readonly id: string;
@@ -256,6 +257,9 @@ export class LwMapPropertiesInspectorComponent {
   readonly scatterRandomCollectionEnabled = input<boolean>(false);
   readonly objectRandomGroupId = input<string>('grass_ground_cover');
   readonly randomGroupOptions = input<readonly LwRandomCollectionOption[]>([]);
+  readonly biomeFoliagePreset = input<LwBiomeFoliagePresetId>('none');
+  readonly biomeFoliageDensityPct = input<number>(75);
+  readonly biomeFoliageBladeScale = input<number>(1.0);
 
   readonly paintSwatches = DEFAULT_OBJECT_PAINT_SWATCHES;
   readonly floorBrushSwatches = DEFAULT_FLOOR_BRUSH_SWATCHES;
@@ -357,6 +361,9 @@ export class LwMapPropertiesInspectorComponent {
   readonly objectRandomGroupIdChange = output<string>();
   readonly applyRandomGroupDefaults = output<void>();
   readonly applyGrassFieldPreset = output<LwGrassFieldPresetId>();
+  readonly biomeFoliagePresetChange = output<LwBiomeFoliagePresetId>();
+  readonly biomeFoliageDensityPctChange = output<number>();
+  readonly biomeFoliageBladeScaleChange = output<number>();
   readonly clearScatter = output<void>();
   readonly clearWater = output<void>();
 

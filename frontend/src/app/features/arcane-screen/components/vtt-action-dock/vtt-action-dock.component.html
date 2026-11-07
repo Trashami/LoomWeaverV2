@@ -102,7 +102,7 @@
       </div>
 
       @if (activeActionCategoryPopover(); as activeCat) {
-        <div class="console-category-popover" (click)="$event.stopPropagation()">
+        <div class="console-category-popover" (click)="$event.stopPropagation()" (wheel)="$event.stopPropagation()">
           <div class="popover-nav-header">
             <div class="popover-title-row">
               <span class="popover-cat-indicator" [class]="'indicator-' + activeCat"></span>

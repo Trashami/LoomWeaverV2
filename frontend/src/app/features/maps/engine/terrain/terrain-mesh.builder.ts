@@ -90,7 +90,6 @@ export class TerrainMeshBuilder {
   private static baseTiledCanvas: HTMLCanvasElement | null = null;
   private static compositeDynTex: DynamicTexture | null = null;
   private static eraserScratchCanvas: HTMLCanvasElement | null = null;
-  private static imageCache = new Map<string, HTMLImageElement>();
 
   static getElevationVersion(): number {
     return this.elevationVersion;
@@ -400,20 +399,131 @@ export class TerrainMeshBuilder {
     WaterChannelTerrain.apply(scene, positions, this.GROUND_W, this.GROUND_H);
     ground.updateVerticesData('position', positions);
     this.cachedPositionsByScene.set(scene, new Float32Array(positions));
-    this.recomputeNormals(ground, positions);
+    this.recomputeNormals(scene, ground, positions);
     ground.refreshBoundingInfo();
   }
 
-  private static recomputeNormals(ground: Mesh, positions: Float32Array | number[]): void {
+  private static recomputeNormals(
+    scene: Scene,
+    ground: Mesh,
+    positions: Float32Array | number[],
+  ): void {
     const indices = ground.getIndices();
     const normals = ground.getVerticesData('normal');
     if (indices && normals) {
       VertexData.ComputeNormals(positions, indices, normals);
       ground.updateVerticesData('normal', normals);
+      this.cachedNormalsByScene.set(scene, new Float32Array(normals));
+      this.updateBiomeAndCliffVertexColors(ground, positions, normals);
+    }
+  }
+
+  /**
+   * Computes multi-tone macro biome color variation (eliminating repeating tile grids on
+   * grass/meadow/forest floors) and automatically blends sloped terrain vertices (ny < 0.90)
+   * into striated grey granite cliff rock like D&D Sigil and Dungeon Alchemist.
+   */
+  private static updateBiomeAndCliffVertexColors(
+    ground: Mesh,
+    positions: Float32Array | number[],
+    normals: Float32Array | number[],
+  ): void {
+    const vertCount = positions.length / 3;
+    const colors = new Float32Array(vertCount * 4);
+    const urlLower = (this.activeAlbedoUrl || '').toLowerCase();
+    const isGrassOrMeadow =
+      urlLower.includes('meadow-grass') ||
+      urlLower.includes('wildflower') ||
+      urlLower.includes('lush-meadow') ||
+      urlLower.includes('moss-turf');
+    const isForestFloor =
+      urlLower.includes('pine-needles') || urlLower.includes('forest-moss');
+
+    for (let v = 0; v < vertCount; v++) {
+      const i3 = v * 3;
+      const i4 = v * 4;
+      const vx = positions[i3] ?? 0;
+      const vy = positions[i3 + 1] ?? 0;
+      const vz = positions[i3 + 2] ?? 0;
+      const ny = Math.abs(normals[i3 + 1] ?? 1);
+
+      let r = 1.0;
+      let g = 1.0;
+      let b = 1.0;
+
+      // 1. Macro multi-tone biome color variation on natural floors
+      if (isGrassOrMeadow || isForestFloor) {
+        const macroA =
+          Math.sin(vx * 0.14 + vz * 0.11) * 0.5 +
+          Math.cos(vx * 0.08 - vz * 0.16) * 0.5;
+        const macroB =
+          Math.sin(vx * 0.31 - vz * 0.27 + 1.4) * 0.5 +
+          Math.cos(vx * 0.22 + vz * 0.29) * 0.5;
+        if (isForestFloor) {
+          // Forest floor: rich pine-needle umber patches, mossy pockets, and sunlit clearings
+          r = 0.94 + macroA * 0.11 - macroB * 0.06;
+          g = 0.95 + macroB * 0.12 + macroA * 0.04;
+          b = 0.88 - macroA * 0.07 + macroB * 0.05;
+        } else {
+          // Meadow / Grass: sunlit golden-lime patches, deep lush emerald hollows, and warm clover tones
+          r = 0.96 + macroA * 0.14 - macroB * 0.05;
+          g = 1.02 + macroA * 0.09 + macroB * 0.08;
+          b = 0.91 - macroA * 0.08 + macroB * 0.06;
+        }
+      }
+
+      // 2. Automatic slope-based 3D cliff granite rock transition when terrain is raised/lowered
+      if (ny < 0.91 && Math.abs(vy) > 0.08) {
+        const slopeT = Math.max(0, Math.min(1, (0.91 - ny) / 0.26));
+        const smoothSlope = slopeT * slopeT * (3 - 2 * slopeT);
+        // Horizontal sedimentary/granite rock strata variation
+        const strata =
+          Math.sin(vy * 5.8 + vx * 0.35 + vz * 0.28) * 0.08 +
+          Math.cos(vy * 11.5 - vz * 0.5) * 0.04;
+        const cliffR = Math.max(0.42, Math.min(0.82, 0.62 + strata));
+        const cliffG = Math.max(0.42, Math.min(0.81, 0.61 + strata * 0.95));
+        const cliffB = Math.max(0.44, Math.min(0.84, 0.63 + strata * 1.05));
+
+        r = r * (1 - smoothSlope) + cliffR * smoothSlope;
+        g = g * (1 - smoothSlope) + cliffG * smoothSlope;
+        b = b * (1 - smoothSlope) + cliffB * smoothSlope;
+      }
+
+      colors[i4] = Math.max(0.25, Math.min(1.35, r));
+      colors[i4 + 1] = Math.max(0.25, Math.min(1.35, g));
+      colors[i4 + 2] = Math.max(0.25, Math.min(1.35, b));
+      colors[i4 + 3] = 1.0;
+    }
+
+    ground.useVertexColors = true;
+    if (ground.isVerticesDataPresent('color')) {
+      ground.updateVerticesData('color', colors);
+    } else {
+      ground.setVerticesData('color', colors, true);
     }
   }
 
   private static cachedPositionsByScene = new WeakMap<Scene, Float32Array>();
+  private static cachedNormalsByScene = new WeakMap<Scene, Float32Array>();
+
+  static sampleNormalYAt(scene: Scene, worldX: number, worldZ: number): number {
+    let normals: Float32Array | number[] | null | undefined =
+      this.cachedNormalsByScene.get(scene);
+    if (!normals) {
+      const ground = scene.getMeshByName('lw-terrain-ground') as Mesh | null;
+      if (!ground) return 1;
+      normals = ground.getVerticesData('normal');
+      if (!normals) return 1;
+      this.cachedNormalsByScene.set(scene, new Float32Array(normals));
+    }
+
+    const cols = this.SUBDIV + 1;
+    const u = Math.max(0, Math.min(1, (worldX + this.GROUND_W / 2) / this.GROUND_W));
+    const v = Math.max(0, Math.min(1, (this.GROUND_H / 2 - worldZ) / this.GROUND_H));
+    const gx = Math.min(this.SUBDIV, Math.max(0, Math.round(u * this.SUBDIV)));
+    const gz = Math.min(this.SUBDIV, Math.max(0, Math.round(v * this.SUBDIV)));
+    return Math.abs(normals[(gz * cols + gx) * 3 + 1] ?? 1);
+  }
 
   static sampleElevationAt(scene: Scene, worldX: number, worldZ: number): number {
     let positions: Float32Array | number[] | null | undefined = this.cachedPositionsByScene.get(scene);
@@ -747,25 +857,6 @@ export class TerrainMeshBuilder {
     };
   }
 
-  private static loadOrGetAlbedoImage(
-    url: string,
-    onReady: (img: HTMLImageElement) => void,
-  ): HTMLImageElement | null {
-    if (!url || typeof Image === 'undefined') return null;
-    const cached = this.imageCache.get(url);
-    if (cached && cached.complete && cached.naturalWidth > 0) {
-      return cached;
-    }
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      this.imageCache.set(url, img);
-      onReady(img);
-    };
-    img.src = url;
-    return null;
-  }
-
   /**
    * Builds a 512x512 seamless floor tile canvas with height-map high/low contrast
    * exaggeration, cavity ambient occlusion, and optional global color tint.
@@ -1048,6 +1139,11 @@ export class TerrainMeshBuilder {
     WallSurfacePaint.registerMaterial(scene, mat);
     ground.material = mat;
     ground.receiveShadows = true;
+    const pos = ground.getVerticesData('position');
+    const norm = ground.getVerticesData('normal');
+    if (pos && norm) {
+      this.updateBiomeAndCliffVertexColors(ground, pos, norm);
+    }
   }
 
   static sculptElevationAt(
@@ -1126,7 +1222,7 @@ export class TerrainMeshBuilder {
     }
     ground.updateVerticesData('position', positions);
     this.cachedPositionsByScene.set(scene, new Float32Array(positions));
-    this.recomputeNormals(ground, positions);
+    this.recomputeNormals(scene, ground, positions);
     ground.refreshBoundingInfo();
   }
 }

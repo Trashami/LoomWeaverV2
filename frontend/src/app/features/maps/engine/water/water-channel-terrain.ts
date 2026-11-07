@@ -17,6 +17,25 @@ export class WaterChannelTerrain {
     const data = this.bases.get(scene);
     return data ? sampleGrid(data.positions, data.width, data.height, x, z) : 0;
   }
+  static sampleWaterOrGroundLevelAt(scene: Scene, x: number, z: number, carvedTerrainY: number): number {
+    let y = Math.max(carvedTerrainY, this.sampleBase(scene, x, z));
+    for (const network of this.getNetworks(scene)) {
+      const f = sampleWaterNetwork(network, x, z);
+      if (f.coverage >= -0.25 && Number.isFinite(f.level)) {
+        y = Math.max(y, f.level + 0.02);
+      }
+    }
+    return y;
+  }
+  static isPointInWater(scene: Scene, x: number, z: number, margin = 0.65): boolean {
+    for (const network of this.getNetworks(scene)) {
+      const f = sampleWaterNetwork(network, x, z);
+      if (f.coverage >= -margin) {
+        return true;
+      }
+    }
+    return false;
+  }
   static apply(scene: Scene, positions: number[] | Float32Array, width: number, height: number): void {
     const base = new Float32Array(positions);
     this.bases.set(scene, { positions: base, width, height });

@@ -59,40 +59,83 @@
         <div class="lw-map-inspector__section">
           <div class="lw-map-inspector__group-box">
             <div class="lw-map-inspector__slider-head">
-              <span class="lw-map-inspector__subhead">1-Click Grass &amp; Forest Terrain Fields</span>
+              <span class="lw-map-inspector__subhead">1-Click 3D Grass &amp; Forest Biomes</span>
             </div>
             <p class="lw-map-inspector__hint">
-              Instantly convert the map ground into a seamless PBR grass field or forest moss turf with matched normal relief and matte roughness.
+              Instantly convert the map ground into a multi-tone PBR biome with real 3D instanced grass blades, clover, or forest pine needles and ferns (automatically clears inside rooms, water, and steep rocky cliffs).
             </p>
             <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
               <button
                 type="button"
                 ngpButton
                 class="lw-map-inspector__pill"
-                [class.lw-map-inspector__pill--active]="node.id === 'bump-lush-meadow-grass'"
+                [class.lw-map-inspector__pill--active]="biomeFoliagePreset() === 'lush-meadow'"
                 (click)="applyGrassFieldPreset.emit('lush-meadow')"
               >
-                Lush Meadow Grass Field
+                Lush 3D Grass &amp; Clover Field
               </button>
               <button
                 type="button"
                 ngpButton
                 class="lw-map-inspector__pill"
-                [class.lw-map-inspector__pill--active]="node.id === 'bump-wildflower-grass-field'"
+                [class.lw-map-inspector__pill--active]="biomeFoliagePreset() === 'wildflower-meadow'"
                 (click)="applyGrassFieldPreset.emit('wildflower-meadow')"
               >
-                Wildflower &amp; Clover Field
+                Wildflower &amp; Clover 3D Meadow
               </button>
               <button
                 type="button"
                 ngpButton
                 class="lw-map-inspector__pill"
-                [class.lw-map-inspector__pill--active]="node.id === 'bump-forest-moss-turf'"
+                [class.lw-map-inspector__pill--active]="biomeFoliagePreset() === 'forest-moss'"
                 (click)="applyGrassFieldPreset.emit('forest-moss')"
               >
-                Deep Forest Moss Turf
+                Forest Floor (Pine Needles &amp; 3D Ferns)
+              </button>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="biomeFoliagePreset() === 'none'"
+                (click)="biomeFoliagePresetChange.emit('none')"
+              >
+                3D Foliage Off
               </button>
             </div>
+            @if (biomeFoliagePreset() !== 'none') {
+              <div class="lw-map-inspector__slider-block">
+                <div class="lw-map-inspector__slider-head">
+                  <span>3D Ground Cover Density</span>
+                  <strong>{{ biomeFoliageDensityPct() }}%</strong>
+                </div>
+                <input
+                  type="range"
+                  min="15"
+                  max="100"
+                  step="5"
+                  class="lw-map-inspector__range"
+                  aria-label="3D ground cover density percent"
+                  [value]="biomeFoliageDensityPct()"
+                  (input)="onNumInput($event, biomeFoliageDensityPctChange)"
+                />
+              </div>
+              <div class="lw-map-inspector__slider-block">
+                <div class="lw-map-inspector__slider-head">
+                  <span>3D Grass / Fern Blade Height</span>
+                  <strong>{{ biomeFoliageBladeScale().toFixed(1) }}x</strong>
+                </div>
+                <input
+                  type="range"
+                  min="0.4"
+                  max="2.2"
+                  step="0.1"
+                  class="lw-map-inspector__range"
+                  aria-label="3D grass and fern blade height scale"
+                  [value]="biomeFoliageBladeScale()"
+                  (input)="onNumInput($event, biomeFoliageBladeScaleChange)"
+                />
+              </div>
+            }
           </div>
 
           <div class="lw-map-inspector__subsection">
@@ -1905,37 +1948,83 @@
         <div class="lw-map-inspector__section">
           <div class="lw-map-inspector__group-box">
             <div class="lw-map-inspector__slider-head">
-              <span class="lw-map-inspector__subhead">1-Click Grass Field Terrain &amp; Ground Cover</span>
+              <span class="lw-map-inspector__subhead">1-Click 3D Grass &amp; Forest Biomes</span>
             </div>
             <p class="lw-map-inspector__hint">
-              Make scattered 3D grass look like a real meadow field by switching the map floor to seamless PBR grass turf and enabling multi-asset grass collection scattering.
+              Convert the map into a multi-tone PBR biome with real 3D instanced grass blades, clover, or forest pine needles and ferns at 60 FPS (clears inside rooms, water, and steep rocky cliffs).
             </p>
             <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
               <button
                 type="button"
                 ngpButton
                 class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="biomeFoliagePreset() === 'lush-meadow'"
                 (click)="applyGrassFieldPreset.emit('lush-meadow')"
               >
-                Lush Meadow Grass Field
+                Lush 3D Grass &amp; Clover Field
               </button>
               <button
                 type="button"
                 ngpButton
                 class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="biomeFoliagePreset() === 'wildflower-meadow'"
                 (click)="applyGrassFieldPreset.emit('wildflower-meadow')"
               >
-                Wildflower &amp; Clover Field
+                Wildflower &amp; Clover 3D Meadow
               </button>
               <button
                 type="button"
                 ngpButton
                 class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="biomeFoliagePreset() === 'forest-moss'"
                 (click)="applyGrassFieldPreset.emit('forest-moss')"
               >
-                Deep Forest Moss Turf
+                Forest Floor (Pine Needles &amp; 3D Ferns)
+              </button>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="biomeFoliagePreset() === 'none'"
+                (click)="biomeFoliagePresetChange.emit('none')"
+              >
+                3D Foliage Off
               </button>
             </div>
+            @if (biomeFoliagePreset() !== 'none') {
+              <div class="lw-map-inspector__slider-block">
+                <div class="lw-map-inspector__slider-head">
+                  <span>3D Ground Cover Density</span>
+                  <strong>{{ biomeFoliageDensityPct() }}%</strong>
+                </div>
+                <input
+                  type="range"
+                  min="15"
+                  max="100"
+                  step="5"
+                  class="lw-map-inspector__range"
+                  aria-label="3D ground cover density percent"
+                  [value]="biomeFoliageDensityPct()"
+                  (input)="onNumInput($event, biomeFoliageDensityPctChange)"
+                />
+              </div>
+              <div class="lw-map-inspector__slider-block">
+                <div class="lw-map-inspector__slider-head">
+                  <span>3D Grass / Fern Blade Height</span>
+                  <strong>{{ biomeFoliageBladeScale().toFixed(1) }}x</strong>
+                </div>
+                <input
+                  type="range"
+                  min="0.4"
+                  max="2.2"
+                  step="0.1"
+                  class="lw-map-inspector__range"
+                  aria-label="3D grass and fern blade height scale"
+                  [value]="biomeFoliageBladeScale()"
+                  (input)="onNumInput($event, biomeFoliageBladeScaleChange)"
+                />
+              </div>
+            }
           </div>
 
           <div class="lw-map-inspector__group-box">

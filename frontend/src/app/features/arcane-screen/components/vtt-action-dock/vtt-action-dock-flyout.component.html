@@ -1,4 +1,4 @@
-<div class="dock-flyout-drawer" (click)="$event.stopPropagation()">
+<div class="dock-flyout-drawer" (click)="$event.stopPropagation()" (wheel)="$event.stopPropagation()">
   <div class="flyout-header">
     <span class="flyout-title">{{ activeTab() }}</span>
     <input

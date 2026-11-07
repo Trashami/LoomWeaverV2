@@ -2,6 +2,7 @@ import { Scene, Vector3 } from '@babylonjs/core';
 import { playNativeEffect, prewarmNativeEffectShaders } from '@effectbuilder/babylon/native-runtime';
 import { effectDuration } from '@effectbuilder/effect-definition';
 import { TerrainMeshBuilder } from '../../maps/engine/terrain/terrain-mesh.builder';
+import { WaterChannelTerrain } from '../../maps/engine/water/water-channel-terrain';
 import { EffectTimelinePresetVm } from './effect-timeline.contract';
 import { EffectBuilderVttResolver } from './effectbuilder-vtt-resolver';
 
@@ -41,8 +42,16 @@ export class BabylonFxTrajectoryPlayer {
       preset,
     });
 
-    const casterGroundY = TerrainMeshBuilder.sampleElevationAt(scene, caster.x, caster.z);
-    const casterVec = new Vector3(caster.x, casterGroundY + 0.05, caster.z);
+    const sampleSurfaceY = (x: number, z: number): number =>
+      WaterChannelTerrain.sampleWaterOrGroundLevelAt(
+        scene,
+        x,
+        z,
+        TerrainMeshBuilder.sampleElevationAt(scene, x, z),
+      );
+
+    const casterGroundY = sampleSurfaceY(caster.x, caster.z);
+    const casterVec = new Vector3(caster.x, casterGroundY + 0.52, caster.z);
 
     const rawTargets =
       options?.targets && options.targets.length > 0 ? options.targets : [target];
@@ -55,8 +64,8 @@ export class BabylonFxTrajectoryPlayer {
         tx += Math.cos(angle) * 0.35;
         tz += Math.sin(angle) * 0.35;
       }
-      const ty = TerrainMeshBuilder.sampleElevationAt(scene, tx, tz);
-      return new Vector3(tx, ty + 0.05, tz);
+      const ty = sampleSurfaceY(tx, tz);
+      return new Vector3(tx, ty + 0.45, tz);
     });
 
     options?.onPlayStateChange?.(true);
@@ -70,8 +79,7 @@ export class BabylonFxTrajectoryPlayer {
       {
         pixelsPerUnit: 66,
         scale: 0.85,
-        elevationAt: (x: number, z: number) =>
-          TerrainMeshBuilder.sampleElevationAt(scene, x, z) + 0.05,
+        elevationAt: (x: number, z: number) => sampleSurfaceY(x, z) + 0.28,
         lightGain: 4.2,
         timeScale: combatTimeScale,
       },

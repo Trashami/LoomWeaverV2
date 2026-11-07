@@ -168,7 +168,8 @@
       <section class="lw-vtt-map-stage" [class.lw-vtt-map-stage--3d]="battle.mapMode3D()" (wheel)="onMapWheel($event)" (mousedown)="onMapMouseDown($event)" (mousemove)="onMapMouseMove($event)" (mouseup)="onMapMouseUp($event)" (mouseleave)="onMapMouseUp()" aria-label="Interactive Encounter Battle Map">
         <canvas #vttCanvas class="lw-vtt-babylon-canvas" [class.lw-vtt-babylon-canvas--active]="!isHighPerformance2d()"></canvas>
 
-        <div class="lw-vtt-2d-viewport" [class.lw-vtt-2d-viewport--hidden]="!isHighPerformance2d()" [style.transform]="view2d.transform()" [style.transformOrigin]="'center center'">
+        @if (isHighPerformance2d()) {
+        <div class="lw-vtt-2d-viewport" [style.transform]="view2d.transform()" [style.transformOrigin]="'center center'">
           <div class="lw-vtt-map-backdrop" [style.backgroundImage]="'url(' + activeBattlemapBackdropUrl() + ')'"></div>
 
           <svg #battleSvg class="lw-vtt-svg" [class.lw-vtt-svg--targeting]="battle.pendingAbility() || battle.measureEnabled() || battle.targetSelectionMode()" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid meet" (mousemove)="onBattleMapPointerMove($event)" (mouseup)="onBattleMapMouseUp()" (click)="onBattleMapClick($event)">
@@ -265,6 +266,7 @@
             }
           </svg>
         </div>
+        }
 
         <!-- Interactive Draw-1-Square Grid Calibration Overlay -->
         @if (vttDisplay.calibratingGrid()) {

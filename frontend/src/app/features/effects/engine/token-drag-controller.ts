@@ -44,6 +44,9 @@ interface ActiveDrag {
   readonly downTimeMs: number;
   x: number;
   z: number;
+  snappedX: number;
+  snappedZ: number;
+  lastEmitMs: number;
   facingY?: number;
   velX: number;
   velZ: number;
@@ -233,6 +236,9 @@ export class TokenDragController {
       downTimeMs: performance.now(),
       x: mesh.position.x,
       z: mesh.position.z,
+      snappedX: mesh.position.x,
+      snappedZ: mesh.position.z,
+      lastEmitMs: 0,
       facingY:
         typeof mesh.metadata?.facingY === 'number'
           ? (mesh.metadata.facingY as number)
@@ -274,22 +280,27 @@ export class TokenDragController {
     }
     const point = this.groundPoint();
     if (!point) return;
-    const snapped = snapToFiveFootGrid(point);
-    if (snapped.x === drag.x && snapped.z === drag.z) return;
     this.activateTokenLift(drag);
-    const dx = snapped.x - drag.x;
-    const dz = snapped.z - drag.z;
-    if (Math.hypot(dx, dz) > 0.05) {
+    const dx = point.x - drag.x;
+    const dz = point.z - drag.z;
+    if (Math.hypot(dx, dz) > 0.03) {
       drag.facingY = Math.atan2(dx, dz);
     }
-    drag.velX = drag.velX * 0.45 + Math.max(-1, Math.min(1, dx)) * 0.55;
-    drag.velZ = drag.velZ * 0.45 + Math.max(-1, Math.min(1, dz)) * 0.55;
-    drag.x = snapped.x;
-    drag.z = snapped.z;
-    this.placeMeshes(drag.key, snapped.x, snapped.z, drag.facingY);
+    drag.velX = drag.velX * 0.45 + Math.max(-1, Math.min(1, dx * 3)) * 0.55;
+    drag.velZ = drag.velZ * 0.45 + Math.max(-1, Math.min(1, dz * 3)) * 0.55;
+    drag.x = point.x;
+    drag.z = point.z;
+    this.placeMeshes(drag.key, point.x, point.z, drag.facingY);
     const liftOffset = LIFT_HEIGHT_WORLD * (1 - Math.pow(1 - drag.liftProgress, 3));
+    const snapped = snapToFiveFootGrid(point);
     updateTokenMovementIndicator(this.scene, drag.key, drag.startX, drag.startZ, snapped.x, snapped.z, liftOffset);
-    this.handlers.onDragged({ key: drag.key, x: snapped.x, z: snapped.z, facingY: drag.facingY });
+    const now = performance.now();
+    if ((snapped.x !== drag.snappedX || snapped.z !== drag.snappedZ) && now - drag.lastEmitMs >= 42) {
+      drag.snappedX = snapped.x;
+      drag.snappedZ = snapped.z;
+      drag.lastEmitMs = now;
+      this.handlers.onDragged({ key: drag.key, x: snapped.x, z: snapped.z, facingY: drag.facingY });
+    }
   }
 
   private handlePointerUp(info: PointerInfo): void {
@@ -312,14 +323,16 @@ export class TokenDragController {
     this.active = null;
     this.handlers.onDragEnd();
 
+    const snappedFinal = snapToFiveFootGrid({ x: drag.x, z: drag.z });
+    drag.x = snappedFinal.x;
+    drag.z = snappedFinal.z;
+
     const totalDx = drag.x - drag.startX;
     const totalDz = drag.z - drag.startZ;
     if (Math.hypot(totalDx, totalDz) > 0.08 && drag.facingY === undefined) {
       drag.facingY = Math.atan2(totalDx, totalDz);
     }
-    if (drag.facingY !== undefined) {
-      this.placeMeshes(drag.key, drag.x, drag.z, drag.facingY);
-    }
+    this.placeMeshes(drag.key, drag.x, drag.z, drag.facingY);
 
     if (drag.lifted || drag.liftProgress > 0.05) {
       const tokenMesh = this.scene.getMeshByName(`lw-token-${drag.key}`);

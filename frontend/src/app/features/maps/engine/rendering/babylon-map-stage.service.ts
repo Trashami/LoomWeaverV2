@@ -36,6 +36,10 @@ import {
   FloorGridConfig,
   TerrainMeshBuilder,
 } from '../terrain/terrain-mesh.builder';
+import {
+  BiomeFoliageConfig,
+  BiomeFoliageEngine,
+} from '../terrain/biome-foliage.engine';
 import { WallMeshBuilder } from '../walls/wall-mesh.builder';
 import { WaterSplineBuilder } from '../water/water-spline.builder';
 import { lodTierForQualityPreset } from './glb-lod';
@@ -944,6 +948,15 @@ export class BabylonMapStageService {
     TerrainMeshBuilder.configureFloorProperties(this.scene, config);
   }
 
+  configureBiomeFoliage(config: Partial<BiomeFoliageConfig>, state?: MapSceneGraphState): void {
+    if (!this.scene) return;
+    BiomeFoliageEngine.configure(this.scene, config);
+    const activeState = state ?? this.lastState;
+    if (activeState) {
+      BiomeFoliageEngine.syncFoliage(this.scene, activeState);
+    }
+  }
+
   paintFloorStrokeAt(dab: MapFloorPaintDab): void {
     TerrainMeshBuilder.paintFloorStrokeAt(this.scene, dab);
   }
@@ -1033,6 +1046,7 @@ export class BabylonMapStageService {
       this.lastState.scatterDensity,
       this.lastState.scatterClusters,
     );
+    BiomeFoliageEngine.syncFoliage(this.scene, this.lastState);
     SceneLightingController.refreshShadowCasters(this.scene);
   }
 
@@ -1209,6 +1223,18 @@ export class BabylonMapStageService {
     );
     const pathCount = PathRibbonEngine.rebuildPathRibbonMeshes(this.scene, state.pathRibbons);
     this.rebuildStamps(this.scene, state.stamps);
+    if (
+      state.biomeFoliagePreset !== undefined ||
+      state.biomeFoliageDensityPct !== undefined ||
+      state.biomeFoliageBladeScale !== undefined
+    ) {
+      BiomeFoliageEngine.configure(this.scene, {
+        preset: state.biomeFoliagePreset,
+        densityPct: state.biomeFoliageDensityPct,
+        bladeScale: state.biomeFoliageBladeScale,
+      });
+    }
+    BiomeFoliageEngine.syncFoliage(this.scene, state);
     SceneLightingController.refreshShadowCasters(this.scene);
     this.rebuildSelectionGizmo();
     this.activeInstanceCount.set(

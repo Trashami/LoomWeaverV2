@@ -425,6 +425,10 @@ export function registerArcaneScreenStageEffects(
     untracked(() => { if (!isPerf) stage.setForcedTopDown(!is3d); });
   });
   effect(() => {
+    const q = vttDisplay.mapQuality();
+    untracked(() => stage.setMapQuality(q));
+  });
+  effect(() => {
     if (!host.hasConfiguredMap()) return;
     const url = host.activeBattlemapBackdropUrl();
     const sceneJson = serverSync.activeSceneResponse()?.sceneDataJson;

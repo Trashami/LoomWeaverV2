@@ -10,7 +10,18 @@ export type LwAssetToolRole =
   | 'floor-texture'
   | 'door-3d'
   | 'object-3d'
+  | 'scatter-3d'
   | 'floor-stamp-2d';
+
+export interface LwAssetLodVariantMeta {
+  readonly file?: string;
+  readonly glbUrl?: string;
+  readonly bytes?: number;
+  readonly sha256?: string;
+  readonly qualityLabel?: string;
+  readonly stampScale?: number;
+  readonly defaultScaleGrid?: readonly [number, number, number];
+}
 
 export interface LwMapPngAssetItem {
   readonly id: string;
@@ -25,7 +36,12 @@ export interface LwMapPngAssetItem {
   readonly isWall?: boolean;
   readonly isDoor?: boolean;
   readonly isObject?: boolean;
+  readonly isScatter?: boolean;
   readonly toolRole?: LwAssetToolRole;
+  readonly matVisCategory?: string;
+  readonly matVisCategoryId?: string;
+  readonly matVisTool?: string;
+  readonly lodVariants?: Readonly<Partial<Record<'low' | 'mid' | 'high', LwAssetLodVariantMeta>>>;
   readonly defaultScaleGrid?: readonly [number, number, number];
   readonly defaultPlacement?: 'floor' | 'custom';
   readonly snapToGrid?: boolean;

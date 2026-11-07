@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import {
+  LwAssetLodVariantMeta,
   LwAssetToolRole,
   LwMapPngAssetItem,
 } from '../../../shared/ui/map-png-asset-browser/map-png-asset-browser.component';
@@ -27,6 +28,10 @@ interface RawManifestAsset {
   readonly isWall?: boolean;
   readonly isDoor?: boolean;
   readonly isObject?: boolean;
+  readonly isScatter?: boolean;
+  readonly matVisCategory?: string;
+  readonly matVisCategoryId?: string;
+  readonly matVisTool?: string;
   readonly toolRole?: LwAssetToolRole;
   readonly defaultScaleGrid?: readonly [number, number, number];
   readonly defaultPlacement?: 'floor' | 'custom';
@@ -34,6 +39,7 @@ interface RawManifestAsset {
   readonly defaultColorTint?: string;
   readonly sourceHash?: string;
   readonly triangles?: number;
+  readonly lodVariants?: Readonly<Partial<Record<'low' | 'mid' | 'high', LwAssetLodVariantMeta>>>;
 }
 
 interface PngManifestResponse {
@@ -70,6 +76,19 @@ export class MapPngAssetApiService {
           ? `/assets/object-library/models/${raw.id}.glb`
           : '';
     const override = this.catalogOverrides.get(raw.id);
+    const resolvedDefaultScaleGrid =
+      override?.defaultScaleGrid ?? raw.defaultScaleGrid ?? [1, 1, 1];
+    const resolvedLodVariants = override?.lodVariants ?? raw.lodVariants;
+    GlbModelCache.registerAssetLodVariants(
+      raw.id,
+      raw.sourceFile || resolvedModelUrl,
+      resolvedDefaultScaleGrid,
+      resolvedLodVariants,
+    );
+    const isScatterFlag =
+      override?.isScatter ??
+      raw.isScatter ??
+      (raw.matVisTool === 'randon_stamp' || raw.toolRole === 'scatter-3d');
     return {
       id: raw.id,
       name: override?.name ?? raw.name,
@@ -84,13 +103,17 @@ export class MapPngAssetApiService {
       isWall: override?.isWall ?? raw.isWall,
       isDoor: override?.isDoor ?? raw.isDoor,
       isObject: override?.isObject ?? raw.isObject,
+      isScatter: isScatterFlag,
+      matVisCategory: override?.matVisCategory ?? (raw.matVisCategory || raw.matVisCategoryId),
+      matVisTool: override?.matVisTool ?? raw.matVisTool,
       toolRole: override?.toolRole ?? raw.toolRole,
-      defaultScaleGrid: override?.defaultScaleGrid ?? raw.defaultScaleGrid ?? [1, 1, 1],
+      defaultScaleGrid: resolvedDefaultScaleGrid,
       defaultPlacement: override?.defaultPlacement ?? raw.defaultPlacement ?? 'floor',
       snapToGrid: override?.snapToGrid ?? raw.snapToGrid ?? true,
       defaultColorTint: override?.defaultColorTint ?? raw.defaultColorTint ?? '#ffffff',
       contentHash: raw.sourceHash,
       faceCount: raw.triangles,
+      lodVariants: resolvedLodVariants,
       tags: [raw.category?.toLowerCase() || 'props'],
     };
   }
@@ -142,6 +165,13 @@ export class MapPngAssetApiService {
         const list = res?.assets ?? res?.items ?? [];
         for (const item of list) {
           if (!item.id) continue;
+          const scaleGrid = item.defaultScaleGrid ?? [1, 1, 1];
+          GlbModelCache.registerAssetLodVariants(
+            item.id,
+            item.sourceFile || item.glbUrl || item.modelUrl,
+            scaleGrid,
+            item.lodVariants,
+          );
           this.catalogOverrides.set(item.id, {
             name: item.name,
             category: item.category,
@@ -149,11 +179,17 @@ export class MapPngAssetApiService {
             isWall: item.isWall,
             isDoor: item.isDoor,
             isObject: item.isObject,
+            isScatter:
+              item.isScatter ??
+              (item.matVisTool === 'randon_stamp' || item.toolRole === 'scatter-3d'),
+            matVisCategory: item.matVisCategory || item.matVisCategoryId,
+            matVisTool: item.matVisTool,
             toolRole: item.toolRole,
-            defaultScaleGrid: item.defaultScaleGrid ?? [1, 1, 1],
+            defaultScaleGrid: scaleGrid,
             defaultPlacement: item.defaultPlacement ?? 'floor',
             snapToGrid: item.snapToGrid ?? true,
             defaultColorTint: item.defaultColorTint ?? '#ffffff',
+            lodVariants: item.lodVariants,
           });
         }
         this.applyOverridesToCurrentLists();

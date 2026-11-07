@@ -1,5 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
+import { lodTierForQualityPreset } from '../../maps/engine/rendering/glb-lod';
+import { GlbModelCache } from '../../maps/engine/rendering/glb-model-cache';
 import { BASE_GRID_CELL_SVG_PX, setActiveGridCalibration } from '../engine/vtt-los-and-grid.engine';
 
 export type VttMapQuality = 'performance' | 'balanced' | 'visual';
@@ -60,6 +62,7 @@ export class VttDisplaySettingsService {
   private readonly probed = new Set<string>();
 
   constructor() {
+    GlbModelCache.setLodTier(lodTierForQualityPreset(this.mapQuality()));
     this.syncCalibrationEngine();
     this.loadAccountPreferences();
   }
@@ -72,6 +75,7 @@ export class VttDisplaySettingsService {
         const q = (prefs.mapQuality ?? '').toLowerCase();
         if (VTT_MAP_QUALITY_OPTIONS.some((o) => o.id === q)) {
           this.mapQuality.set(q as VttMapQuality);
+          GlbModelCache.setLodTier(lodTierForQualityPreset(q));
           writeStorage(STORAGE_KEY, q);
         }
         if (typeof prefs.gridScale === 'number' && prefs.gridScale >= 0.25 && prefs.gridScale <= 3.0) {
@@ -96,6 +100,7 @@ export class VttDisplaySettingsService {
 
   setMapQuality(quality: VttMapQuality): void {
     this.mapQuality.set(quality);
+    GlbModelCache.setLodTier(lodTierForQualityPreset(quality));
     writeStorage(STORAGE_KEY, quality);
     this.persistAccountPreferences();
   }

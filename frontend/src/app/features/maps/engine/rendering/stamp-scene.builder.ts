@@ -284,7 +284,10 @@ export class StampSceneBuilder {
           : tpl
             ? `3d:${tpl.url}`
             : `2d:${st.albedoUrl || st.thumbnailUrl || ''}:${st.normalUrl || ''}`;
-      const sig = `${modeKey}|${tier}|${cellMeters.toFixed(3)}|${sx.toFixed(3)}|${sy.toFixed(3)}|${sz.toFixed(3)}|${st.colorHex || ''}|${st.surfaceFinish || ''}|${(st.opacity ?? 1).toFixed(2)}`;
+      const tierScale = st.modelUrl
+        ? GlbModelCache.getTierScaleFactors(st.modelUrl, tier)
+        : { sx: 1, sy: 1, sz: 1, uniform: 1 };
+      const sig = `${modeKey}|${tier}|${tierScale.uniform.toFixed(3)}|${cellMeters.toFixed(3)}|${sx.toFixed(3)}|${sy.toFixed(3)}|${sz.toFixed(3)}|${st.colorHex || ''}|${st.surfaceFinish || ''}|${(st.opacity ?? 1).toFixed(2)}`;
 
       const existing = builtMap.get(st.id);
       if (existing && existing.signature === sig && !existing.node.isDisposed()) {

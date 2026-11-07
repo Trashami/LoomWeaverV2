@@ -81,7 +81,13 @@ import {
   GhostAssetConfig,
   PickedSceneEntityMeta,
 } from './engine/rendering/babylon-map-stage.service';
+import {
+  lodTierForQualityPreset,
+  studioPresetToVttQuality,
+  vttQualityToStudioPreset,
+} from './engine/rendering/glb-lod';
 import { Real2dMapRenderer } from './engine/rendering/real-2d-map-renderer';
+import { VttDisplaySettingsService } from '../arcane-screen/services/vtt-display-settings.service';
 import { LwFloorSurfaceFinish, TerrainMeshBuilder } from './engine/terrain/terrain-mesh.builder';
 import { WallMeshBuilder } from './engine/walls/wall-mesh.builder';
 import {
@@ -123,6 +129,16 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   readonly stage = inject(BabylonMapStageService);
   readonly studio = inject(MapStudioStoreService);
   readonly history = inject(MapHistoryEngineService);
+  readonly vttDisplay = inject(VttDisplaySettingsService);
+
+  private readonly qualityPreferenceSync = effect(() => {
+    const q = this.vttDisplay.mapQuality();
+    const mappedPreset = vttQualityToStudioPreset(q) as LwMapQualityPreset;
+    if (this.activeQuality() !== mappedPreset) {
+      this.activeQuality.set(mappedPreset);
+      this.stage.setQualityPreset(mappedPreset);
+    }
+  });
 
   readonly showLandingHub = signal<boolean>(true);
   readonly assetModalOpen = signal<boolean>(false);
@@ -627,12 +643,21 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       return all3d.filter((a) => a.isDoor || a.toolRole === 'door-3d' || this.isDoorAsset(a));
     }
     if (effectiveTool === 'scatter') {
-      return all3d.filter(
-        (a) =>
-          a.category === 'Nature' ||
-          a.category === 'Rocks & Cliffs' ||
-          a.category === 'Props',
-      );
+      const scatterList = all3d
+        .filter(
+          (a) =>
+            a.isScatter ||
+            a.toolRole === 'scatter-3d' ||
+            a.matVisTool === 'randon_stamp' ||
+            a.category === 'Nature' ||
+            a.category === 'Rocks & Cliffs',
+        )
+        .sort((x, y) => {
+          const xScat = x.isScatter || x.matVisTool === 'randon_stamp' ? 1 : 0;
+          const yScat = y.isScatter || y.matVisTool === 'randon_stamp' ? 1 : 0;
+          return yScat - xScat;
+        });
+      return scatterList.length > 0 ? scatterList : all3d;
     }
     if (this.dimensionMode() === '2d') {
       return all2d.filter((a) => !a.isFloor);
@@ -1055,8 +1080,15 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       this.userSelectedDoorAsset = doorAsset;
       this.equipAssetOnNode(doorAsset);
     } else if (dockToolId === 'objects' || dockToolId === 'scatter') {
+      const wantScatter = dockToolId === 'scatter';
+      const currentOk =
+        this.userSelectedObjectAsset &&
+        (!wantScatter ||
+          this.userSelectedObjectAsset.isScatter ||
+          this.userSelectedObjectAsset.matVisTool === 'randon_stamp' ||
+          this.userSelectedObjectAsset.category.toLowerCase().includes('nature'));
       const objAsset =
-        this.userSelectedObjectAsset ??
+        (currentOk ? this.userSelectedObjectAsset : null) ??
         this.pngApi
           .pngAssets3d()
           .find(
@@ -1064,7 +1096,11 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
               !a.isFloor &&
               !this.isWallAsset(a) &&
               !this.isDoorAsset(a) &&
-              (dockToolId !== 'scatter' || a.category.toLowerCase().includes('nature')),
+              (!wantScatter ||
+                a.isScatter ||
+                a.matVisTool === 'randon_stamp' ||
+                a.toolRole === 'scatter-3d' ||
+                a.category.toLowerCase().includes('nature')),
           ) ??
         this.pngApi
           .pngAssets3d()
@@ -1098,7 +1134,11 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         asset.toolRole === 'door-3d' ||
         this.isDoorAsset(asset),
     );
-    const defaultGrid = asset.defaultScaleGrid ?? [1, 1, 1];
+    const activeTier = lodTierForQualityPreset(this.activeQuality());
+    const tierVar = asset.lodVariants?.[activeTier];
+    const defaultGrid = tierVar?.defaultScaleGrid ?? asset.defaultScaleGrid ?? [1, 1, 1];
+    const tierStampScale =
+      typeof tierVar?.stampScale === 'number' && tierVar.stampScale > 0 ? tierVar.stampScale : 1.0;
     const hasPlacedSelection = this.selectedPlacedId() !== null;
     const lowerName = asset.name.toLowerCase();
     const lowerCat = asset.category.toLowerCase();
@@ -1117,7 +1157,8 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         lowerName.includes('wagon') ||
         lowerName.includes('cart') ||
         lowerName.includes('tent'));
-    const defaultPropScale = isWall || isDoor ? 1.0 : isLargePropOrNature ? 2.5 : 1.6;
+    const defaultPropScale =
+      (isWall || isDoor ? 1.0 : isLargePropOrNature ? 2.5 : 1.6) * tierStampScale;
     this.selectedNode.update((cur) => ({
       ...cur,
       id: asset.id,
@@ -2669,6 +2710,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   onQualityChange(preset: LwMapQualityPreset): void {
     this.activeQuality.set(preset);
     this.stage.setQualityPreset(preset);
+    this.vttDisplay.setMapQuality(studioPresetToVttQuality(preset));
   }
 
   onTogglePlayerSafeView(): void {

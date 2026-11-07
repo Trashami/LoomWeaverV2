@@ -60,8 +60,21 @@ export class GlbModelCache {
   private static sharedGhostMat: StandardMaterial | null = null;
   private static tintedMatCache = new Map<string, StandardMaterial>();
   private static decoderConfigured = false;
-  private static lodTier: GlbLodTier = 'low';
+  private static lodTier: GlbLodTier = 'mid';
   private static lodManifest = new Map<string, Partial<Record<GlbLodTier, string>>>();
+  private static tierScaleManifest = new Map<
+    string,
+    Partial<
+      Record<
+        GlbLodTier,
+        {
+          readonly stampScale: number;
+          readonly scaleGrid?: readonly [number, number, number];
+          readonly baseScaleGrid?: readonly [number, number, number];
+        }
+      >
+    >
+  >();
   private static catalogManifestPromise: Promise<void> | null = null;
   private static catalogIdSet = new Set<string>();
   private static activeLoadCount = 0;
@@ -69,6 +82,26 @@ export class GlbModelCache {
   private static loadQueue: Array<() => void> = [];
   /** Bumped on every eviction so loads started under an old tier are discarded on completion. */
   private static generation = 0;
+
+  private static readonly LEGACY_RENAMED_BASE_MAP: Readonly<Record<string, string>> = {
+    'fungal_golem_-_forest_mushroom_beast': 'fungal_golem',
+    'Meshy_AI__1026224419_texture': 'dungeon_tile',
+    'Meshy_AI__High_Detailed_PBR_3_1023200617_texture': 'hero_ranger_token',
+    'Meshy_AI__Halloween2025_ult_1023200746_texture': 'halloween_reaper_monster',
+    'Meshy_AI__Halloween2025_a_ul_1023201426_texture': 'tree_golum_monster',
+    'Meshy_AI__1026223915_texture': 'fey_dark_pixie',
+    'Meshy_AI__Halloween2025_a_st_1023201312_texture': 'skeleton_creepy_monster',
+    'Meshy_AI__Halloween2025_ult_1023201912_texture': 'skeleton_alien_monster',
+    'Meshy_AI__1028184746_texture': 'colonial_home',
+    'Meshy_AI_01cleanstone_25ptc_lo_1028134541_texture': 'curved_stone_wall',
+    'Meshy_AI_01cleanstone_25ptc_lo_1028185647_texture': 'curved_stone_wall_2',
+    'Meshy_AI_02mossystone_25ptc_lo_1028185649_texture': 'curved_grime_stone_wall',
+    'Meshy_AI_10_Floor_Tile_Wizar_1028124340_texture': 'floor_tile_clean_design',
+    'Meshy_AI__Halloween2025_full_1023202215_texture': 'forest_flooring_fern_1',
+    'Meshy_AI_A_majestic_forest_fer_1022200323_texture': 'forest_floor_fern_2',
+    'Meshy_AI_A_majestic_forest_fer_1023133940_texture': 'forest_floor_fern_3',
+    'Meshy_AI_A_hosta_plant_feature_1023091736_texture': 'forest_floor_plant_1',
+  };
 
   private static acquireLoadSlot(): Promise<void> {
     if (this.activeLoadCount < this.MAX_CONCURRENT_LOADS) {
@@ -100,7 +133,7 @@ export class GlbModelCache {
   }
 
   /**
-   * Ensures `/assets/object-library/index.json` (`obj-<hash>` -> `sourceFile`) and
+   * Ensures `/assets/previews-png/manifest.json`, `/assets/catalogs/mat-vis-assets.json`, and
    * `/api/v2/maps/assets/model-manifest` are loaded even when `/arcane-screen` is opened
    * directly without visiting `/maps` first.
    */
@@ -110,18 +143,40 @@ export class GlbModelCache {
       this.catalogManifestPromise = Promise.resolve();
       return this.catalogManifestPromise;
     }
-    const p1 = fetch('/assets/object-library/index.json')
+    const p1 = fetch('/assets/previews-png/manifest.json')
       .then((r) => (r.ok ? r.json() : null))
-      .then((doc: { assets?: Array<{ id?: string; sourceFile?: string }> } | null) => {
-        for (const a of doc?.assets ?? []) {
-          if (a.id) {
-            this.catalogIdSet.add(a.id);
+      .then(
+        (
+          doc: {
+            assets?: Array<{
+              id?: string;
+              sourceFile?: string;
+              defaultScaleGrid?: readonly [number, number, number];
+              lodVariants?: Partial<
+                Record<
+                  GlbLodTier,
+                  {
+                    stampScale?: number;
+                    defaultScaleGrid?: readonly [number, number, number];
+                  }
+                >
+              >;
+            }>;
+          } | null,
+        ) => {
+          for (const a of doc?.assets ?? []) {
+            if (a.id) {
+              this.catalogIdSet.add(a.id);
+            }
+            if (a.id && a.sourceFile) {
+              this.registerSourceFileLodMapping(a.id, a.sourceFile);
+              if (a.lodVariants) {
+                this.registerAssetLodVariants(a.id, a.sourceFile, a.defaultScaleGrid, a.lodVariants);
+              }
+            }
           }
-          if (a.id && a.sourceFile) {
-            this.registerSourceFileLodMapping(a.id, a.sourceFile);
-          }
-        }
-      })
+        },
+      )
       .catch(() => undefined);
 
     const p2 = fetch('/api/v2/maps/assets/model-manifest')
@@ -133,7 +188,46 @@ export class GlbModelCache {
       })
       .catch(() => undefined);
 
-    this.catalogManifestPromise = Promise.all([p1, p2]).then(() => {
+    const p3 = fetch('/assets/catalogs/mat-vis-assets.json')
+      .then((r) => (r.ok ? r.json() : null))
+      .then(
+        (
+          mv: {
+            assets?: Record<
+              string,
+              {
+                id?: string;
+                baseName?: string;
+                qualityTier?: GlbLodTier;
+                stampScale?: number;
+                defaultScaleGrid?: readonly [number, number, number];
+              }
+            >;
+          } | null,
+        ) => {
+          if (!mv?.assets) return;
+          for (const [key, entry] of Object.entries(mv.assets)) {
+            const tier = entry.qualityTier;
+            if (tier !== 'low' && tier !== 'mid' && tier !== 'high') continue;
+            const fileName = key.split('/').pop() || '';
+            const baseFile = toBaseGlbUrl(fileName);
+            if (!baseFile) continue;
+            if (entry.id) {
+              this.registerSourceFileLodMapping(entry.id, baseFile);
+            }
+            this.registerSingleTierScale(
+              entry.id,
+              baseFile,
+              tier,
+              entry.stampScale ?? 1.0,
+              entry.defaultScaleGrid,
+            );
+          }
+        },
+      )
+      .catch(() => undefined);
+
+    this.catalogManifestPromise = Promise.all([p1, p2, p3]).then(() => {
       this.failedUrls.clear();
     });
     return this.catalogManifestPromise;
@@ -153,8 +247,10 @@ export class GlbModelCache {
    */
   static registerSourceFileLodMapping(id: string, sourceFile?: string): void {
     if (!id || !sourceFile || !sourceFile.toLowerCase().endsWith('.glb')) return;
+    const rawBaseName = toBaseGlbUrl(sourceFile).replace(/\.glb$/i, '');
+    const canonicalBaseName = this.LEGACY_RENAMED_BASE_MAP[rawBaseName] ?? rawBaseName;
     const objBase = `/assets/object-library/models/${id}.glb`;
-    const srcBase = `/assets/models-3d/${toBaseGlbUrl(sourceFile)}`;
+    const srcBase = `/assets/models-3d/${canonicalBaseName}.glb`;
     const variants = {
       low: resolveGlbLodUrl(srcBase, 'low'),
       mid: resolveGlbLodUrl(srcBase, 'mid'),
@@ -162,6 +258,103 @@ export class GlbModelCache {
     };
     this.lodManifest.set(objBase, variants);
     this.lodManifest.set(srcBase, variants);
+    if (rawBaseName !== canonicalBaseName) {
+      this.lodManifest.set(`/assets/models-3d/${rawBaseName}.glb`, variants);
+    }
+  }
+
+  static registerAssetLodVariants(
+    id: string,
+    sourceFile: string | undefined,
+    baseScaleGrid: readonly [number, number, number] | undefined,
+    lodVariants?: Readonly<
+      Partial<
+        Record<
+          GlbLodTier,
+          {
+            readonly stampScale?: number;
+            readonly defaultScaleGrid?: readonly [number, number, number];
+          }
+        >
+      >
+    >,
+  ): void {
+    if (!lodVariants) return;
+    for (const tier of ['low', 'mid', 'high'] as const) {
+      const v = lodVariants[tier];
+      if (!v) continue;
+      this.registerSingleTierScale(
+        id,
+        sourceFile,
+        tier,
+        v.stampScale ?? 1.0,
+        v.defaultScaleGrid,
+        baseScaleGrid,
+      );
+    }
+  }
+
+  static registerSingleTierScale(
+    id: string | undefined,
+    sourceFile: string | undefined,
+    tier: GlbLodTier,
+    stampScale: number,
+    scaleGrid?: readonly [number, number, number],
+    baseScaleGrid?: readonly [number, number, number],
+  ): void {
+    const keys: string[] = [];
+    if (id) {
+      keys.push(`/assets/object-library/models/${id}.glb`);
+    }
+    if (sourceFile) {
+      const clean = toBaseGlbUrl(sourceFile.split('/').pop() || sourceFile);
+      keys.push(`/assets/models-3d/${clean}`);
+    }
+    for (const k of keys) {
+      const prev = this.tierScaleManifest.get(k) ?? {};
+      const prevTier = prev[tier];
+      this.tierScaleManifest.set(k, {
+        ...prev,
+        [tier]: {
+          stampScale: Number.isFinite(stampScale) && stampScale > 0 ? stampScale : (prevTier?.stampScale ?? 1.0),
+          scaleGrid: scaleGrid ?? prevTier?.scaleGrid,
+          baseScaleGrid: baseScaleGrid ?? prevTier?.baseScaleGrid,
+        },
+      });
+    }
+  }
+
+  /**
+   * Returns the per-tier (`low` = Performance, `mid` = Balanced, `high` = Visual) scale multipliers
+   * configured in `mat-vis-assets.json` / `asset-properties-catalog.json` for `modelUrl`.
+   */
+  static getTierScaleFactors(
+    modelUrl: string | undefined,
+    tier: GlbLodTier = this.lodTier,
+  ): { readonly sx: number; readonly sy: number; readonly sz: number; readonly uniform: number } {
+    if (!modelUrl) {
+      return { sx: 1, sy: 1, sz: 1, uniform: 1 };
+    }
+    const baseUrl = toBaseGlbUrl(modelUrl);
+    const entry = this.tierScaleManifest.get(baseUrl)?.[tier];
+    if (!entry) {
+      return { sx: 1, sy: 1, sz: 1, uniform: 1 };
+    }
+    const u = Number.isFinite(entry.stampScale) && entry.stampScale > 0 ? entry.stampScale : 1.0;
+    const sg = entry.scaleGrid;
+    const bg = entry.baseScaleGrid;
+    if (sg && sg.length === 3 && bg && bg.length === 3) {
+      const rx = bg[0] > 0 ? sg[0] / bg[0] : 1;
+      const ry = bg[1] > 0 ? sg[1] / bg[1] : 1;
+      const rz = bg[2] > 0 ? sg[2] / bg[2] : 1;
+      return {
+        sx: u * rx,
+        sy: u * ry,
+        sz: u * rz,
+        uniform: u * Math.cbrt(rx * ry * rz),
+      };
+    }
+    return { sx: u, sy: u, sz: u, uniform: u };
   }
 
   static ensureScene(scene: Scene): void {
@@ -467,26 +660,30 @@ export class GlbModelCache {
     const cloned = template.templatePivot.clone(`${instanceName}-pivot`, wrapper);
     if (cloned) {
       cloned.setEnabled(true);
+      const tierScale = this.getTierScaleFactors(template.baseUrl, this.lodTier);
+      const effWidth = targetWidth * tierScale.sx;
+      const effHeight = targetHeight * (uniformScale ? tierScale.uniform : tierScale.sy);
+      const effDepth = targetDepth * tierScale.sz;
       if (uniformScale) {
         const maxSpan = Math.max(template.rawWidth, template.rawHeight, template.rawDepth);
-        const s = targetHeight / maxSpan;
+        const s = effHeight / maxSpan;
         cloned.scaling.setAll(s);
         cloned.position.y = template.baseOffsetY * s;
       } else {
         const useZAsLength = template.rawDepth > template.rawWidth * 1.35;
-        const sy = targetHeight / template.rawHeight;
+        const sy = effHeight / template.rawHeight;
         if (useZAsLength) {
           cloned.rotation.y = Math.PI / 2;
           cloned.scaling.set(
-            targetDepth / template.rawWidth,
+            effDepth / template.rawWidth,
             sy,
-            targetWidth / template.rawDepth,
+            effWidth / template.rawDepth,
           );
         } else {
           cloned.scaling.set(
-            targetWidth / template.rawWidth,
+            effWidth / template.rawWidth,
             sy,
-            targetDepth / template.rawDepth,
+            effDepth / template.rawDepth,
           );
         }
         cloned.position.y = template.baseOffsetY * sy;

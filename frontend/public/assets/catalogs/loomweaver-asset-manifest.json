@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "2.1.0",
+  "root": "c:\\map assets",
+  "qualityMap": {
+    "low": "Performance",
+    "mid": "Balanced",
+    "high": "Visual"
+  },
+  "categories": {
+    "models-3d-base": 669,
+    "models-3d-tier-files": 2007,
+    "scatter-enabled-3d": 123,
+    "stamps-2d": 928,
+    "terrain-textures": 16,
+    "catalogs": 6
+  },
+  "catalogFiles": [
+    "mat-vis-assets.json",
+    "asset-properties-catalog.json",
+    "manifest.json",
+    "models-registry.json",
+    "bump-height-manifest.json",
+    "glb-shrink-manifest.json"
+  ],
+  "stampsSubfolders": [
+    "furniture",
+    "props",
+    "room-bundles-v1",
+    "room-furnishings-v1",
+    "table-room-decor-v1"
+  ],
+  "terrainSubfolders": [
+    "castle-timber",
+    "downloads",
+    "sewer-dungeon-wall-library-v1",
+    "walls"
+  ]
+}

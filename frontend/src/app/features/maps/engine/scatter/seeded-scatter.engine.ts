@@ -16,7 +16,9 @@ export class SeededScatterEngine {
     clusters?: readonly MapScatterClusterNode[],
     onGlbLoaded?: () => void,
   ): number {
-    const signature = clusters && clusters.length > 0 ? JSON.stringify(clusters) : '';
+    const tier = GlbModelCache.getLodTier();
+    const signature =
+      clusters && clusters.length > 0 ? `${tier}:${JSON.stringify(clusters)}` : '';
     const built = this.builtSignature.get(scene);
     if (
       built &&

@@ -2,17 +2,41 @@ export type GlbLodTier = 'low' | 'mid' | 'high';
 
 const LOD_SUFFIX = /_(low|mid|high)\.glb$/i;
 
-/** Maps a viewport quality preset to the model detail tier. */
+/** Maps a viewport quality preset or VTT quality setting to the 3D model detail tier. */
 export function lodTierForQualityPreset(preset: string): GlbLodTier {
-  switch (preset) {
-    case 'Cinematic 3D':
-      return 'mid';
-    case 'Performance 3D':
-    case 'Classic 2D':
-      return 'low';
-    default:
-      return 'low';
+  const p = (preset || '').trim().toLowerCase();
+  if (p === 'cinematic 3d' || p === 'visual' || p === 'high' || p.includes('cinematic')) {
+    return 'high';
   }
+  if (
+    p === 'performance 3d' ||
+    p === 'classic 2d' ||
+    p === 'performance' ||
+    p === 'low' ||
+    p.includes('performance') ||
+    p.includes('classic')
+  ) {
+    return 'low';
+  }
+  return 'mid';
+}
+
+export function studioPresetToVttQuality(
+  preset: string,
+): 'performance' | 'balanced' | 'visual' {
+  const tier = lodTierForQualityPreset(preset);
+  if (tier === 'high') return 'visual';
+  if (tier === 'low') return 'performance';
+  return 'balanced';
+}
+
+export function vttQualityToStudioPreset(
+  quality: string,
+): 'Performance 3D' | 'Balanced 3D' | 'Cinematic 3D' {
+  const q = (quality || '').trim().toLowerCase();
+  if (q === 'visual' || q === 'high') return 'Cinematic 3D';
+  if (q === 'performance' || q === 'low') return 'Performance 3D';
+  return 'Balanced 3D';
 }
 
 /** Strips any LOD suffix so map files only ever persist `name.glb`. */

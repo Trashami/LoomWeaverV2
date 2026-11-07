@@ -16,6 +16,8 @@ import { MapSceneGraphState } from '../../maps/engine/map-scene-contract';
 import { SceneLightingController } from '../../maps/engine/lighting/scene-lighting.controller';
 import { TerrainMeshBuilder } from '../../maps/engine/terrain/terrain-mesh.builder';
 import { WallMeshBuilder } from '../../maps/engine/walls/wall-mesh.builder';
+import { lodTierForQualityPreset } from '../../maps/engine/rendering/glb-lod';
+import { GlbModelCache } from '../../maps/engine/rendering/glb-model-cache';
 import { StampSceneBuilder } from '../../maps/engine/rendering/stamp-scene.builder';
 import { setActiveBaseCellWorld } from '../../arcane-screen/engine/vtt-los-and-grid.engine';
 import {
@@ -203,6 +205,20 @@ export class BabylonEffectStageService {
     else this.mapSceneBuilder.clear(this.scene);
     SceneLightingController.syncCelestialDirectionalLight(this.scene, { mode: 'sun', azimuthDeg: 135, altitudeDeg: 42, shadowDarkness: 72, showSkyOrb: false });
     SceneLightingController.refreshShadowCasters(this.scene);
+  }
+
+  setMapQuality(qualityOrPreset: string): void {
+    const tier = lodTierForQualityPreset(qualityOrPreset);
+    const prevTier = GlbModelCache.getLodTier();
+    GlbModelCache.setLodTier(tier);
+    if (this.engine) {
+      this.engine.setHardwareScalingLevel(tier === 'high' ? 0.85 : tier === 'low' ? 1.35 : 1.0);
+    }
+    if (this.scene && this.last3dSceneState && prevTier !== tier) {
+      StampSceneBuilder.evictScene(this.scene);
+      WallMeshBuilder.evictScene(this.scene);
+      this.sync3dSceneGraph(this.last3dSceneState);
+    }
   }
 
   setForcedTopDown(forced: boolean): void {

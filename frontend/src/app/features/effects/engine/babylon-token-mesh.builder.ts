@@ -76,21 +76,16 @@ export class BabylonTokenMeshBuilder {
       targetedKeys.length > 0 ? targetedKeys : targetKey ? [targetKey] : [],
     );
 
-    const visibleKeys = new Set<string>();
-    for (const t of tokens) {
-      if ((opacityByKey.get(t.key) ?? 1) > 0.05) {
-        visibleKeys.add(t.key);
-      }
-    }
+    const allTokenKeys = new Set<string>(tokens.map((t) => t.key));
 
-    // Remove meshes for tokens that were deleted or hidden by Fog of War / LoS
+    // Remove meshes for tokens that were deleted from the scene
     const existingTokenKeys = new Set<string>();
     for (const m of scene.meshes) {
       const tk = m.metadata?.tokenKey as string | undefined;
       if (tk) existingTokenKeys.add(tk);
     }
     for (const tk of existingTokenKeys) {
-      if (!visibleKeys.has(tk)) {
+      if (!allTokenKeys.has(tk)) {
         this.disposeTokenArtifacts(scene, tk);
       }
     }
@@ -106,7 +101,18 @@ export class BabylonTokenMeshBuilder {
       const facingY = this.facingByTokenKey.get(t.key) ?? 0;
 
       const tokenOpacity = opacityByKey.get(t.key) ?? 1;
+      const existingBase = scene.getMeshByName(`lw-token-${t.key}`) as Mesh | null;
+      const existingLight = scene.getLightByName(`lw-token-light-${t.key}`);
       if (tokenOpacity <= 0.05) {
+        if (existingBase) {
+          existingBase.setEnabled(false);
+          existingBase.isPickable = false;
+          for (const child of existingBase.getChildMeshes()) {
+            child.isPickable = false;
+          }
+        }
+        existingLight?.setEnabled(false);
+        this.disposeReticle(scene, t.key);
         continue;
       }
       const isDead = t.currentHp <= 0;
@@ -124,8 +130,9 @@ export class BabylonTokenMeshBuilder {
       const glowActive = isTokenAmbientGlowActive(t);
       const renderSig = `${isTopDown2D ? '2d' : '3d-grass-rocks-glow-v4'}|${t.glbUrl ?? ''}|${glbReady ? 1 : 0}|${t.avatarUrl ?? ''}|${t.sizeCategory ?? 'medium'}|${isDead ? 1 : 0}|${t.faction}|${t.roleLabel ?? ''}|${t.colorOverride ?? ''}|${t.emitsLight ? 1 : 0}|${t.lightColorHex ?? ''}|${t.lightDimFeet ?? 0}|${glowActive ? 1 : 0}|${t.ambientGlowColorHex ?? ''}|${t.ambientGlowRadiusFeet ?? 0}|${t.ambientGlowIntensity ?? 0}|${gridScale.toFixed(2)}`;
 
-      const existingBase = scene.getMeshByName(`lw-token-${t.key}`) as Mesh | null;
       if (existingBase && existingBase.metadata?.renderSig === renderSig) {
+        existingBase.setEnabled(true);
+        existingLight?.setEnabled(true);
         existingBase.metadata.facingY = facingY;
         if (!existingBase.metadata?.isLiftedOrWobbling) {
           existingBase.position.set(t.x, groundY + baseHeight / 2 + 0.01, t.z);

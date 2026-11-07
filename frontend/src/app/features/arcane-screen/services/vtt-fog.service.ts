@@ -33,18 +33,21 @@ export class VttFogService {
     () =>
       this.store.viewerRole() === 'players' ||
       this.battle.gmPreviewPlayerVision() ||
-      this.battle.previewTokenVisionKey() !== null,
+      this.battle.previewTokenVisionKey() !== null ||
+      this.battle.hasGmSelectedToken(),
   );
 
-  /** Fog canvas in world space (`[-18, 18] x [-13.5, 13.5]`), or null when `no-fog`. */
+  /** Fog canvas in world space (`[-37.5, 37.5] x [-37.5, 37.5]`), or null when `no-fog` or GM has no token selected. */
   readonly layer = computed<HTMLCanvasElement | null>(
     () => {
       const mode = this.battle.fogMode();
+      const isGm = this.store.viewerRole() === 'gm';
+      const gmUnselectedFullMap = isGm && !this.battle.hasGmSelectedToken();
       const gmHideSelf =
-        this.store.viewerRole() === 'gm' &&
+        isGm &&
         this.battle.gmHideFogForSelfOnly() &&
         !this.battle.gmPreviewPlayerVision();
-      if (mode === 'no-fog' || gmHideSelf) return null;
+      if (mode === 'no-fog' || gmUnselectedFullMap || gmHideSelf) return null;
 
       // Read reactive dependencies so the canvas updates when tokens move, a token is selected, or settings change
       const encounterId = this.combat.activeEncounterId() || 'default';
@@ -53,7 +56,6 @@ export class VttFogService {
       const defaultSightFeet = this.battle.playerSightDistanceFeet();
       const applyTokenVision = this.battle.applyTokenVision();
       const manualStrokes = this.battle.manualFogStrokes();
-      const isPlayer = this.isPlayerView();
       const traveledOpacity = this.battle.traveledFogOpacity();
       const gmOpacity = this.battle.gmFogOpacity();
       const losVisionEnabled = this.battle.losVisionEnabled();
@@ -64,10 +66,8 @@ export class VttFogService {
       void this.combat.selectedAttackerKey();
       void this.battle.fogRevision();
 
-      const unexploredFogOpacity = isPlayer ? 1.0 : gmOpacity;
-      const effectiveTraveledOpacity = isPlayer
-        ? traveledOpacity
-        : Math.min(gmOpacity, traveledOpacity);
+      const unexploredFogOpacity = gmOpacity;
+      const effectiveTraveledOpacity = Math.min(gmOpacity, traveledOpacity);
 
       return this.engine.render({
         encounterId,

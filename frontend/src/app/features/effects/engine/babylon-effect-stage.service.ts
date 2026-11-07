@@ -328,7 +328,7 @@ export class BabylonEffectStageService {
     tokens: readonly VttTokenVm[],
     attackerKey?: string,
     targetKey?: string,
-    onTokenClicked?: (tokenKey: string, shiftKey?: boolean, ctrlKey?: boolean) => void,
+    onTokenClicked?: (tokenKey: string, shiftKey?: boolean, ctrlKey?: boolean, phase?: 'down' | 'click') => void,
     onTokenRightClicked?: (event: TokenRightClickEvent) => void,
     canStartTokenDrag?: (tokenKey: string, evt: PointerEvent) => boolean,
     onGroundClicked?: (point: { x: number; z: number }, evt: PointerEvent) => void,
@@ -433,7 +433,7 @@ export class BabylonEffectStageService {
           }, 0);
         },
         canStartTokenDrag: (key, evt) => (canStartTokenDrag ? canStartTokenDrag(key, evt) : true),
-        onTokenSelected: (key, shiftKey, ctrlKey) => this.zone.run(() => onTokenClicked?.(key, shiftKey, ctrlKey)),
+        onTokenSelected: (key, shiftKey, ctrlKey, phase) => this.zone.run(() => onTokenClicked?.(key, shiftKey, ctrlKey, phase)),
         onGroundClicked: (pt, evt) => this.zone.run(() => onGroundClicked?.(pt, evt)),
         onTokenRightClicked: (event) => this.zone.run(() => { this.rightClickedSubject.next(event); onTokenRightClicked?.(event); }),
         onDragged: (placement) => this.zone.run(() => this.draggedSubject.next(placement)),

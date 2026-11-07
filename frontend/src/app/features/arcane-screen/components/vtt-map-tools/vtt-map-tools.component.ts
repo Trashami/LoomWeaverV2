@@ -280,9 +280,7 @@ export class VttMapToolsComponent {
   }
 
   deselectAll(): void {
-    this.vtt.selectedAttackerKey.set('');
-    this.battle.previewTokenVisionKey.set(null);
-    this.battle.queuedTargetSequence.set([]);
+    this.battle.deselectAllTokensForGm();
     this.battle.cancelAllInteractiveModes();
     this.vttDisplay.calibratingGrid.set(false);
     this.activeLeftTool.set(null);

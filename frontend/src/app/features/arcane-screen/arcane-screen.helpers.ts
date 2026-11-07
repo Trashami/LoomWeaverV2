@@ -229,6 +229,7 @@ export function handleVttWindowKeydown(
       battle.targetSelectionMode.set(false);
     } else {
       battle.cancelAllInteractiveModes();
+      battle.deselectAllTokensForGm();
     }
     battle.openDmDrawer.set('none');
     battle.settingsModalOpen.set(false);
@@ -387,9 +388,10 @@ export function registerArcaneScreenStageEffects(
   });
   effect(() => {
     if (!host.hasConfiguredMap()) return;
-    const obs = battle.activeObserverToken();
-    const preview = battle.activeRangeAndAoePreview();
-    const tethers = battle.activeTetherTargetPoints();
+    const isGmUnselected = battle.isGmUnselectedFullMap();
+    const obs = isGmUnselected ? null : battle.activeObserverToken();
+    const preview = isGmUnselected ? null : battle.activeRangeAndAoePreview();
+    const tethers = isGmUnselected ? [] : battle.activeTetherTargetPoints();
     untracked(() => {
       stage.syncSpellTemplateAndTethers(
         obs ? { x: obs.x, z: obs.z } : null,
@@ -401,9 +403,10 @@ export function registerArcaneScreenStageEffects(
   effect(() => {
     if (!host.hasConfiguredMap()) return;
     const tokens = vtt.tokens();
-    const attackerKey = battle.activeObserverToken()?.key ?? vtt.selectedAttackerKey();
-    const targetKey = vtt.selectedTargetKey();
-    const reticleKeys = battle.allReticleTargetKeys();
+    const isGmUnselected = battle.isGmUnselectedFullMap();
+    const attackerKey = isGmUnselected ? undefined : (battle.activeObserverToken()?.key ?? vtt.selectedAttackerKey());
+    const targetKey = isGmUnselected ? undefined : (vtt.selectedTargetKey() || undefined);
+    const reticleKeys = isGmUnselected ? [] : battle.allReticleTargetKeys();
     const opacities = fog.opacityByKey();
     const scale = vttDisplay.gridScale();
     untracked(() => stage.syncTokens(tokens, attackerKey, targetKey, reticleKeys, opacities, scale));

@@ -267,15 +267,16 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   mountStageIfReady(): void {
     if (this.stageMounted || !this.hasConfiguredMap() || !this.vttCanvasRef?.nativeElement) return;
     this.stageMounted = true;
+    const isGmUnselected = this.battle.isGmUnselectedFullMap();
     this.stage.mountStage(
       this.vttCanvasRef.nativeElement,
       this.vtt.tokens(),
-      this.battle.activeObserverToken()?.key ?? this.vtt.selectedAttackerKey(),
-      this.vtt.selectedTargetKey(),
-      (k, shiftKey, ctrlKey) => {
+      isGmUnselected ? undefined : (this.battle.activeObserverToken()?.key ?? this.vtt.selectedAttackerKey()),
+      isGmUnselected ? undefined : (this.vtt.selectedTargetKey() || undefined),
+      (k, shiftKey, ctrlKey, phase) => {
         if (this.workflow.state() !== null) return;
         const tok = this.vtt.tokens().find((t) => t.key === k);
-        if (tok) this.handleTokenSelectionOrCast(tok, shiftKey === true, ctrlKey === true);
+        if (tok) this.handleTokenSelectionOrCast(tok, shiftKey === true, ctrlKey === true, phase ?? 'click');
       },
       (ev) => this.battle.openTokenContextMenu(ev.key, ev.clientX, ev.clientY),
       (k, evt) => {
@@ -284,7 +285,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
         return tok ? this.battle.canMoveToken(tok).allowed : false;
       },
       (pt) => {
-        if (this.workflow.state() !== null) return;
+        if (this.workflow.state() !== null || this.battle.fogBrushMode() !== 'none') return;
         const priorSnapped = this.battle.activeRangeAndAoePreview()?.snappedToken ?? null;
         this.battle.cursorWorldPos.set(pt);
         if (this.battle.pendingAbility()) {
@@ -295,7 +296,12 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
         }
         if (this.battle.targetSelectionMode()) {
           const snapped = this.battle.activeRangeAndAoePreview()?.snappedToken ?? priorSnapped;
-          if (snapped) { this.battle.handleTokenClick(snapped, false, false); this.sync3dStage(); }
+          if (snapped) { this.battle.handleTokenClick(snapped, false, false, 'click'); this.sync3dStage(); }
+          return;
+        }
+        if (this.store.viewerRole() === 'gm') {
+          this.battle.deselectAllTokensForGm();
+          this.sync3dStage();
         }
       },
     );
@@ -333,14 +339,18 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
   toggleMapMode(): void { this.setMapMode(!this.battle.mapMode3D()); }
 
   sync3dStage(): void {
-    const obs = this.battle.activeObserverToken();
-    const preview = this.battle.activeRangeAndAoePreview();
+    const isGmUnselected = this.battle.isGmUnselectedFullMap();
+    const obs = isGmUnselected ? null : this.battle.activeObserverToken();
+    const preview = isGmUnselected ? null : this.battle.activeRangeAndAoePreview();
     this.stage.syncSpellTemplateAndTethers(
       obs ? { x: obs.x, z: obs.z } : null,
-      this.battle.activeTetherTargetPoints(),
+      isGmUnselected ? [] : this.battle.activeTetherTargetPoints(),
       preview ? { active: true, casterPos: preview.clamped.start, endPos: preview.clamped.end, isSingleOrMulti: preview.isSingleOrMulti, aoeRadiusFeet: preview.aoeRadiusFeet, blockedByWall: preview.clamped.blockedByWall } : null,
     );
-    this.stage.syncTokens(this.vtt.tokens(), obs?.key ?? this.vtt.selectedAttackerKey(), this.vtt.selectedTargetKey(), this.battle.allReticleTargetKeys(), this.fog.opacityByKey(), this.vttDisplay.gridScale());
+    const attackerKey = isGmUnselected ? undefined : (obs?.key ?? this.vtt.selectedAttackerKey());
+    const targetKey = isGmUnselected ? undefined : (this.vtt.selectedTargetKey() || undefined);
+    const reticleKeys = isGmUnselected ? [] : this.battle.allReticleTargetKeys();
+    this.stage.syncTokens(this.vtt.tokens(), attackerKey, targetKey, reticleKeys, this.fog.opacityByKey(), this.vttDisplay.gridScale());
     this.stage.syncFog(this.fog.layer());
   }
 
@@ -391,6 +401,7 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
     if (event.button !== 0 || this.battle.pendingAbility() || event.shiftKey || this.battle.targetSelectionMode()) return;
     event.stopPropagation();
     this.dragMoved = false;
+    this.battle.handleTokenClick(token, false, false, 'down');
     const perm = this.battle.beginTokenDrag(token);
     if (!perm.allowed) this.dmToolReadout.set(perm.reason);
   }
@@ -419,24 +430,30 @@ export class ArcaneScreenPageComponent implements AfterViewInit, OnDestroy {
       const step = this.battle.recordPendingAbilityTargetClick();
       this.sync3dStage();
       if (step.shouldExecuteNow) void this.executePendingAbilityCast();
+      return;
+    }
+    if (this.store.viewerRole() === 'gm') {
+      this.battle.deselectAllTokensForGm();
+      this.sync3dStage();
     }
   }
 
   onTokenClicked(event: MouseEvent, token: VttTokenVm): void {
     event.stopPropagation();
     if (this.dragMoved) { this.dragMoved = false; return; }
-    this.handleTokenSelectionOrCast(token, event.shiftKey, event.ctrlKey || event.metaKey);
+    this.handleTokenSelectionOrCast(token, event.shiftKey, event.ctrlKey || event.metaKey, 'click');
   }
 
-  private handleTokenSelectionOrCast(token: VttTokenVm, shiftKey: boolean, ctrlKey = false): void {
+  private handleTokenSelectionOrCast(token: VttTokenVm, shiftKey: boolean, ctrlKey = false, phase: 'down' | 'click' = 'click'): void {
     if (this.battle.pendingAbility()) {
+      if (phase === 'down') return;
       this.battle.cursorWorldPos.set({ x: token.x, z: token.z });
       const step = this.battle.recordPendingAbilityTargetClick(token);
       this.sync3dStage();
       if (step.shouldExecuteNow) void this.executePendingAbilityCast();
       return;
     }
-    this.battle.handleTokenClick(token, shiftKey, ctrlKey);
+    this.battle.handleTokenClick(token, shiftKey, ctrlKey, phase);
     this.sync3dStage();
   }
 

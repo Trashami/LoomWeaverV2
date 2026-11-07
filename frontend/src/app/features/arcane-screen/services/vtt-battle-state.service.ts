@@ -106,6 +106,47 @@ export class VttBattleStateService {
 
   readonly activeInitiativeToken = computed<VttTokenVm>(() => this.vtt.tokens()[this.vtt.activeTurnIndex()] ?? this.vtt.tokens()[0]);
 
+  /**
+   * GM-only selected token on the battlemap, or null when the GM has deselected / clicked off all tokens
+   * (which switches the GM to the unobstructed full-map view with no Fog of War or Line of Sight).
+   */
+  readonly gmSelectedToken = computed<VttTokenVm | null>(() => {
+    if (this.store.viewerRole() !== 'gm') return null;
+    const previewKey = this.previewTokenVisionKey();
+    if (previewKey) {
+      return this.vtt.tokens().find((t) => t.key === previewKey) ?? null;
+    }
+    return this.vtt.explicitSelectedAttacker();
+  });
+
+  readonly hasGmSelectedToken = computed<boolean>(() => this.gmSelectedToken() !== null);
+
+  readonly isGmUnselectedFullMap = computed<boolean>(
+    () => this.store.viewerRole() === 'gm' && !this.hasGmSelectedToken(),
+  );
+
+  deselectAllTokensForGm(): void {
+    if (this.store.viewerRole() !== 'gm') return;
+    this.gmTokenAlreadySelectedOnDown = false;
+    this.vtt.selectedAttackerKey.set('');
+    this.vtt.selectedTargetKey.set('');
+    this.previewTokenVisionKey.set(null);
+    this.clearTargetSelectionAfterCast();
+  }
+
+  toggleGmFullMapView(): void {
+    if (this.store.viewerRole() !== 'gm') return;
+    if (this.hasGmSelectedToken() && !this.gmHideFogForSelfOnly()) {
+      this.deselectAllTokensForGm();
+      return;
+    }
+    const fallback = this.vtt.partyTokensInScene()[0] ?? this.vtt.tokens()[0];
+    if (fallback) {
+      this.gmHideFogForSelfOnly.set(false);
+      this.vtt.selectedAttackerKey.set(fallback.key);
+    }
+  }
+
   readonly activeObserverToken = computed<VttTokenVm>(() => {
     if (this.store.viewerRole() !== 'gm') {
       const controlled = this.vtt.tokens().find((t) => this.canControlToken(t));
@@ -113,13 +154,8 @@ export class VttBattleStateService {
       const party = this.vtt.partyTokensInScene();
       return party[0] ?? this.vtt.tokens()[0];
     }
-    const selected = this.vtt.selectedAttacker();
-    if (selected) return selected;
-    const previewKey = this.previewTokenVisionKey();
-    if (previewKey) {
-      const found = this.vtt.tokens().find((t) => t.key === previewKey);
-      if (found) return found;
-    }
+    const gmSel = this.gmSelectedToken();
+    if (gmSel) return gmSel;
     const party = this.vtt.partyTokensInScene();
     return party[0] ?? this.vtt.tokens()[0];
   });
@@ -131,17 +167,8 @@ export class VttBattleStateService {
       const party = this.vtt.partyTokensInScene();
       return party.length > 0 ? [party[0]] : this.vtt.tokens().slice(0, 1);
     }
-    const previewKey = this.previewTokenVisionKey();
-    if (previewKey) {
-      const single = this.vtt.tokens().find((t) => t.key === previewKey);
-      return single ? [single] : [];
-    }
-    const selected = this.vtt.selectedAttacker();
-    if (selected) {
-      return [selected];
-    }
-    const party = this.vtt.tokens().filter((t) => t.faction === 'party');
-    return party.length > 0 ? party : this.vtt.tokens().slice(0, 1);
+    const gmSel = this.gmSelectedToken();
+    return gmSel ? [gmSel] : [];
   });
 
   canControlToken(token: VttTokenVm): boolean {
@@ -172,6 +199,7 @@ export class VttBattleStateService {
   }
 
   readonly observerSightPolygonSvg = computed<string>(() => {
+    if (this.isGmUnselectedFullMap()) return '';
     const obs = this.activeObserverToken();
     if (!obs || !this.losVisionEnabled()) return '';
     return computeVisibilityPolygonSvgPoints({ x: obs.x, z: obs.z }, getEffectiveTokenVisionFeet(obs, this.playerSightDistanceFeet(), this.applyTokenVision()), this.losWallShadowsEnabled() ? this.walls() : [], 96);
@@ -192,8 +220,13 @@ export class VttBattleStateService {
   }
 
   tokenOpacity(token: VttTokenVm): number {
-    if (this.store.viewerRole() === 'gm' && this.gmHideFogForSelfOnly() && !this.gmPreviewPlayerVision()) {
-      return 1;
+    if (this.store.viewerRole() === 'gm') {
+      if (!this.hasGmSelectedToken()) {
+        return 1;
+      }
+      if (this.gmHideFogForSelfOnly() && !this.gmPreviewPlayerVision()) {
+        return 1;
+      }
     }
     if (this.fogMode() === 'no-fog' && !this.losVisionEnabled()) return 1;
     if (token.faction === 'party' && this.showCharactersBeyondVision()) return 1;
@@ -533,10 +566,18 @@ export class VttBattleStateService {
     return { shouldExecuteNow: nextSeq.length >= preview.maxTargets, selectedCount: nextSeq.length, maxTargets: preview.maxTargets };
   }
 
-  handleTokenClick(token: VttTokenVm, shiftKey: boolean, ctrlKey = false): void {
+  private gmTokenAlreadySelectedOnDown = false;
+
+  handleTokenClick(
+    token: VttTokenVm,
+    shiftKey: boolean,
+    ctrlKey = false,
+    phase: 'down' | 'click' = 'click',
+  ): void {
     const obs = this.activeObserverToken();
     if (obs && !this.isTokenInPlayerLoS(token) && this.store.viewerRole() === 'players') return;
     if (shiftKey || ctrlKey || this.targetSelectionMode()) {
+      if (phase === 'down') return;
       if (obs && token.key === obs.key) return;
       if (shiftKey || ctrlKey) {
         const next = this.multiTargetKeys().includes(token.key)
@@ -557,7 +598,28 @@ export class VttBattleStateService {
       return;
     }
     if (!this.pendingAbility()) {
-      if (this.store.viewerRole() === 'gm' || this.canControlToken(token)) {
+      const isGm = this.store.viewerRole() === 'gm';
+      if (phase === 'down') {
+        this.gmTokenAlreadySelectedOnDown = isGm && this.gmSelectedToken()?.key === token.key;
+        if (!this.gmTokenAlreadySelectedOnDown && (isGm || this.canControlToken(token))) {
+          if (isGm) this.gmHideFogForSelfOnly.set(false);
+          this.vtt.selectedAttackerKey.set(token.key);
+          if (this.multiTargetKeys().includes(token.key)) {
+            const rem = this.multiTargetKeys().filter((k) => k !== token.key);
+            this.multiTargetKeys.set(rem);
+            this.queuedTargetSequence.set(rem);
+            this.hasActiveTargetTether.set(rem.length > 0);
+          }
+        }
+        return;
+      }
+      if (isGm && this.gmTokenAlreadySelectedOnDown && this.gmSelectedToken()?.key === token.key) {
+        this.deselectAllTokensForGm();
+        return;
+      }
+      this.gmTokenAlreadySelectedOnDown = false;
+      if (isGm || this.canControlToken(token)) {
+        if (isGm) this.gmHideFogForSelfOnly.set(false);
         this.vtt.selectedAttackerKey.set(token.key);
         if (this.multiTargetKeys().includes(token.key)) {
           const rem = this.multiTargetKeys().filter((k) => k !== token.key);

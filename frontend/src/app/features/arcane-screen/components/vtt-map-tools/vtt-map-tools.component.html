@@ -111,7 +111,7 @@
         <div class="flyout-sub-section">
           <div class="flyout-row-between">
             <span class="flyout-sub-label">Token Vision & Line of Sight</span>
-            <span class="flyout-badge">{{ vtt.selectedAttacker()?.name || 'All Party' }}</span>
+            <span class="flyout-badge">{{ battle.gmSelectedToken()?.name || 'Full Map (DM)' }}</span>
           </div>
           <label class="flyout-check-line">
             <input type="checkbox" [ngModel]="battle.losVisionEnabled()" (ngModelChange)="battle.losVisionEnabled.set($event)" />

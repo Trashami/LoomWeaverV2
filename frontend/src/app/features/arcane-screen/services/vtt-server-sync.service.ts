@@ -224,8 +224,13 @@ export class VttServerSyncService {
       this.vtt.activeRound.set(state.round);
       const index = Math.max(0, mergedWithParty.findIndex((t) => t.key === state.activeTokenKey));
       this.vtt.activeTurnIndex.set(index);
-      if (!preservedAttackerKey || !mergedWithParty.some((t) => t.key === preservedAttackerKey)) {
-        this.vtt.selectedAttackerKey.set(mergedWithParty[index].key);
+      if (this.store.viewerRole() !== 'gm') {
+        if (!preservedAttackerKey || !mergedWithParty.some((t) => t.key === preservedAttackerKey)) {
+          const myOwned = mergedWithParty.find((t) => t.canControl);
+          this.vtt.selectedAttackerKey.set(myOwned?.key ?? mergedWithParty[index].key);
+        }
+      } else if (preservedAttackerKey && !mergedWithParty.some((t) => t.key === preservedAttackerKey)) {
+        this.vtt.selectedAttackerKey.set('');
       }
     } catch {
       const merged = this.partyAndActions.mergeCampaignPartyIntoTokens(this.vtt.tokens(), campaignId);

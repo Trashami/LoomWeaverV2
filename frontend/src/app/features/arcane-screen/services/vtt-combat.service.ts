@@ -72,8 +72,8 @@ export class VttCombatService {
   readonly activeRound = signal<number>(2);
   readonly activeTurnIndex = signal<number>(0);
   readonly activeEncounterId = signal<string>('enc-ruined-chapel');
-  readonly selectedAttackerKey = signal<string>('1:Character:char-dal');
-  readonly selectedTargetKey = signal<string>('1:Encounter:vamp-1');
+  readonly selectedAttackerKey = signal<string>('');
+  readonly selectedTargetKey = signal<string>('');
   readonly xpAwardBanner = signal<string | null>(null);
   readonly remoteEffectCue = signal<VttRemoteEffectCue | null>(null);
 
@@ -116,7 +116,11 @@ export class VttCombatService {
     },
   ]);
 
-  readonly selectedAttacker = computed(() => this.tokens().find((t) => t.key === this.selectedAttackerKey()) ?? this.tokens()[0]);
+  readonly explicitSelectedAttacker = computed<VttTokenVm | null>(() => {
+    const key = this.selectedAttackerKey();
+    return key ? (this.tokens().find((t) => t.key === key) ?? null) : null;
+  });
+  readonly selectedAttacker = computed(() => this.explicitSelectedAttacker() ?? this.tokens()[0]);
   readonly selectedTarget = computed(() => this.tokens().find((t) => t.key === this.selectedTargetKey()) ?? this.tokens()[2] ?? this.tokens()[0]);
   readonly targetDistanceFeet = computed(() => {
     const a = this.selectedAttacker();
@@ -187,8 +191,10 @@ export class VttCombatService {
       const myOwned = merged.find((t) => t.canControl);
       if (this.store.viewerRole() !== 'gm' && myOwned) {
         this.selectedAttackerKey.set(myOwned.key);
-      } else if (!merged.some((t) => t.key === this.selectedAttackerKey())) {
+      } else if (this.store.viewerRole() !== 'gm' && !merged.some((t) => t.key === this.selectedAttackerKey())) {
         this.selectedAttackerKey.set(merged[0].key);
+      } else if (this.store.viewerRole() === 'gm' && this.selectedAttackerKey() && !merged.some((t) => t.key === this.selectedAttackerKey())) {
+        this.selectedAttackerKey.set('');
       }
     }
   }
@@ -263,9 +269,11 @@ export class VttCombatService {
       this.tokens.set(combined);
       const myOwned = combined.find((t) => t.canControl);
       this.selectedAttackerKey.set(
-        this.store.viewerRole() !== 'gm' && myOwned ? myOwned.key : combined[0].key,
+        this.store.viewerRole() !== 'gm' ? (myOwned ? myOwned.key : combined[0].key) : '',
       );
-      this.selectedTargetKey.set((combined.find((t) => t.faction === 'hostile') ?? combined[0]).key);
+      this.selectedTargetKey.set(
+        this.store.viewerRole() !== 'gm' ? (combined.find((t) => t.faction === 'hostile') ?? combined[0]).key : '',
+      );
     }
   }
 

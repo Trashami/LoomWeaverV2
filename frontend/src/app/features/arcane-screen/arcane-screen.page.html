@@ -22,9 +22,9 @@
         <button ngpButton type="button" class="btn-top-action" (click)="store.openAdventureGuideModal('session')" title="Open Adventure Guide (Current Session or Whole Guide)"><lw-icon name="book-open" [size]="12" /> <span>Adventure Guide</span></button>
         <button ngpButton type="button" class="btn-top-action" (click)="toggleMapMode()" title="Toggle 2D / 3D View"><lw-icon [name]="battle.mapMode3D() ? 'layers' : 'view_in_ar'" [size]="12" /> <span>{{ battle.mapMode3D() ? '3D View' : '2D Map' }}</span></button>
         @if (store.viewerRole() === 'gm') {
-          <button ngpButton type="button" class="btn-top-action" [class.active]="battle.gmHideFogForSelfOnly()" (click)="battle.gmHideFogForSelfOnly.set(!battle.gmHideFogForSelfOnly())" title="Toggle Fog of War off for DM only without affecting players' view">
-            <lw-icon [name]="battle.gmHideFogForSelfOnly() ? 'eye' : 'eye-off'" [size]="12" />
-            <span>{{ battle.gmHideFogForSelfOnly() ? 'DM Fog: Off' : 'DM Fog: On' }}</span>
+          <button ngpButton type="button" class="btn-top-action" [class.active]="!battle.hasGmSelectedToken() || battle.gmHideFogForSelfOnly()" (click)="battle.toggleGmFullMapView()" title="Deselect all tokens to view the full map with no Fog of War or Line of Sight, or select a token to preview its vision">
+            <lw-icon [name]="!battle.hasGmSelectedToken() || battle.gmHideFogForSelfOnly() ? 'eye' : 'eye-off'" [size]="12" />
+            <span>{{ !battle.hasGmSelectedToken() || battle.gmHideFogForSelfOnly() ? 'DM View: Full Map' : 'Vision: ' + (battle.gmSelectedToken()?.name || 'Token') }}</span>
           </button>
           <button ngpButton type="button" class="btn-top-action" (click)="loot.endEncounterAndOpenRecap(false)" title="Conclude Encounter and open Battle Recap Modal on all players' screens">
             <span>End Encounter</span>

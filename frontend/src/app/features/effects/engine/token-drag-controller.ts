@@ -30,7 +30,7 @@ export interface TokenDragHandlers {
   onDragStart(): void;
   onDragEnd(): void;
   canStartTokenDrag?(key: string, evt: PointerEvent): boolean;
-  onTokenSelected?(key: string, shiftKey: boolean, ctrlKey?: boolean): void;
+  onTokenSelected?(key: string, shiftKey: boolean, ctrlKey?: boolean, phase?: 'down' | 'click'): void;
   onGroundClicked?(point: { x: number; z: number }, evt: PointerEvent): void;
   onTokenRightClicked?(event: TokenRightClickEvent): void;
   onDragged(placement: TokenPlacement): void;
@@ -220,6 +220,7 @@ export class TokenDragController {
       key,
       evt.shiftKey === true,
       evt.ctrlKey === true || evt.metaKey === true,
+      canDrag ? 'down' : 'click',
     );
 
     if (!canDrag) {
@@ -314,8 +315,7 @@ export class TokenDragController {
       if (evt.button === 0 && !this.downHadToken && this.handlers.onGroundClicked) {
         const distPx = Math.hypot(evt.clientX - this.downClientX, evt.clientY - this.downClientY);
         if (distPx <= 8) {
-          const pt = this.groundPoint();
-          if (pt) this.handlers.onGroundClicked(pt, evt);
+          this.handlers.onGroundClicked(this.groundPoint() ?? { x: 0, z: 0 }, evt);
         }
       }
       return;
@@ -323,12 +323,21 @@ export class TokenDragController {
     this.active = null;
     this.handlers.onDragEnd();
 
+    const clickDistPx = Math.hypot(evt.clientX - this.downClientX, evt.clientY - this.downClientY);
     const snappedFinal = snapToFiveFootGrid({ x: drag.x, z: drag.z });
     drag.x = snappedFinal.x;
     drag.z = snappedFinal.z;
 
     const totalDx = drag.x - drag.startX;
     const totalDz = drag.z - drag.startZ;
+    if (clickDistPx <= 6 && Math.hypot(totalDx, totalDz) <= 0.05) {
+      this.handlers.onTokenSelected?.(
+        drag.key,
+        evt.shiftKey === true,
+        evt.ctrlKey === true || evt.metaKey === true,
+        'click',
+      );
+    }
     if (Math.hypot(totalDx, totalDz) > 0.08 && drag.facingY === undefined) {
       drag.facingY = Math.atan2(totalDx, totalDz);
     }

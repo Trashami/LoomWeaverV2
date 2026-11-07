@@ -243,7 +243,8 @@ export class SeededScatterEngine {
     >();
 
     let totalInstances = 0;
-    const MAX_TOTAL_SCATTER_INSTANCES = 900;
+    const MAX_TOTAL_SCATTER_INSTANCES = 25000;
+    const SPATIAL_DEDUP_CELL_METERS = 0.32;
 
     for (const cluster of clusters) {
       if (!cluster.modelUrl) continue;
@@ -257,8 +258,8 @@ export class SeededScatterEngine {
       if (!cached || cached.signature !== clusterSig) {
         const nextRand = makePrng(cluster.seed);
         const itemCount = Math.min(
-          18,
-          Math.max(1, Math.round(Math.PI * cluster.radius ** 2 * (cluster.density / 100) * 0.18)),
+          22,
+          Math.max(1, Math.round(Math.PI * cluster.radius ** 2 * (cluster.density / 100) * 0.22)),
         );
         const baseScale = cluster.scale ?? 2.8;
         const scaleJitterFrac = Math.max(0, Math.min(0.85, (cluster.scaleJitterPct ?? 20) / 100));
@@ -307,9 +308,8 @@ export class SeededScatterEngine {
       group.sigParts.push(`${cluster.id}:${cached.signature}`);
       for (const inst of cached.instances) {
         if (totalInstances >= MAX_TOTAL_SCATTER_INSTANCES) break;
-        const minSpacing = Math.max(0.42, inst.effHeight * 0.28);
-        const cx = Math.floor((inst.x + 500) / minSpacing);
-        const cz = Math.floor((inst.z + 500) / minSpacing);
+        const cx = Math.floor((inst.x + 500) / SPATIAL_DEDUP_CELL_METERS);
+        const cz = Math.floor((inst.z + 500) / SPATIAL_DEDUP_CELL_METERS);
         const cellKey = ((cx & 0x7fff) << 15) | (cz & 0x7fff);
         if (group.occupiedCells.has(cellKey)) {
           continue;

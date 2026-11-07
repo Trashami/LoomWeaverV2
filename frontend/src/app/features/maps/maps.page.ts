@@ -1666,6 +1666,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     if (tool === 'scatter') {
       const node = this.selectedNode();
       this.recordHistoryBeforeEdit(`Scatter -> ${node.name}`);
+      this.lastScatterPaintPos = null;
       this.activeScatterStrokeId = `stroke-${Date.now()}-${Math.round(Math.random() * 1000)}`;
       this.selectedScatterStrokeId.set(this.activeScatterStrokeId);
     }

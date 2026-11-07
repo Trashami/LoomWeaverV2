@@ -2,8 +2,10 @@ import {
   Material,
   Matrix,
   Mesh,
+  PBRMaterial,
   Quaternion,
   Scene,
+  StandardMaterial,
   TransformNode,
   Vector3,
 } from '@babylonjs/core';
@@ -147,6 +149,25 @@ export class SeededScatterEngine {
           if (localMatrix.determinant() < 0) {
             m.overrideMaterialSideOrientation = Material.CounterClockWiseSideOrientation;
           }
+          if (m.material instanceof PBRMaterial) {
+            const scatterMat = m.material.clone(`lw-scatter-pbr-${idx}-${baseUrl}`);
+            if (scatterMat) {
+              scatterMat.maxSimultaneousLights = 2;
+              scatterMat.realTimeFiltering = false;
+              scatterMat.forceIrradianceInFragment = false;
+              scatterMat.needDepthPrePass = false;
+              scatterMat.freeze();
+              m.material = scatterMat;
+            }
+          } else if (m.material instanceof StandardMaterial) {
+            const scatterMat = m.material.clone(`lw-scatter-std-${idx}-${baseUrl}`);
+            if (scatterMat) {
+              scatterMat.maxSimultaneousLights = 2;
+              scatterMat.needDepthPrePass = false;
+              scatterMat.freeze();
+              m.material = scatterMat;
+            }
+          }
           m.isPickable = false;
           m.receiveShadows = false;
           m.doNotSyncBoundingInfo = true;
@@ -210,18 +231,19 @@ export class SeededScatterEngine {
       };
     };
 
-    // Group active cluster samples by asset baseUrl
+    // Group active cluster samples by asset baseUrl with 2D spatial deduplication so overlapping brush dabs never stack duplicate instances on the same coordinate
     const instancesByAsset = new Map<
       string,
       {
         modelUrl: string;
         sigParts: string[];
+        occupiedCells: Set<number>;
         instances: ScatterInstanceTransform[];
       }
     >();
 
     let totalInstances = 0;
-    const MAX_TOTAL_SCATTER_INSTANCES = 1800;
+    const MAX_TOTAL_SCATTER_INSTANCES = 900;
 
     for (const cluster of clusters) {
       if (!cluster.modelUrl) continue;
@@ -235,8 +257,8 @@ export class SeededScatterEngine {
       if (!cached || cached.signature !== clusterSig) {
         const nextRand = makePrng(cluster.seed);
         const itemCount = Math.min(
-          40,
-          Math.max(1, Math.round(Math.PI * cluster.radius ** 2 * (cluster.density / 100) * 0.32)),
+          18,
+          Math.max(1, Math.round(Math.PI * cluster.radius ** 2 * (cluster.density / 100) * 0.18)),
         );
         const baseScale = cluster.scale ?? 2.8;
         const scaleJitterFrac = Math.max(0, Math.min(0.85, (cluster.scaleJitterPct ?? 20) / 100));
@@ -276,6 +298,7 @@ export class SeededScatterEngine {
         group = {
           modelUrl: cluster.modelUrl,
           sigParts: [],
+          occupiedCells: new Set<number>(),
           instances: [],
         };
         instancesByAsset.set(baseUrl, group);
@@ -284,6 +307,14 @@ export class SeededScatterEngine {
       group.sigParts.push(`${cluster.id}:${cached.signature}`);
       for (const inst of cached.instances) {
         if (totalInstances >= MAX_TOTAL_SCATTER_INSTANCES) break;
+        const minSpacing = Math.max(0.42, inst.effHeight * 0.28);
+        const cx = Math.floor((inst.x + 500) / minSpacing);
+        const cz = Math.floor((inst.z + 500) / minSpacing);
+        const cellKey = ((cx & 0x7fff) << 15) | (cz & 0x7fff);
+        if (group.occupiedCells.has(cellKey)) {
+          continue;
+        }
+        group.occupiedCells.add(cellKey);
         group.instances.push(inst);
         totalInstances++;
       }

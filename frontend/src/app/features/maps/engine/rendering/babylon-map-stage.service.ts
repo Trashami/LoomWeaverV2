@@ -137,6 +137,7 @@ export class BabylonMapStageService {
     wallDrawMode: 'line',
   };
   private wallStartAnchor: { x: number; z: number } | null = null;
+  private lastHoverProcessMs = 0;
 
   readonly fps = signal<number>(60);
   readonly activeInstanceCount = signal<number>(0);
@@ -364,11 +365,25 @@ export class BabylonMapStageService {
             }
           }
 
+          if (!this.isLeftPointerDown) {
+            const nowMs = performance.now();
+            if (nowMs - this.lastHoverProcessMs < 20) {
+              return;
+            }
+            this.lastHoverProcessMs = nowMs;
+          }
+
           const groundPt = this.pickGroundCoordinates();
           if (!groundPt) return;
 
+          const prevHover = this.hoverCoords();
           this.hoverCoords.set(groundPt);
-          this.updateGhostMeshAt(groundPt.x, groundPt.z);
+          if (
+            this.isLeftPointerDown ||
+            Math.hypot(groundPt.x - prevHover.x, groundPt.z - prevHover.z) >= 0.03
+          ) {
+            this.updateGhostMeshAt(groundPt.x, groundPt.z);
+          }
           if (onGroundHovered) {
             onGroundHovered(groundPt.x, groundPt.z);
           }
@@ -965,6 +980,7 @@ export class BabylonMapStageService {
 
   setQualityPreset(preset: string): void {
     if (!this.engine) return;
+    this.dioramaPostProcessing.setQualityPreset(preset);
     const tier = lodTierForQualityPreset(preset);
     if (tier !== GlbModelCache.getLodTier() && this.scene) {
       this.disposeGlbInstances(this.scene);

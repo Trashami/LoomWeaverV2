@@ -11,6 +11,7 @@ import {
   StandardMaterial,
   TransformNode,
   VertexBuffer,
+  VertexData,
 } from '@babylonjs/core';
 
 import {
@@ -527,7 +528,7 @@ export class GlbModelCache {
       let tpl: CachedGlbTemplate | null = null;
       try {
         if (!scene.isDisposed && gen === this.generation) {
-          tpl = await this.loadGlbTemplateAsync(scene, baseUrl, candidateUrl, gen);
+          tpl = await this.loadGlbTemplateAsync(scene, baseUrl, candidateUrl, effectiveTier, gen);
         }
       } finally {
         this.releaseLoadSlot();
@@ -550,6 +551,7 @@ export class GlbModelCache {
     scene: Scene,
     baseUrl: string,
     modelUrl: string,
+    effectiveTier: GlbLodTier,
     gen: number,
   ): Promise<CachedGlbTemplate | null> {
     try {
@@ -569,13 +571,16 @@ export class GlbModelCache {
       }
 
       for (const m of result.meshes) {
+        if (m instanceof Mesh && m.getTotalVertices() > 0) {
+          this.decimateHighPolyMeshInPlace(m, effectiveTier);
+        }
         m.computeWorldMatrix(true);
         if (m.material instanceof PBRMaterial) {
-          m.material.maxSimultaneousLights = 6;
+          m.material.maxSimultaneousLights = effectiveTier === 'low' ? 3 : 5;
           m.material.directIntensity = 1.5;
           m.material.environmentIntensity = 0.72;
         } else if (m.material instanceof StandardMaterial) {
-          m.material.maxSimultaneousLights = 6;
+          m.material.maxSimultaneousLights = effectiveTier === 'low' ? 3 : 5;
         }
       }
 
@@ -739,5 +744,166 @@ export class GlbModelCache {
       }
       m.setVerticesData(VertexBuffer.NormalKind, updated, false);
     }
+  }
+
+  /**
+   * Fast O(N) spatial voxel vertex-clustering decimation for 100k-triangle Meshy AI GLB scans.
+   * Snaps 3D vertex positions within a regular 3D voxel grid so micro-triangles smaller than
+   * a voxel collapse, while keying surviving corner vertices by (voxel, UV-bucket) so texture
+   * UV seams never stretch or tear across the texture atlas.
+   */
+  private static decimateHighPolyMeshInPlace(mesh: Mesh, tier: GlbLodTier): void {
+    const indices = mesh.getIndices();
+    const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
+    if (!indices || !positions || indices.length < 300) return;
+
+    const triCount = (indices.length / 3) | 0;
+    const vCount = (positions.length / 3) | 0;
+    const maxTriangles = tier === 'low' ? 3600 : tier === 'mid' ? 7500 : 16000;
+    if (triCount <= maxTriangles || vCount < 100) return;
+
+    const gridRes = tier === 'low' ? 24 : tier === 'mid' ? 34 : 48;
+    const uvRes = tier === 'low' ? 16 : tier === 'mid' ? 20 : 24;
+
+    const normals = mesh.getVerticesData(VertexBuffer.NormalKind);
+    const uvs = mesh.getVerticesData(VertexBuffer.UVKind);
+    const hasNormals = Boolean(normals && normals.length === positions.length);
+    const hasUvs = Boolean(uvs && (uvs.length / 2) === vCount);
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let minZ = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    let maxZ = -Infinity;
+
+    for (let i = 0; i < positions.length; i += 3) {
+      const x = positions[i];
+      const y = positions[i + 1];
+      const z = positions[i + 2];
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      if (z < minZ) minZ = z;
+      if (z > maxZ) maxZ = z;
+    }
+
+    const spanX = Math.max(1e-5, maxX - minX);
+    const spanY = Math.max(1e-5, maxY - minY);
+    const spanZ = Math.max(1e-5, maxZ - minZ);
+    const maxIdx = gridRes - 1;
+    const scaleX = maxIdx / spanX;
+    const scaleY = maxIdx / spanY;
+    const scaleZ = maxIdx / spanZ;
+
+    const voxelOfVert = new Int32Array(vCount);
+    const repVertOfVoxel = new Map<number, number>();
+
+    for (let v = 0; v < vCount; v++) {
+      const p3 = v * 3;
+      const gx = Math.max(0, Math.min(maxIdx, ((positions[p3] - minX) * scaleX) | 0));
+      const gy = Math.max(0, Math.min(maxIdx, ((positions[p3 + 1] - minY) * scaleY) | 0));
+      const gz = Math.max(0, Math.min(maxIdx, ((positions[p3 + 2] - minZ) * scaleZ) | 0));
+      const vox = (gx << 12) | (gy << 6) | gz;
+      voxelOfVert[v] = vox;
+      if (!repVertOfVoxel.has(vox)) {
+        repVertOfVoxel.set(vox, v);
+      }
+    }
+
+    const seenFaces = new Set<number>();
+    const outVertMap = new Map<number, number>();
+    const outPositions: number[] = [];
+    const outNormals: number[] = [];
+    const outUvs: number[] = [];
+    const outIndices: number[] = [];
+    let outVertCount = 0;
+
+    const getOrAddCornerVertex = (origVert: number, vox: number): number => {
+      let gu = 0;
+      let gv = 0;
+      if (hasUvs && uvs) {
+        const u = uvs[origVert * 2];
+        const v = uvs[origVert * 2 + 1];
+        const wu = u - Math.floor(u);
+        const wv = v - Math.floor(v);
+        gu = Math.max(0, Math.min(uvRes - 1, (wu * uvRes) | 0));
+        gv = Math.max(0, Math.min(uvRes - 1, (wv * uvRes) | 0));
+      }
+      const key = vox * 1024 + (gu << 5) + gv;
+      let idx = outVertMap.get(key);
+      if (idx !== undefined) {
+        return idx;
+      }
+      idx = outVertCount++;
+      outVertMap.set(key, idx);
+
+      const repV = repVertOfVoxel.get(vox) ?? origVert;
+      const rp3 = repV * 3;
+      outPositions.push(positions[rp3], positions[rp3 + 1], positions[rp3 + 2]);
+
+      if (hasNormals && normals) {
+        const np3 = origVert * 3;
+        outNormals.push(normals[np3], normals[np3 + 1], normals[np3 + 2]);
+      }
+      if (hasUvs && uvs) {
+        const up2 = origVert * 2;
+        outUvs.push(uvs[up2], uvs[up2 + 1]);
+      }
+      return idx;
+    };
+
+    for (let i = 0; i <= indices.length - 3; i += 3) {
+      const i0 = indices[i];
+      const i1 = indices[i + 1];
+      const i2 = indices[i + 2];
+      const v0 = voxelOfVert[i0];
+      const v1 = voxelOfVert[i1];
+      const v2 = voxelOfVert[i2];
+      if (v0 === v1 || v1 === v2 || v0 === v2) {
+        continue;
+      }
+
+      const faceHash =
+        (Math.imul(v0 ^ 0x9e3779b9, 73856093) ^
+          Math.imul(v1 + 1, 19349663) ^
+          Math.imul(v2 + 2, 83492791)) >>>
+        0;
+      if (seenFaces.has(faceHash)) {
+        continue;
+      }
+      seenFaces.add(faceHash);
+
+      const a = getOrAddCornerVertex(i0, v0);
+      const b = getOrAddCornerVertex(i1, v1);
+      const c = getOrAddCornerVertex(i2, v2);
+      if (a !== b && b !== c && a !== c) {
+        outIndices.push(a, b, c);
+      }
+    }
+
+    if (outIndices.length < 180) {
+      return;
+    }
+
+    if (mesh.isVerticesDataPresent(VertexBuffer.ColorKind)) {
+      mesh.removeVerticesData(VertexBuffer.ColorKind);
+    }
+    if (mesh.isVerticesDataPresent(VertexBuffer.TangentKind)) {
+      mesh.removeVerticesData(VertexBuffer.TangentKind);
+    }
+
+    const vd = new VertexData();
+    vd.positions = new Float32Array(outPositions);
+    vd.indices = new Uint32Array(outIndices);
+    if (hasNormals) {
+      vd.normals = new Float32Array(outNormals);
+    }
+    if (hasUvs) {
+      vd.uvs = new Float32Array(outUvs);
+    }
+    vd.applyToMesh(mesh, false);
+    mesh.refreshBoundingInfo();
   }
 }

@@ -6,6 +6,7 @@ import {
   Mesh,
   MeshBuilder,
   Node,
+  RenderTargetTexture,
   Scene,
   ShadowGenerator,
   StandardMaterial,
@@ -76,8 +77,12 @@ export class SceneLightingController {
       } else {
         dirLight.direction.copyFrom(lightDir);
       }
-      dirLight.autoUpdateExtends = true;
-      dirLight.autoCalcShadowZBounds = true;
+      dirLight.autoUpdateExtends = false;
+      dirLight.autoCalcShadowZBounds = false;
+      dirLight.orthoLeft = -55;
+      dirLight.orthoRight = 55;
+      dirLight.orthoTop = 55;
+      dirLight.orthoBottom = -55;
       dirLight.shadowMinZ = 1;
       dirLight.shadowMaxZ = 135;
 
@@ -97,6 +102,10 @@ export class SceneLightingController {
     dirLight.specular = Color3.FromHexString(config.mode === 'sun' ? '#ffe0a3' : '#6c9be0');
 
     shadowGen.darkness = Math.max(0.08, Math.min(0.88, (100 - config.shadowDarkness) / 100));
+    const sm = shadowGen.getShadowMap();
+    if (sm) {
+      sm.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
+    }
 
     let skyOrb = scene.getMeshByName('lw-celestial-sky-orb') as Mesh | null;
     if (!skyOrb) {
@@ -165,6 +174,7 @@ export class SceneLightingController {
         totalShadowVerts += vCount;
       }
     }
+    shadowMap.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
   }
 }
 

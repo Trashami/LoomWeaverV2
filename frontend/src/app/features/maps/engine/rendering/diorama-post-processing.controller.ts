@@ -43,8 +43,9 @@ export class DioramaPostProcessingController {
       exposure = 1.04,
     } = config;
 
-    // 1. SSAO2: Screen Space Ambient Occlusion for realistic contact shadows under minis, tables, barrels, and walls
-    if (enableSSAO) {
+    // 1. SSAO2: Disabled on map stages because SSAO2 forces a full-scene geometry/depth pre-pass
+    // that doubles vertex shader transformation cost on instanced foliage/scatter.
+    if (enableSSAO && false) {
       try {
         if (SSAO2RenderingPipeline.IsSupported) {
           const ssao = new SSAO2RenderingPipeline('lw-diorama-ssao', scene, {
@@ -119,6 +120,13 @@ export class DioramaPostProcessingController {
           newCamera,
         );
       }
+    }
+  }
+
+  setQualityPreset(preset: string): void {
+    const isCinematic = preset === 'Cinematic 3D';
+    if (this.defaultPipeline) {
+      this.defaultPipeline.bloomEnabled = isCinematic;
     }
   }
 

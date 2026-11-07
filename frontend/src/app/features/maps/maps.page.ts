@@ -765,13 +765,6 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.stage.focusGizmoAt(null);
     this.activeDockToolId.set('select');
     this.syncSurfaceLock();
-    if (activeTool === 'scatter') {
-      // Selecting a new asset in Scatter mode starts a fresh brush configuration so existing painted strokes keep their own asset & size.
-      this.selectedScatterStrokeId.set(null);
-      this.syncGhostCursorToStage();
-      return;
-    }
-
     this.syncGhostCursorToStage();
   }
 
@@ -882,6 +875,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     });
     this.selectedPlacedId.set(null);
     this.selectedPlacedKind.set(null);
+    this.selectedScatterStrokeId.set(null);
     this.wallStartAnchor.set(null);
     this.freehandWallPoints.set([]);
     this.activeDockToolId.set('select');
@@ -1017,6 +1011,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.sceneGraph.set(createBlankSceneGraph(summary.name, summary.sceneKey));
     this.selectedPlacedId.set(null);
     this.selectedPlacedKind.set(null);
+    this.selectedScatterStrokeId.set(null);
     this.wallStartAnchor.set(null);
     this.freehandWallPoints.set([]);
     this.activeDockToolId.set('select');
@@ -1174,13 +1169,6 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
 
     this.syncSurfaceLock();
     this.pushCelestialLightToStage();
-    if (activeTool === 'scatter') {
-      // Selecting a new asset in Scatter mode starts a fresh brush configuration so existing painted strokes keep their own asset & size.
-      this.selectedScatterStrokeId.set(null);
-      this.syncGhostCursorToStage();
-      return;
-    }
-
     this.syncGhostCursorToStage();
   }
 
@@ -1434,13 +1422,6 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       floorTilingScale: this.floorTilingScale(),
     }));
     this.pngPipelineBanner.set(`Applied Seamless Flooring: ${name}`);
-    if (activeTool === 'scatter') {
-      // Selecting a new asset in Scatter mode starts a fresh brush configuration so existing painted strokes keep their own asset & size.
-      this.selectedScatterStrokeId.set(null);
-      this.syncGhostCursorToStage();
-      return;
-    }
-
     this.syncGhostCursorToStage();
   }
 
@@ -1545,37 +1526,16 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   onFloorBrushActiveChange(active: boolean): void {
     this.floorBrushActive.set(active);
     this.syncSurfaceLock();
-    if (activeTool === 'scatter') {
-      // Selecting a new asset in Scatter mode starts a fresh brush configuration so existing painted strokes keep their own asset & size.
-      this.selectedScatterStrokeId.set(null);
-      this.syncGhostCursorToStage();
-      return;
-    }
-
     this.syncGhostCursorToStage();
   }
 
   onFloorBrushColorHexChange(hex: string): void {
     this.floorBrushColorHex.set(hex);
-    if (activeTool === 'scatter') {
-      // Selecting a new asset in Scatter mode starts a fresh brush configuration so existing painted strokes keep their own asset & size.
-      this.selectedScatterStrokeId.set(null);
-      this.syncGhostCursorToStage();
-      return;
-    }
-
     this.syncGhostCursorToStage();
   }
 
   onFloorBrushBlendModeChange(mode: MapFloorBlendMode): void {
     this.floorBrushBlendMode.set(mode);
-    if (activeTool === 'scatter') {
-      // Selecting a new asset in Scatter mode starts a fresh brush configuration so existing painted strokes keep their own asset & size.
-      this.selectedScatterStrokeId.set(null);
-      this.syncGhostCursorToStage();
-      return;
-    }
-
     this.syncGhostCursorToStage();
   }
 
@@ -2994,13 +2954,6 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     const clamped = Math.max(0, Math.min(360, Math.round(spreadDeg)));
     this.objectRandomRotationDeg.set(clamped);
     this.rollNextObjectGhostVariation();
-    if (activeTool === 'scatter') {
-      // Selecting a new asset in Scatter mode starts a fresh brush configuration so existing painted strokes keep their own asset & size.
-      this.selectedScatterStrokeId.set(null);
-      this.syncGhostCursorToStage();
-      return;
-    }
-
     this.syncGhostCursorToStage();
   }
 
@@ -3008,13 +2961,6 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     const clamped = Math.max(0, Math.min(50, Math.round(jitterPct)));
     this.objectRandomScalePct.set(clamped);
     this.rollNextObjectGhostVariation();
-    if (activeTool === 'scatter') {
-      // Selecting a new asset in Scatter mode starts a fresh brush configuration so existing painted strokes keep their own asset & size.
-      this.selectedScatterStrokeId.set(null);
-      this.syncGhostCursorToStage();
-      return;
-    }
-
     this.syncGhostCursorToStage();
   }
 
@@ -3039,13 +2985,21 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  onScatterRadiusChange(radius: number): void {
+    this.terrainBrushRadius.set(radius);
+    this.syncGhostCursorToStage();
+    if (this.activeDockToolId() === 'scatter') {
+      this.updateActiveScatterClusters((c) => ({ ...c, radius }));
+    }
+  }
+
   onScatterDensityChange(density: number): void {
     this.scatterDensity.set(density);
     this.updateActiveScatterClusters((c) => ({ ...c, density }));
   }
 
   onScatterScaleChange(scale: number): void {
-    const clamped = Math.max(0.4, Math.min(8.0, Math.round(scale * 100) / 100));
+    const clamped = Math.max(0.2, Math.min(8.0, Math.round(scale * 100) / 100));
     this.scatterScale.set(clamped);
     this.syncGhostCursorToStage();
     this.updateActiveScatterClusters((c) => ({ ...c, scale: clamped }));
@@ -3073,7 +3027,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       );
       this.stage.setGhostConfig(
         {
-          ...this. buildScatterPreviewGhostConfig(nextPreview),
+          ...this.buildScatterPreviewGhostConfig(nextPreview),
         },
         this.wallStartAnchor(),
       );
@@ -3081,6 +3035,84 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       this.syncGhostCursorToStage();
     }
     this.updateActiveScatterClusters((c) => ({ ...c, rotationJitterDeg: clamped }));
+  }
+
+  onSelectScatterStroke(strokeId: string): void {
+    const cleanId = strokeId.trim() || null;
+    this.selectedScatterStrokeId.set(cleanId);
+    if (!cleanId) return;
+    const summary = this.scatterStrokes().find((s) => s.strokeId === cleanId);
+    if (!summary) return;
+    this.scatterScale.set(summary.scale);
+    this.scatterScaleJitterPct.set(summary.scaleJitterPct);
+    this.terrainBrushRadius.set(summary.radius);
+    this.scatterDensity.set(summary.density);
+    this.scatterRotationDeg.set(summary.rotationDeg);
+    this.scatterRotationJitterDeg.set(summary.rotationJitterDeg);
+    if (summary.modelUrl) {
+      const matchingAsset = this.pngApi
+        .pngAssets3d()
+        .find((a) => a.modelUrl === summary.modelUrl);
+      if (matchingAsset) {
+        this.userSelectedObjectAsset = matchingAsset;
+        this.equipAssetOnNode(matchingAsset);
+      } else {
+        this.selectedNode.update((cur) => ({
+          ...cur,
+          name: summary.label,
+          modelUrl: summary.modelUrl,
+        }));
+      }
+    }
+    this.syncGhostCursorToStage();
+  }
+
+  onRemoveScatterStroke(strokeId: string): void {
+    const cleanId = strokeId.trim();
+    if (!cleanId) return;
+    this.recordHistoryBeforeEdit('Delete Scatter Stroke');
+    const resolvedIds = this.resolveClusterStrokeIds(this.sceneGraph().scatterClusters ?? []);
+    this.sceneGraph.update((cur) => {
+      const updated: MapSceneGraphState = {
+        ...cur,
+        revision: cur.revision + 1,
+        scatterClusters: (cur.scatterClusters ?? []).filter(
+          (c) => (c.strokeId ?? resolvedIds.get(c.id)) !== cleanId,
+        ),
+      };
+      this.stage.syncScatterOnly(updated);
+      return updated;
+    });
+    if (this.selectedScatterStrokeId() === cleanId) {
+      this.selectedScatterStrokeId.set(null);
+    }
+    this.render2dViewport();
+  }
+
+  private resolveClusterStrokeIds(
+    clusters: readonly MapScatterClusterNode[],
+  ): ReadonlyMap<string, string> {
+    const map = new Map<string, string>();
+    let legacyGroupIndex = 0;
+    let lastLegacyModel = '';
+    let lastLegacyScale = -1;
+    let currentLegacyId = '';
+    for (const c of clusters) {
+      if (c.strokeId) {
+        map.set(c.id, c.strokeId);
+      } else {
+        const mod = c.modelUrl ?? '';
+        const sc = c.scale ?? 2.8;
+        if (mod !== lastLegacyModel || Math.abs(sc - lastLegacyScale) > 0.01 || !currentLegacyId) {
+          legacyGroupIndex++;
+          currentLegacyId = `legacy-stroke-${legacyGroupIndex}`;
+          lastLegacyModel = mod;
+          lastLegacyScale = sc;
+        }
+        map.set(c.id, currentLegacyId);
+      }
+    }
+    return map;
   }
 
   private buildScatterPreviewGhostConfig(rotDeg: number): GhostAssetConfig {
@@ -3113,19 +3145,26 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   private updateActiveScatterClusters(
     updater: (c: MapScatterClusterNode) => MapScatterClusterNode,
   ): void {
+    const targetStrokeId = this.selectedScatterStrokeId();
+    // Only mutate an existing stroke when a specific stroke is selected;
+    // when "New Brush Stroke" is active (or after picking a new asset), sliders only configure the upcoming stroke!
+    if (!targetStrokeId) return;
     const clusters = this.sceneGraph().scatterClusters;
     if (!clusters || clusters.length === 0) return;
-    const activeModelUrl = this.selectedNode().modelUrl;
-    const hasMatchingModel = Boolean(
-      activeModelUrl && clusters.some((c) => c.modelUrl === activeModelUrl),
-    );
-    this.commitSceneUpdate((cur) => ({
-      ...cur,
-      revision: cur.revision + 1,
-      scatterClusters: (cur.scatterClusters ?? []).map((c) =>
-        !hasMatchingModel || c.modelUrl === activeModelUrl ? updater(c) : c,
-      ),
-    }));
+    const resolvedIds = this.resolveClusterStrokeIds(clusters);
+    this.sceneGraph.update((cur) => {
+      const updated: MapSceneGraphState = {
+        ...cur,
+        revision: cur.revision + 1,
+        scatterClusters: (cur.scatterClusters ?? []).map((c) => {
+          const cid = c.strokeId ?? resolvedIds.get(c.id);
+          return cid === targetStrokeId ? updater({ ...c, strokeId: cid }) : c;
+        }),
+      };
+      this.stage.syncScatterOnly(updated);
+      return updated;
+    });
+    this.render2dViewport();
   }
 
   onInspectorSecretToggle(): void {
@@ -3244,6 +3283,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   onClearScatterClusters(): void {
+    this.selectedScatterStrokeId.set(null);
     this.recordHistoryBeforeEdit('Clear Scatter Clusters');
     this.commitSceneUpdate((cur) => ({
       ...cur,

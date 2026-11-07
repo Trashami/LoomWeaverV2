@@ -1197,6 +1197,12 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       scaleZ: hasPlacedSelection ? cur.scaleZ : defaultGrid[2],
       colorHex: hasPlacedSelection ? cur.colorHex : (asset.defaultColorTint ?? '#ffffff'),
     }));
+    if (asset.modelUrl) {
+      this.stage.preloadModel(
+        asset.modelUrl,
+        activeTool === 'scatter' || Boolean(asset.isScatter),
+      );
+    }
   }
 
   onInspectorMaterialChange(styleId: string): void {
@@ -1635,27 +1641,31 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       }
       this.lastScatterPaintPos = { x, z };
       const node = this.selectedNode();
-      this.commitSceneUpdate((cur) => ({
-        ...cur,
-        revision: cur.revision + 1,
-        scatterClusters: [
-          ...(cur.scatterClusters ?? []),
-          {
-            id: `scat-${Date.now()}-${(cur.scatterClusters ?? []).length}`,
-            x,
-            z,
-            radius: this.terrainBrushRadius(),
-            density: this.scatterDensity(),
-            seed: Math.round(Math.abs(x * 137 + z * 293)) + cur.revision * 17,
-            modelUrl: node.modelUrl,
-            label: node.name,
-            scale: this.scatterScale(),
-            scaleJitterPct: this.scatterScaleJitterPct(),
-            rotationDeg: this.scatterRotationDeg(),
-            rotationJitterDeg: this.scatterRotationJitterDeg(),
-          },
-        ],
-      }));
+      this.sceneGraph.update((cur) => {
+        const updated: MapSceneGraphState = {
+          ...cur,
+          revision: cur.revision + 1,
+          scatterClusters: [
+            ...(cur.scatterClusters ?? []),
+            {
+              id: `scat-${Date.now()}-${(cur.scatterClusters ?? []).length}`,
+              x,
+              z,
+              radius: this.terrainBrushRadius(),
+              density: this.scatterDensity(),
+              seed: Math.round(Math.abs(x * 137 + z * 293)) + cur.revision * 17,
+              modelUrl: node.modelUrl,
+              label: node.name,
+              scale: this.scatterScale(),
+              scaleJitterPct: this.scatterScaleJitterPct(),
+              rotationDeg: this.scatterRotationDeg(),
+              rotationJitterDeg: this.scatterRotationJitterDeg(),
+            },
+          ],
+        };
+        this.stage.syncScatterOnly(updated);
+        return updated;
+      });
       if (this.scatterRotationJitterDeg() > 0) {
         const nextPreview = Math.round(
           (this.scatterRotationDeg() +

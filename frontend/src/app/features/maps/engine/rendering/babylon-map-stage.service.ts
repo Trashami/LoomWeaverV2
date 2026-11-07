@@ -539,10 +539,15 @@ export class BabylonMapStageService {
         config.kind === 'wall' ||
         config.kind === 'door')
     ) {
-      GlbModelCache.getOrLoadTemplate(this.scene, config.modelUrl, () => {
-        const h = this.hoverCoords();
-        this.updateGhostMeshAt(h.x, h.z);
-      });
+      GlbModelCache.getOrLoadTemplate(
+        this.scene,
+        config.modelUrl,
+        () => {
+          const h = this.hoverCoords();
+          this.updateGhostMeshAt(h.x, h.z);
+        },
+        config.kind === 'scatter' ? 'low' : undefined,
+      );
     }
     const h = this.hoverCoords();
     this.updateGhostMeshAt(h.x, h.z);
@@ -666,10 +671,15 @@ export class BabylonMapStageService {
       if (this.ghostConfig.kind === 'scatter' && this.ghostConfig.modelUrl) {
         const cellMeters = TerrainMeshBuilder.getCellStepMeters();
         const scatterDim = cellMeters * (this.ghostConfig.stampScale ?? 2.8);
-        const tpl = GlbModelCache.getOrLoadTemplate(this.scene, this.ghostConfig.modelUrl, () => {
-          const h = this.hoverCoords();
-          this.updateGhostMeshAt(h.x, h.z);
-        });
+        const tpl = GlbModelCache.getOrLoadTemplate(
+          this.scene,
+          this.ghostConfig.modelUrl,
+          () => {
+            const h = this.hoverCoords();
+            this.updateGhostMeshAt(h.x, h.z);
+          },
+          'low',
+        );
         if (tpl) {
           const inst = GlbModelCache.instantiateClone(
             this.scene,
@@ -871,6 +881,13 @@ export class BabylonMapStageService {
     );
     if (this.lastState) {
       this.rebuildStamps(this.scene, this.lastState.stamps);
+      SeededScatterEngine.invalidateTerrainSamples(this.scene);
+      SeededScatterEngine.rebuildScatterInstances(
+        this.scene,
+        this.lastState.scatterSeed,
+        this.lastState.scatterDensity,
+        this.lastState.scatterClusters,
+      );
     }
     this.updateGhostMeshAt(worldX, worldZ);
   }
@@ -894,6 +911,13 @@ export class BabylonMapStageService {
     );
     WaterSplineBuilder.rebuildWaterSplines(this.scene, this.lastState.waterSplines);
     this.rebuildStamps(this.scene, this.lastState.stamps);
+    SeededScatterEngine.invalidateTerrainSamples(this.scene);
+    SeededScatterEngine.rebuildScatterInstances(
+      this.scene,
+      this.lastState.scatterSeed,
+      this.lastState.scatterDensity,
+      this.lastState.scatterClusters,
+    );
     SceneLightingController.refreshShadowCasters(this.scene);
   }
 
@@ -992,6 +1016,36 @@ export class BabylonMapStageService {
     SceneLightingController.syncLights(this.scene, state.lights, undefined, state.walls);
   }
 
+  /** Fast path used while dragging the Scatter brush: updates only newly added scatter clusters without rebuilding walls, water, terrain, lights, or stamps. */
+  syncScatterOnly(state: MapSceneGraphState): void {
+    if (!this.scene) return;
+    this.lastState = state;
+    const scatterCount = SeededScatterEngine.rebuildScatterInstances(
+      this.scene,
+      state.scatterSeed,
+      state.scatterDensity,
+      state.scatterClusters,
+      () => this.scheduleSceneResync(),
+    );
+    this.activeInstanceCount.set(
+      scatterCount +
+        state.stamps.length +
+        state.lights.length +
+        (state.walls?.length ?? 0) +
+        (state.pathRibbons?.length ?? 0),
+    );
+  }
+
+  preloadModel(modelUrl: string | undefined, preferLowTier = false): void {
+    if (!this.scene || !modelUrl) return;
+    GlbModelCache.getOrLoadTemplate(
+      this.scene,
+      modelUrl,
+      undefined,
+      preferLowTier ? 'low' : undefined,
+    );
+  }
+
   syncSceneGraph(state: MapSceneGraphState): void {
     if (!this.scene) return;
     this.lastState = state;
@@ -1050,6 +1104,7 @@ export class BabylonMapStageService {
   private disposeGlbInstances(scene: Scene): void {
     StampSceneBuilder.evictScene(scene);
     WallMeshBuilder.evictScene(scene);
+    SeededScatterEngine.evictScene(scene);
     const oldNodes = scene.transformNodes.filter((n) =>
       /^lw-(stamp-node|wall-node|door-node|scatter-node|ghost)-/.test(n.name),
     );

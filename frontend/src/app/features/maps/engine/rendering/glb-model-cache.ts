@@ -78,7 +78,7 @@ export class GlbModelCache {
   private static catalogManifestPromise: Promise<void> | null = null;
   private static catalogIdSet = new Set<string>();
   private static activeLoadCount = 0;
-  private static readonly MAX_CONCURRENT_LOADS = 2;
+  private static readonly MAX_CONCURRENT_LOADS = 6;
   private static loadQueue: Array<() => void> = [];
   /** Bumped on every eviction so loads started under an old tier are discarded on completion. */
   private static generation = 0;
@@ -133,9 +133,9 @@ export class GlbModelCache {
   }
 
   /**
-   * Ensures `/assets/previews-png/manifest.json`, `/assets/catalogs/mat-vis-assets.json`, and
-   * `/api/v2/maps/assets/model-manifest` are loaded even when `/arcane-screen` is opened
-   * directly without visiting `/maps` first.
+   * Ensures `/asset-properties-catalog.json` is loaded even when `/arcane-screen` is opened
+   * directly without visiting `/maps` first. Uses the compact gzipped properties catalog (~55 KB)
+   * rather than the multi-megabyte full manifest so GLB loading is never bottlenecked.
    */
   private static ensureCatalogManifestsLoaded(): Promise<void> {
     if (this.catalogManifestPromise) return this.catalogManifestPromise;
@@ -143,7 +143,7 @@ export class GlbModelCache {
       this.catalogManifestPromise = Promise.resolve();
       return this.catalogManifestPromise;
     }
-    const p1 = fetch('/assets/previews-png/manifest.json')
+    this.catalogManifestPromise = fetch('/asset-properties-catalog.json')
       .then((r) => (r.ok ? r.json() : null))
       .then(
         (
@@ -175,61 +175,10 @@ export class GlbModelCache {
               }
             }
           }
+          this.failedUrls.clear();
         },
       )
       .catch(() => undefined);
-
-    const p2 = fetch('/api/v2/maps/assets/model-manifest')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((m: ModelManifestResponse | null) => {
-        if (m) {
-          this.setLodManifest(buildGlbLodManifest(m));
-        }
-      })
-      .catch(() => undefined);
-
-    const p3 = fetch('/assets/catalogs/mat-vis-assets.json')
-      .then((r) => (r.ok ? r.json() : null))
-      .then(
-        (
-          mv: {
-            assets?: Record<
-              string,
-              {
-                id?: string;
-                baseName?: string;
-                qualityTier?: GlbLodTier;
-                stampScale?: number;
-                defaultScaleGrid?: readonly [number, number, number];
-              }
-            >;
-          } | null,
-        ) => {
-          if (!mv?.assets) return;
-          for (const [key, entry] of Object.entries(mv.assets)) {
-            const tier = entry.qualityTier;
-            if (tier !== 'low' && tier !== 'mid' && tier !== 'high') continue;
-            const fileName = key.split('/').pop() || '';
-            const baseFile = toBaseGlbUrl(fileName);
-            if (!baseFile) continue;
-            if (entry.id) {
-              this.registerSourceFileLodMapping(entry.id, baseFile);
-            }
-            this.registerSingleTierScale(
-              entry.id,
-              baseFile,
-              tier,
-              entry.stampScale ?? 1.0,
-              entry.defaultScaleGrid,
-            );
-          }
-        },
-      )
-      .catch(() => undefined);
-
-    this.catalogManifestPromise = Promise.all([p1, p2, p3]).then(() => {
-      this.failedUrls.clear();
-    });
     return this.catalogManifestPromise;
   }
 
@@ -361,7 +310,7 @@ export class GlbModelCache {
     void this.ensureCatalogManifestsLoaded();
     if (!this.decoderConfigured) {
       try {
-        DracoCompression.DefaultNumWorkers = 1;
+        DracoCompression.DefaultNumWorkers = 4;
       } catch {
         // Ignore if DracoCompression worker pool is already initialized
       }
@@ -435,25 +384,32 @@ export class GlbModelCache {
   }
 
   /**
-   * Returns the single cached template for `modelUrl` at the current quality LOD tier,
+   * Returns the single cached template for `modelUrl` at the requested (or current) quality LOD tier,
    * or initiates a single deduplicated async load shared across all stamps of this asset.
+   * Passing `tierOverride = 'low'` (used by Scatter) loads the lightweight `_low.glb` variant
+   * (~10x smaller than `_high.glb`) so scattered clusters stream in near-instantly.
    */
   static getOrLoadTemplate(
     scene: Scene,
     modelUrl: string,
     onLoaded?: () => void,
+    tierOverride?: GlbLodTier,
   ): CachedGlbTemplate | null {
     this.ensureScene(scene);
     if (!modelUrl || !modelUrl.toLowerCase().endsWith('.glb')) {
       return null;
     }
+    const effectiveTier = tierOverride ?? this.lodTier;
     const baseUrl = toBaseGlbUrl(modelUrl);
-    const cached = this.cache.get(baseUrl) ?? this.cache.get(modelUrl);
+    const cacheKey = tierOverride ? `${effectiveTier}:${baseUrl}` : baseUrl;
+    const cached =
+      this.cache.get(cacheKey) ??
+      (!tierOverride ? this.cache.get(modelUrl) : undefined);
     if (cached) {
       return cached;
     }
 
-    const candidates = glbLodCandidates(baseUrl, this.lodTier, this.lodManifest).filter(
+    const candidates = glbLodCandidates(baseUrl, effectiveTier, this.lodManifest).filter(
       (c) => !this.failedUrls.has(c),
     );
     if (candidates.length === 0 && this.catalogManifestPromise !== null) {
@@ -463,39 +419,43 @@ export class GlbModelCache {
     for (const c of candidates) {
       const hit = this.cache.get(c);
       if (hit) {
-        this.cache.set(baseUrl, hit);
+        this.cache.set(cacheKey, hit);
         return hit;
       }
     }
 
     if (onLoaded) {
-      let cbs = this.pendingCallbacks.get(baseUrl);
+      let cbs = this.pendingCallbacks.get(cacheKey);
       if (!cbs) {
         cbs = new Set<() => void>();
-        this.pendingCallbacks.set(baseUrl, cbs);
+        this.pendingCallbacks.set(cacheKey, cbs);
       }
       cbs.add(onLoaded);
     }
 
-    if (!this.pending.has(baseUrl)) {
+    if (!this.pending.has(cacheKey)) {
       const gen = this.generation;
-      const loadPromise = this.loadCandidateChainAsync(scene, baseUrl, candidates, gen).then(
-        (tpl) => {
-          if (gen !== this.generation) {
-            return null;
+      const loadPromise = this.loadCandidateChainAsync(
+        scene,
+        baseUrl,
+        cacheKey,
+        effectiveTier,
+        gen,
+      ).then((tpl) => {
+        if (gen !== this.generation) {
+          return null;
+        }
+        this.pending.delete(cacheKey);
+        const cbs = this.pendingCallbacks.get(cacheKey);
+        this.pendingCallbacks.delete(cacheKey);
+        if (tpl && cbs) {
+          for (const cb of cbs) {
+            cb();
           }
-          this.pending.delete(baseUrl);
-          const cbs = this.pendingCallbacks.get(baseUrl);
-          this.pendingCallbacks.delete(baseUrl);
-          if (tpl && cbs) {
-            for (const cb of cbs) {
-              cb();
-            }
-          }
-          return tpl;
-        },
-      );
-      this.pending.set(baseUrl, loadPromise);
+        }
+        return tpl;
+      });
+      this.pending.set(cacheKey, loadPromise);
     }
     return null;
   }
@@ -529,14 +489,18 @@ export class GlbModelCache {
   private static async loadCandidateChainAsync(
     scene: Scene,
     baseUrl: string,
-    _initialCandidates: readonly string[],
+    cacheKey: string,
+    effectiveTier: GlbLodTier,
     gen: number,
   ): Promise<CachedGlbTemplate | null> {
-    await this.ensureCatalogManifestsLoaded();
-    if (scene.isDisposed || gen !== this.generation) return null;
+    const objMatch = baseUrl.match(/\/object-library\/models\/(obj-[a-f0-9]+)\.glb$/i);
+    // Only wait for catalog manifest if this is an unresolved legacy `obj-<hash>.glb` URL
+    if (objMatch && !this.lodManifest.has(baseUrl)) {
+      await this.ensureCatalogManifestsLoaded();
+      if (scene.isDisposed || gen !== this.generation) return null;
+    }
 
     // Fast-fail legacy/deleted object-library hashes that are not in the catalog or manifest
-    const objMatch = baseUrl.match(/\/object-library\/models\/(obj-[a-f0-9]+)\.glb$/i);
     if (
       objMatch &&
       this.catalogIdSet.size > 0 &&
@@ -544,16 +508,21 @@ export class GlbModelCache {
       !this.lodManifest.has(baseUrl)
     ) {
       this.failedUrls.add(baseUrl);
-      for (const c of glbLodCandidates(baseUrl, this.lodTier, this.lodManifest)) {
+      for (const c of glbLodCandidates(baseUrl, effectiveTier, this.lodManifest)) {
         this.failedUrls.add(c);
       }
       return null;
     }
 
-    const candidates = glbLodCandidates(baseUrl, this.lodTier, this.lodManifest);
+    const candidates = glbLodCandidates(baseUrl, effectiveTier, this.lodManifest);
     for (const candidateUrl of candidates) {
       if (scene.isDisposed || gen !== this.generation) return null;
       if (this.failedUrls.has(candidateUrl)) continue;
+      const alreadyCached = this.cache.get(candidateUrl);
+      if (alreadyCached) {
+        this.cache.set(cacheKey, alreadyCached);
+        return alreadyCached;
+      }
       await this.acquireLoadSlot();
       let tpl: CachedGlbTemplate | null = null;
       try {
@@ -565,8 +534,11 @@ export class GlbModelCache {
       }
       if (gen !== this.generation) return null;
       if (tpl) {
-        this.cache.set(baseUrl, tpl);
+        this.cache.set(cacheKey, tpl);
         this.cache.set(candidateUrl, tpl);
+        if (effectiveTier === this.lodTier) {
+          this.cache.set(baseUrl, tpl);
+        }
         return tpl;
       }
       this.failedUrls.add(candidateUrl);

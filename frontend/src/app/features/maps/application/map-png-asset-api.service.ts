@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import {
   LwAssetLodVariantMeta,
+  LwAssetRandomSettings,
   LwAssetToolRole,
   LwMapPngAssetItem,
 } from '../../../shared/ui/map-png-asset-browser/map-png-asset-browser.component';
@@ -32,6 +33,9 @@ interface RawManifestAsset {
   readonly matVisCategory?: string;
   readonly matVisCategoryId?: string;
   readonly matVisTool?: string;
+  readonly randomGroup?: string;
+  readonly randomGroupLabel?: string;
+  readonly randomSettings?: LwAssetRandomSettings;
   readonly toolRole?: LwAssetToolRole;
   readonly defaultScaleGrid?: readonly [number, number, number];
   readonly defaultPlacement?: 'floor' | 'custom';
@@ -88,7 +92,9 @@ export class MapPngAssetApiService {
     const isScatterFlag =
       override?.isScatter ??
       raw.isScatter ??
-      (raw.matVisTool === 'randon_stamp' || raw.toolRole === 'scatter-3d');
+      (raw.matVisTool === 'random_stamp' ||
+        raw.matVisTool === 'randon_stamp' ||
+        raw.toolRole === 'scatter-3d');
     return {
       id: raw.id,
       name: override?.name ?? raw.name,
@@ -106,6 +112,9 @@ export class MapPngAssetApiService {
       isScatter: isScatterFlag,
       matVisCategory: override?.matVisCategory ?? (raw.matVisCategory || raw.matVisCategoryId),
       matVisTool: override?.matVisTool ?? raw.matVisTool,
+      randomGroup: override?.randomGroup ?? raw.randomGroup,
+      randomGroupLabel: override?.randomGroupLabel ?? raw.randomGroupLabel,
+      randomSettings: override?.randomSettings ?? raw.randomSettings,
       toolRole: override?.toolRole ?? raw.toolRole,
       defaultScaleGrid: resolvedDefaultScaleGrid,
       defaultPlacement: override?.defaultPlacement ?? raw.defaultPlacement ?? 'floor',
@@ -181,9 +190,14 @@ export class MapPngAssetApiService {
             isObject: item.isObject,
             isScatter:
               item.isScatter ??
-              (item.matVisTool === 'randon_stamp' || item.toolRole === 'scatter-3d'),
+              (item.matVisTool === 'random_stamp' ||
+                item.matVisTool === 'randon_stamp' ||
+                item.toolRole === 'scatter-3d'),
             matVisCategory: item.matVisCategory || item.matVisCategoryId,
             matVisTool: item.matVisTool,
+            randomGroup: item.randomGroup,
+            randomGroupLabel: item.randomGroupLabel,
+            randomSettings: item.randomSettings,
             toolRole: item.toolRole,
             defaultScaleGrid: scaleGrid,
             defaultPlacement: item.defaultPlacement ?? 'floor',
@@ -205,11 +219,13 @@ export class MapPngAssetApiService {
       next: (res) => {
         const list = res?.items ?? res?.assets ?? [];
         if (list.length > 0) {
-          const wallPresets = FALLBACK_BUMP_HEIGHT_ITEMS.filter((w) => w.isWall);
+          const grassAndWallPresets = FALLBACK_BUMP_HEIGHT_ITEMS.filter(
+            (w) => w.isWall || w.id.startsWith('bump-lush-') || w.id.startsWith('bump-wildflower-') || w.id.startsWith('bump-forest-'),
+          );
           const loaded = list.map((a) => this.normalizeAsset(a));
           const loadedIds = new Set(loaded.map((x) => x.id));
           this.bumpHeightAssets2d.set([
-            ...wallPresets.filter((w) => !loadedIds.has(w.id)),
+            ...grassAndWallPresets.filter((w) => !loadedIds.has(w.id)),
             ...loaded,
           ]);
         }

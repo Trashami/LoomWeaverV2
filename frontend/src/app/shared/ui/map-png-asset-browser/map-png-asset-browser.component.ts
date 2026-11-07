@@ -23,6 +23,13 @@ export interface LwAssetLodVariantMeta {
   readonly defaultScaleGrid?: readonly [number, number, number];
 }
 
+export interface LwAssetRandomSettings {
+  readonly stampScale?: number;
+  readonly scaleJitterPct?: number;
+  readonly rotationJitterDeg?: number;
+  readonly selectionMode?: 'shuffle-bag' | 'uniform';
+}
+
 export interface LwMapPngAssetItem {
   readonly id: string;
   readonly name: string;
@@ -41,6 +48,9 @@ export interface LwMapPngAssetItem {
   readonly matVisCategory?: string;
   readonly matVisCategoryId?: string;
   readonly matVisTool?: string;
+  readonly randomGroup?: string;
+  readonly randomGroupLabel?: string;
+  readonly randomSettings?: LwAssetRandomSettings;
   readonly lodVariants?: Readonly<Partial<Record<'low' | 'mid' | 'high', LwAssetLodVariantMeta>>>;
   readonly defaultScaleGrid?: readonly [number, number, number];
   readonly defaultPlacement?: 'floor' | 'custom';

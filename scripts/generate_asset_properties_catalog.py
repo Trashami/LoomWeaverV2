@@ -38,6 +38,13 @@ DEFAULT_MAT_VIS_CATEGORIES = {
         "tool": "single_stamp",
         "description": "Hero tokens",
         "folder": "hero_tokens-439123c6",
+        "randomSettings": {
+            "enabled": False,
+            "selectionMode": "shuffle-bag",
+            "stampScale": 1.0,
+            "scaleJitterPct": 0,
+            "rotationJitterDeg": 0,
+        },
     },
     "173cd8d9-4251-4ef9-a467-ec9b13012970": {
         "id": "173cd8d9-4251-4ef9-a467-ec9b13012970",
@@ -45,6 +52,13 @@ DEFAULT_MAT_VIS_CATEGORIES = {
         "tool": "single_stamp",
         "description": "monster tokens",
         "folder": "monster_tokens-173cd8d9",
+        "randomSettings": {
+            "enabled": False,
+            "selectionMode": "shuffle-bag",
+            "stampScale": 1.0,
+            "scaleJitterPct": 10,
+            "rotationJitterDeg": 45,
+        },
     },
     "973688a2-2f09-4bf4-a830-89822dfbe1c7": {
         "id": "973688a2-2f09-4bf4-a830-89822dfbe1c7",
@@ -52,6 +66,13 @@ DEFAULT_MAT_VIS_CATEGORIES = {
         "tool": "tiled_stamp",
         "description": "flooring stamps",
         "folder": "floor_stamps-973688a2",
+        "randomSettings": {
+            "enabled": True,
+            "selectionMode": "shuffle-bag",
+            "stampScale": 1.0,
+            "scaleJitterPct": 0,
+            "rotationJitterDeg": 0,
+        },
     },
     "15a695c4-424d-4afb-a806-0957b49a6bbc": {
         "id": "15a695c4-424d-4afb-a806-0957b49a6bbc",
@@ -59,6 +80,13 @@ DEFAULT_MAT_VIS_CATEGORIES = {
         "tool": "single_stamp",
         "description": "decorative_buildings",
         "folder": "buildings-15a695c4",
+        "randomSettings": {
+            "enabled": False,
+            "selectionMode": "shuffle-bag",
+            "stampScale": 1.0,
+            "scaleJitterPct": 8,
+            "rotationJitterDeg": 0,
+        },
     },
     "f230d77d-a70a-4d61-860d-6105ce295173": {
         "id": "f230d77d-a70a-4d61-860d-6105ce295173",
@@ -66,6 +94,13 @@ DEFAULT_MAT_VIS_CATEGORIES = {
         "tool": "single_stamp",
         "description": "single stamp props",
         "folder": "props-f230d77d",
+        "randomSettings": {
+            "enabled": False,
+            "selectionMode": "shuffle-bag",
+            "stampScale": 1.0,
+            "scaleJitterPct": 15,
+            "rotationJitterDeg": 360,
+        },
     },
     "f9134ab4-9d42-4783-8be1-8482909d0859": {
         "id": "f9134ab4-9d42-4783-8be1-8482909d0859",
@@ -73,13 +108,27 @@ DEFAULT_MAT_VIS_CATEGORIES = {
         "tool": "wall_stamp",
         "description": "wall stamps",
         "folder": "walls-f9134ab4",
+        "randomSettings": {
+            "enabled": False,
+            "selectionMode": "shuffle-bag",
+            "stampScale": 1.0,
+            "scaleJitterPct": 0,
+            "rotationJitterDeg": 0,
+        },
     },
     "6173d279-89a3-4c51-ae5c-4ab36fb6d469": {
         "id": "6173d279-89a3-4c51-ae5c-4ab36fb6d469",
         "name": "grass_floor",
-        "tool": "randon_stamp",
+        "tool": "random_stamp",
         "description": "random stamping of grass and scatter foliage",
         "folder": "grass_floor-6173d279",
+        "randomSettings": {
+            "enabled": True,
+            "selectionMode": "shuffle-bag",
+            "stampScale": 1.15,
+            "scaleJitterPct": 24,
+            "rotationJitterDeg": 360,
+        },
     },
 }
 
@@ -90,6 +139,110 @@ CAT_ID_BUILDING = "15a695c4-424d-4afb-a806-0957b49a6bbc"
 CAT_ID_PROP = "f230d77d-a70a-4d61-860d-6105ce295173"
 CAT_ID_WALL = "f9134ab4-9d42-4783-8be1-8482909d0859"
 CAT_ID_SCATTER = "6173d279-89a3-4c51-ae5c-4ab36fb6d469"
+
+PROCESSED_UNPROCESSED_MAP: dict[str, dict[str, Any]] = {
+    "fungal_golem_-_forest_mushroom_beast": {"alias": "fungal_golem", "catId": CAT_ID_MONSTER, "name": "Fungal Golem Mushroom Beast"},
+    "Meshy_AI__1026224419_texture": {"alias": "dungeon_tile", "catId": CAT_ID_FLOOR, "name": "Dungeon Stone Floor Tile"},
+    "Meshy_AI__High_Detailed_PBR_3_1023200617_texture": {"alias": "hero_ranger_token", "catId": CAT_ID_HERO, "name": "Hero Ranger Token"},
+    "Meshy_AI__Halloween2025_ult_1023200746_texture": {"alias": "halloween_reaper_monster", "catId": CAT_ID_MONSTER, "name": "Halloween Reaper Monster"},
+    "Meshy_AI__Halloween2025_a_ul_1023201426_texture": {"alias": "tree_golum_monster", "catId": CAT_ID_MONSTER, "name": "Tree Golem Monster"},
+    "Meshy_AI__1026223915_texture": {"alias": "fey_dark_pixie", "catId": CAT_ID_MONSTER, "name": "Fey Dark Pixie"},
+    "Meshy_AI__Halloween2025_a_st_1023201312_texture": {"alias": "skeleton_creepy_monster", "catId": CAT_ID_MONSTER, "name": "Skeleton Creepy Monster"},
+    "Meshy_AI__Halloween2025_ult_1023201912_texture": {"alias": "skeleton_alien_monster", "catId": CAT_ID_MONSTER, "name": "Skeleton Alien Monster"},
+    "Meshy_AI__1028184746_texture": {"alias": "colonial_home", "catId": CAT_ID_BUILDING, "name": "Colonial Home"},
+    "Meshy_AI_01cleanstone_25ptc_lo_1028134541_texture": {"alias": "curved_stone_wall", "catId": CAT_ID_WALL, "name": "Curved Clean Stone Wall"},
+    "Meshy_AI_01cleanstone_25ptc_lo_1028185647_texture": {"alias": "curved_stone_wall_2", "catId": CAT_ID_WALL, "name": "Curved Stone Wall II"},
+    "Meshy_AI_02mossystone_25ptc_lo_1028185649_texture": {"alias": "curved_grime_stone_wall", "catId": CAT_ID_WALL, "name": "Curved Mossy Stone Wall"},
+    "Meshy_AI_10_Floor_Tile_Wizar_1028124340_texture": {"alias": "floor_tile_clean_design", "catId": CAT_ID_FLOOR, "name": "Clean Wizard Floor Tile"},
+    "Meshy_AI__Halloween2025_full_1023202215_texture": {"alias": "forest_flooring_fern_1", "catId": CAT_ID_SCATTER, "name": "Forest Flooring Fern I"},
+    "Meshy_AI_A_majestic_forest_fer_1022200323_texture": {"alias": "forest_floor_fern_2", "catId": CAT_ID_SCATTER, "name": "Forest Floor Fern II"},
+    "Meshy_AI_A_majestic_forest_fer_1023133940_texture": {"alias": "forest_floor_fern_3", "catId": CAT_ID_SCATTER, "name": "Forest Floor Fern III"},
+    "Meshy_AI_A_majestic_forest_fer_1023201308_texture": {"alias": "forest_floor_fern_3", "catId": CAT_ID_SCATTER, "name": "Majestic Forest Fern IV"},
+    "Meshy_AI_A_hosta_plant_feature_1023091736_texture": {"alias": "forest_floor_plant_1", "catId": CAT_ID_SCATTER, "name": "Forest Hosta Ground Plant"},
+}
+
+RANDOM_GROUP_DEFINITIONS: dict[str, dict[str, Any]] = {
+    "grass_ground_cover": {
+        "id": "grass_ground_cover",
+        "label": "Lush Grass & Meadow Ground Cover",
+        "categoryId": CAT_ID_SCATTER,
+        "tool": "random_stamp",
+        "selectionMode": "shuffle-bag",
+        "stampScale": 1.15,
+        "scaleJitterPct": 24,
+        "rotationJitterDeg": 360,
+    },
+    "forest_ferns_undergrowth": {
+        "id": "forest_ferns_undergrowth",
+        "label": "Forest Ferns, Hostas & Undergrowth",
+        "categoryId": CAT_ID_SCATTER,
+        "tool": "random_stamp",
+        "selectionMode": "shuffle-bag",
+        "stampScale": 1.15,
+        "scaleJitterPct": 25,
+        "rotationJitterDeg": 360,
+    },
+    "wildflowers_meadow_flora": {
+        "id": "wildflowers_meadow_flora",
+        "label": "Wildflowers & Meadow Flora",
+        "categoryId": CAT_ID_SCATTER,
+        "tool": "random_stamp",
+        "selectionMode": "shuffle-bag",
+        "stampScale": 1.05,
+        "scaleJitterPct": 22,
+        "rotationJitterDeg": 360,
+    },
+    "forest_trees_woods": {
+        "id": "forest_trees_woods",
+        "label": "Forest Trees & Woods",
+        "categoryId": CAT_ID_SCATTER,
+        "tool": "random_stamp",
+        "selectionMode": "shuffle-bag",
+        "stampScale": 3.4,
+        "scaleJitterPct": 22,
+        "rotationJitterDeg": 360,
+    },
+    "mushrooms_fungi_crystals": {
+        "id": "mushrooms_fungi_crystals",
+        "label": "Mushrooms, Fungi & Crystals",
+        "categoryId": CAT_ID_SCATTER,
+        "tool": "random_stamp",
+        "selectionMode": "shuffle-bag",
+        "stampScale": 1.25,
+        "scaleJitterPct": 26,
+        "rotationJitterDeg": 360,
+    },
+    "rocks_boulders_stumps": {
+        "id": "rocks_boulders_stumps",
+        "label": "Rocks, Boulders, Stumps & Rubble",
+        "categoryId": CAT_ID_SCATTER,
+        "tool": "random_stamp",
+        "selectionMode": "shuffle-bag",
+        "stampScale": 1.25,
+        "scaleJitterPct": 26,
+        "rotationJitterDeg": 360,
+    },
+    "floor_tiles_dungeon": {
+        "id": "floor_tiles_dungeon",
+        "label": "Dungeon & Cobblestone Floor Tiles",
+        "categoryId": CAT_ID_FLOOR,
+        "tool": "tiled_stamp",
+        "selectionMode": "shuffle-bag",
+        "stampScale": 1.0,
+        "scaleJitterPct": 0,
+        "rotationJitterDeg": 0,
+    },
+    "dungeon_props_clutter": {
+        "id": "dungeon_props_clutter",
+        "label": "Props & Dungeon Furnishings",
+        "categoryId": CAT_ID_PROP,
+        "tool": "single_stamp",
+        "selectionMode": "shuffle-bag",
+        "stampScale": 1.0,
+        "scaleJitterPct": 15,
+        "rotationJitterDeg": 360,
+    },
+}
 
 
 def is_door_name(name: str) -> bool:
@@ -124,18 +277,78 @@ def is_floor_tile_name(name: str) -> bool:
     return any(k in n for k in ("floor tile", "ground tile", "cobblestone squa", "dungeon tile", "floor_tile", "dungeon_tile"))
 
 
-def is_scatter_candidate(name: str, studio_category: str, mv_tool: str = "") -> bool:
-    if mv_tool in ("randon_stamp", "random_stamp", "scatter", "scatter_stamp"):
-        return True
-    if studio_category in ("Nature", "Rocks & Cliffs"):
-        return True
+def is_non_scatter_structure_or_furniture(name: str) -> bool:
     n = name.lower()
     return any(
         k in n
         for k in (
+            "library",
+            "bookcase",
+            "bookshelf",
+            "cabinet",
+            "castle",
+            "sanctuary",
+            "archway",
+            "barrel",
+            "crate",
+            "chest",
+            "table",
+            "chair",
+            "throne",
+            "bed",
+            "altar",
+            "statue",
+            "house",
+            "home",
+            "cottage",
+            "cabin",
+            "tavern",
+            "inn",
+            "tower",
+            "cathedral",
+            "church",
+            "bridge",
+            "wagon",
+            "cart",
+            "chandelier",
+            "sconce",
+            "brazier",
+            "candle",
+            "lantern",
+            "anvil",
+            "forge",
+            "cauldron",
+            "fountain",
+            "well",
+            "portal",
+            "door",
+            "gate",
+            "wall",
+            "wiza",
+            "pillar",
+            "column",
+            "obelisk",
+        )
+    )
+
+
+def is_scatter_candidate(name: str, studio_category: str, mv_tool: str = "") -> bool:
+    if is_non_scatter_structure_or_furniture(name) and "tree" not in name.lower() and "grass" not in name.lower() and "fern" not in name.lower():
+        return False
+    n = name.lower()
+    has_nature_keyword = any(
+        k in n
+        for k in (
             "tree",
+            "pine",
+            "oak",
+            "birch",
+            "willow",
+            "evergreen",
             "fern",
             "grass",
+            "meadow",
+            "blades",
             "sedge",
             "plume",
             "euphorbia",
@@ -143,6 +356,8 @@ def is_scatter_candidate(name: str, studio_category: str, mv_tool: str = "") -> 
             "shrub",
             "plant",
             "flower",
+            "wildflower",
+            "daisy",
             "pansy",
             "pansies",
             "clover",
@@ -160,6 +375,7 @@ def is_scatter_candidate(name: str, studio_category: str, mv_tool: str = "") -> 
             "crystal",
             "stalagmite",
             "stump",
+            "driftwood",
             "log",
             "weed",
             "reed",
@@ -171,16 +387,40 @@ def is_scatter_candidate(name: str, studio_category: str, mv_tool: str = "") -> 
             "debris",
         )
     )
+    if has_nature_keyword:
+        return True
+    if mv_tool in ("randon_stamp", "random_stamp", "scatter", "scatter_stamp") and studio_category in ("Nature", "Rocks & Cliffs"):
+        return True
+    return False
+
+
+def infer_random_group(name: str, cat_id: str, is_scatter: bool, is_floor_tile: bool) -> str:
+    n = name.lower()
+    if is_floor_tile or cat_id == CAT_ID_FLOOR:
+        return "floor_tiles_dungeon"
+    if any(k in n for k in ("grass", "blades", "clover", "sedge", "plume", "moss", "weed", "reed", "turf")) and "tree" not in n and "stone" not in n and "driftwood" not in n:
+        return "grass_ground_cover"
+    if any(k in n for k in ("fern", "hosta", "bush", "shrub", "euphorbia", "plant", "vine", "ivy", "undergrowth", "kelp")):
+        return "forest_ferns_undergrowth"
+    if any(k in n for k in ("flower", "daisy", "pansy", "pansies", "lily", "meadow")) and "grass" not in n:
+        return "wildflowers_meadow_flora"
+    if any(k in n for k in ("tree", "oak", "birch", "pine", "evergreen", "willow")) and "crystal" not in n and "golum" not in n and "golem" not in n:
+        return "forest_trees_woods"
+    if any(k in n for k in ("mushroom", "fungus", "fungi", "crystal", "coral")):
+        return "mushrooms_fungi_crystals"
+    if is_scatter or any(k in n for k in ("rock", "boulder", "stone", "pebble", "rubble", "stalagmite", "stump", "driftwood", "log", "bones", "skull", "debris")):
+        return "rocks_boulders_stumps"
+    return "dungeon_props_clutter"
 
 
 def infer_mat_vis_category_id(name: str, studio_category: str) -> str:
     n = name.lower()
-    if is_scatter_candidate(name, studio_category):
-        return CAT_ID_SCATTER
-    if is_wall_name(name, studio_category) and not is_door_name(name):
-        return CAT_ID_WALL
     if is_floor_tile_name(name):
         return CAT_ID_FLOOR
+    if is_wall_name(name, studio_category) and not is_door_name(name):
+        return CAT_ID_WALL
+    if is_scatter_candidate(name, studio_category):
+        return CAT_ID_SCATTER
     if studio_category == "Tokens":
         if any(k in n for k in ("hero", "ranger", "rogue", "paladin", "cleric", "wizard", "knight", "bard", "fighter", "player", "adventurer")):
             return CAT_ID_HERO
@@ -211,10 +451,15 @@ def build_all_catalogs() -> dict[str, Any]:
         except Exception:
             existing_mat_vis = {}
 
-    mv_categories: dict[str, dict[str, Any]] = {
-        **DEFAULT_MAT_VIS_CATEGORIES,
-        **(existing_mat_vis.get("categories") or {}),
-    }
+    mv_categories: dict[str, dict[str, Any]] = {}
+    for cid, default_c in DEFAULT_MAT_VIS_CATEGORIES.items():
+        user_c = (existing_mat_vis.get("categories") or {}).get(cid, {})
+        merged_c = {**default_c, **user_c}
+        if merged_c.get("tool") == "randon_stamp":
+            merged_c["tool"] = "random_stamp"
+        if "randomSettings" not in merged_c:
+            merged_c["randomSettings"] = default_c["randomSettings"]
+        mv_categories[cid] = merged_c
     existing_mv_assets: dict[str, dict[str, Any]] = existing_mat_vis.get("assets") or {}
 
     # 2. Load existing models-registry.json & scan 3d-models directory for {base}_{low|mid|high}.glb
@@ -291,38 +536,66 @@ def build_all_catalogs() -> dict[str, Any]:
 
     for base in active_bases:
         variants = models_by_base.get(base, {})
-        man_entry = manifest_by_base.get(base, {})
+        proc_info = PROCESSED_UNPROCESSED_MAP.get(base)
+        alias_base = proc_info["alias"] if proc_info else None
+        man_entry = manifest_by_base.get(base) or (manifest_by_base.get(alias_base, {}) if alias_base else {})
         mid_var = variants.get("mid") or variants.get("low") or variants.get("high") or {}
-        aid = man_entry.get("id") or f"obj-{ (mid_var.get('sha256') or hashlib.sha256(base.encode()).hexdigest())[:16] }"
+        aid = (
+            (f"obj-{hashlib.sha256(base.encode()).hexdigest()[:16]}" if proc_info else man_entry.get("id"))
+            or f"obj-{(mid_var.get('sha256') or hashlib.sha256(base.encode()).hexdigest())[:16]}"
+        )
         apc_ov = existing_apc_by_id.get(aid, {})
 
-        name = apc_ov.get("name") or man_entry.get("name") or clean_display_name(base)
+        name = (
+            (proc_info["name"] if proc_info else None)
+            or apc_ov.get("name")
+            or man_entry.get("name")
+            or clean_display_name(base)
+        )
         studio_cat = apc_ov.get("category") or man_entry.get("category") or "Props"
 
         # Determine mat-vis categoryId from existing mat-vis-assets.json if present for any tier
-        chosen_cat_id = None
-        for q in ("high", "mid", "low"):
-            mv_key = f"3d-models/{base}_{q}.glb"
-            if mv_key in existing_mv_assets and existing_mv_assets[mv_key].get("categoryId"):
-                chosen_cat_id = existing_mv_assets[mv_key]["categoryId"]
-                break
+        chosen_cat_id = proc_info["catId"] if proc_info else None
+        if not chosen_cat_id:
+            for q in ("high", "mid", "low"):
+                mv_key = f"3d-models/{base}_{q}.glb"
+                if mv_key in existing_mv_assets and existing_mv_assets[mv_key].get("categoryId"):
+                    cand_id = existing_mv_assets[mv_key]["categoryId"]
+                    # Fix earlier misclassifications where buildings/furniture/walls were placed in grass_floor
+                    if cand_id == CAT_ID_SCATTER and not is_scatter_candidate(name, studio_cat):
+                        cand_id = infer_mat_vis_category_id(name, studio_cat)
+                    chosen_cat_id = cand_id
+                    break
         if not chosen_cat_id:
             chosen_cat_id = infer_mat_vis_category_id(name, studio_cat)
 
         mv_cat_obj = mv_categories.get(chosen_cat_id, DEFAULT_MAT_VIS_CATEGORIES[CAT_ID_PROP])
         mv_cat_name = mv_cat_obj.get("name", "props")
         mv_tool = mv_cat_obj.get("tool", "single_stamp")
+        if mv_tool == "randon_stamp":
+            mv_tool = "random_stamp"
 
         is_door = bool(apc_ov.get("isDoor", is_door_name(name)))
         is_wall = bool(apc_ov.get("isWall", mv_tool == "wall_stamp"))
+        is_floor_tile = is_floor_tile_name(name) or chosen_cat_id == CAT_ID_FLOOR
         is_floor = bool(apc_ov.get("isFloor", False))
         is_scatter = bool(
-            apc_ov.get(
-                "isScatter",
-                is_scatter_candidate(name, studio_cat, mv_tool),
-            )
+            chosen_cat_id == CAT_ID_SCATTER or is_scatter_candidate(name, studio_cat, mv_tool)
         )
         is_object = bool(apc_ov.get("isObject", not is_door))
+
+        random_group_id = infer_random_group(name, chosen_cat_id, is_scatter, is_floor_tile)
+        random_group_def = RANDOM_GROUP_DEFINITIONS.get(
+            random_group_id, RANDOM_GROUP_DEFINITIONS["dungeon_props_clutter"]
+        )
+        random_settings = {
+            "randomGroup": random_group_id,
+            "randomGroupLabel": random_group_def["label"],
+            "selectionMode": random_group_def["selectionMode"],
+            "stampScale": random_group_def["stampScale"],
+            "scaleJitterPct": random_group_def["scaleJitterPct"],
+            "rotationJitterDeg": random_group_def["rotationJitterDeg"],
+        }
 
         if is_door:
             tool_role = "door-3d"
@@ -346,8 +619,16 @@ def build_all_catalogs() -> dict[str, Any]:
         default_color_tint = apc_ov.get("defaultColorTint", "#ffffff")
         default_material = man_entry.get("defaultMaterial", "Aged Stone")
         png_preview_url = man_entry.get("pngPreviewUrl") or f"/assets/previews-png/{aid}.png"
+        # Ensure preview file exists on disk if mapped from an alias
+        if proc_info and man_entry.get("id"):
+            alias_png = PREVIEWS_DIR / f"{man_entry['id']}.png"
+            target_png = PREVIEWS_DIR / f"{aid}.png"
+            if alias_png.exists() and not target_png.exists():
+                shutil.copyfile(alias_png, target_png)
+            if target_png.exists():
+                png_preview_url = f"/assets/previews-png/{aid}.png"
         base_model_url = f"/assets/models-3d/{base}.glb"
-        triangles = int(man_entry.get("triangles", 0))
+        triangles = int(man_entry.get("triangles", 25000))
 
         lod_variants_meta: dict[str, dict[str, Any]] = {}
         reg_variants: dict[str, dict[str, Any]] = {}
@@ -414,6 +695,9 @@ def build_all_catalogs() -> dict[str, Any]:
                 "snapToGrid": snap_to_grid,
                 "defaultColorTint": default_color_tint,
                 "defaultMaterial": default_material,
+                "randomGroup": random_group_id,
+                "randomGroupLabel": random_group_def["label"],
+                "randomSettings": random_settings,
             }
 
             lod_variants_meta[q] = {
@@ -465,6 +749,9 @@ def build_all_catalogs() -> dict[str, Any]:
                 "defaultPlacement": default_placement,
                 "snapToGrid": snap_to_grid,
                 "defaultColorTint": default_color_tint,
+                "randomGroup": random_group_id,
+                "randomGroupLabel": random_group_def["label"],
+                "randomSettings": random_settings,
                 "lodVariants": lod_variants_meta,
             }
         )
@@ -478,6 +765,7 @@ def build_all_catalogs() -> dict[str, Any]:
                 "matVisCategory": mv_cat_name,
                 "matVisTool": mv_tool,
                 "isScatter": is_scatter,
+                "randomGroup": random_group_id,
                 "defaultScaleGrid": base_scale_grid,
                 "variants": reg_variants,
             }
@@ -490,19 +778,21 @@ def build_all_catalogs() -> dict[str, Any]:
         cat_counts[c] = cat_counts.get(c, 0) + 1
 
     manifest_3d_payload = {
-        "schemaVersion": "2.1.0",
+        "schemaVersion": "2.2.0",
         "totalAssets": len(cleaned_manifest_assets),
         "renderedCount": raw_manifest_3d.get("renderedCount", 0),
         "cachedCount": len(cleaned_manifest_assets),
         "categories": cat_counts,
+        "randomGroups": RANDOM_GROUP_DEFINITIONS,
         "assets": cleaned_manifest_assets,
     }
 
     mat_vis_payload = {
         "version": 1,
-        "schemaVersion": "2.1.0",
+        "schemaVersion": "2.2.0",
         "qualityMap": QUALITY_MAP,
         "categories": mv_categories,
+        "randomGroups": RANDOM_GROUP_DEFINITIONS,
         "assets": new_mv_assets,
     }
 
@@ -517,6 +807,48 @@ def build_all_catalogs() -> dict[str, Any]:
     seen_ids: set[str] = set()
 
     curated_2d = [
+        {
+            "id": "bump-lush-meadow-grass",
+            "name": "Lush Meadow Grass Field (PBR Relief)",
+            "category": "Flooring (Bump/Height)",
+            "toolRole": "floor-texture",
+            "isFloor": True,
+            "isWall": False,
+            "isDoor": False,
+            "isObject": False,
+            "isScatter": False,
+            "albedoUrl": "/assets/terrain-textures/meadow-grass-v1/lush-meadow-grass.png",
+            "normalUrl": "/assets/terrain-textures/meadow-grass-v1/lush-meadow-grass_normal.png",
+            "heightUrl": "/assets/terrain-textures/meadow-grass-v1/lush-meadow-grass_height.png",
+        },
+        {
+            "id": "bump-wildflower-grass-field",
+            "name": "Wildflower & Clover Grass Field",
+            "category": "Flooring (Bump/Height)",
+            "toolRole": "floor-texture",
+            "isFloor": True,
+            "isWall": False,
+            "isDoor": False,
+            "isObject": False,
+            "isScatter": False,
+            "albedoUrl": "/assets/terrain-textures/meadow-grass-v1/wildflower-grass-field.png",
+            "normalUrl": "/assets/terrain-textures/meadow-grass-v1/wildflower-grass-field_normal.png",
+            "heightUrl": "/assets/terrain-textures/meadow-grass-v1/wildflower-grass-field_height.png",
+        },
+        {
+            "id": "bump-forest-moss-turf",
+            "name": "Deep Forest Moss & Pine Turf",
+            "category": "Flooring (Bump/Height)",
+            "toolRole": "floor-texture",
+            "isFloor": True,
+            "isWall": False,
+            "isDoor": False,
+            "isObject": False,
+            "isScatter": False,
+            "albedoUrl": "/assets/terrain-textures/meadow-grass-v1/forest-moss-turf.png",
+            "normalUrl": "/assets/terrain-textures/meadow-grass-v1/forest-moss-turf_normal.png",
+            "heightUrl": "/assets/terrain-textures/meadow-grass-v1/forest-moss-turf_height.png",
+        },
         {
             "id": "bump-worn-castle-flagstone",
             "name": "Worn Castle Flagstone",
@@ -754,12 +1086,15 @@ def build_all_catalogs() -> dict[str, Any]:
                 "matVisCategory": item["matVisCategory"],
                 "matVisCategoryId": item["matVisCategoryId"],
                 "matVisTool": item["matVisTool"],
+                "randomGroup": item["randomGroup"],
+                "randomGroupLabel": item["randomGroupLabel"],
+                "randomSettings": item["randomSettings"],
                 "lodVariants": item["lodVariants"],
             }
         )
 
     apc_payload = {
-        "schemaVersion": "2.1.0",
+        "schemaVersion": "2.2.0",
         "description": (
             "Editable LoomMaps Asset Properties Catalog. Modify toolRole ('wall-texture' | 'floor-texture' | "
             "'wall-3d' | 'door-3d' | 'object-3d' | 'scatter-3d' | 'floor-stamp-2d'), isWall, isFloor, isDoor, "
@@ -767,6 +1102,7 @@ def build_all_catalogs() -> dict[str, Any]:
             "or defaultScaleGrid, defaultPlacement ('floor' | 'custom'), snapToGrid, or defaultColorTint."
         ),
         "qualityMap": QUALITY_MAP,
+        "randomGroups": RANDOM_GROUP_DEFINITIONS,
         "totalAssets": len(entries),
         "assets": entries,
     }

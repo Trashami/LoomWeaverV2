@@ -34,9 +34,12 @@ import {
 } from '../../shared/ui/map-png-asset-browser/map-png-asset-browser.component';
 import {
   LwCelestialBodyMode,
+  LwGrassFieldPresetId,
   LwMapPropertiesInspectorComponent,
   LwObjectPlacementMode,
+  LwObjectStampDrawMode,
   LwObjectSurfaceFinish,
+  LwRandomCollectionOption,
   LwScatterStrokeSummary,
   LwSelectedSceneNode,
   LwTerrainSculptOp,
@@ -604,6 +607,38 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   });
   readonly objectRandomRotationDeg = signal<number>(0);
   readonly objectRandomScalePct = signal<number>(0);
+  readonly objectStampDrawMode = signal<LwObjectStampDrawMode>('single');
+  readonly stampFillStartAnchor = signal<{ x: number; z: number } | null>(null);
+  readonly objectRandomCollectionEnabled = signal<boolean>(false);
+  readonly scatterRandomCollectionEnabled = signal<boolean>(false);
+  readonly objectRandomGroupId = signal<string>('grass_ground_cover');
+  private readonly randomCollectionShuffleBags = new Map<string, LwMapPngAssetItem[]>();
+  readonly randomGroupOptions = computed<readonly LwRandomCollectionOption[]>(() => {
+    const fallbackLabels: Record<string, string> = {
+      grass_ground_cover: 'Lush Grass & Meadow Ground Cover',
+      forest_ferns_undergrowth: 'Forest Ferns, Hostas & Undergrowth',
+      wildflowers_meadow_flora: 'Wildflowers & Meadow Flora',
+      forest_trees_woods: 'Forest Trees & Woods',
+      mushrooms_fungi_crystals: 'Mushrooms, Fungi & Crystals',
+      rocks_boulders_stumps: 'Rocks, Boulders, Stumps & Rubble',
+      floor_tiles_dungeon: 'Dungeon & Cobblestone Floor Tiles',
+      dungeon_props_clutter: 'Props & Dungeon Furnishings',
+    };
+    const counts = new Map<string, { label: string; count: number }>();
+    for (const [id, label] of Object.entries(fallbackLabels)) {
+      counts.set(id, { label, count: 0 });
+    }
+    for (const a of this.pngApi.pngAssets3d()) {
+      if (!a.modelUrl || a.isFloor) continue;
+      const gid = a.randomGroup || this.inferFallbackRandomGroup(a);
+      const cur = counts.get(gid);
+      const label = a.randomGroupLabel || cur?.label || gid;
+      counts.set(gid, { label, count: (cur?.count ?? 0) + 1 });
+    }
+    return Array.from(counts.entries())
+      .filter(([, v]) => v.count > 0)
+      .map(([id, v]) => ({ id, label: v.label, count: v.count }));
+  });
   private previewedObjectRotationDeg: number | null = null;
   private previewedObjectScaleFactor = 1.0;
   private userCustomizedObjectScale = false;
@@ -701,13 +736,20 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
           (a) =>
             a.isScatter ||
             a.toolRole === 'scatter-3d' ||
+            a.matVisTool === 'random_stamp' ||
             a.matVisTool === 'randon_stamp' ||
             a.category === 'Nature' ||
             a.category === 'Rocks & Cliffs',
         )
         .sort((x, y) => {
-          const xScat = x.isScatter || x.matVisTool === 'randon_stamp' ? 1 : 0;
-          const yScat = y.isScatter || y.matVisTool === 'randon_stamp' ? 1 : 0;
+          const xScat =
+            x.isScatter || x.matVisTool === 'random_stamp' || x.matVisTool === 'randon_stamp'
+              ? 1
+              : 0;
+          const yScat =
+            y.isScatter || y.matVisTool === 'random_stamp' || y.matVisTool === 'randon_stamp'
+              ? 1
+              : 0;
           return yScat - xScat;
         });
       return scatterList.length > 0 ? scatterList : all3d;
@@ -715,7 +757,25 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     if (this.dimensionMode() === '2d') {
       return all2d.filter((a) => !a.isFloor);
     }
-    return [...all3d, ...all2d.filter((a) => !a.isFloor)];
+    const combinedObjects = [...all3d, ...all2d.filter((a) => !a.isFloor)];
+    if (effectiveTool === 'objects' && this.objectStampDrawMode() === 'area-fill') {
+      return [...combinedObjects].sort((x, y) => {
+        const xTile =
+          x.matVisTool === 'tiled_stamp' ||
+          x.matVisCategory === 'floor_stamps' ||
+          x.randomGroup === 'floor_tiles_dungeon'
+            ? 1
+            : 0;
+        const yTile =
+          y.matVisTool === 'tiled_stamp' ||
+          y.matVisCategory === 'floor_stamps' ||
+          y.randomGroup === 'floor_tiles_dungeon'
+            ? 1
+            : 0;
+        return yTile - xTile;
+      });
+    }
+    return combinedObjects;
   });
 
   readonly displayedCategories = computed<readonly string[]>(() => {
@@ -752,6 +812,12 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   cancelActivePlacement(): void {
+    if (this.stampFillStartAnchor()) {
+      this.stampFillStartAnchor.set(null);
+      this.syncGhostCursorToStage();
+      this.pngPipelineBanner.set('Canceled area fill rectangle.');
+      return;
+    }
     if (this.wallStartAnchor() || this.freehandWallPoints().length > 0) {
       this.wallStartAnchor.set(null);
       this.freehandWallPoints.set([]);
@@ -1080,6 +1146,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     this.activeDockToolId.set(dockToolId);
     this.rightDockCollapsed.set(false);
     this.wallStartAnchor.set(null);
+    this.stampFillStartAnchor.set(null);
     this.freehandWallPoints.set([]);
     this.waterEditor.finish();
 
@@ -1285,6 +1352,19 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       this.userSelectedDoorAsset = asset;
     } else {
       this.userSelectedObjectAsset = asset;
+      const inferredGroup = asset.randomGroup || this.inferFallbackRandomGroup(asset);
+      if (inferredGroup) {
+        this.objectRandomGroupId.set(inferredGroup);
+      }
+      if (
+        activeTool === 'objects' &&
+        (asset.matVisTool === 'tiled_stamp' ||
+          asset.matVisCategory === 'floor_stamps' ||
+          inferredGroup === 'floor_tiles_dungeon')
+      ) {
+        this.objectStampDrawMode.set('area-fill');
+        this.snapEnabled.set(true);
+      }
     }
 
     this.equipAssetOnNode(asset);
@@ -1641,6 +1721,10 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         brushSharpness: this.floorBrushSharpness(),
         waterBankWidth: tool === 'water' ? 0.08 + this.waterEditor.settings().bankWidth * this.waterEditor.settings().bankFeathering / 100 : undefined,
         terrainFeathering: this.terrainFeathering(),
+        stampFillStartAnchor:
+          tool === 'objects' && this.objectStampDrawMode() === 'area-fill'
+            ? this.stampFillStartAnchor()
+            : null,
       },
       this.wallStartAnchor(),
     );
@@ -1717,7 +1801,18 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         return;
       }
       this.lastScatterPaintPos = { x, z };
-      const node = this.selectedNode();
+      let dabModelUrl = this.selectedNode().modelUrl;
+      let dabLabel = this.selectedNode().name;
+      if (this.scatterRandomCollectionEnabled()) {
+        const nextRandom = this.nextRandomCollectionAsset(this.objectRandomGroupId());
+        if (nextRandom && nextRandom.modelUrl) {
+          dabModelUrl = nextRandom.modelUrl;
+          dabLabel = nextRandom.randomGroupLabel
+            ? `${nextRandom.randomGroupLabel} (Mix)`
+            : nextRandom.name;
+          this.stage.preloadModel(nextRandom.modelUrl, true);
+        }
+      }
       const strokeId =
         this.activeScatterStrokeId ??
         `stroke-${Date.now()}-${Math.round(Math.random() * 1000)}`;
@@ -1739,8 +1834,8 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
               radius: this.terrainBrushRadius(),
               density: this.scatterDensity(),
               seed: Math.round(Math.abs(x * 137 + z * 293)) + cur.revision * 17,
-              modelUrl: node.modelUrl,
-              label: node.name,
+              modelUrl: dabModelUrl,
+              label: dabLabel,
               scale: this.scatterScale(),
               scaleJitterPct: this.scatterScaleJitterPct(),
               rotationDeg: this.scatterRotationDeg(),
@@ -2170,6 +2265,27 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
 
   private placeStampAt(x: number, z: number): void {
     const node = this.selectedNode();
+    const activeTool = this.activeDockToolId();
+    if (activeTool === 'objects' && this.objectStampDrawMode() === 'area-fill') {
+      const snappedCell = TerrainMeshBuilder.snapWorldCoordinates(
+        x,
+        z,
+        true,
+        'cell-center',
+      );
+      const anchor = this.stampFillStartAnchor();
+      if (!anchor) {
+        this.stampFillStartAnchor.set({ x: snappedCell.x, z: snappedCell.z });
+        this.syncGhostCursorToStage();
+        this.pngPipelineBanner.set(
+          `Area Fill started at (${snappedCell.x.toFixed(1)}, ${snappedCell.z.toFixed(1)}). Move cursor to preview tiled rectangle and click opposite corner to fill.`,
+        );
+        return;
+      }
+      this.placeAreaFillRectangleStamps(anchor, snappedCell);
+      return;
+    }
+
     const lowerName = node.name.toLowerCase();
     const isWallMountableProp =
       node.placementMode === 'custom' ||
@@ -2250,8 +2366,10 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         },
       ],
     }));
-    this.selectedPlacedId.set(stampId);
-    this.selectedPlacedKind.set('object');
+
+    // Keep placed selection clear when actively stamping in Objects mode so changing the asset or scale configures the NEXT stamp rather than mutating the last placed stamp
+    this.selectedPlacedId.set(null);
+    this.selectedPlacedKind.set(null);
     this.selectedNode.update((cur) => ({
       ...cur,
       gridX: snapped.x,
@@ -2259,12 +2377,111 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       elevationY: effectiveOffsetY,
       placementMode,
     }));
+
+    if (this.objectRandomCollectionEnabled()) {
+      const nextRandom = this.nextRandomCollectionAsset(this.objectRandomGroupId());
+      if (nextRandom) {
+        const preserveScale = this.selectedNode().scale;
+        this.userCustomizedObjectScale = true;
+        this.userSelectedObjectAsset = nextRandom;
+        this.equipAssetOnNode(nextRandom);
+        this.selectedNode.update((cur) => ({ ...cur, scale: preserveScale }));
+      }
+    }
+
     this.rollNextObjectGhostVariation();
     this.syncGhostCursorToStage();
-    this.stage.focusGizmoAt(snapped.x, effectiveOffsetY + 0.1, snapped.z);
+    this.stage.focusGizmoAt(null);
     if (wallSnap?.snapped) {
       this.pngPipelineBanner.set(`Mounted '${node.name}' flush onto wall face.`);
     }
+  }
+
+  private placeAreaFillRectangleStamps(
+    anchor: { x: number; z: number },
+    corner: { x: number; z: number },
+  ): void {
+    const node = this.selectedNode();
+    const cellMeters = TerrainMeshBuilder.getCellStepMeters();
+    const sx = (node.scaleX ?? 1) * node.scale;
+    const sz = (node.scaleZ ?? 1) * node.scale;
+    const stepX = Math.max(0.75, cellMeters * Math.max(0.5, sx));
+    const stepZ = Math.max(0.75, cellMeters * Math.max(0.5, sz));
+    const minX = Math.min(anchor.x, corner.x);
+    const maxX = Math.max(anchor.x, corner.x);
+    const minZ = Math.min(anchor.z, corner.z);
+    const maxZ = Math.max(anchor.z, corner.z);
+    const cols = Math.min(20, Math.max(1, Math.round((maxX - minX) / stepX) + 1));
+    const rows = Math.min(20, Math.max(1, Math.round((maxZ - minZ) / stepZ) + 1));
+    const isDecal = Boolean(node.albedoUrl && !node.modelUrl && !node.isFloor);
+    const placementMode: LwObjectPlacementMode = node.placementMode ?? 'floor';
+    const effectiveOffsetY = placementMode === 'custom' ? node.elevationY : 0;
+    const rotSpread = this.objectRandomRotationDeg();
+    const scaleJitter = this.objectRandomScalePct() / 100;
+    const cycleCollection = this.objectRandomCollectionEnabled();
+    const groupId = this.objectRandomGroupId();
+    const baseRev = this.sceneGraph().revision + 1;
+    const newStamps: MapSceneGraphState['stamps'][number][] = [];
+
+    let idx = 0;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        idx++;
+        const cx = Number((minX + c * stepX).toFixed(2));
+        const cz = Number((minZ + r * stepZ).toFixed(2));
+        const pickedAsset = cycleCollection ? this.nextRandomCollectionAsset(groupId) : null;
+        const rotDeg =
+          rotSpread <= 0
+            ? node.rotationDeg
+            : Math.round((node.rotationDeg + (Math.random() - 0.5) * rotSpread + 360) % 360);
+        const scaleFactor =
+          scaleJitter <= 0 ? 1.0 : Math.max(0.35, 1 + (Math.random() * 2 - 1) * scaleJitter);
+        const cellScale = Math.max(0.25, Math.round(node.scale * scaleFactor * 100) / 100);
+        if (pickedAsset?.modelUrl) {
+          this.stage.preloadModel(pickedAsset.modelUrl, false);
+        }
+        newStamps.push({
+          id: `st-fill-${baseRev}-${idx}`,
+          label: pickedAsset?.name ?? node.name,
+          category: isDecal ? 'DecalStamp' : 'Prop',
+          modelUrl: pickedAsset?.modelUrl || node.modelUrl,
+          albedoUrl: isDecal ? node.albedoUrl : undefined,
+          normalUrl: isDecal ? node.normalUrl : undefined,
+          thumbnailUrl: pickedAsset?.thumbnailUrl || node.thumbnailUrl,
+          x: cx,
+          z: cz,
+          offsetY: effectiveOffsetY,
+          placementMode,
+          scale: cellScale,
+          scaleX: node.scaleX ?? 1,
+          scaleY: node.scaleY ?? 1,
+          scaleZ: node.scaleZ ?? 1,
+          rotationY: (rotDeg * Math.PI) / 180,
+          tiltX: node.tiltDeg ?? 0,
+          colorHex: node.colorHex || '#ffffff',
+          surfaceFinish: node.surfaceFinish ?? 'standard',
+          opacity: node.opacity ?? 1,
+          gmSecretOnly: node.gmSecretOnly,
+          blocksMovement: node.blocksMovement,
+          blocksVision: node.blocksVision,
+        });
+      }
+    }
+
+    this.stampFillStartAnchor.set(null);
+    this.recordHistoryBeforeEdit(`Fill Area (${cols}x${rows} -> ${node.name})`);
+    this.commitSceneUpdate((cur) => ({
+      ...cur,
+      revision: cur.revision + 1,
+      stamps: [...cur.stamps, ...newStamps],
+    }));
+    this.selectedPlacedId.set(null);
+    this.selectedPlacedKind.set(null);
+    this.rollNextObjectGhostVariation();
+    this.syncGhostCursorToStage();
+    this.pngPipelineBanner.set(
+      `Filled ${cols}×${rows} area (${newStamps.length} stamps) with ${cycleCollection ? 'randomized collection' : node.name}.`,
+    );
   }
 
   onDeleteSelectedPlacedNode(): void {
@@ -2829,12 +3046,11 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   ): void {
     const targetId =
       this.selectedPlacedKind() === 'object' ? this.selectedPlacedId() : null;
+    if (!targetId) return;
     this.commitSceneUpdate((cur) => ({
       ...cur,
       revision: cur.revision + 1,
-      stamps: cur.stamps.map((s, idx) =>
-        (targetId ? s.id === targetId : idx === cur.stamps.length - 1) ? updater(s) : s,
-      ),
+      stamps: cur.stamps.map((s) => (s.id === targetId ? updater(s) : s)),
     }));
   }
 
@@ -2984,6 +3200,265 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         1 + (Math.random() * 2 - 1) * scaleJitter,
       );
     }
+  }
+
+  onObjectStampDrawModeChange(mode: LwObjectStampDrawMode): void {
+    this.objectStampDrawMode.set(mode);
+    this.stampFillStartAnchor.set(null);
+    if (mode === 'area-fill') {
+      this.snapEnabled.set(true);
+    }
+    this.syncGhostCursorToStage();
+  }
+
+  onObjectRandomCollectionEnabledChange(enabled: boolean): void {
+    this.objectRandomCollectionEnabled.set(enabled);
+    if (enabled) {
+      this.onApplyRandomGroupDefaults();
+    } else {
+      this.syncGhostCursorToStage();
+    }
+  }
+
+  onScatterRandomCollectionEnabledChange(enabled: boolean): void {
+    this.scatterRandomCollectionEnabled.set(enabled);
+    this.selectedScatterStrokeId.set(null);
+    if (enabled) {
+      this.onApplyRandomGroupDefaults();
+    } else {
+      this.syncGhostCursorToStage();
+    }
+  }
+
+  onObjectRandomGroupIdChange(groupId: string): void {
+    this.objectRandomGroupId.set(groupId);
+    this.randomCollectionShuffleBags.delete(groupId);
+    const nextAsset = this.nextRandomCollectionAsset(groupId);
+    if (nextAsset) {
+      this.userSelectedObjectAsset = nextAsset;
+      this.equipAssetOnNode(nextAsset);
+    }
+    this.onApplyRandomGroupDefaults();
+  }
+
+  onApplyRandomGroupDefaults(): void {
+    const groupId = this.objectRandomGroupId();
+    const defaultSpecs: Record<
+      string,
+      { stampScale: number; scaleJitterPct: number; rotationJitterDeg: number }
+    > = {
+      grass_ground_cover: { stampScale: 0.9, scaleJitterPct: 25, rotationJitterDeg: 360 },
+      forest_ferns_undergrowth: { stampScale: 1.15, scaleJitterPct: 25, rotationJitterDeg: 360 },
+      wildflowers_meadow_flora: { stampScale: 0.95, scaleJitterPct: 25, rotationJitterDeg: 360 },
+      forest_trees_woods: { stampScale: 3.6, scaleJitterPct: 20, rotationJitterDeg: 360 },
+      mushrooms_fungi_crystals: { stampScale: 1.4, scaleJitterPct: 30, rotationJitterDeg: 360 },
+      rocks_boulders_stumps: { stampScale: 1.6, scaleJitterPct: 25, rotationJitterDeg: 360 },
+      floor_tiles_dungeon: { stampScale: 1.0, scaleJitterPct: 0, rotationJitterDeg: 0 },
+      dungeon_props_clutter: { stampScale: 1.4, scaleJitterPct: 15, rotationJitterDeg: 360 },
+    };
+    const nextAsset = this.nextRandomCollectionAsset(groupId);
+    const rs = nextAsset?.randomSettings;
+    const fallback = defaultSpecs[groupId] ?? {
+      stampScale: 1.2,
+      scaleJitterPct: 20,
+      rotationJitterDeg: 360,
+    };
+    const scale = rs?.stampScale ?? fallback.stampScale;
+    const jitter = rs?.scaleJitterPct ?? fallback.scaleJitterPct;
+    const rot = rs?.rotationJitterDeg ?? fallback.rotationJitterDeg;
+
+    if (nextAsset) {
+      this.userSelectedObjectAsset = nextAsset;
+      this.equipAssetOnNode(nextAsset);
+    }
+    this.userCustomizedObjectScale = true;
+    this.selectedNode.update((cur) => ({ ...cur, scale }));
+    this.objectRandomScalePct.set(Math.min(50, jitter));
+    this.objectRandomRotationDeg.set(rot);
+
+    this.selectedScatterStrokeId.set(null);
+    this.scatterScale.set(scale);
+    this.scatterScaleJitterPct.set(jitter);
+    this.scatterRotationJitterDeg.set(rot);
+
+    this.rollNextObjectGhostVariation();
+    this.syncGhostCursorToStage();
+    this.pngPipelineBanner.set(
+      `Applied collection defaults (${scale.toFixed(2)}x scale, ${jitter}% variation, ${rot}° rotation).`,
+    );
+  }
+
+  onApplyGrassFieldPreset(presetId: LwGrassFieldPresetId): void {
+    const presetMap: Record<
+      LwGrassFieldPresetId,
+      {
+        floorId: string;
+        floorName: string;
+        albedoUrl: string;
+        normalUrl: string;
+        heightUrl: string;
+        tiling: number;
+        randomGroup: string;
+      }
+    > = {
+      'lush-meadow': {
+        floorId: 'bump-lush-meadow-grass',
+        floorName: 'Lush Meadow Grass Field (PBR)',
+        albedoUrl: '/assets/terrain-textures/meadow-grass-v1/lush-meadow-grass.png',
+        normalUrl: '/assets/terrain-textures/meadow-grass-v1/lush-meadow-grass_normal.png',
+        heightUrl: '/assets/terrain-textures/meadow-grass-v1/lush-meadow-grass_height.png',
+        tiling: 14,
+        randomGroup: 'grass_ground_cover',
+      },
+      'wildflower-meadow': {
+        floorId: 'bump-wildflower-grass-field',
+        floorName: 'Wildflower & Clover Grass Field (PBR)',
+        albedoUrl: '/assets/terrain-textures/meadow-grass-v1/wildflower-grass-field.png',
+        normalUrl: '/assets/terrain-textures/meadow-grass-v1/wildflower-grass-field_normal.png',
+        heightUrl: '/assets/terrain-textures/meadow-grass-v1/wildflower-grass-field_height.png',
+        tiling: 12,
+        randomGroup: 'wildflowers_meadow_flora',
+      },
+      'forest-moss': {
+        floorId: 'bump-forest-moss-turf',
+        floorName: 'Deep Forest Moss & Pine Turf (PBR)',
+        albedoUrl: '/assets/terrain-textures/meadow-grass-v1/forest-moss-turf.png',
+        normalUrl: '/assets/terrain-textures/meadow-grass-v1/forest-moss-turf_normal.png',
+        heightUrl: '/assets/terrain-textures/meadow-grass-v1/forest-moss-turf_height.png',
+        tiling: 14,
+        randomGroup: 'forest_ferns_undergrowth',
+      },
+    };
+    const spec = presetMap[presetId];
+    this.floorTilingScale.set(spec.tiling);
+    this.floorBumpIntensity.set(145);
+    this.floorHeightScale.set(95);
+    this.floorSurfaceFinish.set('matte');
+    this.floorRoughness.set(88);
+    this.floorSpecularIntensity.set(12);
+    this.floorColorHex.set('#ffffff');
+    this.floorColorStrength.set(0);
+
+    const floorAsset = this.pngApi
+      .bumpHeightAssets2d()
+      .find((a) => a.id === spec.floorId);
+    if (floorAsset) {
+      this.userSelectedFloorAsset = floorAsset;
+      if (this.activeDockToolId() === 'floor-bump') {
+        this.equipAssetOnNode(floorAsset);
+      }
+    }
+    this.applyFloorTextureToScene(
+      spec.floorName,
+      spec.albedoUrl,
+      spec.normalUrl,
+      spec.heightUrl,
+    );
+
+    // Also prime the random collection for 3D ground cover stamping/scattering
+    this.objectRandomGroupId.set(spec.randomGroup);
+    if (this.activeDockToolId() === 'scatter') {
+      this.scatterRandomCollectionEnabled.set(true);
+      this.onApplyRandomGroupDefaults();
+    } else if (this.activeDockToolId() === 'objects') {
+      this.objectRandomCollectionEnabled.set(true);
+      this.onApplyRandomGroupDefaults();
+    }
+    this.pngPipelineBanner.set(
+      `Applied '${spec.floorName}' terrain field and primed randomized 3D ground cover collection.`,
+    );
+  }
+
+  private inferFallbackRandomGroup(asset: LwMapPngAssetItem): string {
+    if (asset.randomGroup) return asset.randomGroup;
+    const n = asset.name.toLowerCase();
+    const cat = asset.category.toLowerCase();
+    if (
+      asset.matVisTool === 'tiled_stamp' ||
+      asset.matVisCategory === 'floor_stamps' ||
+      n.includes('dungeon tile') ||
+      n.includes('floor tile') ||
+      n.includes('cobblestone square')
+    ) {
+      return 'floor_tiles_dungeon';
+    }
+    if (
+      n.includes('grass') ||
+      n.includes('clover') ||
+      n.includes('turf') ||
+      n.includes('lawn') ||
+      n.includes('weed') ||
+      n.includes('moss') ||
+      n.includes('ivy')
+    ) {
+      return 'grass_ground_cover';
+    }
+    if (
+      n.includes('fern') ||
+      n.includes('hosta') ||
+      n.includes('bush') ||
+      n.includes('shrub') ||
+      n.includes('plant') ||
+      n.includes('foliage')
+    ) {
+      return 'forest_ferns_undergrowth';
+    }
+    if (
+      n.includes('flower') ||
+      n.includes('lupine') ||
+      n.includes('sunflower') ||
+      n.includes('blossom')
+    ) {
+      return 'wildflowers_meadow_flora';
+    }
+    if (
+      n.includes('tree') ||
+      n.includes('birch') ||
+      n.includes('pine') ||
+      n.includes('oak') ||
+      n.includes('spruce') ||
+      n.includes('willow')
+    ) {
+      return 'forest_trees_woods';
+    }
+    if (n.includes('mushroom') || n.includes('fungi') || n.includes('crystal')) {
+      return 'mushrooms_fungi_crystals';
+    }
+    if (
+      cat.includes('rock') ||
+      n.includes('rock') ||
+      n.includes('boulder') ||
+      n.includes('stone') ||
+      n.includes('stump') ||
+      n.includes('log')
+    ) {
+      return 'rocks_boulders_stumps';
+    }
+    return 'dungeon_props_clutter';
+  }
+
+  private nextRandomCollectionAsset(groupId: string): LwMapPngAssetItem | null {
+    let bag = this.randomCollectionShuffleBags.get(groupId);
+    if (!bag || bag.length === 0) {
+      const candidates = this.pngApi
+        .pngAssets3d()
+        .filter(
+          (a) =>
+            Boolean(a.modelUrl) &&
+            !a.isFloor &&
+            (a.randomGroup || this.inferFallbackRandomGroup(a)) === groupId,
+        );
+      if (candidates.length === 0) return null;
+      bag = [...candidates];
+      for (let i = bag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = bag[i];
+        bag[i] = bag[j];
+        bag[j] = tmp;
+      }
+      this.randomCollectionShuffleBags.set(groupId, bag);
+    }
+    return bag.pop() ?? null;
   }
 
   onScatterRadiusChange(radius: number): void {

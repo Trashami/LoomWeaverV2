@@ -89,6 +89,7 @@ export interface GhostAssetConfig {
   readonly surfaceFinish?: MapObjectSurfaceFinish;
   readonly brushSharpness?: number;
   readonly terrainFeathering?: number;
+  readonly stampFillStartAnchor?: { readonly x: number; readonly z: number } | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -755,6 +756,105 @@ export class BabylonMapStageService {
     const sx = (this.ghostConfig.scaleX ?? 1) * this.ghostConfig.scale;
     const sy = (this.ghostConfig.scaleY ?? 1) * this.ghostConfig.scale;
     const sz = (this.ghostConfig.scaleZ ?? 1) * this.ghostConfig.scale;
+
+    // Area Fill (Rectangle) Ghost Preview when first corner has been clicked
+    const fillAnchor = this.ghostConfig.stampFillStartAnchor;
+    if (fillAnchor && (this.ghostConfig.kind === 'prop' || this.ghostConfig.kind === 'decal')) {
+      const stepX = Math.max(0.75, cellMeters * Math.max(0.5, sx));
+      const stepZ = Math.max(0.75, cellMeters * Math.max(0.5, sz));
+      const minX = Math.min(fillAnchor.x, gx);
+      const maxX = Math.max(fillAnchor.x, gx);
+      const minZ = Math.min(fillAnchor.z, gz);
+      const maxZ = Math.max(fillAnchor.z, gz);
+      const halfX = stepX * 0.5;
+      const halfZ = stepZ * 0.5;
+
+      const x0 = minX - halfX;
+      const x1 = maxX + halfX;
+      const z0 = minZ - halfZ;
+      const z1 = maxZ + halfZ;
+      const borderY = groundY + 0.08;
+      const borderPts = [
+        new Vector3(x0, borderY, z0),
+        new Vector3(x1, borderY, z0),
+        new Vector3(x1, borderY, z1),
+        new Vector3(x0, borderY, z1),
+        new Vector3(x0, borderY, z0),
+      ];
+      const borderLines = MeshBuilder.CreateLines(
+        'lw-ghost-fill-border',
+        { points: borderPts },
+        this.scene,
+      );
+      borderLines.color = Color3.FromHexString('#49e892');
+      borderLines.isPickable = false;
+
+      const cols = Math.min(20, Math.max(1, Math.round((maxX - minX) / stepX) + 1));
+      const rows = Math.min(20, Math.max(1, Math.round((maxZ - minZ) / stepZ) + 1));
+      const sampleCells: { cx: number; cz: number }[] = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const cx = Number((minX + c * stepX).toFixed(2));
+          const cz = Number((minZ + r * stepZ).toFixed(2));
+          sampleCells.push({ cx, cz });
+        }
+      }
+
+      // Draw per-cell footprints (up to 100 cells) and 3D ghost previews (up to 36 cells)
+      const maxFootprints = Math.min(sampleCells.length, 100);
+      for (let i = 0; i < maxFootprints; i++) {
+        const { cx, cz } = sampleCells[i];
+        const cy = TerrainMeshBuilder.sampleElevationAt(this.scene, cx, cz) + 0.06;
+        const cellQuad = [
+          new Vector3(cx - halfX * 0.94, cy, cz - halfZ * 0.94),
+          new Vector3(cx + halfX * 0.94, cy, cz - halfZ * 0.94),
+          new Vector3(cx + halfX * 0.94, cy, cz + halfZ * 0.94),
+          new Vector3(cx - halfX * 0.94, cy, cz + halfZ * 0.94),
+          new Vector3(cx - halfX * 0.94, cy, cz - halfZ * 0.94),
+        ];
+        const cellLine = MeshBuilder.CreateLines(
+          `lw-ghost-fill-cell-${i}`,
+          { points: cellQuad },
+          this.scene,
+        );
+        cellLine.color = Color3.FromHexString('#d9b77a');
+        cellLine.alpha = 0.65;
+        cellLine.isPickable = false;
+      }
+
+      if (this.ghostConfig.modelUrl) {
+        const tpl = GlbModelCache.getOrLoadTemplate(this.scene, this.ghostConfig.modelUrl, () => {
+          const h = this.hoverCoords();
+          this.updateGhostMeshAt(h.x, h.z);
+        });
+        if (tpl) {
+          const isUniform = Math.abs(sx - sy) < 0.01 && Math.abs(sy - sz) < 0.01;
+          const previewStep = Math.max(1, Math.ceil(sampleCells.length / 36));
+          for (let i = 0; i < sampleCells.length; i += previewStep) {
+            const { cx, cz } = sampleCells[i];
+            const cy = TerrainMeshBuilder.sampleElevationAt(this.scene, cx, cz);
+            const inst = GlbModelCache.instantiateClone(
+              this.scene,
+              tpl,
+              `lw-ghost-fill-glb-${i}`,
+              cellMeters * sx,
+              cellMeters * sy,
+              cellMeters * sz,
+              isUniform,
+              true,
+              undefined,
+              {
+                colorHex: this.ghostConfig.colorHex,
+                surfaceFinish: this.ghostConfig.surfaceFinish,
+              },
+            );
+            inst.position.set(cx, cy + effectiveOffsetY, cz);
+            inst.rotation.y = this.ghostConfig.rotationRad;
+          }
+        }
+      }
+      return;
+    }
 
     // Subtle ground footprint ring under the cursor for 2D/3D stamps
     const footprintRadius = Math.max(0.35, cellMeters * Math.max(sx, sz) * 0.5);

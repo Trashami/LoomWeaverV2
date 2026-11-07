@@ -57,6 +57,44 @@
       <!-- 1. FLOORING TOOL -->
       @if (effectiveMode() === 'floor-bump') {
         <div class="lw-map-inspector__section">
+          <div class="lw-map-inspector__group-box">
+            <div class="lw-map-inspector__slider-head">
+              <span class="lw-map-inspector__subhead">1-Click Grass &amp; Forest Terrain Fields</span>
+            </div>
+            <p class="lw-map-inspector__hint">
+              Instantly convert the map ground into a seamless PBR grass field or forest moss turf with matched normal relief and matte roughness.
+            </p>
+            <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="node.id === 'bump-lush-meadow-grass'"
+                (click)="applyGrassFieldPreset.emit('lush-meadow')"
+              >
+                Lush Meadow Grass Field
+              </button>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="node.id === 'bump-wildflower-grass-field'"
+                (click)="applyGrassFieldPreset.emit('wildflower-meadow')"
+              >
+                Wildflower &amp; Clover Field
+              </button>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="node.id === 'bump-forest-moss-turf'"
+                (click)="applyGrassFieldPreset.emit('forest-moss')"
+              >
+                Deep Forest Moss Turf
+              </button>
+            </div>
+          </div>
+
           <div class="lw-map-inspector__subsection">
             <h4 class="lw-map-inspector__section-title">Floor controls</h4>
             <div class="lw-map-inspector__mode-toggle">
@@ -1152,6 +1190,99 @@
             </p>
           }
 
+          @if (effectiveMode() === 'objects') {
+            <div class="lw-map-inspector__group-box">
+              <div class="lw-map-inspector__slider-head">
+                <span class="lw-map-inspector__subhead">Stamp Placement Mode</span>
+                <strong>
+                  {{ objectStampDrawMode() === 'area-fill' ? 'Fill Area (Rectangle)' : 'Single Stamp' }}
+                </strong>
+              </div>
+              <div class="lw-map-inspector__mode-toggle">
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__mode-btn"
+                  [class.lw-map-inspector__mode-btn--active]="objectStampDrawMode() === 'single'"
+                  [attr.aria-pressed]="objectStampDrawMode() === 'single'"
+                  (click)="objectStampDrawModeChange.emit('single')"
+                >
+                  <lw-icon name="layers" [size]="14" />
+                  <span>Single Stamp</span>
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__mode-btn"
+                  [class.lw-map-inspector__mode-btn--active]="objectStampDrawMode() === 'area-fill'"
+                  [attr.aria-pressed]="objectStampDrawMode() === 'area-fill'"
+                  (click)="objectStampDrawModeChange.emit('area-fill')"
+                >
+                  <lw-icon name="grid" [size]="14" />
+                  <span>Fill Area (Rectangle)</span>
+                </button>
+              </div>
+              @if (objectStampDrawMode() === 'area-fill') {
+                <p class="lw-map-inspector__hint">
+                  Click the first corner square, move your cursor to preview the tiled rectangle, and click the opposite corner to fill every square in that area.
+                </p>
+                @if (stampFillInProgress()) {
+                  <button
+                    type="button"
+                    ngpButton
+                    class="lw-map-inspector__cancel-btn"
+                    (click)="cancelPlacement.emit()"
+                  >
+                    Cancel Area Fill (Esc)
+                  </button>
+                }
+              }
+            </div>
+
+            <div class="lw-map-inspector__group-box">
+              <div class="lw-map-inspector__toggle-row">
+                <span>Cycle Random Collection on Stamp</span>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__switch"
+                  [class.lw-map-inspector__switch--on]="objectRandomCollectionEnabled()"
+                  (click)="objectRandomCollectionEnabledChange.emit(!objectRandomCollectionEnabled())"
+                >
+                  {{ objectRandomCollectionEnabled() ? 'Cycling Collection' : 'Single Asset' }}
+                </button>
+              </div>
+              <p class="lw-map-inspector__hint">
+                When enabled, each stamp (or each square in Fill Area mode) picks the next randomized 3D model from the selected collection using your shared scale, size variation, and random rotation.
+              </p>
+              @if (randomGroupOptions().length > 0) {
+                <div class="lw-map-inspector__row">
+                  <span class="lw-map-inspector__label">Collection</span>
+                  <select
+                    class="lw-map-inspector__select"
+                    aria-label="Random stamp collection group"
+                    [value]="objectRandomGroupId()"
+                    (change)="onStrInput($event, objectRandomGroupIdChange)"
+                  >
+                    @for (grp of randomGroupOptions(); track grp.id) {
+                      <option [value]="grp.id" [selected]="grp.id === objectRandomGroupId()">
+                        {{ grp.label }} ({{ grp.count }})
+                      </option>
+                    }
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__apply-btn"
+                  (click)="applyRandomGroupDefaults.emit()"
+                >
+                  Apply Collection Default Scale &amp; Randomization
+                </button>
+              }
+            </div>
+          }
+
           <!-- D. ORIENTATION & COMPASS ROTATION -->
           <div class="lw-map-inspector__group-box">
             <div class="lw-map-inspector__slider-block">
@@ -1772,6 +1903,84 @@
       <!-- 9. SURFACE SCATTER BRUSH TOOL -->
       @if (effectiveMode() === 'scatter') {
         <div class="lw-map-inspector__section">
+          <div class="lw-map-inspector__group-box">
+            <div class="lw-map-inspector__slider-head">
+              <span class="lw-map-inspector__subhead">1-Click Grass Field Terrain &amp; Ground Cover</span>
+            </div>
+            <p class="lw-map-inspector__hint">
+              Make scattered 3D grass look like a real meadow field by switching the map floor to seamless PBR grass turf and enabling multi-asset grass collection scattering.
+            </p>
+            <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                (click)="applyGrassFieldPreset.emit('lush-meadow')"
+              >
+                Lush Meadow Grass Field
+              </button>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                (click)="applyGrassFieldPreset.emit('wildflower-meadow')"
+              >
+                Wildflower &amp; Clover Field
+              </button>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                (click)="applyGrassFieldPreset.emit('forest-moss')"
+              >
+                Deep Forest Moss Turf
+              </button>
+            </div>
+          </div>
+
+          <div class="lw-map-inspector__group-box">
+            <div class="lw-map-inspector__toggle-row">
+              <span>Cycle Random Collection in Brush Stroke</span>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__switch"
+                [class.lw-map-inspector__switch--on]="scatterRandomCollectionEnabled()"
+                (click)="scatterRandomCollectionEnabledChange.emit(!scatterRandomCollectionEnabled())"
+              >
+                {{ scatterRandomCollectionEnabled() ? 'Cycling Collection' : 'Single Asset' }}
+              </button>
+            </div>
+            <p class="lw-map-inspector__hint">
+              Mixes all 3D models in the selected collection across your scatter stroke using the shared size, variation, and random rotation below.
+            </p>
+            @if (randomGroupOptions().length > 0) {
+              <div class="lw-map-inspector__row">
+                <span class="lw-map-inspector__label">Collection</span>
+                <select
+                  class="lw-map-inspector__select"
+                  aria-label="Scatter random collection group"
+                  [value]="objectRandomGroupId()"
+                  (change)="onStrInput($event, objectRandomGroupIdChange)"
+                >
+                  @for (grp of randomGroupOptions(); track grp.id) {
+                    <option [value]="grp.id" [selected]="grp.id === objectRandomGroupId()">
+                      {{ grp.label }} ({{ grp.count }})
+                    </option>
+                  }
+                </select>
+              </div>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__apply-btn"
+                (click)="applyRandomGroupDefaults.emit()"
+              >
+                Apply Collection Default Scale &amp; Randomization
+              </button>
+            }
+          </div>
+
           @if (scatterStrokes().length > 0) {
             <div class="lw-map-inspector__group-box">
               <div class="lw-map-inspector__slider-head">

@@ -38,6 +38,14 @@ export type LwCustomLightKind = MapLightFixtureKind;
 export type LwObjectPlacementMode = MapObjectPlacementMode;
 export type LwObjectSurfaceFinish = MapObjectSurfaceFinish;
 export type LwFloorBlendMode = MapFloorBlendMode;
+export type LwObjectStampDrawMode = 'single' | 'area-fill';
+export type LwGrassFieldPresetId = 'lush-meadow' | 'wildflower-meadow' | 'forest-moss';
+
+export interface LwRandomCollectionOption {
+  readonly id: string;
+  readonly label: string;
+  readonly count: number;
+}
 
 export interface LwPaintSwatch {
   readonly label: string;
@@ -242,6 +250,12 @@ export class LwMapPropertiesInspectorComponent {
   readonly selectedScatterStrokeId = input<string | null>(null);
   readonly objectRandomRotationDeg = input<number>(0);
   readonly objectRandomScalePct = input<number>(0);
+  readonly objectStampDrawMode = input<LwObjectStampDrawMode>('single');
+  readonly stampFillInProgress = input<boolean>(false);
+  readonly objectRandomCollectionEnabled = input<boolean>(false);
+  readonly scatterRandomCollectionEnabled = input<boolean>(false);
+  readonly objectRandomGroupId = input<string>('grass_ground_cover');
+  readonly randomGroupOptions = input<readonly LwRandomCollectionOption[]>([]);
 
   readonly paintSwatches = DEFAULT_OBJECT_PAINT_SWATCHES;
   readonly floorBrushSwatches = DEFAULT_FLOOR_BRUSH_SWATCHES;
@@ -337,6 +351,12 @@ export class LwMapPropertiesInspectorComponent {
   readonly scatterStrokeRemoved = output<string>();
   readonly objectRandomRotationDegChange = output<number>();
   readonly objectRandomScalePctChange = output<number>();
+  readonly objectStampDrawModeChange = output<LwObjectStampDrawMode>();
+  readonly objectRandomCollectionEnabledChange = output<boolean>();
+  readonly scatterRandomCollectionEnabledChange = output<boolean>();
+  readonly objectRandomGroupIdChange = output<string>();
+  readonly applyRandomGroupDefaults = output<void>();
+  readonly applyGrassFieldPreset = output<LwGrassFieldPresetId>();
   readonly clearScatter = output<void>();
   readonly clearWater = output<void>();
 

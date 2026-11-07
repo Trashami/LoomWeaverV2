@@ -220,6 +220,12 @@ export class LwMapPropertiesInspectorComponent {
   readonly snapToGrid = input<boolean>(true);
 
   readonly scatterDensity = input<number>(65);
+  readonly scatterScale = input<number>(2.8);
+  readonly scatterScaleJitterPct = input<number>(20);
+  readonly scatterRotationDeg = input<number>(0);
+  readonly scatterRotationJitterDeg = input<number>(360);
+  readonly objectRandomRotationDeg = input<number>(0);
+  readonly objectRandomScalePct = input<number>(0);
 
   readonly paintSwatches = DEFAULT_OBJECT_PAINT_SWATCHES;
   readonly floorBrushSwatches = DEFAULT_FLOOR_BRUSH_SWATCHES;
@@ -307,6 +313,12 @@ export class LwMapPropertiesInspectorComponent {
   readonly duplicateNode = output<void>();
   readonly deleteNode = output<void>();
   readonly scatterDensityChange = output<number>();
+  readonly scatterScaleChange = output<number>();
+  readonly scatterScaleJitterPctChange = output<number>();
+  readonly scatterRotationDegChange = output<number>();
+  readonly scatterRotationJitterDegChange = output<number>();
+  readonly objectRandomRotationDegChange = output<number>();
+  readonly objectRandomScalePctChange = output<number>();
   readonly clearScatter = output<void>();
   readonly clearWater = output<void>();
 

@@ -222,6 +222,10 @@ export interface MapScatterClusterNode {
   readonly seed: number;
   readonly modelUrl?: string;
   readonly label?: string;
+  readonly scale?: number;
+  readonly scaleJitterPct?: number;
+  readonly rotationDeg?: number;
+  readonly rotationJitterDeg?: number;
 }
 
 export interface MapSceneGraphState {

@@ -495,8 +495,7 @@ export class GlbModelCache {
       const resolvedMeta: GlbCloneMetadata = meta ?? { lwNodeName: instanceName };
       wrapper.metadata = resolvedMeta;
 
-      const ghostMat = isGhost ? this.getSharedGhostMaterial(scene) : null;
-      const paintMat = !isGhost && paint ? this.getOrCreatePaintMaterial(scene, paint) : null;
+      const paintMat = paint ? this.getOrCreatePaintMaterial(scene, paint) : null;
 
       const childMeshes: AbstractMesh[] = cloned.getChildMeshes(false);
       for (const m of childMeshes) {
@@ -504,10 +503,11 @@ export class GlbModelCache {
         m.isPickable = !isGhost && m.getTotalVertices() > 0;
         m.receiveShadows = !isGhost;
         m.metadata = resolvedMeta;
-        if (ghostMat) {
-          m.material = ghostMat;
-        } else if (paintMat) {
+        if (paintMat) {
           m.material = paintMat;
+        }
+        if (isGhost) {
+          m.visibility = 0.68;
         }
       }
     }

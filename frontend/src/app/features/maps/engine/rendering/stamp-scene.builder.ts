@@ -434,4 +434,14 @@ export class StampSceneBuilder {
       }
     }
   }
+
+  static getDecalMaterial(
+    scene: Scene,
+    texUrl: string,
+    normalUrl?: string,
+    colorHex?: string,
+    opacity?: number,
+  ): StandardMaterial {
+    return getOrCreateDecalMaterial(scene, texUrl, normalUrl, colorHex, opacity);
+  }
 }

@@ -1191,6 +1191,69 @@
 
             <div class="lw-map-inspector__slider-block">
               <div class="lw-map-inspector__slider-head">
+                <span>Random Rotation on Stamp</span>
+                <strong>
+                  {{
+                    objectRandomRotationDeg() === 0
+                      ? 'Fixed Angle (0°)'
+                      : objectRandomRotationDeg() >= 360
+                        ? 'Full Random (360°)'
+                        : '±' + (objectRandomRotationDeg() / 2).toFixed(0) + '°'
+                  }}
+                </strong>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="360"
+                step="10"
+                class="lw-map-inspector__range"
+                aria-label="Random rotation spread in degrees when stamping"
+                [value]="objectRandomRotationDeg()"
+                (input)="onNumInput($event, objectRandomRotationDegChange)"
+              />
+              <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="objectRandomRotationDeg() === 0"
+                  (click)="objectRandomRotationDegChange.emit(0)"
+                >
+                  Fixed (0°)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="objectRandomRotationDeg() === 60"
+                  (click)="objectRandomRotationDegChange.emit(60)"
+                >
+                  Subtle (±30°)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="objectRandomRotationDeg() === 180"
+                  (click)="objectRandomRotationDegChange.emit(180)"
+                >
+                  Wide (±90°)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="objectRandomRotationDeg() === 360"
+                  (click)="objectRandomRotationDegChange.emit(360)"
+                >
+                  Full 360°
+                </button>
+              </div>
+            </div>
+
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
                 <span>Lean / Tilt Pitch</span>
                 <strong>{{ node.tiltDeg ?? 0 }}°</strong>
               </div>
@@ -1324,7 +1387,7 @@
               </strong>
             </div>
 
-            <div class="lw-map-inspector__pill-group">
+            <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
               <button
                 type="button"
                 ngpButton
@@ -1334,7 +1397,7 @@
                 "
                 (click)="gridSizePresetChange.emit(1)"
               >
-                1×1×1 (5ft Default)
+                1×1×1 (5ft)
               </button>
               <button
                 type="button"
@@ -1354,21 +1417,55 @@
               >
                 3×3×3 (15ft)
               </button>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="node.scale === 4"
+                (click)="gridSizePresetChange.emit(4)"
+              >
+                4×4×4 (20ft)
+              </button>
+              <button
+                type="button"
+                ngpButton
+                class="lw-map-inspector__pill"
+                [class.lw-map-inspector__pill--active]="node.scale === 6"
+                (click)="gridSizePresetChange.emit(6)"
+              >
+                6×6×6 (30ft)
+              </button>
             </div>
 
             <div class="lw-map-inspector__slider-block">
               <div class="lw-map-inspector__slider-head">
-                <span>Overall Scale (All Axes)</span>
-                <strong>{{ node.scale.toFixed(2) }}x</strong>
+                <span>Stamp Size / Overall Scale</span>
+                <strong>{{ node.scale.toFixed(2) }}x ({{ (node.scale * 5).toFixed(0) }} ft)</strong>
               </div>
               <input
                 type="range"
                 min="0.25"
-                max="4.0"
+                max="8.0"
                 step="0.05"
                 class="lw-map-inspector__range"
                 [value]="node.scale"
                 (input)="onNumInput($event, scaleChange)"
+              />
+            </div>
+
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
+                <span>Random Size Variation on Stamp</span>
+                <strong>{{ objectRandomScalePct() }}%</strong>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="50"
+                step="5"
+                class="lw-map-inspector__range"
+                [value]="objectRandomScalePct()"
+                (input)="onNumInput($event, objectRandomScalePctChange)"
               />
             </div>
 
@@ -1380,7 +1477,7 @@
               <input
                 type="range"
                 min="0.4"
-                max="4.0"
+                max="8.0"
                 step="0.1"
                 class="lw-map-inspector__range"
                 [value]="node.scaleX ?? 1"
@@ -1396,7 +1493,7 @@
               <input
                 type="range"
                 min="0.4"
-                max="4.0"
+                max="8.0"
                 step="0.1"
                 class="lw-map-inspector__range"
                 [value]="node.scaleZ ?? 1"
@@ -1412,7 +1509,7 @@
               <input
                 type="range"
                 min="0.4"
-                max="4.0"
+                max="8.0"
                 step="0.1"
                 class="lw-map-inspector__range"
                 [value]="node.scaleY ?? 1"
@@ -1675,6 +1772,185 @@
       <!-- 9. SURFACE SCATTER BRUSH TOOL -->
       @if (effectiveMode() === 'scatter') {
         <div class="lw-map-inspector__section">
+          <div class="lw-map-inspector__group-box">
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
+                <span>Stamp Size / Scale</span>
+                <strong>{{ scatterScale().toFixed(1) }}x ({{ (scatterScale() * 5).toFixed(0) }} ft)</strong>
+              </div>
+              <input
+                type="range"
+                min="0.4"
+                max="8.0"
+                step="0.1"
+                class="lw-map-inspector__range"
+                aria-label="Scatter stamp size scale"
+                [value]="scatterScale()"
+                (input)="onNumInput($event, scatterScaleChange)"
+              />
+              <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="scatterScale() === 1"
+                  (click)="scatterScaleChange.emit(1)"
+                >
+                  1x (5ft)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="scatterScale() === 2"
+                  (click)="scatterScaleChange.emit(2)"
+                >
+                  2x (10ft)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="scatterScale() === 3"
+                  (click)="scatterScaleChange.emit(3)"
+                >
+                  3x (15ft)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="scatterScale() === 4.5"
+                  (click)="scatterScaleChange.emit(4.5)"
+                >
+                  4.5x (22ft)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="scatterScale() === 6"
+                  (click)="scatterScaleChange.emit(6)"
+                >
+                  6x (30ft)
+                </button>
+              </div>
+            </div>
+
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
+                <span>Random Size Variation</span>
+                <strong>{{ scatterScaleJitterPct() }}%</strong>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="60"
+                step="5"
+                class="lw-map-inspector__range"
+                aria-label="Random size variation percent"
+                [value]="scatterScaleJitterPct()"
+                (input)="onNumInput($event, scatterScaleJitterPctChange)"
+              />
+            </div>
+          </div>
+
+          <div class="lw-map-inspector__group-box">
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
+                <span>Base Rotation Angle</span>
+                <strong>{{ scatterRotationDeg() }}°</strong>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="360"
+                step="5"
+                class="lw-map-inspector__range"
+                aria-label="Base rotation angle in degrees"
+                [value]="scatterRotationDeg()"
+                (input)="onNumInput($event, scatterRotationDegChange)"
+              />
+              <div class="lw-map-inspector__pill-group">
+                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="scatterRotationDegChange.emit(0)">
+                  0° N
+                </button>
+                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="scatterRotationDegChange.emit(90)">
+                  90° E
+                </button>
+                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="scatterRotationDegChange.emit(180)">
+                  180° S
+                </button>
+                <button type="button" ngpButton class="lw-map-inspector__pill" (click)="scatterRotationDegChange.emit(270)">
+                  270° W
+                </button>
+              </div>
+            </div>
+
+            <div class="lw-map-inspector__slider-block">
+              <div class="lw-map-inspector__slider-head">
+                <span>Random Rotation Spread</span>
+                <strong>
+                  {{
+                    scatterRotationJitterDeg() === 0
+                      ? 'Fixed Angle (0°)'
+                      : scatterRotationJitterDeg() >= 360
+                        ? 'Full Random (360°)'
+                        : '±' + (scatterRotationJitterDeg() / 2).toFixed(0) + '°'
+                  }}
+                </strong>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="360"
+                step="10"
+                class="lw-map-inspector__range"
+                aria-label="Random rotation spread in degrees"
+                [value]="scatterRotationJitterDeg()"
+                (input)="onNumInput($event, scatterRotationJitterDegChange)"
+              />
+              <div class="lw-map-inspector__pill-group lw-map-inspector__pill-group--wrap">
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="scatterRotationJitterDeg() === 0"
+                  (click)="scatterRotationJitterDegChange.emit(0)"
+                >
+                  Fixed (0°)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="scatterRotationJitterDeg() === 60"
+                  (click)="scatterRotationJitterDegChange.emit(60)"
+                >
+                  Subtle (±30°)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="scatterRotationJitterDeg() === 180"
+                  (click)="scatterRotationJitterDegChange.emit(180)"
+                >
+                  Wide (±90°)
+                </button>
+                <button
+                  type="button"
+                  ngpButton
+                  class="lw-map-inspector__pill"
+                  [class.lw-map-inspector__pill--active]="scatterRotationJitterDeg() === 360"
+                  (click)="scatterRotationJitterDegChange.emit(360)"
+                >
+                  Full 360°
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div class="lw-map-inspector__slider-block">
             <div class="lw-map-inspector__slider-head">
               <span>Scatter Brush Radius</span>
@@ -1708,7 +1984,7 @@
           </div>
 
           <p class="lw-map-inspector__hint">
-            Drag to scatter only the selected 3D asset. Density controls the number per area. Random Y-axis rotation keeps every plant upright; size varies slightly.
+            Hover over the map to preview the 3D ghost stamp at your cursor. Adjust Stamp Size and Random Rotation above, then click or drag to scatter.
           </p>
 
           <button

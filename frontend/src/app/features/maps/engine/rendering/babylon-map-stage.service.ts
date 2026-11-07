@@ -70,6 +70,7 @@ export interface GhostAssetConfig {
   readonly normalUrl?: string;
   readonly thumbnailUrl?: string;
   readonly scale: number;
+  readonly stampScale?: number;
   readonly scaleX?: number;
   readonly scaleY?: number;
   readonly scaleZ?: number;
@@ -533,7 +534,10 @@ export class BabylonMapStageService {
       this.scene &&
       config.enabled &&
       config.modelUrl &&
-      (config.kind === 'prop' || config.kind === 'wall' || config.kind === 'door')
+      (config.kind === 'prop' ||
+        config.kind === 'scatter' ||
+        config.kind === 'wall' ||
+        config.kind === 'door')
     ) {
       GlbModelCache.getOrLoadTemplate(this.scene, config.modelUrl, () => {
         const h = this.hoverCoords();
@@ -657,6 +661,30 @@ export class BabylonMapStageService {
         innerRing.color = Color3.FromHexString('#d9b77a');
         innerRing.isPickable = false;
       }
+
+      // In Scatter mode, also render a live 3D ghost image of the stamp asset at the cursor
+      if (this.ghostConfig.kind === 'scatter' && this.ghostConfig.modelUrl) {
+        const cellMeters = TerrainMeshBuilder.getCellStepMeters();
+        const scatterDim = cellMeters * (this.ghostConfig.stampScale ?? 2.8);
+        const tpl = GlbModelCache.getOrLoadTemplate(this.scene, this.ghostConfig.modelUrl, () => {
+          const h = this.hoverCoords();
+          this.updateGhostMeshAt(h.x, h.z);
+        });
+        if (tpl) {
+          const inst = GlbModelCache.instantiateClone(
+            this.scene,
+            tpl,
+            'lw-ghost-cursor-scatter-glb',
+            scatterDim,
+            scatterDim,
+            scatterDim,
+            true,
+            true,
+          );
+          inst.position.set(gx, groundY, gz);
+          inst.rotation.y = this.ghostConfig.rotationRad;
+        }
+      }
       return;
     }
 
@@ -703,6 +731,20 @@ export class BabylonMapStageService {
     const sy = (this.ghostConfig.scaleY ?? 1) * this.ghostConfig.scale;
     const sz = (this.ghostConfig.scaleZ ?? 1) * this.ghostConfig.scale;
 
+    // Subtle ground footprint ring under the cursor for 2D/3D stamps
+    const footprintRadius = Math.max(0.35, cellMeters * Math.max(sx, sz) * 0.5);
+    const ringPts: Vector3[] = [];
+    for (let i = 0; i <= 32; i++) {
+      const a = (i / 32) * Math.PI * 2;
+      const px = gx + Math.cos(a) * footprintRadius;
+      const pz = gz + Math.sin(a) * footprintRadius;
+      const py = TerrainMeshBuilder.sampleElevationAt(this.scene, px, pz) + 0.06;
+      ringPts.push(new Vector3(px, py, pz));
+    }
+    const propRing = MeshBuilder.CreateLines('lw-ghost-prop-ring', { points: ringPts }, this.scene);
+    propRing.color = Color3.FromHexString('#49e892');
+    propRing.isPickable = false;
+
     // 2D Cutout Stamp Decal Ghost (sized 1x1 grid square by default)
     if (this.ghostConfig.kind === 'decal' && this.ghostConfig.albedoUrl) {
       const decal = MeshBuilder.CreateGround(
@@ -712,14 +754,24 @@ export class BabylonMapStageService {
       );
       decal.position.set(gx, groundY + 0.05 + effectiveOffsetY, gz);
       decal.rotation.y = this.ghostConfig.rotationRad;
-      decal.material = GlbModelCache.getSharedGhostMaterial(this.scene);
+      decal.material = StampSceneBuilder.getDecalMaterial(
+        this.scene,
+        this.ghostConfig.albedoUrl,
+        this.ghostConfig.normalUrl,
+        this.ghostConfig.colorHex,
+        1.0,
+      );
+      decal.visibility = 0.68;
       decal.isPickable = false;
       return;
     }
 
     // 3D Object Ghost (sized 1x1x1 grid square = 1.5m x 1.5m x 1.5m by default, flush on floor)
     if (this.ghostConfig.modelUrl) {
-      const tpl = GlbModelCache.getOrLoadTemplate(this.scene, this.ghostConfig.modelUrl);
+      const tpl = GlbModelCache.getOrLoadTemplate(this.scene, this.ghostConfig.modelUrl, () => {
+        const h = this.hoverCoords();
+        this.updateGhostMeshAt(h.x, h.z);
+      });
       if (tpl) {
         const isUniform =
           Math.abs(sx - sy) < 0.01 && Math.abs(sy - sz) < 0.01;
@@ -732,6 +784,11 @@ export class BabylonMapStageService {
           cellMeters * sz,
           isUniform,
           true,
+          undefined,
+          {
+            colorHex: this.ghostConfig.colorHex,
+            surfaceFinish: this.ghostConfig.surfaceFinish,
+          },
         );
         inst.position.set(gx, groundY + effectiveOffsetY, gz);
         inst.rotation.y = this.ghostConfig.rotationRad;

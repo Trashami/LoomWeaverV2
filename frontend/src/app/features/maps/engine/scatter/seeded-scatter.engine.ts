@@ -41,6 +41,7 @@ export class SeededScatterEngine {
     }
 
     let totalInstances = 0;
+    const cellMeters = TerrainMeshBuilder.getCellStepMeters();
 
     const makePrng = (initialSeed: number) => {
       let state = initialSeed || 1042;
@@ -56,7 +57,10 @@ export class SeededScatterEngine {
     if (clusters) {
       for (const cluster of clusters) {
         const nextRand = makePrng(cluster.seed);
-        const itemCount = Math.min(96, Math.max(0, Math.round(Math.PI * cluster.radius ** 2 * (cluster.density / 100) * .4)));
+        const itemCount = Math.min(
+          96,
+          Math.max(1, Math.round(Math.PI * cluster.radius ** 2 * (cluster.density / 100) * 0.4)),
+        );
         const glbTpl = cluster.modelUrl
           ? GlbModelCache.getOrLoadTemplate(scene, cluster.modelUrl, onGlbLoaded)
           : null;
@@ -68,29 +72,42 @@ export class SeededScatterEngine {
           }
           continue;
         }
+
+        const baseScale = cluster.scale ?? 2.8;
+        const scaleJitterFrac = Math.max(0, Math.min(0.85, (cluster.scaleJitterPct ?? 20) / 100));
+        const baseRotRad = ((cluster.rotationDeg ?? 0) * Math.PI) / 180;
+        const rotJitterRad = ((cluster.rotationJitterDeg ?? 360) * Math.PI) / 180;
+
         for (let j = 0; j < itemCount; j++) {
           if (totalInstances >= 1500) return totalInstances;
-          const r = Math.sqrt(nextRand()) * Math.max(0.1, cluster.radius);
+          const r =
+            itemCount === 1 && j === 0
+              ? 0
+              : Math.sqrt(nextRand()) * Math.max(0.1, cluster.radius);
           const a = nextRand() * Math.PI * 2;
           const ix = cluster.x + Math.cos(a) * r;
           const iz = cluster.z + Math.sin(a) * r;
           const gy = TerrainMeshBuilder.sampleElevationAt(scene, ix, iz);
-          const s = .85 + nextRand() * .3;
-          const rotY = nextRand() * Math.PI * 2;
+          const scaleFactor = Math.max(
+            0.25,
+            baseScale * (1 + (nextRand() * 2 - 1) * scaleJitterFrac),
+          );
+          const targetDim = cellMeters * scaleFactor;
+          const rotY = baseRotRad + (nextRand() - 0.5) * rotJitterRad;
 
           const node = GlbModelCache.instantiateClone(
             scene,
             glbTpl,
             `lw-scatter-node-${cluster.id}-${j}`,
-            1.35 * s,
-            1.35 * s,
-            1.35 * s,
+            targetDim,
+            targetDim,
+            targetDim,
             true,
             false,
           );
           node.position.set(ix, gy, iz);
           node.rotation.set(0, rotY, 0);
-          node.getChildMeshes().forEach(m => m.isPickable = false);
+          node.getChildMeshes().forEach((m) => (m.isPickable = false));
           totalInstances++;
         }
       }

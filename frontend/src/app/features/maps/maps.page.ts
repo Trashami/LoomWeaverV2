@@ -68,6 +68,7 @@ import {
   DoorSidePostStyle,
   DoorSwingDirection,
   MapFloorBlendMode,
+  MapScatterClusterNode,
   MapSceneGraphState,
   MapWallSegmentNode,
   WallDrawMode,
@@ -77,6 +78,7 @@ import { createBlankSceneGraph } from './engine/map-scene-defaults';
 import { INITIAL_SELECTED_WALL_NODE } from './engine/map-asset-fallbacks';
 import {
   BabylonMapStageService,
+  GhostAssetConfig,
   PickedSceneEntityMeta,
 } from './engine/rendering/babylon-map-stage.service';
 import { Real2dMapRenderer } from './engine/rendering/real-2d-map-renderer';
@@ -527,6 +529,15 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   readonly lightDraft = signal<LightSettings>(DEFAULT_LIGHT_SETTINGS);
 
   readonly scatterDensity = signal<number>(65);
+  readonly scatterScale = signal<number>(2.8);
+  readonly scatterScaleJitterPct = signal<number>(20);
+  readonly scatterRotationDeg = signal<number>(0);
+  readonly scatterRotationJitterDeg = signal<number>(360);
+  readonly objectRandomRotationDeg = signal<number>(0);
+  readonly objectRandomScalePct = signal<number>(0);
+  private previewedObjectRotationDeg: number | null = null;
+  private previewedObjectScaleFactor = 1.0;
+  private userCustomizedObjectScale = false;
   readonly waterEditor = new MapWaterEditor(
     () => this.sceneGraph(), update => this.commitSceneUpdate(update),
     label => this.recordHistoryBeforeEdit(label), (x,z) => this.stage.sampleWaterBankElevation(x,z),
@@ -1043,9 +1054,18 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         };
       this.userSelectedDoorAsset = doorAsset;
       this.equipAssetOnNode(doorAsset);
-    } else if (dockToolId === 'objects') {
+    } else if (dockToolId === 'objects' || dockToolId === 'scatter') {
       const objAsset =
         this.userSelectedObjectAsset ??
+        this.pngApi
+          .pngAssets3d()
+          .find(
+            (a) =>
+              !a.isFloor &&
+              !this.isWallAsset(a) &&
+              !this.isDoorAsset(a) &&
+              (dockToolId !== 'scatter' || a.category.toLowerCase().includes('nature')),
+          ) ??
         this.pngApi
           .pngAssets3d()
           .find((a) => !a.isFloor && !this.isWallAsset(a) && !this.isDoorAsset(a)) ??
@@ -1080,6 +1100,24 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
     );
     const defaultGrid = asset.defaultScaleGrid ?? [1, 1, 1];
     const hasPlacedSelection = this.selectedPlacedId() !== null;
+    const lowerName = asset.name.toLowerCase();
+    const lowerCat = asset.category.toLowerCase();
+    const isLargePropOrNature =
+      !isWall &&
+      !isDoor &&
+      !asset.isFloor &&
+      (lowerCat.includes('nature') ||
+        lowerName.includes('tree') ||
+        lowerName.includes('rock') ||
+        lowerName.includes('boulder') ||
+        lowerName.includes('mushroom') ||
+        lowerName.includes('bush') ||
+        lowerName.includes('statue') ||
+        lowerName.includes('fountain') ||
+        lowerName.includes('wagon') ||
+        lowerName.includes('cart') ||
+        lowerName.includes('tent'));
+    const defaultPropScale = isWall || isDoor ? 1.0 : isLargePropOrNature ? 2.5 : 1.6;
     this.selectedNode.update((cur) => ({
       ...cur,
       id: asset.id,
@@ -1110,7 +1148,9 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
             : -0.06
           : 0,
       connectionOverlap: cur.connectionOverlap ?? 15,
-      scale: hasPlacedSelection ? cur.scale : 1.0,
+      scale: hasPlacedSelection || (this.userCustomizedObjectScale && !isWall && !isDoor)
+        ? cur.scale
+        : defaultPropScale,
       scaleX: hasPlacedSelection ? cur.scaleX : defaultGrid[0],
       scaleY: hasPlacedSelection ? cur.scaleY : defaultGrid[1],
       scaleZ: hasPlacedSelection ? cur.scaleZ : defaultGrid[2],
@@ -1436,6 +1476,20 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
                   : isDecalStamp
                     ? 'decal'
                     : 'prop';
+    const isObjectStamp = tool === 'objects' || tool === 'annotate';
+    const effectiveObjectScale =
+      isObjectStamp && this.objectRandomScalePct() > 0
+        ? Math.max(0.25, node.scale * this.previewedObjectScaleFactor)
+        : node.scale;
+    const effectiveRotDeg =
+      tool === 'scatter'
+        ? this.scatterRotationDeg()
+        : isObjectStamp &&
+            this.objectRandomRotationDeg() > 0 &&
+            this.previewedObjectRotationDeg !== null
+          ? this.previewedObjectRotationDeg
+          : node.rotationDeg;
+
     const scale = isFloorPaint
       ? this.floorBrushRadius()
       : tool === 'terrain' || tool === 'scatter'
@@ -1443,8 +1497,8 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         : tool === 'water'
           ? this.waterWidthMeters() * 0.5
           : tool === 'door'
-              ? this.doorWidthMeters()
-              : node.scale;
+            ? this.doorWidthMeters()
+            : effectiveObjectScale;
 
     this.stage.setGhostConfig(
       {
@@ -1459,12 +1513,13 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
         normalUrl: tool === 'lighting' ? undefined : node.normalUrl,
         thumbnailUrl: tool === 'lighting' ? undefined : node.thumbnailUrl,
         scale,
+        stampScale: tool === 'scatter' ? this.scatterScale() : undefined,
         scaleX: node.scaleX ?? 1,
         scaleY: node.scaleY ?? 1,
         scaleZ: node.scaleZ ?? 1,
         offsetY: node.placementMode === 'custom' ? node.elevationY : 0,
         placementMode: node.placementMode ?? 'floor',
-        rotationRad: (node.rotationDeg * Math.PI) / 180,
+        rotationRad: (effectiveRotDeg * Math.PI) / 180,
         heightMeters: tool === 'door' ? this.doorHeightMeters() : node.heightSquares * 1.5,
         thicknessMeters: 0.45 * node.thickness,
         wallDrawMode: this.wallDrawMode(),
@@ -1553,9 +1608,25 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
             seed: Math.round(Math.abs(x * 137 + z * 293)) + cur.revision * 17,
             modelUrl: node.modelUrl,
             label: node.name,
+            scale: this.scatterScale(),
+            scaleJitterPct: this.scatterScaleJitterPct(),
+            rotationDeg: this.scatterRotationDeg(),
+            rotationJitterDeg: this.scatterRotationJitterDeg(),
           },
         ],
       }));
+      if (this.scatterRotationJitterDeg() > 0) {
+        const nextPreview = Math.round(
+          (this.scatterRotationDeg() +
+            (Math.random() - 0.5) * this.scatterRotationJitterDeg() +
+            360) %
+            360,
+        );
+        this.stage.setGhostConfig(
+          this.buildScatterPreviewGhostConfig(nextPreview),
+          this.wallStartAnchor(),
+        );
+      }
       return;
     }
 
@@ -1997,9 +2068,17 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       : placementMode === 'custom'
         ? node.elevationY
         : 0;
+    const stampedRotDeg =
+      this.objectRandomRotationDeg() > 0 && this.previewedObjectRotationDeg !== null
+        ? this.previewedObjectRotationDeg
+        : node.rotationDeg;
     const effectiveRotY = wallSnap?.snapped
       ? wallSnap.rotationYRad
-      : (node.rotationDeg * Math.PI) / 180;
+      : (stampedRotDeg * Math.PI) / 180;
+    const stampedScale =
+      this.objectRandomScalePct() > 0
+        ? Math.max(0.25, Math.round(node.scale * this.previewedObjectScaleFactor * 100) / 100)
+        : node.scale;
 
     this.recordHistoryBeforeEdit(`Place -> ${node.name}`);
     this.commitSceneUpdate((cur) => ({
@@ -2019,7 +2098,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
           z: snapped.z,
           offsetY: effectiveOffsetY,
           placementMode,
-          scale: node.scale,
+          scale: stampedScale,
           scaleX: node.scaleX ?? 1,
           scaleY: node.scaleY ?? 1,
           scaleZ: node.scaleZ ?? 1,
@@ -2042,8 +2121,9 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
       gridZ: snapped.z,
       elevationY: effectiveOffsetY,
       placementMode,
-      rotationDeg: Math.round((effectiveRotY * 180) / Math.PI),
     }));
+    this.rollNextObjectGhostVariation();
+    this.syncGhostCursorToStage();
     this.stage.focusGizmoAt(snapped.x, effectiveOffsetY + 0.1, snapped.z);
     if (wallSnap?.snapped) {
       this.pngPipelineBanner.set(`Mounted '${node.name}' flush onto wall face.`);
@@ -2681,6 +2761,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
 
   onInspectorRotationChange(rotationDeg: number): void {
     this.selectedNode.update((cur) => ({ ...cur, rotationDeg }));
+    this.rollNextObjectGhostVariation();
     this.syncGhostCursorToStage();
     if (
       this.selectedPlacedKind() === 'wall' ||
@@ -2700,6 +2781,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   onInspectorScaleChange(scale: number): void {
+    this.userCustomizedObjectScale = true;
     this.selectedNode.update((cur) => ({ ...cur, scale }));
     this.syncGhostCursorToStage();
     if (
@@ -2721,6 +2803,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
           ? { ...cur, scaleY: val }
           : { ...cur, scaleZ: val },
     );
+    this.syncGhostCursorToStage();
     this.updateTargetStamp((s) =>
       axis === 'x'
         ? { ...s, scaleX: val }
@@ -2728,6 +2811,130 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
           ? { ...s, scaleY: val }
           : { ...s, scaleZ: val },
     );
+  }
+
+  onObjectRandomRotationChange(spreadDeg: number): void {
+    const clamped = Math.max(0, Math.min(360, Math.round(spreadDeg)));
+    this.objectRandomRotationDeg.set(clamped);
+    this.rollNextObjectGhostVariation();
+    this.syncGhostCursorToStage();
+  }
+
+  onObjectRandomScaleChange(jitterPct: number): void {
+    const clamped = Math.max(0, Math.min(50, Math.round(jitterPct)));
+    this.objectRandomScalePct.set(clamped);
+    this.rollNextObjectGhostVariation();
+    this.syncGhostCursorToStage();
+  }
+
+  private rollNextObjectGhostVariation(): void {
+    const rotSpread = this.objectRandomRotationDeg();
+    if (rotSpread <= 0) {
+      this.previewedObjectRotationDeg = null;
+    } else {
+      const baseDeg = this.selectedNode().rotationDeg;
+      const delta = (Math.random() - 0.5) * rotSpread;
+      this.previewedObjectRotationDeg = Math.round((baseDeg + delta + 360) % 360);
+    }
+
+    const scaleJitter = this.objectRandomScalePct() / 100;
+    if (scaleJitter <= 0) {
+      this.previewedObjectScaleFactor = 1.0;
+    } else {
+      this.previewedObjectScaleFactor = Math.max(
+        0.35,
+        1 + (Math.random() * 2 - 1) * scaleJitter,
+      );
+    }
+  }
+
+  onScatterDensityChange(density: number): void {
+    this.scatterDensity.set(density);
+    this.updateActiveScatterClusters((c) => ({ ...c, density }));
+  }
+
+  onScatterScaleChange(scale: number): void {
+    const clamped = Math.max(0.4, Math.min(8.0, Math.round(scale * 100) / 100));
+    this.scatterScale.set(clamped);
+    this.syncGhostCursorToStage();
+    this.updateActiveScatterClusters((c) => ({ ...c, scale: clamped }));
+  }
+
+  onScatterScaleJitterChange(jitterPct: number): void {
+    const clamped = Math.max(0, Math.min(60, Math.round(jitterPct)));
+    this.scatterScaleJitterPct.set(clamped);
+    this.updateActiveScatterClusters((c) => ({ ...c, scaleJitterPct: clamped }));
+  }
+
+  onScatterRotationChange(rotDeg: number): void {
+    const clamped = ((Math.round(rotDeg) % 360) + 360) % 360;
+    this.scatterRotationDeg.set(clamped);
+    this.syncGhostCursorToStage();
+    this.updateActiveScatterClusters((c) => ({ ...c, rotationDeg: clamped }));
+  }
+
+  onScatterRotationJitterChange(spreadDeg: number): void {
+    const clamped = Math.max(0, Math.min(360, Math.round(spreadDeg)));
+    this.scatterRotationJitterDeg.set(clamped);
+    if (clamped > 0) {
+      const nextPreview = Math.round(
+        (this.scatterRotationDeg() + (Math.random() - 0.5) * clamped + 360) % 360,
+      );
+      this.stage.setGhostConfig(
+        {
+          ...this. buildScatterPreviewGhostConfig(nextPreview),
+        },
+        this.wallStartAnchor(),
+      );
+    } else {
+      this.syncGhostCursorToStage();
+    }
+    this.updateActiveScatterClusters((c) => ({ ...c, rotationJitterDeg: clamped }));
+  }
+
+  private buildScatterPreviewGhostConfig(rotDeg: number): GhostAssetConfig {
+    const node = this.selectedNode();
+    return {
+      enabled: true,
+      label: node.name,
+      kind: 'scatter',
+      modelUrl: node.modelUrl,
+      albedoUrl: node.albedoUrl,
+      normalUrl: node.normalUrl,
+      thumbnailUrl: node.thumbnailUrl,
+      scale: this.terrainBrushRadius(),
+      stampScale: this.scatterScale(),
+      scaleX: 1,
+      scaleY: 1,
+      scaleZ: 1,
+      offsetY: 0,
+      placementMode: 'floor',
+      rotationRad: (rotDeg * Math.PI) / 180,
+      heightMeters: node.heightSquares * 1.5,
+      thicknessMeters: 0.45 * node.thickness,
+      wallDrawMode: this.wallDrawMode(),
+      colorHex: node.colorHex ?? '#ffffff',
+      surfaceFinish: node.surfaceFinish ?? 'standard',
+      terrainFeathering: this.terrainFeathering(),
+    };
+  }
+
+  private updateActiveScatterClusters(
+    updater: (c: MapScatterClusterNode) => MapScatterClusterNode,
+  ): void {
+    const clusters = this.sceneGraph().scatterClusters;
+    if (!clusters || clusters.length === 0) return;
+    const activeModelUrl = this.selectedNode().modelUrl;
+    const hasMatchingModel = Boolean(
+      activeModelUrl && clusters.some((c) => c.modelUrl === activeModelUrl),
+    );
+    this.commitSceneUpdate((cur) => ({
+      ...cur,
+      revision: cur.revision + 1,
+      scatterClusters: (cur.scatterClusters ?? []).map((c) =>
+        !hasMatchingModel || c.modelUrl === activeModelUrl ? updater(c) : c,
+      ),
+    }));
   }
 
   onInspectorSecretToggle(): void {
@@ -2751,6 +2958,7 @@ export class MapsPageComponent implements AfterViewInit, OnDestroy {
   }
 
   onInspectorGridSizePreset(squares: number): void {
+    this.userCustomizedObjectScale = true;
     this.selectedNode.update((cur) => ({
       ...cur,
       scale: squares,
